@@ -1,3 +1,5 @@
+import abc
+import json
 import logging
 import os
 import select
@@ -34,122 +36,92 @@ rpwd                |   print remote directory name
 scan    [timeout]   |   scan the network for sharings"""
 # ^^ Non mi piace timeout ^^
 
-class EasyshareServerInfo:
+class EasyshareDiscoverResponse:
     def __init__(self):
         self.uri = None
-        self.hostname = None
+        self.name = None
         self.address = None
         self.port = None
         self.sharings = None
 
+    @staticmethod
+    def from_string(s):
+        try:
+            j = json.loads(s)
+            resp = EasyshareDiscoverResponse()
+            resp.uri = j["uri"]
+            resp.name = j["name"]
+            resp.address = j["address"]
+            resp.port = j["port"]
+            resp.sharings = j["sharings"]
+            return resp
+        except json.JSONDecodeError as e:
+            logging.warning("JSON decode error {%s} while decoding\n%s", e, str(s))
+            return None
 
-class EasyshareDiscoverResponseListener(threading.Thread):
-    def __init__(self, discover_handler, timeout=Conf.DISCOVER_DEFAULT_TIMEOUT_SEC):
-        threading.Thread.__init__(self)
-        # {
-        #   handle_discover_response(addr, data)
-        #   handle_discover_finished()
-        # }
-        self.discover_handler = discover_handler
-        self.timeout=timeout
+    def __str__(self):
+        return str(self.__dict__)
 
-    def run(self) -> None:
-        logging.debug("Starting DISCOVER listener")
+
+class EasyshareDiscoverer:
+    def __init__(self, handle_discover_response_callback, timeout=Conf.DISCOVER_DEFAULT_TIMEOUT_SEC):
+        self.discover_sync = None
+        self.handle_discover_response_callback = handle_discover_response_callback
+        self.timeout = timeout
+
+    def discover(self):
+        self.discover_sync = threading.Semaphore(0)
+
+        # Listening socket
+
         discover_client_addr = (ADDR_ANY, Conf.DISCOVER_PORT_CLIENT)
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        in_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Do not wait more than a certain time anyway
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO,
+        in_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO,
                         struct.pack("LL", ceil(self.timeout), 0))
-        sock.bind(discover_client_addr)
+        in_sock.bind(discover_client_addr)
+
+        # Send discover
+        discover_broadcast_address = (ADDR_BROADCAST, Conf.DISCOVER_PORT_SERVER)
+        discover_message = bytes("DISCOVER", encoding="UTF-8")
+
+        out_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        out_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        logging.debug("Sending DISCOVER message")
+        out_sock.sendto(discover_message, discover_broadcast_address)
+
+        # Listen
 
         discover_start_time = datetime.now()
 
         remaining_seconds = self.timeout
 
         while remaining_seconds > 0:
-            logging.trace("Waiting for %.2f seconds...", remaining_seconds)
+            logging.trace("Waiting for %.3f seconds...", remaining_seconds)
 
-            read_fds, write_fds, error_fds = select.select([sock], [], [], remaining_seconds)
+            read_fds, write_fds, error_fds = select.select([in_sock], [], [], remaining_seconds)
 
-            if sock in read_fds:
+            if in_sock in read_fds:
                 logging.trace("DISCOVER socket ready for recv")
-                data, addr = sock.recvfrom(1024)
+                data, addr = in_sock.recvfrom(1024)
                 logging.debug("Received DISCOVER response from: %s", addr)
-                self.discover_handler.handle_discover_response(addr, data)
+                # now = datetime.now()
+                # self.discover_handler.handle_discover_response(addr, data)
+                # logging.debug("DISCOVER response handled in %dms", (datetime.now() - now).microseconds / 1000)
+                discover_response = EasyshareDiscoverResponse.from_string(data)
+                if not self.handle_discover_response_callback(addr, discover_response):
+                    logging.trace("Stopping DISCOVER since handle_discover_response_callback returned false")
+                    return
             else:
-                logging.trace("DISCOVER timeout elapsed (%.2f)", self.timeout)
+                logging.trace("DISCOVER timeout elapsed (%.3f)", self.timeout)
 
             remaining_seconds = \
                 self.timeout - (datetime.now() - discover_start_time).total_seconds()
 
+
         logging.debug("Stopping DISCOVER listener")
-        self.discover_handler.handle_discover_finished()
 
-
-class EasyshareDiscoverer:
-    def __init__(self, timeout=Conf.DISCOVER_DEFAULT_TIMEOUT_SEC):
-        self.sharings = None
-        self.discover_sync = None
-        self.timeout = timeout
-
-    def discover(self):
-        # Start discover response deamon
-        self.sharings = []
-        self.discover_sync = threading.Semaphore(0)
-        discover_deamon = EasyshareDiscoverResponseListener(self, self.timeout)
-        discover_deamon.start()
-
-        # Send discover
-        discover_broadcast_address = (ADDR_BROADCAST, Conf.DISCOVER_PORT_SERVER)
-        discover_message = bytes("DISCOVER", encoding="UTF-8")
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        logging.debug("Sending DISCOVER message")
-        sock.sendto(discover_message, discover_broadcast_address)
-
-        # Wait until discover is finished
-        self.discover_sync.acquire()
-
-        return self.sharings
-
-    def handle_discover_response(self, client, response):
-        try:
-            logging.info("Got DISCOVER response from %s: %s", client, response)
-
-            if not response:
-                logging.warning("Received unexpected response (null response)")
-                return
-
-            response_str = str(response, encoding="UTF-8")
-            uri, hostname, port = response_str.split("\n")
-
-            if not uri.startswith("PYRO"):
-                logging.warning("Received unexpected response")
-                return
-        except Exception:
-            logging.warning("Received unexpected response")
-            return
-
-        with Pyro4.Proxy(uri) as server:
-            logging.trace("Retrieving sharings LIST from server %s(%s)", hostname, uri)
-            server_sharings = server.list_sharings()
-            logging.debug("Retrieved sharings LIST from server %s(%s)", hostname, uri)
-
-            server_info = EasyshareServerInfo()
-            server_info.uri = uri
-            server_info.hostname = hostname
-            server_info.address = client[0]
-            server_info.port = int(port)
-            server_info.sharings = server_sharings
-
-            self.sharings.append(server_info)
-
-    def handle_discover_finished(self):
-        logging.info("DISCOVER finished")
-
-        self.discover_sync.release()
 
 class EasyshareConnection:
     def __init__(self, uri):
@@ -254,28 +226,28 @@ class EasyshareClient:
         sharing_name = args[0]
         logging.info("OPEN " + sharing_name)
 
-        # Close connection if already established
-        # ...
+        server_info = None
 
-        # Discover the connection associated with the sharing name
-        sharings = EasyshareDiscoverer(Conf.DISCOVER_DEFAULT_TIMEOUT_SEC).discover()
-
-        found = False
-        for server_info in sharings:
-            for sharing in server_info.sharings:
+        def handle_discover_response(client, discover_response):
+            nonlocal server_info
+            logging.debug("handle_discover_response from %s : %s", client, str(discover_response))
+            for sharing in discover_response.sharings:
                 if sharing == sharing_name:
-                    # Found the right sharing
-                    found = True
-                    logging.debug("Sharing [%s] found at %s:%d", sharing_name, server_info.address, server_info.port)
+                    logging.debug("Sharing [%s] found at %s:%d", sharing, discover_response.address, discover_response.port)
+                    server_info = discover_response
+                    return False
 
-                    # Send OPEN
-                    self.connection = EasyshareConnection(server_info.uri)
-                    self.connection.open()
+            return True
 
+        EasyshareDiscoverer(handle_discover_response, Conf.DISCOVER_DEFAULT_TIMEOUT_SEC).discover()
 
-        if not found:
+        if not server_info:
             eprint("Not found")
+            return False
 
+        # Send OPEN
+        self.connection = EasyshareConnection(server_info.uri)
+        self.connection.open()
 
     def _execute_scan(self, args):
         timeout = Conf.DISCOVER_DEFAULT_TIMEOUT_SEC
@@ -289,70 +261,76 @@ class EasyshareClient:
             eprint(EasyshareShell.INVALID_COMMAND_SYNTAX)
             return
 
-        sharings = EasyshareDiscoverer(timeout).discover()
+        servers_info = []
+
+        def handle_discover_response(client, discover_response):
+            logging.debug("handle_discover_response from %s : %s", client, str(discover_response))
+            servers_info.append(discover_response)
+            return True
+
+        EasyshareDiscoverer(handle_discover_response, Conf.DISCOVER_DEFAULT_TIMEOUT_SEC).discover()
 
         # Print sharings
         logging.info("======================")
-        for idx, server_info in enumerate(sharings):
+        for idx, server_info in enumerate(servers_info):
             print("{} ({}:{})"
-                  .format(server_info.hostname, server_info.address, server_info.port))
+                  .format(server_info.name, server_info.address, server_info.port))
             longest_sharing_name = 0
 
-            for sharing_name, sharing_path in server_info.sharings.items():
+            for sharing_name in server_info.sharings:
                 longest_sharing_name = max(longest_sharing_name, len(sharing_name))
 
-            for sharing_name, sharing_path in server_info.sharings.items():
-                print(("  {}" + (" " * (longest_sharing_name - len(sharing_name))) + "  |  {}")
-                      .format(sharing_name, sharing_path))
+            for sharing_name in server_info.sharings:
+                print("  " + sharing_name)
 
-            if idx < len(sharings) - 1:
+            if idx < len(servers_info) - 1:
                 print("")
 
         logging.info("======================")
 
+    #
+    # def handle_discover_response(self, client, response):
+    #     try:
+    #         logging.info("Got DISCOVER response from %s: %s", client, response)
+    #
+    #         if not response:
+    #             logging.warning("Received unexpected response (null response)")
+    #             return
+    #
+    #         response_str = str(response, encoding="UTF-8")
+    #         uri, hostname, port = response_str.split("\n")
+    #
+    #         if not uri.startswith("PYRO"):
+    #             logging.warning("Received unexpected response")
+    #             return
+    #     except Exception:
+    #         logging.warning("Received unexpected response")
+    #         return
+    #
+    #     server = Pyro4.Proxy(uri)
+    #
+    #     logging.trace("Retrieving sharings LIST from server %s(%s)", hostname, uri)
+    #     server_sharings = server.list_sharings()
+    #     logging.debug("Retrieved sharings LIST from server %s(%s)", hostname, uri)
+    #
+    #     # if not hostname in self.sharings:
+    #     #     self.sharings[hostname] = {}
+    #     # self.sharings[hostname].update(server_sharings)
+    #
+    #     server_info = EasyshareServerInfo()
+    #     server_info.uri = uri
+    #     server_info.hostname = hostname
+    #     server_info.address = client[0]
+    #     server_info.port = port
+    #     server_info.sharings = server_sharings
+    #
+    #     self.sharings.append(server_info)
 
-    def handle_discover_response(self, client, response):
-        try:
-            logging.info("Got DISCOVER response from %s: %s", client, response)
-
-            if not response:
-                logging.warning("Received unexpected response (null response)")
-                return
-
-            response_str = str(response, encoding="UTF-8")
-            uri, hostname, port = response_str.split("\n")
-
-            if not uri.startswith("PYRO"):
-                logging.warning("Received unexpected response")
-                return
-        except Exception:
-            logging.warning("Received unexpected response")
-            return
-
-        server = Pyro4.Proxy(uri)
-
-        logging.trace("Retrieving sharings LIST from server %s(%s)", hostname, uri)
-        server_sharings = server.list_sharings()
-        logging.debug("Retrieved sharings LIST from server %s(%s)", hostname, uri)
-
-        # if not hostname in self.sharings:
-        #     self.sharings[hostname] = {}
-        # self.sharings[hostname].update(server_sharings)
-
-        server_info = EasyshareServerInfo()
-        server_info.uri = uri
-        server_info.hostname = hostname
-        server_info.address = client[0]
-        server_info.port = port
-        server_info.sharings = server_sharings
-
-        self.sharings.append(server_info)
-
-
-    def handle_discover_finished(self):
-        logging.info("DISCOVER finished")
-
-        self.discover_sync.release()
+    #
+    # def handle_discover_finished(self):
+    #     logging.info("DISCOVER finished")
+    #
+    #     self.discover_sync.release()
 
 # ========================
 

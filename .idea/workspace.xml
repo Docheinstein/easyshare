@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="ea95e738-b8a2-4b8b-9d45-7b381ba14ad5" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/es.py" beforeDir="false" afterPath="$PROJECT_DIR$/es.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/esd.py" beforeDir="false" afterPath="$PROJECT_DIR$/esd.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -72,7 +72,8 @@
       <workItem from="1584607486832" duration="7490000" />
       <workItem from="1584716529860" duration="13000" />
       <workItem from="1584745671532" duration="529000" />
-      <workItem from="1584780735475" duration="1730000" />
+      <workItem from="1584780735475" duration="5986000" />
+      <workItem from="1584801642130" duration="3374000" />
     </task>
     <servers />
   </component>
@@ -80,6 +81,10 @@
     <option name="version" value="1" />
   </component>
   <component name="WindowStateProjectService">
+    <state x="1279" y="307" key="#com.intellij.ide.util.MemberChooser" timestamp="1584784951550">
+      <screen x="0" y="46" width="1920" height="1034" />
+    </state>
+    <state x="1279" y="307" key="#com.intellij.ide.util.MemberChooser/0.46.1920.1034/1920.0.1920.1080@0.46.1920.1034" timestamp="1584784951550" />
     <state x="1086" y="481" key="FileChooserDialogImpl" timestamp="1584485362534">
       <screen x="0" y="46" width="1920" height="1034" />
     </state>

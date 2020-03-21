@@ -1,8 +1,10 @@
+import json
 import logging
 import sys
 import socket
 import socketserver
 import threading
+import time
 
 import Pyro4 as Pyro4
 
@@ -45,15 +47,26 @@ class EasyshareServer:
     def handle_discover_request(self, addr, data):
         logging.info("Handling DISCOVER request from %s", addr)
 
-        discover_response = "{}\n{}\n{}".format(self.uri, self.name, self.pyro_deamon.sock.getsockname()[1])
+        deamon_addr_port = self.pyro_deamon.sock.getsockname()
 
-        discovery_message = bytes(discover_response, encoding="UTF-8")
+        discover_response_content = {
+            "uri": self.uri,
+            "name": self.name,
+            "address": deamon_addr_port[0],
+            "port": deamon_addr_port[1],
+            "sharings": list(self.sharings.keys())
+        }
+
+        logging.debug("Computing DISCOVER response content:\n%s",
+                      json.dumps(discover_response_content, indent=4))
+
+        discovery_response_data = bytes(json.dumps(discover_response_content, separators=(",", ":")), encoding="UTF-8")
 
         resp_addr = (addr[0], Conf.DISCOVER_PORT_CLIENT)
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         logging.debug("Sending DISCOVER response back to %s", resp_addr)
-        sock.sendto(discovery_message, resp_addr)
+        sock.sendto(discovery_response_data, resp_addr)
 
     def start(self):
         logging.info("Starting DISCOVER deamon")
@@ -65,6 +78,7 @@ class EasyshareServer:
     @Pyro4.expose
     def list_sharings(self):
         logging.trace("<< LIST (%s)", Pyro4.current_context.client_sock_addr)
+        time.sleep(0.5)
         return self.sharings
 
     @Pyro4.expose
