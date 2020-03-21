@@ -6,6 +6,7 @@ import threading
 
 import Pyro4 as Pyro4
 
+import netutils
 from conf import Conf, LoggingLevels
 from consts import ADDR_ANY
 from log import init_logging
@@ -26,10 +27,11 @@ class EasyshareServer:
         self.discover_deamon = None
         self.sharings = {}
         self.name = socket.gethostname()
+        self.ip = netutils.get_primary_ip()
         self.clients = {}
 
     def setup(self):
-        self.pyro_deamon = Pyro4.Daemon()
+        self.pyro_deamon = Pyro4.Daemon(host=self.ip)
         self.uri = self.pyro_deamon.register(self).asString()
         logging.debug("Server registered at URI: %s", self.uri)
 
