@@ -1,7 +1,7 @@
 from typing import TypedDict, List
 
 
-class EasyshareServerInfo(TypedDict):
+class ServerInfo(TypedDict):
     uri: str
     name: str
     address: str

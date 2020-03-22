@@ -13,9 +13,9 @@ import Pyro4 as Pyro4
 import netutils
 from conf import Conf, LoggingLevels
 from consts import ADDR_ANY
-from defs import EasyshareServerIface, ResponseCode, Address
+from defs import ServerIface, Address
 from log import init_logging
-from server_response import EasyshareServerResponse, build_server_response_success, build_server_response_error
+from server_response import ServerResponse, build_server_response_success, build_server_response_error, ErrorCode
 
 
 class EasyshareClientContext:
@@ -28,7 +28,7 @@ class EasyshareClientContext:
     def __str__(self):
         return self.address + ":" + str(self.port)
 
-class EasyshareServer(EasyshareServerIface):
+class Server(ServerIface):
 
     def __init__(self):
         self.uri = None
@@ -44,12 +44,11 @@ class EasyshareServer(EasyshareServerIface):
         self.uri = self.pyro_deamon.register(self).asString()
         logging.debug("Server registered at URI: %s", self.uri)
 
-        self.discover_deamon = EasyshareDiscoverRequestListener(self.handle_discover_request)
+        self.discover_deamon = DiscoverRequestListener(self.handle_discover_request)
 
     def add_share(self, name, path):
         logging.debug("SHARING %s as [%s]", path, name)
         self.sharings[name] = path
-
 
     def handle_discover_request(self, addr, data):
         logging.info("Handling DISCOVER request from %s", addr)
@@ -90,10 +89,10 @@ class EasyshareServer(EasyshareServerIface):
     @Pyro4.expose
     def open(self, sharing):
         if not sharing:
-            return build_server_response_error(ResponseCode.INVALID_COMMAND_SYNTAX)
+            return build_server_response_error(ErrorCode.INVALID_COMMAND_SYNTAX)
 
         if sharing not in self.sharings:
-            return build_server_response_error(ResponseCode.SHARING_NOT_FOUND)
+            return build_server_response_error(ErrorCode.SHARING_NOT_FOUND)
 
         client_identifier = self._current_request_addr()
         logging.info("<< OPEN %s %s", sharing, str(client_identifier))
@@ -116,31 +115,32 @@ class EasyshareServer(EasyshareServerIface):
         pass
 
     @Pyro4.expose
-    def rpwd(self):
+    def rpwd(self) -> ServerResponse:
+        # NOT NEEDED
         logging.info("<< RPWD %s", str(self._current_request_addr()))
 
         client = self._current_request_client()
         if not client:
-            return build_server_response_error(ResponseCode.NOT_CONNECTED)
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
 
-        # return build_server_response_error(ResponseCode.NOT_CONNECTED)
-        return client.rpwd
+        return build_server_response_success(client.rpwd)
+        # return client.rpwd
 
     @Pyro4.expose
-    def rcd(self, path):
+    def rcd(self, path) -> ServerResponse:
         if not path:
-            return build_server_response_error(ResponseCode.INVALID_COMMAND_SYNTAX)
+            return build_server_response_error(ErrorCode.INVALID_COMMAND_SYNTAX)
 
         client = self._current_request_client()
         if not client:
-            return build_server_response_error(ResponseCode.NOT_CONNECTED)
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
 
         logging.info("<< RCD %s (%s)", path, str(client))
 
         base_sharing = self.sharings[client.sharing]
 
-        logging.trace("Base sharing: %s", self.sharings[client.sharing])
-        logging.trace("Current rpwd: %s", client.rpwd)
+        logging.debug("Base sharing: %s", self.sharings[client.sharing])
+        logging.debug("Current rpwd: %s", client.rpwd)
 
         if path.startswith(os.sep):
             # If path begins with / it refers to the root of the current sharing
@@ -149,22 +149,51 @@ class EasyshareServer(EasyshareServerIface):
             # Otherwise it refers to a subdirectory starting from the current rpwd
             new_rpwd = os.path.join(client.rpwd, path)
 
-        logging.trace("New rpwd: %s", new_rpwd)
+        logging.debug("New rpwd: %s", new_rpwd)
         new_rpwd = os.path.normpath(new_rpwd)
-        logging.trace("New rpwd normalized: %s", new_rpwd)
+        logging.debug("New rpwd normalized: %s", new_rpwd)
 
         full_path = os.path.join(base_sharing, new_rpwd)
-        logging.trace("New path: %s", full_path)
+        logging.debug("New path: %s", full_path)
+        full_path = os.path.normpath(full_path)
+        logging.debug("New path normalized: %s", full_path)
+
+        logging.debug("Checking validity of new path %s", full_path)
+        logging.debug("Common path: %s", os.path.commonpath([full_path, base_sharing]))
+
+        if base_sharing != os.path.commonpath([full_path, base_sharing]):
+            return build_server_response_error(ErrorCode.INVALID_PATH)
 
         logging.debug("Checking existence of new path %s", full_path)
 
         if not os.path.isdir(full_path):
             logging.error("Path does not exists")
-            return build_server_response_error(ResponseCode.INVALID_PATH)
+            return build_server_response_error(ErrorCode.INVALID_PATH)
 
-        client.rpwd = new_rpwd
+        logging.debug("Path exists, success")
 
-        return build_server_response_success({"rpwd": new_rpwd})
+        trail_rpwd = full_path.split(base_sharing)[1]
+
+        client.rpwd = trail_rpwd.lstrip(os.sep)
+        logging.debug("Trail path: %s", client.rpwd)
+
+        return build_server_response_success(client.rpwd)
+
+    @Pyro4.expose
+    def rls(self) -> ServerResponse:
+        client = self._current_request_client()
+        if not client:
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
+
+        try:
+            full_path = os.path.join(self.sharings[client.sharing], client.rpwd)
+            logging.debug("Full path: %s", full_path)
+            ls_result = sorted(os.listdir(full_path))
+            return build_server_response_success(ls_result)
+        except Exception as e:
+            logging.error("RLS error: %s", str(e))
+            return build_server_response_error(ErrorCode.COMMAND_EXECUTION_FAILED)
+
 
     def _current_request_addr(self) -> Optional[Address]:
         return Pyro4.current_context.client_sock_addr
@@ -174,7 +203,7 @@ class EasyshareServer(EasyshareServerIface):
 
 
 
-class EasyshareDiscoverRequestListener(threading.Thread):
+class DiscoverRequestListener(threading.Thread):
 
     def __init__(self, callback):
         threading.Thread.__init__(self)
@@ -196,7 +225,7 @@ class EasyshareDiscoverRequestListener(threading.Thread):
 if __name__ == "__main__":
     init_logging(level=LoggingLevels.TRACE)
 
-    server = EasyshareServer()
+    server = Server()
     server.setup()
 
     server.add_share("home", "/home/stefano")

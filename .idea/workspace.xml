@@ -6,6 +6,8 @@
       <change beforePath="$PROJECT_DIR$/defs.py" beforeDir="false" afterPath="$PROJECT_DIR$/defs.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/es.py" beforeDir="false" afterPath="$PROJECT_DIR$/es.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/esd.py" beforeDir="false" afterPath="$PROJECT_DIR$/esd.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server_info.py" beforeDir="false" afterPath="$PROJECT_DIR$/server_info.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server_response.py" beforeDir="false" afterPath="$PROJECT_DIR$/server_response.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -76,7 +78,8 @@
       <workItem from="1584780735475" duration="5986000" />
       <workItem from="1584801642130" duration="4821000" />
       <workItem from="1584824508245" duration="6658000" />
-      <workItem from="1584863874767" duration="11088000" />
+      <workItem from="1584863874767" duration="11320000" />
+      <workItem from="1584882241840" duration="6384000" />
     </task>
     <servers />
   </component>
@@ -88,6 +91,10 @@
       <screen x="0" y="46" width="1920" height="1034" />
     </state>
     <state x="1279" y="307" width="374" height="561" key="#com.intellij.ide.util.MemberChooser/0.46.1920.1034/1920.0.1920.1080@0.46.1920.1034" timestamp="1584825565376" />
+    <state x="16" y="46" key="#com.intellij.refactoring.rename.AutomaticRenamingDialog" timestamp="1584882474366">
+      <screen x="0" y="46" width="1920" height="1034" />
+    </state>
+    <state x="16" y="46" key="#com.intellij.refactoring.rename.AutomaticRenamingDialog/0.46.1920.1034/1920.0.1920.1080@0.46.1920.1034" timestamp="1584882474366" />
     <state x="1086" y="481" key="FileChooserDialogImpl" timestamp="1584485362534">
       <screen x="0" y="46" width="1920" height="1034" />
     </state>

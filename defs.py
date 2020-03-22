@@ -1,32 +1,31 @@
 from abc import ABC, abstractmethod
 from typing import Tuple
 
+from server_response import ServerResponse
+
 Address = Tuple[str, int]
 
-class EasyshareServerIface(ABC):
+class ServerIface(ABC):
     @abstractmethod
-    def list(self):
+    def list(self) -> ServerResponse:
         pass
 
     @abstractmethod
-    def open(self, sharing_name):
+    def open(self, sharing_name) -> ServerResponse:
         pass
 
     @abstractmethod
-    def close(self):
+    def close(self) -> ServerResponse:
         pass
 
     @abstractmethod
-    def rpwd(self):
+    def rpwd(self) -> ServerResponse:
         pass
 
     @abstractmethod
-    def rcd(self, path):
+    def rcd(self, path) -> ServerResponse:
         pass
 
-class ResponseCode:
-    OK = 0
-    NOT_CONNECTED = -1
-    INVALID_COMMAND_SYNTAX = -2
-    SHARING_NOT_FOUND = -3
-    INVALID_PATH = -4
+    @abstractmethod
+    def rls(self) -> ServerResponse:
+        pass
