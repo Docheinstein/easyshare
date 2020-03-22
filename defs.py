@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+from typing import Tuple
 
+Address = Tuple[str, int]
 
 class EasyshareServerIface(ABC):
     @abstractmethod
@@ -22,8 +24,9 @@ class EasyshareServerIface(ABC):
     def rcd(self, path):
         pass
 
-class EasyshareServerResponseCode:
+class ResponseCode:
     OK = 0
     NOT_CONNECTED = -1
     INVALID_COMMAND_SYNTAX = -2
     SHARING_NOT_FOUND = -3
+    INVALID_PATH = -4

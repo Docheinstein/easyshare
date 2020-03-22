@@ -10,15 +10,18 @@ import threading
 import readline
 from datetime import datetime
 from math import ceil
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, Callable, List
 
 import Pyro4
 
 from commands import Commands
 from conf import Conf, LoggingLevels
 from consts import ADDR_ANY, ADDR_BROADCAST
-from defs import EasyshareServerIface, EasyshareServerResponseCode
+from defs import EasyshareServerIface, ResponseCode, Address
 from log import init_logging
+from server_response import EasyshareServerResponse, is_server_response_success, SERVER_RESPONSE_ERROR, \
+    is_server_response_error
+from server_info import EasyshareServerInfo
 from utils import eprint, values
 
 HELP = """\
@@ -38,69 +41,68 @@ rpwd                |   print remote directory name
 scan    [timeout]   |   scan the network for sharings"""
 # ^^ Non mi piace timeout ^^
 
-SERVER_RESPONSE_ERRORS = [val for val in values(EasyshareServerResponseCode) if val < 0]
+SERVER_RESPONSE_ERRORS = [val for val in values(ResponseCode) if val < 0]
 
 SERVER_RESPONSE_ERRORS_STR = {
-    EasyshareServerResponseCode.NOT_CONNECTED: "Not connected"
+    ResponseCode.NOT_CONNECTED: "Not connected"
 }
 
 INVALID_RESPONSE = "Invalid response"
 # ^^ Find a good place ^^
 
-class EasyshareDiscoverResponse:
-    def __init__(self):
-        self.uri = None
-        self.name = None
-        self.address = None
-        self.port = None
-        self.sharings = None
-
-    @staticmethod
-    def from_string(s):
-        try:
-            j = json.loads(s)
-            resp = EasyshareDiscoverResponse()
-            resp.uri = j["uri"]
-            resp.name = j["name"]
-            resp.address = j["address"]
-            resp.port = j["port"]
-            resp.sharings = j["sharings"]
-            return resp
-        except json.JSONDecodeError as e:
-            logging.warning("JSON decode error {%s} while decoding\n%s", e, str(s))
-            return None
-
-    def __str__(self):
-        return str(self.__dict__)
+#
+# class EasyshareDiscoverResponse:
+#     def __init__(self):
+#         self.uri = None
+#         self.name = None
+#         self.address = None
+#         self.port = None
+#         self.sharings = None
+#
+#     @staticmethod
+#     def from_string(s):
+#         try:
+#             j = json.loads(s)
+#             resp = EasyshareDiscoverResponse()
+#             resp.uri = j["uri"]
+#             resp.name = j["name"]
+#             resp.address = j["address"]
+#             resp.port = j["port"]
+#             resp.sharings = j["sharings"]
+#             return resp
+#         except json.JSONDecodeError as e:
+#             logging.warning("JSON decode error {%s} while decoding\n%s", e, str(s))
+#             return None
+#
+#     def __str__(self):
+#         return str(self.__dict__)
 
 
 class EasyshareDiscoverer:
-    def __init__(self, handle_discover_response_callback, timeout=Conf.DISCOVER_DEFAULT_TIMEOUT_SEC):
-        self.discover_sync = None
-        self.handle_discover_response_callback = handle_discover_response_callback
+    def __init__(
+            self,
+            response_handler: Callable[[Address, EasyshareServerInfo], bool],
+            timeout=Conf.DISCOVER_DEFAULT_TIMEOUT_SEC):
+        self.response_handler = response_handler
         self.timeout = timeout
 
     def discover(self):
-        self.discover_sync = threading.Semaphore(0)
-
         # Listening socket
-
-        discover_client_addr = (ADDR_ANY, Conf.DISCOVER_PORT_CLIENT)
+        in_addr = (ADDR_ANY, Conf.DISCOVER_PORT_CLIENT)
 
         in_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # Do not wait more than a certain time anyway
         in_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO,
                         struct.pack("LL", ceil(self.timeout), 0))
-        in_sock.bind(discover_client_addr)
+        in_sock.bind(in_addr)
 
         # Send discover
-        discover_broadcast_address = (ADDR_BROADCAST, Conf.DISCOVER_PORT_SERVER)
+        out_addr = (ADDR_BROADCAST, Conf.DISCOVER_PORT_SERVER)
         discover_message = bytes("DISCOVER", encoding="UTF-8")
 
         out_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         out_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         logging.debug("Sending DISCOVER message")
-        out_sock.sendto(discover_message, discover_broadcast_address)
+        out_sock.sendto(discover_message, out_addr)
 
         # Listen
 
@@ -115,34 +117,51 @@ class EasyshareDiscoverer:
 
             if in_sock in read_fds:
                 logging.trace("DISCOVER socket ready for recv")
-                data, addr = in_sock.recvfrom(1024)
+                response, addr = in_sock.recvfrom(1024)
                 logging.debug("Received DISCOVER response from: %s", addr)
-                # now = datetime.now()
-                # self.discover_handler.handle_discover_response(addr, data)
-                # logging.debug("DISCOVER response handled in %dms", (datetime.now() - now).microseconds / 1000)
-                discover_response = EasyshareDiscoverResponse.from_string(data)
-                if not self.handle_discover_response_callback(addr, discover_response):
-                    logging.trace("Stopping DISCOVER since handle_discover_response_callback returned false")
-                    return
+                json_response: EasyshareServerResponse = json.loads(response)
+
+                if json_response["success"] and json_response["data"]:
+                    go_ahead = self.response_handler(addr, json_response["data"])
+
+                    if not go_ahead:
+                        logging.trace("Stopping DISCOVER since handle_discover_response_callback returned false")
+                        return
             else:
                 logging.trace("DISCOVER timeout elapsed (%.3f)", self.timeout)
 
             remaining_seconds = \
                 self.timeout - (datetime.now() - discover_start_time).total_seconds()
 
-
         logging.debug("Stopping DISCOVER listener")
 
 
 class EasyshareConnection:
-    def __init__(self, server_info, sharing):
-        self.server_info: EasyshareDiscoverResponse = server_info
-        self.server: Union[EasyshareServerIface, Any] = Pyro4.Proxy(self.server_info.uri)
-        self.sharing = sharing
-        self.c_rpwd = "/"
+    def __init__(self, server_info):
+        self.server_info: EasyshareServerInfo = server_info
+        self.server: Union[EasyshareServerIface, Any] = Pyro4.Proxy(self.server_info["uri"])
+        self.c_connected = False
+        self.c_sharing = None
+        self.c_rpwd = ""
 
-    def open(self):
-        return self.server.open(self.sharing) == EasyshareServerResponseCode.OK
+    def open(self, sharing) -> EasyshareServerResponse:
+        resp = self.server.open(sharing)
+
+        if is_server_response_success(resp):
+            self.c_connected = True
+            self.c_sharing = sharing
+
+        return resp
+
+    def rcd(self, path) -> EasyshareServerResponse:
+        if not self.c_connected:
+            return SERVER_RESPONSE_ERROR
+
+        resp = self.server.rcd(path)
+        if is_server_response_success(resp):
+            self.c_rpwd = resp["data"]["rpwd"]
+
+        return resp
 
 # ========================
 
@@ -186,7 +205,7 @@ class EasyshareClient:
             return
 
         directory = args[0]
-        logging.info("CD " + directory)
+        logging.info(">> CD " + directory)
         try:
             os.chdir(directory)
         except Exception as e:
@@ -194,19 +213,21 @@ class EasyshareClient:
             eprint(e)
 
     def _execute_rcd(self, args):
+        if len(args) <= 0:
+            eprint(EasyshareShell.INVALID_COMMAND_SYNTAX)
+            return
+
         if not self.connection:
             eprint("Not connected")
             return
 
         directory = args[0]
-        logging.info("MKDIR " + directory)
+        logging.info(">> RCD %s", directory)
 
-        resp = self.connection.server.rcd(directory)
-        if EasyshareClient.is_error(resp):
-            print(EasyshareClient.error_string(resp))
+        resp = self.connection.rcd(directory)
+        if is_server_response_error(resp):
+            print("Error...")
             return
-
-        self.connection.c_rpwd = directory
 
     def _execute_ls(self, args):
         try:
@@ -242,17 +263,21 @@ class EasyshareClient:
             eprint("Not connected")
             return
 
-        resp = self.connection.server.rpwd()
-        if EasyshareClient.is_error(resp):
-            print(EasyshareClient.error_string(resp))
-            return
+        print(self.connection.c_rpwd)
 
-        if not isinstance(resp, str):
-            logging.warning("Invalid response type: %s", type(resp))
-            print(INVALID_RESPONSE)
-            return
+        # No need to perform the request
 
-        print(resp)
+        # resp = self.connection.c_rpwd
+        # if EasyshareClient.is_error(resp):
+        #     print(EasyshareClient.error_string(resp))
+        #     return
+        #
+        # if not isinstance(resp, str):
+        #     logging.warning("Invalid response type: %s", type(resp))
+        #     print(INVALID_RESPONSE)
+        #     return
+        #
+        # print(resp)
 
     def _execute_open(self, args):
         if len(args) <= 0:
@@ -260,65 +285,66 @@ class EasyshareClient:
             return
 
         sharing_name = args[0]
-        logging.info("OPEN " + sharing_name)
+        logging.info(">> OPEN %s", sharing_name)
 
-        server_info: Optional[EasyshareDiscoverResponse] = None
+        server_info: Optional[EasyshareServerInfo] = None
 
-        def handle_discover_response(client, discover_response):
+        def response_handler(client_address: Address,
+                             a_server_info: EasyshareServerInfo) -> bool:
             nonlocal server_info
-            logging.debug("handle_discover_response from %s : %s", client, str(discover_response))
-            for sharing in discover_response.sharings:
+            logging.debug("Handling DISCOVER response from %s\n%s",
+                          str(client_address), str(a_server_info))
+            for sharing in a_server_info["sharings"]:
                 if sharing == sharing_name:
-                    logging.debug("Sharing [%s] found at %s:%d", sharing, discover_response.address, discover_response.port)
-                    server_info = discover_response
+                    logging.debug("Sharing [%s] found at %s:%d",
+                                  sharing, a_server_info["address"], a_server_info["port"])
+                    server_info = a_server_info
                     return False    # Stop DISCOVER
 
-            return True
+            return True             # Continue DISCOVER
 
-        EasyshareDiscoverer(handle_discover_response, Conf.DISCOVER_DEFAULT_TIMEOUT_SEC).discover()
+        EasyshareDiscoverer(response_handler).discover()
 
         if not server_info:
             eprint("Not found")
             return False
 
-        logging.debug("Opening connection with %s", server_info.uri)
+        if not self.connection:
+            logging.debug("Creating new connection with %s", server_info["uri"])
+            self.connection = EasyshareConnection(server_info)
+        else:
+            logging.debug("Reusing existing connection with %s", server_info["uri"])
 
         # Send OPEN
-        self.connection = EasyshareConnection(server_info, sharing_name)
 
-        self.connection.open()
-        # TODO: ^^ handle errors
+        resp = self.connection.open(sharing_name)
+        if is_server_response_success(resp):
+            logging.debug("Successfully connected to %s:%d",
+                          server_info["address"], server_info["port"])
+        else:
+            eprint("Connection error")
+            self.connection = None
 
     def _execute_scan(self, args):
+        logging.info(">> SCAN")
 
-        logging.info("SCAN")
+        servers_info: List[EasyshareServerInfo] = []
 
-        if len(args) > 0:
-            try:
-                timeout = float(args[0])
-            except:
-                eprint(EasyshareShell.INVALID_COMMAND_SYNTAX)
-                return False
-        else:
-            timeout = Conf.DISCOVER_DEFAULT_TIMEOUT_SEC
+        def response_handler(client_address: Address,
+                             server_info: EasyshareServerInfo) -> bool:
+            logging.debug("Handling DISCOVER response from %s\n%s", str(client_address), str(server_info))
+            servers_info.append(server_info)
+            return True     # Go ahead
 
-        servers_info = []
-
-        def handle_discover_response(client, discover_response):
-            logging.debug("Handling DISCOVER response from %s\n%s", client, str(discover_response))
-            servers_info.append(discover_response)
-            return True
-
-        EasyshareDiscoverer(handle_discover_response, timeout).discover()
+        EasyshareDiscoverer(response_handler).discover()
 
         # Print sharings
         logging.info("======================")
         for idx, server_info in enumerate(servers_info):
             print("{} ({}:{})"
-                  .format(server_info.name, server_info.address, server_info.port))
-            longest_sharing_name = 0
+                  .format(server_info["name"], server_info["address"], server_info["port"]))
 
-            for sharing_name in server_info.sharings:
+            for sharing_name in server_info["sharings"]:
                 print("  " + sharing_name)
 
             if idx < len(servers_info) - 1:
@@ -369,18 +395,17 @@ class EasyshareShell:
     def input_loop(self):
         command = None
         while command != Commands.EXIT:
-            prompt = self.build_prompt_string()
+            prompt = self._build_prompt_string()
             command = input(prompt)
             outcome = self.client.execute_command(command)
 
             if not outcome:
                 eprint(EasyshareShell.COMMAND_NOT_RECOGNIZED)
 
-
-    def build_prompt_string(self):
+    def _build_prompt_string(self):
         pwd = os.getcwd()
         if self.client.is_connected():
-            rpwd = self.client.connection.sharing + self.client.connection.c_rpwd
+            rpwd = os.path.join(self.client.connection.c_sharing, self.client.connection.c_rpwd)
         else:
             rpwd = None
 
