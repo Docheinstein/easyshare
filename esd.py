@@ -5,32 +5,36 @@ import socket
 import socketserver
 import threading
 import time
+from typing import Dict
 
 import Pyro4 as Pyro4
 
 import netutils
 from conf import Conf, LoggingLevels
 from consts import ADDR_ANY
+from defs import EasyshareServerIface, EasyshareServerResponseCode
 from log import init_logging
-from utils import abort
 
-class EasyshareClientInfo:
+class EasyshareClientContext:
     def __init__(self):
         self.address = None
         self.port = None
+        self.sharing = None
+        self.pwd = ""
 
     def __str__(self):
         return self.address + ":" + str(self.port)
 
-class EasyshareServer:
+class EasyshareServer(EasyshareServerIface):
+
     def __init__(self):
         self.uri = None
         self.pyro_deamon = None
         self.discover_deamon = None
-        self.sharings = {}
+        self.sharings: Dict[str, str] = {}
         self.name = socket.gethostname()
         self.ip = netutils.get_primary_ip()
-        self.clients = {}
+        self.clients: Dict[(str, int), EasyshareClientContext] = {}
 
     def setup(self):
         self.pyro_deamon = Pyro4.Daemon(host=self.ip)
@@ -76,28 +80,64 @@ class EasyshareServer:
         self.pyro_deamon.requestLoop()
 
     @Pyro4.expose
-    def list_sharings(self):
+    def list(self):
         logging.trace("<< LIST (%s)", Pyro4.current_context.client_sock_addr)
         time.sleep(0.5)
         return self.sharings
 
     @Pyro4.expose
-    def connect(self):
-        logging.trace("<< CONNECT %s", Pyro4.current_context.client_sock_addr)
+    def open(self, sharing):
+        if not sharing:
+            return EasyshareServerResponseCode.INVALID_COMMAND_SYNTAX
+
+        if sharing not in self.sharings:
+            return EasyshareServerResponseCode.SHARING_NOT_FOUND
+
+        logging.trace("<< OPEN %s", Pyro4.current_context.client_sock_addr)
         client_identifier = Pyro4.current_context.client_sock_addr
         if not client_identifier in self.clients:
-            client = EasyshareClientInfo()
+            client = EasyshareClientContext()
             client.address = client_identifier[0]
             client.port = client_identifier[1]
+            client.sharing = sharing
             self.clients[client_identifier] = client
-            logging.info("New client connected: %s", str(client))
+            logging.info("New client connected (%s) to resource %s", str(client), client.sharing)
+            return EasyshareServerResponseCode.OK
         else:
             logging.warning("Client already connected: %s", self.clients[client_identifier])
+            # TODO: switch sharing
 
+    def close(self):
+        pass
 
     @Pyro4.expose
     def rpwd(self):
         logging.trace("<< RPWD (%s)", Pyro4.current_context.client_sock_addr)
+
+        client_identifier = Pyro4.current_context.client_sock_addr
+        if not client_identifier in self.clients:
+            return EasyshareServerResponseCode.NOT_CONNECTED
+
+        client = self.clients[client_identifier]
+        return client.pwd
+        # return -2
+
+    @Pyro4.expose
+    def rcd(self, path):
+        if not path:
+            return EasyshareServerResponseCode.INVALID_COMMAND_SYNTAX
+
+        client_identifier = Pyro4.current_context.client_sock_addr
+        if not client_identifier in self.clients:
+            return EasyshareServerResponseCode.NOT_CONNECTED
+
+        logging.trace("<< RCD %s (%s)", path, Pyro4.current_context.client_sock_addr)
+
+        client = self.clients[client_identifier]
+
+        # TODO: ensure path existence
+        client.pwd = path
+        return EasyshareServerResponseCode.OK
 
 
 
