@@ -6,7 +6,6 @@
       <change beforePath="$PROJECT_DIR$/defs.py" beforeDir="false" afterPath="$PROJECT_DIR$/defs.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/es.py" beforeDir="false" afterPath="$PROJECT_DIR$/es.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/esd.py" beforeDir="false" afterPath="$PROJECT_DIR$/esd.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server_info.py" beforeDir="false" afterPath="$PROJECT_DIR$/server_info.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server_response.py" beforeDir="false" afterPath="$PROJECT_DIR$/server_response.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -79,7 +78,8 @@
       <workItem from="1584801642130" duration="4821000" />
       <workItem from="1584824508245" duration="6658000" />
       <workItem from="1584863874767" duration="11320000" />
-      <workItem from="1584882241840" duration="6384000" />
+      <workItem from="1584882241840" duration="6551000" />
+      <workItem from="1584909557596" duration="4257000" />
     </task>
     <servers />
   </component>

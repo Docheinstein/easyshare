@@ -29,3 +29,7 @@ class ServerIface(ABC):
     @abstractmethod
     def rls(self) -> ServerResponse:
         pass
+
+    @abstractmethod
+    def rmkdir(self, directory) -> ServerResponse:
+        pass

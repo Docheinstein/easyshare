@@ -18,7 +18,7 @@ from log import init_logging
 from server_response import ServerResponse, build_server_response_success, build_server_response_error, ErrorCode
 
 
-class EasyshareClientContext:
+class ClientContext:
     def __init__(self):
         self.address = None
         self.port = None
@@ -37,7 +37,7 @@ class Server(ServerIface):
         self.sharings: Dict[str, str] = {}
         self.name = socket.gethostname()
         self.ip = netutils.get_primary_ip()
-        self.clients: Dict[(str, int), EasyshareClientContext] = {}
+        self.clients: Dict[(str, int), ClientContext] = {}
 
     def setup(self):
         self.pyro_deamon = Pyro4.Daemon(host=self.ip)
@@ -99,7 +99,7 @@ class Server(ServerIface):
 
         client = self._current_request_client()
         if not client:
-            client = EasyshareClientContext()
+            client = ClientContext()
             client.address = client_identifier[0]
             client.port = client_identifier[1]
             client.sharing = sharing
@@ -163,7 +163,7 @@ class Server(ServerIface):
 
         if base_sharing != os.path.commonpath([full_path, base_sharing]):
             return build_server_response_error(ErrorCode.INVALID_PATH)
-
+        # TODO: fix^^
         logging.debug("Checking existence of new path %s", full_path)
 
         if not os.path.isdir(full_path):
@@ -185,23 +185,68 @@ class Server(ServerIface):
         if not client:
             return build_server_response_error(ErrorCode.NOT_CONNECTED)
 
+        logging.info("<< RLS (%s)",  str(client))
+
         try:
-            full_path = os.path.join(self.sharings[client.sharing], client.rpwd)
-            logging.debug("Full path: %s", full_path)
+            full_path = self._client_path(client)
+
+            logging.debug("Going to ls on %s", full_path)
+
+            if not self._is_path_valid_for_client(full_path, client):
+                return build_server_response_error(ErrorCode.INVALID_PATH)
+
             ls_result = sorted(os.listdir(full_path))
             return build_server_response_success(ls_result)
         except Exception as e:
             logging.error("RLS error: %s", str(e))
             return build_server_response_error(ErrorCode.COMMAND_EXECUTION_FAILED)
 
+    @Pyro4.expose
+    def rmkdir(self, directory) -> ServerResponse:
+        client = self._current_request_client()
+        if not client:
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
+
+        logging.info("<< RMKDIR %s (%s)", directory, str(client))
+
+        try:
+            full_path = os.path.join(self._client_path(client), directory)
+
+            logging.debug("Going to mkdir on %s", full_path)
+
+            if not self._is_path_valid_for_client(full_path, client):
+                return build_server_response_error(ErrorCode.INVALID_PATH)
+
+            os.mkdir(full_path)
+            return build_server_response_success()
+        except Exception as e:
+            logging.error("RMKDIR error: %s", str(e))
+            return build_server_response_error(ErrorCode.COMMAND_EXECUTION_FAILED)
 
     def _current_request_addr(self) -> Optional[Address]:
         return Pyro4.current_context.client_sock_addr
 
-    def _current_request_client(self) -> Optional[EasyshareClientContext]:
+    def _current_request_client(self) -> Optional[ClientContext]:
         return self.clients.get(self._current_request_addr())
 
+    def _client_path(self, client: ClientContext):
+        if client.sharing not in self.sharings:
+            return None
+        return os.path.join(self.sharings[client.sharing], client.rpwd)
 
+    def _is_path_valid_for_client(self, path: str, client: ClientContext):
+        if client.sharing not in self.sharings:
+            logging.warning("Sharing not found %s", client.sharing)
+            return False
+
+        normalized_path = os.path.normpath(path)
+        sharing_path = self.sharings[client.sharing]
+        common_path = os.path.commonpath([normalized_path, sharing_path])
+
+        logging.debug("Common path between '%s' and '%s' = '%s'",
+                      normalized_path, sharing_path, common_path)
+
+        return sharing_path == common_path
 
 class DiscoverRequestListener(threading.Thread):
 

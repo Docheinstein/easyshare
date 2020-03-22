@@ -1,9 +1,5 @@
 from typing import Optional, Any, TypedDict
 
-SERVER_RESPONSE_SUCCESS = {"success": True}
-SERVER_RESPONSE_ERROR = {"success": False}
-
-
 class ServerResponse(TypedDict):
     success: str
     error: Optional[int]
@@ -18,7 +14,7 @@ def build_server_response_success(data=None):
             "data": data
         }
 
-    return SERVER_RESPONSE_SUCCESS
+    return {"success": True}
 
 
 def build_server_response_error(error_code=None):
@@ -28,7 +24,7 @@ def build_server_response_error(error_code=None):
             "error": error_code
         }
 
-    return SERVER_RESPONSE_ERROR
+    return {"success": False}
 
 
 def is_server_response_success(j: dict):

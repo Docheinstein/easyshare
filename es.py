@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import select
+import signal
 import socket
 import struct
 import sys
@@ -20,8 +21,8 @@ from consts import ADDR_ANY, ADDR_BROADCAST
 from defs import ServerIface, Address
 from globals import HOME
 from log import init_logging
-from server_response import ServerResponse, is_server_response_success, SERVER_RESPONSE_ERROR, \
-    is_server_response_error, ErrorCode, ErrorCode
+from server_response import ServerResponse, is_server_response_success, \
+    is_server_response_error, ErrorCode, build_server_response_error
 from server_info import ServerInfo
 from utils import eprint, values
 
@@ -151,7 +152,7 @@ class Connection:
 
     def rcd(self, path) -> ServerResponse:
         if not self.c_connected:
-            return SERVER_RESPONSE_ERROR
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
 
         resp = self.server.rcd(path)
         if is_server_response_success(resp):
@@ -161,9 +162,15 @@ class Connection:
 
     def rls(self) -> ServerResponse:
         if not self.c_connected:
-            return SERVER_RESPONSE_ERROR
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
 
         return self.server.rls()
+
+    def rmkdir(self, directory) -> ServerResponse:
+        if not self.c_connected:
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
+
+        return self.server.rmkdir(directory)
 
 
 # ========================
@@ -174,11 +181,13 @@ class Client:
         # self.pwd = os.getcwd()
         self.command_dispatcher = {
             Commands.HELP: self._execute_help,
+            Commands.EXIT: self._execute_exit,
             Commands.LOCAL_CHANGE_DIRECTORY: self._execute_cd,
             Commands.REMOTE_CHANGE_DIRECTORY: self._execute_rcd,
             Commands.LOCAL_LIST_DIRECTORY: self._execute_ls,
             Commands.REMOTE_LIST_DIRECTORY: self._execute_rls,
             Commands.LOCAL_CREATE_DIRECTORY: self._execute_mkdir,
+            Commands.REMOTE_CREATE_DIRECTORY: self._execute_rmkdir,
             Commands.LOCAL_CURRENT_DIRECTORY: self._execute_pwd,
             Commands.REMOTE_CURRENT_DIRECTORY: self._execute_rpwd,
             Commands.OPEN: self._execute_open,
@@ -204,6 +213,9 @@ class Client:
 
     def _execute_help(self, _):
         print(HELP)
+
+    def _execute_exit(self, _):
+        pass
 
     def _execute_cd(self, args):
         directory = args[0] if len(args) > 0 else HOME
@@ -263,11 +275,31 @@ class Client:
             return
 
         directory = args[0]
-        logging.info(">> MKDIR " + directory)
+        logging.info(">> RMKDIR " + directory)
         try:
             os.mkdir(directory)
         except Exception as e:
             error_print(ErrorCode.COMMAND_EXECUTION_FAILED)
+
+    def _execute_rmkdir(self, args):
+        if not self.connection:
+            error_print(ErrorCode.NOT_CONNECTED)
+            return
+
+        if len(args) <= 0:
+            eprint(ErrorCode.INVALID_COMMAND_SYNTAX)
+            return
+
+        directory = args[0]
+        logging.info(">> RMKDIR " + directory)
+
+        resp = self.connection.rmkdir(directory)
+        if is_server_response_success(resp):
+            logging.debug("Successfully RMKDIRed")
+            pass
+        else:
+            response_error_print(resp)
+
 
     def _execute_pwd(self, args):
         logging.info(">> PWD")
@@ -372,6 +404,7 @@ class Shell:
     def setup(self):
         readline.set_completer(self.next_suggestion)
         readline.parse_and_bind("tab: complete")
+        # signal.signal(signal.SIGINT, self.handle_ctrl_c)
 
     def next_suggestion(self, text, state):
         if state == 0:
@@ -379,16 +412,26 @@ class Shell:
         if len(self.available_commands) > 0:
             return self.available_commands.pop()
         return None
+    #
+    # def handle_ctrl_c(self, sig, frame):
+    #     pass
 
     def input_loop(self):
         command = None
         while command != Commands.EXIT:
-            prompt = self._build_prompt_string()
-            command = input(prompt)
-            outcome = self.client.execute_command(command)
+            try:
+                prompt = self._build_prompt_string()
+                command = input(prompt)
+                outcome = self.client.execute_command(command)
 
-            if not outcome:
-                error_print(ErrorCode.COMMAND_NOT_RECOGNIZED)
+                if not outcome:
+                    error_print(ErrorCode.COMMAND_NOT_RECOGNIZED)
+            except KeyboardInterrupt:
+                print()
+            except EOFError:
+                logging.debug("CTRL+D detected: exiting")
+                break
+
 
     def _build_prompt_string(self):
         pwd = os.getcwd()
