@@ -33,3 +33,11 @@ class ServerIface(ABC):
     @abstractmethod
     def rmkdir(self, directory) -> ServerResponse:
         pass
+
+    @abstractmethod
+    def get(self, files) -> ServerResponse:
+        pass
+
+    @abstractmethod
+    def get_next(self, transaction) -> ServerResponse:
+        pass

@@ -1,14 +1,16 @@
 import json
 import logging
 import os
+import random
 import sys
 import socket
 import socketserver
 import threading
 import time
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 import Pyro4 as Pyro4
+from Pyro4 import socketutil
 
 import netutils
 from conf import Conf, LoggingLevels
@@ -16,6 +18,7 @@ from consts import ADDR_ANY
 from defs import ServerIface, Address
 from log import init_logging
 from server_response import ServerResponse, build_server_response_success, build_server_response_error, ErrorCode
+from utils import random_string
 
 
 class ClientContext:
@@ -37,7 +40,10 @@ class Server(ServerIface):
         self.sharings: Dict[str, str] = {}
         self.name = socket.gethostname()
         self.ip = netutils.get_primary_ip()
+        # self.ip = socketutil.getInterfaceAddress()
         self.clients: Dict[(str, int), ClientContext] = {}
+
+        self.gets: Dict[str, List[str]] = {}    # transaction -> list of remaining files
 
     def setup(self):
         self.pyro_deamon = Pyro4.Daemon(host=self.ip)
@@ -137,45 +143,22 @@ class Server(ServerIface):
 
         logging.info("<< RCD %s (%s)", path, str(client))
 
-        base_sharing = self.sharings[client.sharing]
+        new_path = self._path_for_client(client, path)
 
-        logging.debug("Base sharing: %s", self.sharings[client.sharing])
-        logging.debug("Current rpwd: %s", client.rpwd)
+        logging.debug("Sharing path: %s", new_path)
 
-        if path.startswith(os.sep):
-            # If path begins with / it refers to the root of the current sharing
-            new_rpwd = path.lstrip(os.sep)
-        else:
-            # Otherwise it refers to a subdirectory starting from the current rpwd
-            new_rpwd = os.path.join(client.rpwd, path)
-
-        logging.debug("New rpwd: %s", new_rpwd)
-        new_rpwd = os.path.normpath(new_rpwd)
-        logging.debug("New rpwd normalized: %s", new_rpwd)
-
-        full_path = os.path.join(base_sharing, new_rpwd)
-        logging.debug("New path: %s", full_path)
-        full_path = os.path.normpath(full_path)
-        logging.debug("New path normalized: %s", full_path)
-
-        logging.debug("Checking validity of new path %s", full_path)
-        logging.debug("Common path: %s", os.path.commonpath([full_path, base_sharing]))
-
-        if base_sharing != os.path.commonpath([full_path, base_sharing]):
+        if not self._is_path_valid_for_client(new_path, client):
+            logging.error("Path is invalid (out of sharing domain)")
             return build_server_response_error(ErrorCode.INVALID_PATH)
-        # TODO: fix^^
-        logging.debug("Checking existence of new path %s", full_path)
 
-        if not os.path.isdir(full_path):
+        if not os.path.isdir(new_path):
             logging.error("Path does not exists")
             return build_server_response_error(ErrorCode.INVALID_PATH)
 
         logging.debug("Path exists, success")
 
-        trail_rpwd = full_path.split(base_sharing)[1]
-
-        client.rpwd = trail_rpwd.lstrip(os.sep)
-        logging.debug("Trail path: %s", client.rpwd)
+        client.rpwd = self._trailing_path_for_client(client, new_path)
+        logging.debug("New rpwd: %s", client.rpwd)
 
         return build_server_response_success(client.rpwd)
 
@@ -183,12 +166,13 @@ class Server(ServerIface):
     def rls(self) -> ServerResponse:
         client = self._current_request_client()
         if not client:
+            logging.warning("Not connected: %s", self._current_request_addr())
             return build_server_response_error(ErrorCode.NOT_CONNECTED)
 
         logging.info("<< RLS (%s)",  str(client))
 
         try:
-            full_path = self._client_path(client)
+            full_path = self._current_client_path(client)
 
             logging.debug("Going to ls on %s", full_path)
 
@@ -210,7 +194,7 @@ class Server(ServerIface):
         logging.info("<< RMKDIR %s (%s)", directory, str(client))
 
         try:
-            full_path = os.path.join(self._client_path(client), directory)
+            full_path = os.path.join(self._current_client_path(client), directory)
 
             logging.debug("Going to mkdir on %s", full_path)
 
@@ -223,16 +207,130 @@ class Server(ServerIface):
             logging.error("RMKDIR error: %s", str(e))
             return build_server_response_error(ErrorCode.COMMAND_EXECUTION_FAILED)
 
+    @Pyro4.expose
+    def get(self, files) -> ServerResponse:
+        client = self._current_request_client()
+        if not client:
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
+
+        logging.info("<< GET %s (%s)", str(files), str(client))
+
+        # Compute real path for each filename
+        normalized_files = []
+        for f in files:
+            normalized_files.append(self._path_for_client(client, f))
+
+        logging.debug("Normalized files:\n%s", normalized_files)
+
+        # Return a transaction ID for identify the transfer
+        transaction = random_string()
+
+        self.gets[transaction] = normalized_files
+        return build_server_response_success({"transaction": transaction})
+
+        # Check validity for each file
+
+        # for root, directories, files in os.walk(client_path):
+        #     for directory in directories:
+        #         f = os.path.join(root, directory)
+        #         files_set.intersection()
+        #
+        #         print(os.path.join(root, directory))
+        #     for file in files:
+        #         print(os.path.join(root, file))
+
+    @Pyro4.expose
+    def get_next(self, transaction) -> ServerResponse:
+        client = self._current_request_client()
+        if not client:
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
+
+        logging.info("<< GET_NEXT %s (%s)", transaction, str(client))
+
+        if transaction not in self.gets:
+            return build_server_response_error(ErrorCode.INVALID_TRANSACTION)
+
+        remaining_files = self.gets[transaction]
+
+        # if len(self.gets[transaction]) == 0:
+        #     return build_server_response_success()  # Nothing else
+
+        while len(remaining_files) > 0:
+
+            # Get next file (or dir)
+            next_file_path = self.gets[transaction].pop()
+
+            logging.debug("Next file path: %s", next_file_path)
+
+            # Check domain validity
+            if not self._is_path_valid_for_client(next_file_path, client):
+                logging.warning("Invalid file found: skipping %s", next_file_path)
+                continue
+
+            if os.path.isdir(next_file_path):
+                logging.debug("Found a directory: adding all inner files to remaining_files")
+                for f in os.listdir(next_file_path):
+                    f_path = os.path.join(next_file_path, f)
+                    logging.debug("Adding %s", f_path)
+                    remaining_files.append(f_path)
+                continue
+
+            if not os.path.isfile(next_file_path):
+                logging.warning("Not file nor dir? skipping")
+                continue
+
+            # We are handling a valid file, report the metadata to the client
+            logging.debug("NEXT FILE: %s", next_file_path)
+
+            trail = self._trailing_path_for_client(client, next_file_path)
+            logging.debug("Trail: %s", trail)
+
+            return build_server_response_success({
+                "filename": trail,
+                "length": os.path.getsize(next_file_path)
+            })
+
+        logging.debug("No remaining files")
+        return build_server_response_success()
+
     def _current_request_addr(self) -> Optional[Address]:
         return Pyro4.current_context.client_sock_addr
 
     def _current_request_client(self) -> Optional[ClientContext]:
         return self.clients.get(self._current_request_addr())
 
-    def _client_path(self, client: ClientContext):
-        if client.sharing not in self.sharings:
+    def _client_sharing_path(self, client: ClientContext):
+        return self.sharings.get(client.sharing)
+
+    def _current_client_path(self, client: ClientContext):
+        sharing_path = self._client_sharing_path(client)
+
+        if not sharing_path:
             return None
-        return os.path.join(self.sharings[client.sharing], client.rpwd)
+
+        return os.path.join(sharing_path, client.rpwd)
+
+    def _path_for_client(self, client: ClientContext, path: str):
+        sharing_path = self._client_sharing_path(client)
+
+        if not sharing_path:
+            return None
+
+        if path.startswith(os.sep):
+            # If path begins with / it refers to the root of the current sharing
+            trail = path.lstrip(os.sep)
+        else:
+            # Otherwise it refers to a subdirectory starting from the current rpwd
+            trail = os.path.join(client.rpwd, path)
+
+        return os.path.normpath(os.path.join(sharing_path, trail))
+
+    def _trailing_path_for_client(self, client: ClientContext, path: str):
+        # with [home] = /home/stefano
+        #   /home/stefano/Applications -> Applications
+        return path.split(self._client_sharing_path(client))[1].lstrip(os.sep)
+
+
 
     def _is_path_valid_for_client(self, path: str, client: ClientContext):
         if client.sharing not in self.sharings:

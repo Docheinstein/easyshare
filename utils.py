@@ -1,4 +1,6 @@
 import logging
+import random
+import string
 import sys
 
 
@@ -40,3 +42,7 @@ def values(obj):
 
 def keys(obj):
     return [k for k, v in obj.__dict__.items() if not k.startswith("__")]
+
+def random_string(length=16):
+    alphabet = string.ascii_letters + string.digits
+    return "".join([random.choice(alphabet) for _ in range(length)])

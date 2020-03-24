@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import select
+import shlex
 import signal
 import socket
 import struct
@@ -50,7 +51,10 @@ ERRORS_STR = {
     ErrorCode.SHARING_NOT_FOUND: "Sharing not found",
     ErrorCode.INVALID_PATH: "Invalid path",
     ErrorCode.COMMAND_NOT_RECOGNIZED: "Command not recognized",
-    ErrorCode.COMMAND_EXECUTION_FAILED: "Command execution failed"
+    ErrorCode.COMMAND_EXECUTION_FAILED: "Command execution failed",
+    ErrorCode.NOT_IMPLEMENTED: "Not implemented",
+    ErrorCode.INVALID_TRANSACTION: "Invalid transaction",
+    ErrorCode.UNEXPECTED_SERVER_RESPONSE: "Unexpected server response"
 }
 
 
@@ -128,6 +132,7 @@ class Discoverer:
 
 class Connection:
     def __init__(self, server_info):
+        logging.trace("Initializing new Connection")
         self.server_info: ServerInfo = server_info
         self.server: Union[ServerIface, Any] = Pyro4.Proxy(self.server_info["uri"])
         self.c_connected = False
@@ -135,6 +140,7 @@ class Connection:
         self.c_rpwd = ""
 
     def is_connected(self):
+        logging.debug("c_connected: %d", self.c_connected)
         return self.c_connected
 
     def sharing_rpwd(self):
@@ -172,6 +178,18 @@ class Connection:
 
         return self.server.rmkdir(directory)
 
+    def get(self, files) -> ServerResponse:
+        if not self.c_connected:
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
+
+        return self.server.get(files)
+
+    def get_next(self, transaction) -> ServerResponse:
+        if not self.c_connected:
+            return build_server_response_error(ErrorCode.NOT_CONNECTED)
+
+        return self.server.get_next(transaction)
+
 
 # ========================
 
@@ -190,25 +208,27 @@ class Client:
             Commands.REMOTE_CREATE_DIRECTORY: self._execute_rmkdir,
             Commands.LOCAL_CURRENT_DIRECTORY: self._execute_pwd,
             Commands.REMOTE_CURRENT_DIRECTORY: self._execute_rpwd,
+            Commands.GET: self._execute_get,
             Commands.OPEN: self._execute_open,
             Commands.SCAN: self._execute_scan
         }
 
     def execute_command(self, full_command):
-        full_command = full_command.split()
+        full_command_parts = shlex.split(full_command)
         if len(full_command) < 1:
             return False
 
-        command = full_command[0]
-        command_args = full_command[1:]
+        command = full_command_parts[0]
+        command_args = full_command_parts[1:]
         if command in self.command_dispatcher:
-            logging.trace("Handling command {%s}" % command)
+            logging.trace("Handling command %s%s", command, command_args)
             self.command_dispatcher[command](command_args)
             return True
         else:
             return False
 
     def is_connected(self):
+        logging.trace("self.connection = %d", True if self.connection else False)
         return self.connection and self.connection.is_connected()
 
     def _execute_help(self, _):
@@ -244,7 +264,7 @@ class Client:
             logging.debug("Successfully RCDed")
             pass
         else:
-            response_error_print(resp)
+            self._handle_error_response(resp)
 
     def _execute_ls(self, args):
         logging.info(">> LS")
@@ -267,7 +287,7 @@ class Client:
             for f in resp["data"]:
                 print(f)
         else:
-            response_error_print(resp)
+            self._handle_error_response(resp)
 
     def _execute_mkdir(self, args):
         if len(args) <= 0:
@@ -298,7 +318,7 @@ class Client:
             logging.debug("Successfully RMKDIRed")
             pass
         else:
-            response_error_print(resp)
+            self._handle_error_response(resp)
 
 
     def _execute_pwd(self, args):
@@ -311,7 +331,7 @@ class Client:
 
     def _execute_rpwd(self, args):
         if not self.connection:
-            eprint("Not connected")
+            error_print(ErrorCode.NOT_CONNECTED)
             return
 
         logging.info(">> RPWD")
@@ -360,7 +380,7 @@ class Client:
             logging.debug("Successfully connected to %s:%d",
                           server_info["address"], server_info["port"])
         else:
-            response_error_print(resp)
+            self._handle_error_response(resp)
             self.connection = None
 
     def _execute_scan(self, args):
@@ -388,6 +408,47 @@ class Client:
             if idx < len(servers_info) - 1:
                 print("")
         logging.info("======================")
+
+    def _execute_get(self, args):
+        if not self.connection:
+            error_print(ErrorCode.NOT_CONNECTED)
+            return
+
+        logging.info(">> GET %s", ", ".join(args))
+        resp = self.connection.get(args)
+
+        if "data" not in resp or "transaction" not in resp["data"]:
+            error_print(ErrorCode.UNEXPECTED_SERVER_RESPONSE)
+            return
+
+        transaction = resp["data"]["transaction"]
+
+        if is_server_response_success(resp):
+            logging.debug("Successfully GETed")
+
+            while True:
+                get_next_resp = self.connection.get_next(transaction)
+                logging.debug("get_next()\n%s", get_next_resp)
+
+                if "data" not in get_next_resp:
+                    error_print(ErrorCode.UNEXPECTED_SERVER_RESPONSE)
+                    return
+
+                next_file = get_next_resp["data"]
+                if not next_file:
+                    logging.debug("Nothing more to GET")
+                    break
+
+                logging.debug("NEXT: %s", next_file)
+        else:
+            self._handle_error_response(resp)
+
+    def _handle_error_response(self, resp: ServerResponse):
+        if resp["error"] == ErrorCode.NOT_CONNECTED:
+            logging.debug("Received a NOT_CONNECTED response: destroying connection")
+            self.connection = None
+        response_error_print(resp)
+
 
 # ========================
 
@@ -427,6 +488,7 @@ class Shell:
                 if not outcome:
                     error_print(ErrorCode.COMMAND_NOT_RECOGNIZED)
             except KeyboardInterrupt:
+                logging.debug("CTRL+C detected")
                 print()
             except EOFError:
                 logging.debug("CTRL+D detected: exiting")
