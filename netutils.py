@@ -11,3 +11,5 @@ def get_primary_ip():
     finally:
         s.close()
     return IP
+
+# def create_socket():

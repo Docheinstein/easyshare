@@ -10,6 +10,7 @@ import struct
 import sys
 import threading
 import readline
+import time
 from datetime import datetime
 from math import ceil
 from typing import Optional, Union, Any, Callable, List
@@ -416,17 +417,26 @@ class Client:
 
         logging.info(">> GET %s", ", ".join(args))
         resp = self.connection.get(args)
+        logging.debug("GET response\n%s", resp)
 
-        if "data" not in resp or "transaction" not in resp["data"]:
+        if "data" not in resp or \
+                "transaction" not in resp["data"] or \
+                "port" not in resp["data"]:
             error_print(ErrorCode.UNEXPECTED_SERVER_RESPONSE)
             return
 
         transaction = resp["data"]["transaction"]
+        port = resp["data"]["port"]
 
         if is_server_response_success(resp):
             logging.debug("Successfully GETed")
 
+            transfer_socket = None
+            transfer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            transfer_socket.connect((self.connection.server_info["address"], port))
+
             while True:
+                logging.debug("Fetching another file info")
                 get_next_resp = self.connection.get_next(transaction)
                 logging.debug("get_next()\n%s", get_next_resp)
 
@@ -435,11 +445,61 @@ class Client:
                     return
 
                 next_file = get_next_resp["data"]
-                if not next_file:
+
+                if next_file == "ok":
                     logging.debug("Nothing more to GET")
                     break
 
                 logging.debug("NEXT: %s", next_file)
+                file_len = next_file["length"]
+                file_name = next_file["filename"]
+
+                # Create the file
+                logging.debug("Creating intermediate dirs locally")
+                head, tail = os.path.split(file_name)
+                os.makedirs(head, exist_ok=True)
+
+                logging.debug("Opening file locally")
+                file = open(file_name, "wb")
+
+                # Really get it
+
+                BUFFER_SIZE = 4096
+
+                read = 0
+                while read < file_len:
+                    recv_dim = min(BUFFER_SIZE, file_len - read)
+                    chunk = transfer_socket.recv(recv_dim)
+
+                    if not chunk:
+                        logging.debug("END")
+                        break
+
+                    chunk_len = len(chunk)
+
+                    logging.debug("Read chunk of %dB", chunk_len)
+
+                    written_chunk_len = file.write(chunk)
+
+                    if chunk_len != written_chunk_len:
+                        logging.warning("Written less bytes than expected: something will go wrong")
+                        exit(-1)
+
+                    read += written_chunk_len
+                    logging.debug("%d/%d (%.2f%%)", read, file_len, read / file_len * 100)
+
+                logging.debug("DONE %s", file_name)
+                file.close()
+
+                if os.path.getsize(file_name) == file_len:
+                    logging.trace("File OK (length match)")
+                else:
+                    logging.warning("File length mismatch. %d != %d",
+                                    os.path.getsize(file_name), file_len)
+                    exit(-1)
+
+            logging.debug("Closing socket")
+            transfer_socket.close()
         else:
             self._handle_error_response(resp)
 

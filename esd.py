@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import queue
 import random
 import sys
 import socket
@@ -43,7 +44,7 @@ class Server(ServerIface):
         # self.ip = socketutil.getInterfaceAddress()
         self.clients: Dict[(str, int), ClientContext] = {}
 
-        self.gets: Dict[str, List[str]] = {}    # transaction -> list of remaining files
+        self.gets: Dict[str, GetTransactionHandler] = {}    # transaction -> GetTransactionHandler
 
     def setup(self):
         self.pyro_deamon = Pyro4.Daemon(host=self.ip)
@@ -215,6 +216,9 @@ class Server(ServerIface):
 
         logging.info("<< GET %s (%s)", str(files), str(client))
 
+        if len(files) == 0:
+            files = ["."]
+
         # Compute real path for each filename
         normalized_files = []
         for f in files:
@@ -225,19 +229,25 @@ class Server(ServerIface):
         # Return a transaction ID for identify the transfer
         transaction = random_string()
 
-        self.gets[transaction] = normalized_files
-        return build_server_response_success({"transaction": transaction})
+        # Create a socket
+        transaction_handler = GetTransactionHandler(normalized_files)
+        self.get_next(transaction)
 
-        # Check validity for each file
+        transaction_handler.files_server.start()
 
-        # for root, directories, files in os.walk(client_path):
-        #     for directory in directories:
-        #         f = os.path.join(root, directory)
-        #         files_set.intersection()
-        #
-        #         print(os.path.join(root, directory))
-        #     for file in files:
-        #         print(os.path.join(root, file))
+        self.gets[transaction] = transaction_handler
+        return build_server_response_success({
+            "transaction": transaction,
+            "port": transaction_handler.files_server.sock.getsockname()[1]
+        })
+
+    # @Pyro4.expose
+    # def get_next(self, transaction) -> ServerResponse:
+    #     client = self._current_request_client()
+    #     if not client:
+    #         return build_server_response_error(ErrorCode.NOT_CONNECTED)
+    #
+    #     logging.info("<< GET_NEXT %s (%s)", transaction, str(client))
 
     @Pyro4.expose
     def get_next(self, transaction) -> ServerResponse:
@@ -245,12 +255,13 @@ class Server(ServerIface):
         if not client:
             return build_server_response_error(ErrorCode.NOT_CONNECTED)
 
-        logging.info("<< GET_NEXT %s (%s)", transaction, str(client))
+        logging.info("<< GET_NEXT_METADATA %s (%s)", transaction, str(client))
 
         if transaction not in self.gets:
             return build_server_response_error(ErrorCode.INVALID_TRANSACTION)
 
-        remaining_files = self.gets[transaction]
+        transaction_handler = self.gets[transaction]
+        remaining_files = transaction_handler.next_files
 
         # if len(self.gets[transaction]) == 0:
         #     return build_server_response_success()  # Nothing else
@@ -258,7 +269,7 @@ class Server(ServerIface):
         while len(remaining_files) > 0:
 
             # Get next file (or dir)
-            next_file_path = self.gets[transaction].pop()
+            next_file_path = remaining_files.pop()
 
             logging.debug("Next file path: %s", next_file_path)
 
@@ -285,13 +296,17 @@ class Server(ServerIface):
             trail = self._trailing_path_for_client(client, next_file_path)
             logging.debug("Trail: %s", trail)
 
+            transaction_handler.files_server.push_file(next_file_path)
+
             return build_server_response_success({
                 "filename": trail,
                 "length": os.path.getsize(next_file_path)
             })
 
         logging.debug("No remaining files")
-        return build_server_response_success()
+        transaction_handler.files_server.pushes_completed()
+        # Notify the handler about it
+        return build_server_response_success("ok")
 
     def _current_request_addr(self) -> Optional[Address]:
         return Pyro4.current_context.client_sock_addr
@@ -330,8 +345,6 @@ class Server(ServerIface):
         #   /home/stefano/Applications -> Applications
         return path.split(self._client_sharing_path(client))[1].lstrip(os.sep)
 
-
-
     def _is_path_valid_for_client(self, path: str, client: ClientContext):
         if client.sharing not in self.sharings:
             logging.warning("Sharing not found %s", client.sharing)
@@ -345,6 +358,84 @@ class Server(ServerIface):
                       normalized_path, sharing_path, common_path)
 
         return sharing_path == common_path
+
+
+class GetTransactionHandler:
+    def __init__(self, files):
+        self.files_server = GetFilesServer()
+        self.next_files = files
+
+
+class GetFilesServer(threading.Thread):
+    BUFFER_SIZE = 1024 * 4
+
+    def __init__(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.bind((netutils.get_primary_ip(), 0))
+        self.sock.listen(1)
+
+        self.servings = queue.Queue()
+        threading.Thread.__init__(self)
+
+    def create_socket(self) -> Address:
+        return self.sock.getsockname()
+
+    def run(self) -> None:
+        if not self.sock:
+            logging.error("Invalid socket")
+            return
+
+        logging.trace("Starting GetHandler")
+        client_sock, addr = self.sock.accept()
+        logging.info("Connection established with %s", addr)
+
+        while True:
+            # Send files until the servings buffer is fulfilled
+            # Wait on the blocking queue for the next file to send
+            next_serving = self.servings.get()
+
+            if not next_serving:
+                logging.debug("No more files: END")
+                break
+
+            logging.debug("Next serving: %s", next_serving)
+
+            f = open(next_serving, "rb")
+            cur_pos = 0
+            file_len = os.path.getsize(next_serving)
+
+            # Send file
+            while True:
+                chunk = f.read(GetFilesServer.BUFFER_SIZE)
+                if not chunk:
+                    logging.debug("Finished %s", next_serving)
+                    break
+
+                logging.debug("Read chunk of %dB", len(chunk))
+                cur_pos += len(chunk)
+
+                try:
+                    logging.trace("sendall() ...")
+                    client_sock.sendall(chunk)
+                    logging.trace("sendall() OK")
+                except Exception as e:
+                    logging.error("sendall error %s", e)
+                    break
+
+                logging.debug("%d/%d (%.2f%%)", cur_pos, file_len, cur_pos / file_len * 100)
+
+            f.close()
+
+        # client_sock.shutdown(socket.SHUT_RDWR)
+        # self.sock.close()
+
+    def push_file(self, path: str):
+        logging.debug("Pushing file to handler %s", path)
+        self.servings.put(path)
+
+    def pushes_completed(self):
+        logging.debug("end(): no more files")
+        self.servings.put(None)
 
 class DiscoverRequestListener(threading.Thread):
 

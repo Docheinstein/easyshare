@@ -38,6 +38,10 @@ class ServerIface(ABC):
     def get(self, files) -> ServerResponse:
         pass
 
+    # @abstractmethod
+    # def get_next(self, transaction) -> ServerResponse:
+    #     pass
+
     @abstractmethod
     def get_next(self, transaction) -> ServerResponse:
         pass
