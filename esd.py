@@ -454,6 +454,37 @@ class DiscoverRequestListener(threading.Thread):
             logging.debug("Received DISCOVER request from: %s", addr)
             self.callback(addr, data)
 
+class ServerArgument:
+    VERBOSE =   ("v", "verbose")
+    SHARE =     ("s", "share")
+    CONFIG =    ("c", "config")
+    PORT =      ("p", "port")
+    READ_ONLY = ("r", "read-only")
+
+class ServerSharing:
+    def __init__(self, sharing_name, sharing_path, read_only=False):
+        self.name = sharing_name
+        self.path = sharing_path
+        self.read_only = read_only
+
+class ServerArguments:
+    def __init__(self):
+        self.sharings: List[ServerSharing] = []
+        self.port = Conf.DISCOVER_PORT_SERVER
+        self.verbose = False
+        self.config = None
+
+
+# def parse_arguments(args: List[str]):
+    # server_arguments = ServerArguments()
+    #
+    # if len(args) <= 0:
+    #     return server_arguments
+    #
+    # for token in args:
+    #     # Long form argument
+    #     if token.startswith("--"):
+
 
 if __name__ == "__main__":
     init_logging(level=LoggingLevels.TRACE)
