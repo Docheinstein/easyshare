@@ -431,7 +431,6 @@ class Client:
         if is_server_response_success(resp):
             logging.debug("Successfully GETed")
 
-            transfer_socket = None
             transfer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             transfer_socket.connect((self.connection.server_info["address"], port))
 
@@ -454,13 +453,23 @@ class Client:
                 file_len = next_file["length"]
                 file_name = next_file["filename"]
 
+                # Strip only the trail part
+                if self.connection.c_rpwd:
+                    trail_file_name = file_name.split(self.connection.c_rpwd)[1].lstrip(os.path.sep)
+                else:
+                    trail_file_name = file_name
+
+                logging.debug("self.connection.c_rpwd: %s", self.connection.c_rpwd)
+                logging.debug("Trail file name: %s", trail_file_name)
+
                 # Create the file
                 logging.debug("Creating intermediate dirs locally")
-                head, tail = os.path.split(file_name)
-                os.makedirs(head, exist_ok=True)
+                head, tail = os.path.split(trail_file_name)
+                if head:
+                    os.makedirs(head, exist_ok=True)
 
                 logging.debug("Opening file locally")
-                file = open(file_name, "wb")
+                file = open(trail_file_name, "wb")
 
                 # Really get it
 
@@ -488,14 +497,14 @@ class Client:
                     read += written_chunk_len
                     logging.debug("%d/%d (%.2f%%)", read, file_len, read / file_len * 100)
 
-                logging.debug("DONE %s", file_name)
+                logging.debug("DONE %s", trail_file_name)
                 file.close()
 
-                if os.path.getsize(file_name) == file_len:
+                if os.path.getsize(trail_file_name) == file_len:
                     logging.trace("File OK (length match)")
                 else:
                     logging.warning("File length mismatch. %d != %d",
-                                    os.path.getsize(file_name), file_len)
+                                    os.path.getsize(trail_file_name), file_len)
                     exit(-1)
 
             logging.debug("Closing socket")

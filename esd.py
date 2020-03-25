@@ -231,11 +231,10 @@ class Server(ServerIface):
 
         # Create a socket
         transaction_handler = GetTransactionHandler(normalized_files)
-        self.get_next(transaction)
-
         transaction_handler.files_server.start()
 
         self.gets[transaction] = transaction_handler
+
         return build_server_response_success({
             "transaction": transaction,
             "port": transaction_handler.files_server.sock.getsockname()[1]
