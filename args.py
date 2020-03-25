@@ -1,10 +1,10 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 
 class Args:
     def __init__(self, args: List[str]):
-        self._args = {}
+        self._args: Dict[str, List[List[str]]] = {}
         self._parse(args)
 
     def __str__(self):
@@ -43,11 +43,32 @@ class Args:
         :param arg_names: list of possible argument names (e.g. short and long format)
         :return: the parameters of the argument
         """
-        for arg, params in self._args.items():
+        for arg, params_lists in self._args.items():
             for arg_name in arg_names:
                 if arg == arg_name:
-                    return params
+                    return params_lists[0]
         return None
+
+    def get_mparams(self, arg_names: List[str]) -> Optional[List[List[str]]]:
+        """
+        Returns the (multiple) parameters lists of the argument whose name matches one
+        of the specified arg_names or None if the argument does not exists
+        within the parsed arguments.
+        :param arg_names: list of possible argument names (e.g. short and long format)
+        :return: the parameters lists of the argument
+        """
+        ret = None
+
+        # We have to scan everything for build the params lists
+        for arg, params_lists in self._args.items():
+            for arg_name in arg_names:
+                if arg == arg_name:
+                    if not ret:
+                        ret = []
+                    for param_list in params_lists:
+                        ret.append(param_list)
+
+        return ret
 
     def _parse(self, args: List[str]):
         # REMIND:
@@ -58,14 +79,18 @@ class Args:
             arg = args[i]
             arg_name = None
 
-            if arg.startswith("--"):
+            if arg.startswith("--") and len(arg) > 2:
                 # Long format
                 arg_name = arg.split("--")[1]
-            elif arg.startswith("-"):
+            elif arg.startswith("-") and len(arg) > 1:
                 # Short format: allow concatenation of arguments (as letters)
                 arg_name_chain = arg.split("-")[1]
-                for c in arg_name_chain:
-                    self._args[c] = []
+                for c in arg_name_chain[:len(arg_name_chain) - 1]:
+                    if c not in self._args:
+                        # First time
+                        self._args[c] = []
+                    # Append new empty params list
+                    self._args[c].append([])
                 # The argument which allows params is the last one of the chain
                 arg_name = arg_name_chain[len(arg_name_chain) - 1]
 
@@ -88,5 +113,8 @@ class Args:
                 arg_params.append(arg_param)
                 i += 1
 
+            if arg_name not in self._args:
+                self._args[arg_name] = []
+
             # Link the params found with the current argument
-            self._args[arg_name] = arg_params
+            self._args[arg_name].append(arg_params)

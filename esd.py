@@ -3,6 +3,7 @@ import logging
 import os
 import queue
 import random
+import string
 import sys
 import socket
 import socketserver
@@ -14,12 +15,13 @@ import Pyro4 as Pyro4
 from Pyro4 import socketutil
 
 import netutils
+from args import Args
 from conf import Conf, LoggingLevels
 from consts import ADDR_ANY
 from defs import ServerIface, Address
 from log import init_logging
 from server_response import ServerResponse, build_server_response_success, build_server_response_error, ErrorCode
-from utils import random_string
+from utils import random_string, is_valid_list, filter_string
 
 
 class ClientContext:
@@ -455,24 +457,17 @@ class DiscoverRequestListener(threading.Thread):
             self.callback(addr, data)
 
 class ServerArgument:
-    VERBOSE =   ("v", "verbose")
-    SHARE =     ("s", "share")
-    CONFIG =    ("c", "config")
-    PORT =      ("p", "port")
-    READ_ONLY = ("r", "read-only")
+    VERBOSE =   ["v", "verbose"]
+    SHARE =     ["s", "share"]
+    CONFIG =    ["c", "config"]
+    PORT =      ["p", "port"]
+    READ_ONLY = ["r", "read-only"]
 
 class ServerSharing:
     def __init__(self, sharing_name, sharing_path, read_only=False):
         self.name = sharing_name
         self.path = sharing_path
         self.read_only = read_only
-
-class ServerArguments:
-    def __init__(self):
-        self.sharings: List[ServerSharing] = []
-        self.port = Conf.DISCOVER_PORT_SERVER
-        self.verbose = False
-        self.config = None
 
 
 # def parse_arguments(args: List[str]):
@@ -487,13 +482,52 @@ class ServerArguments:
 
 
 if __name__ == "__main__":
-    init_logging(level=LoggingLevels.TRACE)
+    args = Args(sys.argv[1:])
+
+    # Logging?
+    init_logging(enabled=args.has_arg(ServerArgument.VERBOSE),
+                 level=LoggingLevels.TRACE)
+
+    logging.info("%s v. %s", Conf.APP_NAME, Conf.APP_VERSION)
 
     server = Server()
     server.setup()
 
-    server.add_share("home", "/home/stefano")
-    server.add_share("tmp", "/tmp")
-    server.add_share("sources", "/home/stefano/Sources")
+    # shares = []
+    # Eventually parse config file
 
-    server.start()
+    # Add shares
+    sharings = args.get_mparams(ServerArgument.SHARE)
+
+    # shares can be more than one
+    # e.g. [['home', '/home/stefano'], ['tmp', '/tmp']]
+
+    if not sharings:
+        logging.warning("No sharings found")
+        exit(-1)
+
+    for sharing in sharings:
+        if is_valid_list(sharing):
+            logging.warning("Skipping invalid sharing")
+            continue
+
+        sharing_path = sharing[0]
+
+        if len(sharing) > 1:
+            sharing_name = sharing[1]
+        else:
+            # Automatically generate sharing name from the first argument (path)
+            _, sharing_name = os.path.split(sharing_path)
+
+        # Sanitize sharing name
+        sharing_name = filter_string(sharing_name, Conf.SHARING_NAME_ALPHABET)
+
+        if not os.path.isdir:
+            logging.warning("Skipping sharing, path does not exists: %s", sharing_path)
+            continue
+
+        logging.info("Adding sharing [%s] | %s", sharing_name, sharing_path)
+        # OK, we have a valid sharing path and sharing name: add it
+        server.add_share(sharing_name, sharing_path)
+
+    # server.start()

@@ -2,6 +2,7 @@ import logging
 import random
 import string
 import sys
+from collections import Set, Mapping
 
 
 def eprint(*args, **kwargs):
@@ -46,3 +47,16 @@ def keys(obj):
 def random_string(length=16):
     alphabet = string.ascii_letters + string.digits
     return "".join([random.choice(alphabet) for _ in range(length)])
+
+def is_list(o: object) -> bool:
+    return isinstance(object, list)
+
+def is_valid_list(o: object) -> bool:
+    return is_list(o) and len(o) > 0
+
+def filter_string(s: str, allowed: str) -> str:
+    ret = ""
+    for c in s:
+        if c in allowed:
+            ret += c
+    return ret
