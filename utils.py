@@ -60,3 +60,8 @@ def filter_string(s: str, allowed: str) -> str:
         if c in allowed:
             ret += c
     return ret
+
+def strip_prefix(s: str, prefix: str) -> str:
+    if not s.startswith(prefix):
+        return s
+    return s.split(prefix)[1]
