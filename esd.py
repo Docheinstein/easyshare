@@ -17,11 +17,12 @@ from Pyro4 import socketutil
 import netutils
 from args import Args
 from conf import Conf, LoggingLevels
+from config import ServerConfigParser
 from consts import ADDR_ANY
 from defs import ServerIface, Address
 from log import init_logging
 from server_response import ServerResponse, build_server_response_success, build_server_response_error, ErrorCode
-from utils import random_string, is_valid_list, filter_string
+from utils import random_string, is_valid_list, filter_string, values, items, str_to_bool, to_bool
 
 
 class ClientContext:
@@ -41,22 +42,21 @@ class Server(ServerIface):
         self.pyro_deamon = None
         self.discover_deamon = None
         self.sharings: Dict[str, str] = {}
-        self.name = socket.gethostname()
         self.ip = netutils.get_primary_ip()
         # self.ip = socketutil.getInterfaceAddress()
         self.clients: Dict[(str, int), ClientContext] = {}
 
         self.gets: Dict[str, GetTransactionHandler] = {}    # transaction -> GetTransactionHandler
 
-    def setup(self):
+    def setup(self, discover_port):
         self.pyro_deamon = Pyro4.Daemon(host=self.ip)
         self.uri = self.pyro_deamon.register(self).asString()
         logging.debug("Server registered at URI: %s", self.uri)
 
-        self.discover_deamon = DiscoverRequestListener(self.handle_discover_request)
+        self.discover_deamon = DiscoverRequestListener(self.handle_discover_request, discover_port)
 
     def add_share(self, name, path):
-        logging.debug("SHARING %s as [%s]", path, name)
+        logging.info("SHARING %s as [%s]", path, name)
         self.sharings[name] = path
 
     def handle_discover_request(self, addr, data):
@@ -440,13 +440,14 @@ class GetFilesServer(threading.Thread):
 
 class DiscoverRequestListener(threading.Thread):
 
-    def __init__(self, callback):
+    def __init__(self, callback, port):
         threading.Thread.__init__(self)
         self.callback = callback  # (addr, data)
+        self.port = port
 
     def run(self) -> None:
         logging.trace("Starting DISCOVER listener")
-        discover_server_addr = (ADDR_ANY, Conf.DISCOVER_PORT_SERVER)
+        discover_server_addr = (ADDR_ANY, self.port)
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.bind(discover_server_addr)
@@ -457,17 +458,45 @@ class DiscoverRequestListener(threading.Thread):
             self.callback(addr, data)
 
 class ServerArgument:
-    VERBOSE =   ["v", "verbose"]
-    SHARE =     ["s", "share"]
-    CONFIG =    ["c", "config"]
-    PORT =      ["p", "port"]
-    READ_ONLY = ["r", "read-only"]
+    VERBOSE =   ["-v", "--verbose"]
+    SHARE =     ["-s", "--share"]
+    CONFIG =    ["-c", "--config"]
+    PORT =      ["-p", "--port"]
+    READ_ONLY = ["-r", "--read-only"]
+
+class ServerConfigKey:
+    PORT = "port"
+    NAME = "name"
+    SHARING_PATH = "path"
+    SHARING_READ_ONLY = "read-only"
 
 class ServerSharing:
-    def __init__(self, sharing_name, sharing_path, read_only=False):
-        self.name = sharing_name
-        self.path = sharing_path
-        self.read_only = read_only
+    def __init__(self):
+        self.name = None
+        self.path = None
+        self.read_only = False
+
+    def __str__(self):
+        return str(items(self))
+
+    def sanitize(self) -> bool:
+        # Check path existence
+        if not self.path or not os.path.isdir(self.path):
+            return False
+
+        if not self.name:
+            # Generate the sharing name from the path
+            _, self.name = os.path.split(self.path)
+
+        # Sanitize the name anyway (only alphanum and _ is allowed)
+
+        self.name = filter_string(self.name, Conf.SHARING_NAME_ALPHABET)
+
+        self.read_only = True if self.read_only else False
+
+        return True
+
+
 
 
 # def parse_arguments(args: List[str]):
@@ -485,49 +514,90 @@ if __name__ == "__main__":
     args = Args(sys.argv[1:])
 
     # Logging?
-    init_logging(enabled=args.has_arg(ServerArgument.VERBOSE),
-                 level=LoggingLevels.TRACE)
+    v = args.get_mparams(ServerArgument.VERBOSE)
+    VERBOSITY_MAP = {
+        0: None,
+        1: LoggingLevels.INFO,
+        2: LoggingLevels.DEBUG,
+        3: LoggingLevels.TRACE
+    }
+    v_count = len(v) if v else 0
+    init_logging(enabled=True if v else False,
+                 level=VERBOSITY_MAP[v_count])
 
     logging.info("%s v. %s", Conf.APP_NAME, Conf.APP_VERSION)
 
-    server = Server()
-    server.setup()
+    # Init stuff with default values
+    sharings = {}
+    port = Conf.DISCOVER_PORT_SERVER
+    name = socket.gethostname()
 
-    # shares = []
     # Eventually parse config file
+    config_path = args.get_param(ServerArgument.CONFIG)
 
-    # Add shares
-    sharings = args.get_mparams(ServerArgument.SHARE)
+    if config_path:
+        p = ServerConfigParser()
+        if p.parse(config_path):
+            logging.info("Parsed config file\n%s", str(p))
+            # Globals
+            port = p.globals.get(ServerConfigKey.PORT, port)
+            name = p.globals.get(ServerConfigKey.PORT, name)
 
-    # shares can be more than one
+            # Sharings
+            for sharing_name, sharing_settings in p.sharings.items():
+                sharing = ServerSharing()
+                sharing.name = sharing_name.strip('"')
+                sharing.path = sharing_settings.get(ServerConfigKey.SHARING_PATH).strip('"')
+                sharing.read_only = to_bool(sharing_settings.get(ServerConfigKey.SHARING_READ_ONLY, False))
+
+                if not sharing.sanitize():
+                    logging.warning("Invalid or incomplete sharing config; skipping %s", str(sharing))
+                    continue
+
+                logging.debug("Adding valid sharing [%s]", sharing_name)
+
+                sharings[sharing_name] = sharing
+        else:
+            logging.warning("Parsing error; ignoring config file")
+
+    # Read arguments from command line (overwrite config)
+
+    # Add sharings from command line
+    # If a sharing with the same name already exists due to config file,
+    # the values of the command line will overwrite those
+    sharings_mparams = args.get_mparams(ServerArgument.SHARE)
+
+    # sharings_cli can be more than one
     # e.g. [['home', '/home/stefano'], ['tmp', '/tmp']]
 
-    if not sharings:
-        logging.warning("No sharings found")
-        exit(-1)
+    if sharings_mparams:
+        # Add sharings to server
+        for sharings_params in sharings_mparams:
+            if is_valid_list(sharings_params):
+                logging.warning("Skipping invalid sharing")
+                continue
 
-    for sharing in sharings:
-        if is_valid_list(sharing):
-            logging.warning("Skipping invalid sharing")
-            continue
+            sharing = ServerSharing()
+            sharing.path = sharings_params[0]
 
-        sharing_path = sharing[0]
+            if len(sharings_params) > 1:
+                # Take the second param as the sharing name
+                sharing.name = sharings_params[1]
 
-        if len(sharing) > 1:
-            sharing_name = sharing[1]
-        else:
-            # Automatically generate sharing name from the first argument (path)
-            _, sharing_name = os.path.split(sharing_path)
+            if not sharing.sanitize():
+                logging.warning("Invalid or incomplete sharing config; skipping %s", str(sharing))
+                continue
 
-        # Sanitize sharing name
-        sharing_name = filter_string(sharing_name, Conf.SHARING_NAME_ALPHABET)
+            logging.debug("Adding valid sharing [%s]", sharing.name)
 
-        if not os.path.isdir:
-            logging.warning("Skipping sharing, path does not exists: %s", sharing_path)
-            continue
+            sharings[sharing.name] = sharing
 
-        logging.info("Adding sharing [%s] | %s", sharing_name, sharing_path)
-        # OK, we have a valid sharing path and sharing name: add it
-        server.add_share(sharing_name, sharing_path)
+    # Configure pyro server
+    server = Server()
+    server.setup(port)
+
+    # Add every sharing to the server
+    for sharing in sharings.values():
+        server.add_share(sharing.name, sharing.path)
 
     # server.start()

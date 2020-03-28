@@ -65,3 +65,21 @@ def strip_prefix(s: str, prefix: str) -> str:
     if not s.startswith(prefix):
         return s
     return s.split(prefix)[1]
+
+
+
+def to_bool(o: object) -> bool:
+    if isinstance(o, bool):
+        return o
+    if isinstance(o, int):
+        return o != 0
+    if isinstance(o, str):
+        return str_to_bool(o)
+
+
+def str_to_bool(s: str) -> bool:
+    if s.lower() in ["true", "1", "yes", "y"]:
+        return True
+    if s.lower() in ["false", "0", "no", "n"]:
+        return False
+    raise ValueError
