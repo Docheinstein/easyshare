@@ -4,3 +4,4 @@
 4) Read only protection
 5) Percentage progress for GET
 6) No color option
+7) Refactor all

@@ -3,6 +3,7 @@ import random
 import string
 import sys
 from collections import Set, Mapping
+from typing import Any, Union
 
 
 def eprint(*args, **kwargs):
@@ -30,7 +31,6 @@ def abort(message, exit_code=-1):
     :param message: the message to print to stderr before exit
     :param exit_code: the exit code
     """
-    logging.error(message)
     eprint(message)
     exit(exit_code)
 
@@ -38,21 +38,23 @@ def abort(message, exit_code=-1):
 def items(obj):
     return {k: v for k, v in obj.__dict__.items() if not k.startswith("__")}
 
+
 def values(obj):
     return [v for k, v in obj.__dict__.items() if not k.startswith("__")]
 
+
 def keys(obj):
     return [k for k, v in obj.__dict__.items() if not k.startswith("__")]
+
 
 def random_string(length=16):
     alphabet = string.ascii_letters + string.digits
     return "".join([random.choice(alphabet) for _ in range(length)])
 
-def is_list(o: object) -> bool:
-    return isinstance(object, list)
 
 def is_valid_list(o: object) -> bool:
     return is_list(o) and len(o) > 0
+
 
 def filter_string(s: str, allowed: str) -> str:
     ret = ""
@@ -61,25 +63,63 @@ def filter_string(s: str, allowed: str) -> str:
             ret += c
     return ret
 
+
+def respects(s: str, allowed: str) -> bool:
+    for c in s:
+        if c not in allowed:
+            return False
+    return True
+
+
 def strip_prefix(s: str, prefix: str) -> str:
     if not s.startswith(prefix):
         return s
     return s.split(prefix)[1]
 
 
+def strip(s: str, chars: str) -> str:
+    if not s:
+        return s
+    return s.strip(chars)
 
-def to_bool(o: object) -> bool:
+
+def strip_quotes(s: str) -> str:
+    return strip(s, chars="\"'")
+
+
+def to_bool(o: object) -> Union[bool, None]:
     if isinstance(o, bool):
         return o
     if isinstance(o, int):
         return o != 0
     if isinstance(o, str):
         return str_to_bool(o)
+    return None
 
 
-def str_to_bool(s: str) -> bool:
+def is_int(o: object) -> bool:
+    return isinstance(o, int)
+
+
+def is_str(o: object) -> bool:
+    return isinstance(o, str)
+
+
+def is_list(o: object) -> bool:
+    return isinstance(o, list)
+
+
+
+def str_to_bool(s: str) -> Union[bool, None]:
     if s.lower() in ["true", "1", "yes", "y"]:
         return True
     if s.lower() in ["false", "0", "no", "n"]:
         return False
-    raise ValueError
+    return None
+
+
+def to_int(o: Any) -> Union[int, None]:
+    try:
+        return int(o)
+    except Exception:
+        return None

@@ -1,5 +1,8 @@
 import socket
 
+from utils import is_int
+
+
 def get_primary_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -11,5 +14,16 @@ def get_primary_ip():
     finally:
         s.close()
     return IP
+
+
+def socket_udp(addr: str, port: int):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((addr, port))
+    return sock
+
+
+def is_valid_port(o: int) -> bool:
+    return is_int(o) and 0 < o < 65535
+
 
 # def create_socket():

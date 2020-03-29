@@ -1,7 +1,21 @@
 import logging
 import sys
 
+from args import Args
 from conf import LoggingLevels
+
+
+def init_logging_from_args(args: Args, verbose_arguments):
+    VERBOSE_SEVERITY_MAP = {
+        0: None,
+        1: LoggingLevels.INFO,
+        2: LoggingLevels.DEBUG,
+        3: LoggingLevels.TRACE
+    }
+
+    verbose_severity = args.get_mparams_count(verbose_arguments)
+    init_logging(enabled=verbose_severity > 0,
+                 level=VERBOSE_SEVERITY_MAP[verbose_severity])
 
 
 def init_logging(enabled=True, level=LoggingLevels.INFO):

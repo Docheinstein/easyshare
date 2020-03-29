@@ -17,16 +17,20 @@ from typing import Optional, Union, Any, Callable, List
 
 import Pyro4
 
+from args import Args
 from commands import Commands
 from conf import Conf, LoggingLevels
-from consts import ADDR_ANY, ADDR_BROADCAST
+from consts import ADDR_ANY, ADDR_BROADCAST, PORT_ANY
 from defs import ServerIface, Address
+from errors import ErrorCode
 from globals import HOME
-from log import init_logging
+from log import init_logging, init_logging_from_args
 from server_response import ServerResponse, is_server_response_success, \
-    is_server_response_error, ErrorCode, build_server_response_error
+    is_server_response_error, build_server_response_error
 from server_info import ServerInfo
-from utils import eprint, values
+from utils import eprint, values, terminate, to_int
+
+APP_INFO = Conf.APP_NAME_CLIENT + " (" + Conf.APP_NAME_CLIENT_SHORT + ") v. " + Conf.APP_VERSION
 
 HELP = """\
 cd      <path>      |   change local directory
@@ -76,31 +80,36 @@ def response_error_print(response: ServerResponse):
 class Discoverer:
     def __init__(
             self,
+            server_discover_port: int,
             response_handler: Callable[[Address, ServerInfo], bool],
             timeout=Conf.DISCOVER_DEFAULT_TIMEOUT_SEC):
+        self.server_discover_port = server_discover_port
         self.response_handler = response_handler
         self.timeout = timeout
 
     def discover(self):
         # Listening socket
-        in_addr = (ADDR_ANY, Conf.DISCOVER_PORT_CLIENT)
+        in_addr = (ADDR_ANY, PORT_ANY)
 
         in_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         in_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO,
                         struct.pack("LL", ceil(self.timeout), 0))
         in_sock.bind(in_addr)
 
+        in_port = in_sock.getsockname()[1]
+
+        logging.debug("Client discover port: %d", in_port)
+
         # Send discover
-        out_addr = (ADDR_BROADCAST, Conf.DISCOVER_PORT_SERVER)
-        discover_message = bytes("DISCOVER", encoding="UTF-8")
+        out_addr = (ADDR_BROADCAST, self.server_discover_port)
+        discover_message = in_port.to_bytes(2, "big")
 
         out_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         out_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        logging.debug("Sending DISCOVER message")
+        logging.debug("Sending DISCOVER message: %s", str(discover_message))
         out_sock.sendto(discover_message, out_addr)
 
         # Listen
-
         discover_start_time = datetime.now()
 
         remaining_seconds = self.timeout
@@ -195,7 +204,8 @@ class Connection:
 # ========================
 
 class Client:
-    def __init__(self):
+    def __init__(self, server_discover_port: int):
+        self.server_discover_port = server_discover_port
         self.connection: Optional[Connection] = None
         # self.pwd = os.getcwd()
         self.command_dispatcher = {
@@ -356,13 +366,13 @@ class Client:
             for sharing in a_server_info["sharings"]:
                 if sharing == sharing_name:
                     logging.debug("Sharing [%s] found at %s:%d",
-                                  sharing, a_server_info["address"], a_server_info["port"])
+                                  sharing, a_server_info["ip"], a_server_info["port"])
                     server_info = a_server_info
                     return False    # Stop DISCOVER
 
             return True             # Continue DISCOVER
 
-        Discoverer(response_handler).discover()
+        Discoverer(self.server_discover_port, response_handler).discover()
 
         if not server_info:
             error_print(ErrorCode.SHARING_NOT_FOUND)
@@ -379,7 +389,7 @@ class Client:
         resp = self.connection.open(sharing_name)
         if is_server_response_success(resp):
             logging.debug("Successfully connected to %s:%d",
-                          server_info["address"], server_info["port"])
+                          server_info["ip"], server_info["port"])
         else:
             self._handle_error_response(resp)
             self.connection = None
@@ -395,13 +405,13 @@ class Client:
             servers_info.append(server_info)
             return True     # Go ahead
 
-        Discoverer(response_handler).discover()
+        Discoverer(self.server_discover_port, response_handler).discover()
 
         # Print sharings
         logging.info("======================")
         for idx, server_info in enumerate(servers_info):
             print("{} ({}:{})"
-                  .format(server_info["name"], server_info["address"], server_info["port"]))
+                  .format(server_info["name"], server_info["ip"], server_info["port"]))
 
             for sharing_name in server_info["sharings"]:
                 print("  " + sharing_name)
@@ -432,7 +442,7 @@ class Client:
             logging.debug("Successfully GETed")
 
             transfer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            transfer_socket.connect((self.connection.server_info["address"], port))
+            transfer_socket.connect((self.connection.server_info["ip"], port))
 
             while True:
                 logging.debug("Fetching another file info")
@@ -526,15 +536,12 @@ class Shell:
 
     COMMANDS = sorted(values(Commands))
 
-    def __init__(self):
-        self.connection = None
+    def __init__(self, client: Client):
         self.available_commands = []
-        self.client = Client()
+        self.client = client
 
-    def setup(self):
         readline.set_completer(self.next_suggestion)
         readline.parse_and_bind("tab: complete")
-        # signal.signal(signal.SIGINT, self.handle_ctrl_c)
 
     def next_suggestion(self, text, state):
         if state == 0:
@@ -542,9 +549,6 @@ class Shell:
         if len(self.available_commands) > 0:
             return self.available_commands.pop()
         return None
-    #
-    # def handle_ctrl_c(self, sig, frame):
-    #     pass
 
     def input_loop(self):
         command = None
@@ -576,11 +580,32 @@ class Shell:
         return pwd + "> "
 
 
-if __name__ == "__main__":
-    init_logging(enabled=True, level=LoggingLevels.TRACE)
+class ClientArgument:
+    VERBOSE =   ["-v", "--verbose"]
+    PORT =      ["-p", "--port"]
+    HELP =      ["-h", "--help"]
+    VERSION =   ["-V", "--version"]
 
-    if len(sys.argv) <= 1:
-        # Start in interactive mode
-        shell = Shell()
-        shell.setup()
-        shell.input_loop()
+
+if __name__ == "__main__":
+    args = Args(sys.argv[1:])
+
+    if ClientArgument.HELP in args:
+        terminate(HELP)
+
+    if ClientArgument.VERSION in args:
+        terminate(APP_INFO)
+
+    init_logging_from_args(args, ClientArgument.VERBOSE)
+
+    logging.info(APP_INFO)
+
+    server_discover_port = Conf.DEFAULT_SERVER_DISCOVER_PORT
+
+    if ClientArgument.PORT in args:
+        server_discover_port = to_int(args.get_param(ClientArgument.PORT))
+
+    # Start in interactive mode
+    client = Client(server_discover_port)
+    shell = Shell(client)
+    shell.input_loop()
