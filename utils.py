@@ -1,3 +1,4 @@
+import json
 import logging
 import random
 import string
@@ -123,3 +124,32 @@ def to_int(o: Any) -> Union[int, None]:
         return int(o)
     except Exception:
         return None
+
+
+def bytes_to_int(b: bytes, byteorder="big"):
+    return int.from_bytes(b, byteorder)
+
+
+def to_json_str(o: object, pretty=False):
+    if pretty:
+        return json.dumps(o, indent=4)
+    return json.dumps(o, separators=(",", ":"))
+
+
+def str_to_bytes(s: str):
+    return bytes(s, encoding="UTF-8")
+
+
+G = 1000000000
+M = 1000000
+K = 1000
+
+
+def size_str(size: int, fmt="{:0.1f} {}", identifiers=(" ", "K", "M", "G")):
+    if size > G:
+        return fmt.format(size / G, identifiers[3])
+    if size > M:
+        return fmt.format(size / M, identifiers[2])
+    if size > K:
+        return fmt.format(size / K, identifiers[1])
+    return fmt.format(size, identifiers[0])

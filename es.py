@@ -1,16 +1,11 @@
-import abc
 import json
-import logging
 import os
 import select
 import shlex
-import signal
 import socket
 import struct
 import sys
-import threading
 import readline
-import time
 from datetime import datetime
 from math import ceil
 from typing import Optional, Union, Any, Callable, List
@@ -19,16 +14,16 @@ import Pyro4
 
 from args import Args
 from commands import Commands
-from conf import Conf, LoggingLevels
+from conf import Conf
 from consts import ADDR_ANY, ADDR_BROADCAST, PORT_ANY
-from defs import ServerIface, Address
+from defs import ServerIface, Endpoint
 from errors import ErrorCode
 from globals import HOME
-from log import init_logging, init_logging_from_args
+from log import init_logging_from_args, e, w, i, d, t
 from server_response import ServerResponse, is_server_response_success, \
     is_server_response_error, build_server_response_error
 from server_info import ServerInfo
-from utils import eprint, values, terminate, to_int
+from utils import eprint, values, terminate, to_int, size_str
 
 APP_INFO = Conf.APP_NAME_CLIENT + " (" + Conf.APP_NAME_CLIENT_SHORT + ") v. " + Conf.APP_VERSION
 
@@ -81,7 +76,7 @@ class Discoverer:
     def __init__(
             self,
             server_discover_port: int,
-            response_handler: Callable[[Address, ServerInfo], bool],
+            response_handler: Callable[[Endpoint, ServerInfo], bool],
             timeout=Conf.DISCOVER_DEFAULT_TIMEOUT_SEC):
         self.server_discover_port = server_discover_port
         self.response_handler = response_handler
@@ -98,7 +93,7 @@ class Discoverer:
 
         in_port = in_sock.getsockname()[1]
 
-        logging.debug("Client discover port: %d", in_port)
+        d("Client discover port: %d", in_port)
 
         # Send discover
         out_addr = (ADDR_BROADCAST, self.server_discover_port)
@@ -106,7 +101,7 @@ class Discoverer:
 
         out_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         out_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        logging.debug("Sending DISCOVER message: %s", str(discover_message))
+        d("Sending DISCOVER message: %s", str(discover_message))
         out_sock.sendto(discover_message, out_addr)
 
         # Listen
@@ -115,34 +110,34 @@ class Discoverer:
         remaining_seconds = self.timeout
 
         while remaining_seconds > 0:
-            logging.trace("Waiting for %.3f seconds...", remaining_seconds)
+            t("Waiting for %.3f seconds...", remaining_seconds)
 
             read_fds, write_fds, error_fds = select.select([in_sock], [], [], remaining_seconds)
 
             if in_sock in read_fds:
-                logging.trace("DISCOVER socket ready for recv")
+                t("DISCOVER socket ready for recv")
                 response, addr = in_sock.recvfrom(1024)
-                logging.debug("Received DISCOVER response from: %s", addr)
+                d("Received DISCOVER response from: %s", addr)
                 json_response: ServerResponse = json.loads(response)
 
                 if json_response["success"] and json_response["data"]:
                     go_ahead = self.response_handler(addr, json_response["data"])
 
                     if not go_ahead:
-                        logging.trace("Stopping DISCOVER since handle_discover_response_callback returned false")
+                        t("Stopping DISCOVER since handle_discover_response_callback returned false")
                         return
             else:
-                logging.trace("DISCOVER timeout elapsed (%.3f)", self.timeout)
+                t("DISCOVER timeout elapsed (%.3f)", self.timeout)
 
             remaining_seconds = \
                 self.timeout - (datetime.now() - discover_start_time).total_seconds()
 
-        logging.debug("Stopping DISCOVER listener")
+        d("Stopping DISCOVER listener")
 
 
 class Connection:
     def __init__(self, server_info):
-        logging.trace("Initializing new Connection")
+        t("Initializing new Connection")
         self.server_info: ServerInfo = server_info
         self.server: Union[ServerIface, Any] = Pyro4.Proxy(self.server_info["uri"])
         self.c_connected = False
@@ -150,7 +145,7 @@ class Connection:
         self.c_rpwd = ""
 
     def is_connected(self):
-        logging.debug("c_connected: %d", self.c_connected)
+        d("c_connected: %d", self.c_connected)
         return self.c_connected
 
     def sharing_rpwd(self):
@@ -232,14 +227,14 @@ class Client:
         command = full_command_parts[0]
         command_args = full_command_parts[1:]
         if command in self.command_dispatcher:
-            logging.trace("Handling command %s%s", command, command_args)
+            t("Handling command %s%s", command, command_args)
             self.command_dispatcher[command](command_args)
             return True
         else:
             return False
 
     def is_connected(self):
-        logging.trace("self.connection = %d", True if self.connection else False)
+        t("self.connection = %d", True if self.connection else False)
         return self.connection and self.connection.is_connected()
 
     def _execute_help(self, _):
@@ -251,7 +246,7 @@ class Client:
     def _execute_cd(self, args):
         directory = args[0] if len(args) > 0 else HOME
 
-        logging.info(">> CD " + directory)
+        i(">> CD " + directory)
         if not os.path.isdir(os.path.join(os.getcwd(), directory)):
             error_print(ErrorCode.INVALID_PATH)
             return
@@ -268,17 +263,17 @@ class Client:
 
         directory = args[0] if len(args) > 0 else "/"
 
-        logging.info(">> RCD %s", directory)
+        i(">> RCD %s", directory)
 
         resp = self.connection.rcd(directory)
         if is_server_response_success(resp):
-            logging.debug("Successfully RCDed")
+            d("Successfully RCDed")
             pass
         else:
             self._handle_error_response(resp)
 
     def _execute_ls(self, args):
-        logging.info(">> LS")
+        i(">> LS")
 
         try:
             for f in sorted(os.listdir(".")):
@@ -291,12 +286,25 @@ class Client:
             error_print(ErrorCode.NOT_CONNECTED)
             return
 
-        logging.info(">> RLS")
+        i(">> RLS")
 
         resp = self.connection.rls()
         if is_server_response_success(resp) and "data" in resp:
-            for f in resp["data"]:
-                print(f)
+            if not resp["data"]:
+                return
+
+            longest_size_str = len(size_str(max(resp["data"],
+                                   key=lambda finfo: len(size_str(finfo["size"])))["size"]))
+
+            d("longest_size_str %d", longest_size_str)
+            t("longest_size_str %d", longest_size_str)
+
+            for f_info in resp["data"]:
+                t("f_info: %s", f_info)
+
+                print(size_str(f_info["size"]).rjust(longest_size_str) +
+                      "  " +
+                      f_info["filename"])
         else:
             self._handle_error_response(resp)
 
@@ -306,10 +314,10 @@ class Client:
             return
 
         directory = args[0]
-        logging.info(">> RMKDIR " + directory)
+        i(">> RMKDIR " + directory)
         try:
             os.mkdir(directory)
-        except Exception as e:
+        except Exception:
             error_print(ErrorCode.COMMAND_EXECUTION_FAILED)
 
     def _execute_rmkdir(self, args):
@@ -322,22 +330,22 @@ class Client:
             return
 
         directory = args[0]
-        logging.info(">> RMKDIR " + directory)
+        i(">> RMKDIR " + directory)
 
         resp = self.connection.rmkdir(directory)
         if is_server_response_success(resp):
-            logging.debug("Successfully RMKDIRed")
+            d("Successfully RMKDIRed")
             pass
         else:
             self._handle_error_response(resp)
 
 
     def _execute_pwd(self, args):
-        logging.info(">> PWD")
+        i(">> PWD")
 
         try:
             print(os.getcwd())
-        except Exception as e:
+        except Exception:
             error_print(ErrorCode.COMMAND_EXECUTION_FAILED)
 
     def _execute_rpwd(self, args):
@@ -345,7 +353,7 @@ class Client:
             error_print(ErrorCode.NOT_CONNECTED)
             return
 
-        logging.info(">> RPWD")
+        i(">> RPWD")
         print(self.connection.sharing_rpwd())
 
     def _execute_open(self, args):
@@ -354,18 +362,18 @@ class Client:
             return
 
         sharing_name = args[0]
-        logging.info(">> OPEN %s", sharing_name)
+        i(">> OPEN %s", sharing_name)
 
         server_info: Optional[ServerInfo] = None
 
-        def response_handler(client_address: Address,
+        def response_handler(client_address: Endpoint,
                              a_server_info: ServerInfo) -> bool:
             nonlocal server_info
-            logging.debug("Handling DISCOVER response from %s\n%s",
+            d("Handling DISCOVER response from %s\n%s",
                           str(client_address), str(a_server_info))
             for sharing in a_server_info["sharings"]:
                 if sharing == sharing_name:
-                    logging.debug("Sharing [%s] found at %s:%d",
+                    d("Sharing [%s] found at %s:%d",
                                   sharing, a_server_info["ip"], a_server_info["port"])
                     server_info = a_server_info
                     return False    # Stop DISCOVER
@@ -379,36 +387,36 @@ class Client:
             return False
 
         if not self.connection:
-            logging.debug("Creating new connection with %s", server_info["uri"])
+            d("Creating new connection with %s", server_info["uri"])
             self.connection = Connection(server_info)
         else:
-            logging.debug("Reusing existing connection with %s", server_info["uri"])
+            d("Reusing existing connection with %s", server_info["uri"])
 
         # Send OPEN
 
         resp = self.connection.open(sharing_name)
         if is_server_response_success(resp):
-            logging.debug("Successfully connected to %s:%d",
+            d("Successfully connected to %s:%d",
                           server_info["ip"], server_info["port"])
         else:
             self._handle_error_response(resp)
             self.connection = None
 
     def _execute_scan(self, args):
-        logging.info(">> SCAN")
+        i(">> SCAN")
 
         servers_info: List[ServerInfo] = []
 
-        def response_handler(client_address: Address,
+        def response_handler(client_address: Endpoint,
                              server_info: ServerInfo) -> bool:
-            logging.debug("Handling DISCOVER response from %s\n%s", str(client_address), str(server_info))
+            d("Handling DISCOVER response from %s\n%s", str(client_address), str(server_info))
             servers_info.append(server_info)
             return True     # Go ahead
 
         Discoverer(self.server_discover_port, response_handler).discover()
 
         # Print sharings
-        logging.info("======================")
+        i("======================")
         for idx, server_info in enumerate(servers_info):
             print("{} ({}:{})"
                   .format(server_info["name"], server_info["ip"], server_info["port"]))
@@ -418,16 +426,16 @@ class Client:
 
             if idx < len(servers_info) - 1:
                 print("")
-        logging.info("======================")
+        i("======================")
 
     def _execute_get(self, args):
         if not self.connection:
             error_print(ErrorCode.NOT_CONNECTED)
             return
 
-        logging.info(">> GET %s", ", ".join(args))
+        i(">> GET %s", ", ".join(args))
         resp = self.connection.get(args)
-        logging.debug("GET response\n%s", resp)
+        d("GET response\n%s", resp)
 
         if "data" not in resp or \
                 "transaction" not in resp["data"] or \
@@ -439,15 +447,15 @@ class Client:
         port = resp["data"]["port"]
 
         if is_server_response_success(resp):
-            logging.debug("Successfully GETed")
+            d("Successfully GETed")
 
             transfer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             transfer_socket.connect((self.connection.server_info["ip"], port))
 
             while True:
-                logging.debug("Fetching another file info")
+                d("Fetching another file info")
                 get_next_resp = self.connection.get_next(transaction)
-                logging.debug("get_next()\n%s", get_next_resp)
+                d("get_next()\n%s", get_next_resp)
 
                 if "data" not in get_next_resp:
                     error_print(ErrorCode.UNEXPECTED_SERVER_RESPONSE)
@@ -456,10 +464,10 @@ class Client:
                 next_file = get_next_resp["data"]
 
                 if next_file == "ok":
-                    logging.debug("Nothing more to GET")
+                    d("Nothing more to GET")
                     break
 
-                logging.debug("NEXT: %s", next_file)
+                d("NEXT: %s", next_file)
                 file_len = next_file["length"]
                 file_name = next_file["filename"]
 
@@ -469,16 +477,16 @@ class Client:
                 else:
                     trail_file_name = file_name
 
-                logging.debug("self.connection.c_rpwd: %s", self.connection.c_rpwd)
-                logging.debug("Trail file name: %s", trail_file_name)
+                d("self.connection.c_rpwd: %s", self.connection.c_rpwd)
+                d("Trail file name: %s", trail_file_name)
 
                 # Create the file
-                logging.debug("Creating intermediate dirs locally")
+                d("Creating intermediate dirs locally")
                 head, tail = os.path.split(trail_file_name)
                 if head:
                     os.makedirs(head, exist_ok=True)
 
-                logging.debug("Opening file locally")
+                d("Opening file locally")
                 file = open(trail_file_name, "wb")
 
                 # Really get it
@@ -491,40 +499,40 @@ class Client:
                     chunk = transfer_socket.recv(recv_dim)
 
                     if not chunk:
-                        logging.debug("END")
+                        d("END")
                         break
 
                     chunk_len = len(chunk)
 
-                    logging.debug("Read chunk of %dB", chunk_len)
+                    d("Read chunk of %dB", chunk_len)
 
                     written_chunk_len = file.write(chunk)
 
                     if chunk_len != written_chunk_len:
-                        logging.warning("Written less bytes than expected: something will go wrong")
+                        w("Written less bytes than expected: something will go wrong")
                         exit(-1)
 
                     read += written_chunk_len
-                    logging.debug("%d/%d (%.2f%%)", read, file_len, read / file_len * 100)
+                    d("%d/%d (%.2f%%)", read, file_len, read / file_len * 100)
 
-                logging.debug("DONE %s", trail_file_name)
+                d("DONE %s", trail_file_name)
                 file.close()
 
                 if os.path.getsize(trail_file_name) == file_len:
-                    logging.trace("File OK (length match)")
+                    t("File OK (length match)")
                 else:
-                    logging.warning("File length mismatch. %d != %d",
+                    w("File length mismatch. %d != %d",
                                     os.path.getsize(trail_file_name), file_len)
                     exit(-1)
 
-            logging.debug("Closing socket")
+            d("Closing socket")
             transfer_socket.close()
         else:
             self._handle_error_response(resp)
 
     def _handle_error_response(self, resp: ServerResponse):
         if resp["error"] == ErrorCode.NOT_CONNECTED:
-            logging.debug("Received a NOT_CONNECTED response: destroying connection")
+            d("Received a NOT_CONNECTED response: destroying connection")
             self.connection = None
         response_error_print(resp)
 
@@ -561,10 +569,10 @@ class Shell:
                 if not outcome:
                     error_print(ErrorCode.COMMAND_NOT_RECOGNIZED)
             except KeyboardInterrupt:
-                logging.debug("CTRL+C detected")
+                d("CTRL+C detected")
                 print()
             except EOFError:
-                logging.debug("CTRL+D detected: exiting")
+                d("CTRL+D detected: exiting")
                 break
 
 
@@ -598,7 +606,7 @@ if __name__ == "__main__":
 
     init_logging_from_args(args, ClientArgument.VERBOSE)
 
-    logging.info(APP_INFO)
+    i(APP_INFO)
 
     server_discover_port = Conf.DEFAULT_SERVER_DISCOVER_PORT
 

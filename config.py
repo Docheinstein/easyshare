@@ -3,6 +3,8 @@ import os
 import re
 from typing import Dict
 
+from log import e, w, i, d, t
+
 
 class ServerConfigParser:
 
@@ -34,10 +36,10 @@ class ServerConfigParser:
 
     def parse(self, config_path):
         if not config_path or not os.path.isfile(config_path):
-            logging.warning("Invalid config file path %s", config_path)
+            w("Invalid config file path %s", config_path)
             return False
 
-        logging.info("Parsing config file %s", config_path)
+        i("Parsing config file %s", config_path)
 
         cfg = open(config_path, "r")
 
@@ -52,13 +54,13 @@ class ServerConfigParser:
                 continue
 
             line = line.strip()
-            logging.debug("%s", line)
+            d("%s", line)
 
             sharing_name_match = self.sharing_name_re.match(line)
 
             if sharing_name_match:
                 current_sharing_section = sharing_name_match.groups()[0]
-                logging.trace("Found valid sharing name [%s]", current_sharing_section)
+                t("Found valid sharing name [%s]", current_sharing_section)
                 self.sharings[current_sharing_section] = {}
                 continue
 
@@ -66,15 +68,15 @@ class ServerConfigParser:
 
             if before == line:
                 # No = found
-                logging.trace("Skipping line; no relevant content")
+                t("Skipping line; no relevant content")
                 self.warnings += 1
                 continue
 
-            logging.trace("Found a key=val assignment")
+            t("Found a key=val assignment")
 
             key = before.strip()
             val = after.strip()
-            logging.trace("%s=%s", key, val)
+            t("%s=%s", key, val)
 
             if not current_sharing_section:
                 # Found a key=val of a global setting
@@ -83,9 +85,9 @@ class ServerConfigParser:
                 # Found a key=val of a sharing setting
                 self.sharings[current_sharing_section][key] = val
 
-        logging.info("Parsing finished")
+        i("Parsing finished")
         if self.warnings:
-            logging.warning("%d warnings", self.warnings)
+            w("%d warnings", self.warnings)
 
         cfg.close()
 

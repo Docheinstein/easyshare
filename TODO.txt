@@ -5,3 +5,5 @@
 5) Percentage progress for GET
 6) No color option
 7) Refactor all
+8) Commands for es.py (e.g. get, ls, ...)
+9) LS more verbose

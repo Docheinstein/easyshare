@@ -12,6 +12,7 @@ class LoggingLevels:
     DEBUG = logging.DEBUG
     TRACE = DEBUG - 1
 
+
 class Conf:
     APP_NAME = "easyshare"
     APP_NAME_SERVER = "easyshare deamon"

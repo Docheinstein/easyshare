@@ -1,9 +1,16 @@
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Tuple, TypedDict
 
 from server_response import ServerResponse
 
-Address = Tuple[str, int]
+# (ip, port)
+Endpoint = Tuple[str, int]
+
+
+class FileInfo(TypedDict):
+    filename: str
+    size: int
+
 
 class ServerIface(ABC):
     @abstractmethod

@@ -14,8 +14,16 @@ def init_logging_from_args(args: Args, verbose_arguments):
     }
 
     verbose_severity = args.get_mparams_count(verbose_arguments)
+
+    if verbose_severity < len(VERBOSE_SEVERITY_MAP):
+        # The the corresponding level
+        verbose_level = VERBOSE_SEVERITY_MAP[verbose_severity]
+    else:
+        # Take the last one level (most verbose)
+        verbose_level = VERBOSE_SEVERITY_MAP[len(VERBOSE_SEVERITY_MAP) - 1]
+
     init_logging(enabled=verbose_severity > 0,
-                 level=VERBOSE_SEVERITY_MAP[verbose_severity])
+                 level=verbose_level)
 
 
 def init_logging(enabled=True, level=LoggingLevels.INFO):
@@ -26,8 +34,8 @@ def init_logging(enabled=True, level=LoggingLevels.INFO):
                         datefmt='%d/%m/%y %H:%M:%S',
                         stream=sys.stdout)
 
-    # logging.getLogger("Pyro4").setLevel(logging.DEBUG)
-    # logging.getLogger("Pyro4.core").setLevel(logging.DEBUG)
+    # logging.getLogger("Pyro4").setLevel(d)
+    # logging.getLogger("Pyro4.core").setLevel(d)
 
     logging.addLevelName(LoggingLevels.TRACE, "TRACE")
 
@@ -41,3 +49,13 @@ def init_logging(enabled=True, level=LoggingLevels.INFO):
     if not enabled:
         logging.disable()
 
+
+e = logging.error
+w = logging.warning
+i = logging.info
+d = logging.debug
+
+
+# "Forward declaration"
+def t(msg, *args, **kwargs):
+    logging.trace(msg, *args, **kwargs)
