@@ -1,12 +1,11 @@
-import logging
 from typing import List, Optional, Dict, Union
 
-from utils import strip_prefix, is_list, is_valid_list, is_str
-
-DEBUG = False
+from utils import strip_prefix, is_valid_list, is_str
 
 
 class Args:
+    DEBUG = False
+
     def __init__(self, args: List[str]):
         self._args: Dict[Union[None, str], List[List[str]]] = {}
         self._parse(args)
@@ -92,12 +91,18 @@ class Args:
 
         ret = None
 
+        self._debug("arg_names: ", arg_names)
+
         for arg_name in arg_names:
+            self._debug("- arg_name: ", arg_name)
             params_lists = self._args.get(arg_name)
+            self._debug("- params_lists: ", params_lists)
+
             if not params_lists:
                 continue
 
             for param_list in params_lists:
+                self._debug("-- param_list: ", param_list)
                 if not ret:
                     ret = []
                 ret.append(param_list)
@@ -108,14 +113,12 @@ class Args:
         return ret
 
     def _parse(self, args: List[str]):
-
-        def dprint(*args, **kwargs):
-            if DEBUG:
-                print(*args, **kwargs)
-
         # REMIND:
         # --port        80
         # ^ arg ^    ^ param ^
+
+        self._debug("_parse")
+
         i = 0
         while i < len(args):
             arg = args[i]
@@ -127,21 +130,24 @@ class Args:
             elif arg.startswith("-") and len(arg) > 1:
                 # Short format: allow concatenation of arguments (as letters)
                 arg_name_chain = strip_prefix(arg, "-")
-                for c in arg_name_chain[:len(arg_name_chain) - 1]:
+                for i, c in enumerate(arg_name_chain[:len(arg_name_chain) - 1]):
+                    self._debug(i)
                     c_arg_name = "-" + c
-                    if c not in self._args:
+                    if c_arg_name not in self._args:
                         # First time
                         self._args[c_arg_name] = []
+
+                    self._debug(c_arg_name)
 
                     # Append new empty params list
                     self._args[c_arg_name].append([])
 
-                    dprint(c_arg_name)
+                    self._debug(" ", self._args[c_arg_name])
 
                 # The argument which allows params is the last one of the chain
                 arg_name = "-" + arg_name_chain[len(arg_name_chain) - 1]
 
-            dprint(arg_name)
+            self._debug(arg_name)
 
             i += 1
 
@@ -158,7 +164,7 @@ class Args:
                 # We have a param
                 arg_params.append(arg_param)
 
-                dprint("  " + arg_param)
+                self._debug("  " + arg_param)
 
                 i += 1
 
@@ -167,3 +173,9 @@ class Args:
 
             # Link the params found with the current argument
             self._args[arg_name].append(arg_params)
+
+        self._debug("_parse DONE", str(self))
+
+    def _debug(self, *args, **kwargs):
+        if Args.DEBUG:
+            print(*args, **kwargs)

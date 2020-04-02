@@ -4,13 +4,7 @@ import string
 from pathlib import Path
 
 
-class LoggingLevels:
-    CRITICAL = logging.CRITICAL
-    ERROR = logging.ERROR
-    WARNING = logging.WARNING
-    INFO = logging.INFO
-    DEBUG = logging.DEBUG
-    TRACE = DEBUG - 1
+
 
 
 class Conf:

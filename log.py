@@ -2,15 +2,22 @@ import logging
 import sys
 
 from args import Args
-from conf import LoggingLevels
+
+
+CRITICAL = logging.CRITICAL
+ERROR = logging.ERROR
+WARNING = logging.WARNING
+INFO = logging.INFO
+DEBUG = logging.DEBUG
+TRACE = DEBUG - 1
 
 
 def init_logging_from_args(args: Args, verbose_arguments):
     VERBOSE_SEVERITY_MAP = {
         0: None,
-        1: LoggingLevels.INFO,
-        2: LoggingLevels.DEBUG,
-        3: LoggingLevels.TRACE
+        1: INFO,
+        2: DEBUG,
+        3: TRACE
     }
 
     verbose_severity = args.get_mparams_count(verbose_arguments)
@@ -26,7 +33,7 @@ def init_logging_from_args(args: Args, verbose_arguments):
                  level=verbose_level)
 
 
-def init_logging(enabled=True, level=LoggingLevels.INFO):
+def init_logging(enabled=True, level=INFO):
     """ Initializes logging. """
 
     logging.basicConfig(level=level,
@@ -37,11 +44,11 @@ def init_logging(enabled=True, level=LoggingLevels.INFO):
     # logging.getLogger("Pyro4").setLevel(d)
     # logging.getLogger("Pyro4.core").setLevel(d)
 
-    logging.addLevelName(LoggingLevels.TRACE, "TRACE")
+    logging.addLevelName(TRACE, "TRACE")
 
     def trace(message, *args, **kws):
-        if logging.getLogger().isEnabledFor(LoggingLevels.TRACE):
-            logging.log(LoggingLevels.TRACE, message, *args, **kws)
+        if logging.getLogger().isEnabledFor(TRACE):
+            logging.log(TRACE, message, *args, **kws)
 
     logging.trace = trace
     logging.Logger.trace = trace
