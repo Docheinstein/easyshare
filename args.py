@@ -4,7 +4,7 @@ from utils import strip_prefix, is_valid_list, is_str
 
 
 class Args:
-    DEBUG = False
+    DEBUG = True
 
     def __init__(self, args: List[str]):
         self._args: Dict[Union[None, str], List[List[str]]] = {}
@@ -130,8 +130,7 @@ class Args:
             elif arg.startswith("-") and len(arg) > 1:
                 # Short format: allow concatenation of arguments (as letters)
                 arg_name_chain = strip_prefix(arg, "-")
-                for i, c in enumerate(arg_name_chain[:len(arg_name_chain) - 1]):
-                    self._debug(i)
+                for c in arg_name_chain[:len(arg_name_chain) - 1]:
                     c_arg_name = "-" + c
                     if c_arg_name not in self._args:
                         # First time
@@ -149,7 +148,10 @@ class Args:
 
             self._debug(arg_name)
 
-            i += 1
+            if arg_name:
+                # Argument taken into account, go to the next token
+                i += 1
+            # else: unbound argument (no - or --), allowed
 
             # Check if the current argument has params
             arg_params = []

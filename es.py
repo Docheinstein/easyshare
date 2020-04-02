@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import select
 import shlex
@@ -9,15 +8,16 @@ import sys
 import readline
 from datetime import datetime
 from math import ceil
-from typing import Optional, Union, Any, Callable, List
+from typing import Optional, Union, Any, Callable, List, Dict
 
 import Pyro4
 
+import utils
 from args import Args
 from commands import Commands
 from conf import Conf
 from consts import ADDR_ANY, ADDR_BROADCAST, PORT_ANY
-from defs import ServerIface, Endpoint
+from defs import ServerIface, Endpoint, FileInfo
 from errors import ErrorCode
 from globals import HOME
 from log import init_logging_from_args, e, w, i, d, t
@@ -57,6 +57,10 @@ ERRORS_STR = {
     ErrorCode.INVALID_TRANSACTION: "Invalid transaction",
     ErrorCode.UNEXPECTED_SERVER_RESPONSE: "Unexpected server response"
 }
+
+
+class LsArguments:
+    SORT_BY_SIZE = ["-s", "--sort"]
 
 
 def error_string(error_code: int) -> str:
@@ -204,7 +208,7 @@ class Client:
         self.server_discover_port = server_discover_port
         self.connection: Optional[Connection] = None
         # self.pwd = os.getcwd()
-        self.command_dispatcher = {
+        self.command_dispatcher: Dict[str, Callable[[Args], None]] = {
             Commands.HELP: self._execute_help,
             Commands.EXIT: self._execute_exit,
             Commands.LOCAL_CHANGE_DIRECTORY: self._execute_cd,
@@ -220,13 +224,14 @@ class Client:
             Commands.SCAN: self._execute_scan
         }
 
-    def execute_command(self, full_command):
-        full_command_parts = shlex.split(full_command)
-        if len(full_command) < 1:
+    def execute_command(self, command_line):
+        command_line_parts = shlex.split(command_line)
+        if len(command_line_parts) < 1:
             return False
 
-        command = full_command_parts[0]
-        command_args = full_command_parts[1:]
+        command = command_line_parts[0]
+        command_args = Args(command_line_parts[1:])
+
         if command in self.command_dispatcher:
             t("Handling command %s%s", command, command_args)
             self.command_dispatcher[command](command_args)
@@ -244,8 +249,12 @@ class Client:
     def _execute_exit(self, _):
         pass
 
-    def _execute_cd(self, args):
-        directory = args[0] if len(args) > 0 else HOME
+    def _execute_cd(self, args: Args):
+        directory = args.get_param()
+
+        if not directory:
+            error_print(ErrorCode.INVALID_COMMAND_SYNTAX)
+            return
 
         i(">> CD " + directory)
         if not os.path.isdir(os.path.join(os.getcwd(), directory)):
@@ -273,14 +282,19 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-    def _execute_ls(self, args):
+    def _execute_ls(self, args: Args):
         i(">> LS")
 
-        try:
-            for f in sorted(os.listdir(".")):
-                print(f)
-        except Exception as e:
+        if LsArguments.SORT_BY_SIZE in args:
+            sort_by = "size"
+        else:
+            sort_by = "name"
+
+        ls_result = utils.ls(os.getcwd(), sort_by=sort_by)
+        if not ls_result:
             error_print(ErrorCode.COMMAND_EXECUTION_FAILED)
+
+        self._print_files_info(ls_result)
 
     def _execute_rls(self, args):
         if not self.connection:
@@ -294,18 +308,8 @@ class Client:
             if not resp["data"]:
                 return
 
-            longest_size_str = len(size_str(max(resp["data"],
-                                   key=lambda finfo: len(size_str(finfo["size"])))["size"]))
+            self._print_files_info(resp["data"])
 
-            d("longest_size_str %d", longest_size_str)
-            t("longest_size_str %d", longest_size_str)
-
-            for f_info in resp["data"]:
-                t("f_info: %s", f_info)
-
-                print(size_str(f_info["size"]).rjust(longest_size_str) +
-                      "  " +
-                      f_info["filename"])
         else:
             self._handle_error_response(resp)
 
@@ -470,7 +474,7 @@ class Client:
 
                 d("NEXT: %s", next_file)
                 file_len = next_file["length"]
-                file_name = next_file["filename"]
+                file_name = next_file["name"]
 
                 # Strip only the trail part
                 if self.connection.c_rpwd:
@@ -530,6 +534,23 @@ class Client:
             transfer_socket.close()
         else:
             self._handle_error_response(resp)
+
+    def _print_files_info(self, infos: List[FileInfo]):
+
+        longest_size_str = 0
+
+        for info in infos:
+            longest_size_str = max(longest_size_str, len(size_str(info["size"])))
+
+        t("longest_size_str %d", longest_size_str)
+
+        for info in infos:
+            t("f_info: %s", info)
+
+            print("{}  {}  {}".format(
+                ("D" if info["type"] == "dir" else "F"),
+                size_str(info["size"]).rjust(longest_size_str),
+                info["name"]))
 
     def _handle_error_response(self, resp: ServerResponse):
         if resp["error"] == ErrorCode.NOT_CONNECTED:
@@ -596,7 +617,8 @@ class ClientArgument:
     VERSION =   ["-V", "--version"]
 
 
-if __name__ == "__main__":
+
+def main():
     args = Args(sys.argv[1:])
 
     if ClientArgument.HELP in args:
@@ -618,3 +640,7 @@ if __name__ == "__main__":
     client = Client(server_discover_port)
     shell = Shell(client)
     shell.input_loop()
+
+
+if __name__ == "__main__":
+    main()

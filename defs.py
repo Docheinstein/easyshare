@@ -8,7 +8,8 @@ Endpoint = Tuple[str, int]
 
 
 class FileInfo(TypedDict):
-    filename: str
+    name: str
+    type: str
     size: int
 
 

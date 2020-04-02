@@ -262,7 +262,7 @@ class Server(ServerIface):
             for f in listdir_result:
                 f_stat = os.lstat(os.path.join(client_path, f))
                 ls_response.append({
-                    "filename": f,
+                    "name": f,
                     "size": f_stat.st_size
                 })
 
@@ -306,7 +306,7 @@ class Server(ServerIface):
         if len(files) == 0:
             files = ["."]
 
-        # Compute real path for each filename
+        # Compute real path for each name
         normalized_files = []
         for f in files:
             normalized_files.append(self._path_for_client(client, f))
@@ -385,7 +385,7 @@ class Server(ServerIface):
             transaction_handler.files_server.push_file(next_file_path)
 
             return build_server_response_success({
-                "filename": trail,
+                "name": trail,
                 "length": os.path.getsize(next_file_path)
             })
 
