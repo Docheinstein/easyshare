@@ -9,6 +9,7 @@ from typing import Dict, Optional, Callable, List
 import Pyro4 as Pyro4
 
 import netutils
+import utils
 from args import Args
 from conf import Conf
 from config import ServerConfigParser
@@ -236,7 +237,7 @@ class Server(ServerIface):
         return build_server_response_success(client.rpwd)
 
     @Pyro4.expose
-    def rls(self) -> ServerResponse:
+    def rls(self, sort_by="name") -> ServerResponse:
         client = self._current_request_client()
         if not client:
             w("Client not connected: %s", self._current_request_endpoint())
@@ -253,22 +254,13 @@ class Server(ServerIface):
             if not self._is_path_allowed_for_client(client, client_path):
                 return build_server_response_error(ErrorCode.INVALID_PATH)
 
-            listdir_result = sorted(os.listdir(client_path))
+            ls_result = utils.ls(os.getcwd(), sort_by=sort_by)
+            if not ls_result:
+                return build_server_response_error(ErrorCode.COMMAND_EXECUTION_FAILED)
 
-            d("listdir result %s", str(listdir_result))
+            d("RLS response %s", str(ls_result))
 
-            ls_response: List[FileInfo] = []
-
-            for f in listdir_result:
-                f_stat = os.lstat(os.path.join(client_path, f))
-                ls_response.append({
-                    "name": f,
-                    "size": f_stat.st_size
-                })
-
-            d("RLS response %s", str(ls_response))
-
-            return build_server_response_success(ls_response)
+            return build_server_response_success(ls_result)
         except Exception as ex:
             e("RLS error: %s", str(ex))
             return build_server_response_error(ErrorCode.COMMAND_EXECUTION_FAILED)

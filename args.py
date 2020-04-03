@@ -31,21 +31,24 @@ class Args:
         """
         return True if self.get_params(arg_names) is not None else False
 
-    def get_param(self, arg_names: Optional[List[str]] = None, default=None) -> Optional[str]:
+    def get_param(self, arg_names: Optional[List[str]] = None,
+                  position=0, default=None) -> Optional[str]:
         """
-        Returns the first parameter of the argument whose name matches one
-        of the specified arg_names, or 'default' (None as default) if
+        Returns the parameter at position 'position' of the argument whose name
+        matches one of the specified arg_names, or 'default' (None as default) if
         the argument does not exists within the parsed arguments.
         None is returned if the argument exists but has not params.
         (i.e. it cannot be possible to distinguish the two cases).
         :param arg_names: list of possible argument names (e.g. short and long format)
+        :param position: the position of the parameter to take from
+                         the param list (default 0)
         :param default: default value to return if nothing is found
         :return: the first parameter of the argument
         """
         params = self.get_params(arg_names, default=default)
-        if not params:
+        if not params or position >= len(params):
             return params
-        return params[0]
+        return params[position]
 
     def get_params(self, arg_names: Optional[List[str]] = None, default=None) -> Optional[List[str]]:
         """

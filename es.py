@@ -176,11 +176,11 @@ class Connection:
 
         return resp
 
-    def rls(self) -> ServerResponse:
+    def rls(self, sort_by: str) -> ServerResponse:
         if not self.c_connected:
             return build_server_response_error(ErrorCode.NOT_CONNECTED)
 
-        return self.server.rls()
+        return self.server.rls(sort_by)
 
     def rmkdir(self, directory) -> ServerResponse:
         if not self.c_connected:
@@ -266,12 +266,12 @@ class Client:
         except Exception:
             error_print(ErrorCode.COMMAND_EXECUTION_FAILED)
 
-    def _execute_rcd(self, args):
+    def _execute_rcd(self, args: Args):
         if not self.connection:
             error_print(ErrorCode.NOT_CONNECTED)
             return
 
-        directory = args[0] if len(args) > 0 else "/"
+        directory = args.get_param(default="/")
 
         i(">> RCD %s", directory)
 
@@ -294,21 +294,27 @@ class Client:
         if not ls_result:
             error_print(ErrorCode.COMMAND_EXECUTION_FAILED)
 
-        self._print_files_info(ls_result)
+        self._print_file_infos(ls_result)
 
-    def _execute_rls(self, args):
+    def _execute_rls(self, args: Args):
         if not self.connection:
             error_print(ErrorCode.NOT_CONNECTED)
             return
 
-        i(">> RLS")
+        if LsArguments.SORT_BY_SIZE in args:
+            sort_by = "size"
+        else:
+            sort_by = "name"
 
-        resp = self.connection.rls()
+        i(">> RLS (sort by %s)", sort_by)
+
+        resp = self.connection.rls(sort_by)
+
         if is_server_response_success(resp) and "data" in resp:
             if not resp["data"]:
                 return
 
-            self._print_files_info(resp["data"])
+            self._print_file_infos(resp["data"])
 
         else:
             self._handle_error_response(resp)
@@ -361,12 +367,12 @@ class Client:
         i(">> RPWD")
         print(self.connection.sharing_rpwd())
 
-    def _execute_open(self, args):
-        if len(args) <= 0:
+    def _execute_open(self, args: Args):
+        sharing_name = args.get_param()
+        if not sharing_name:
             error_print(ErrorCode.INVALID_COMMAND_SYNTAX)
             return
 
-        sharing_name = args[0]
         i(">> OPEN %s", sharing_name)
 
         server_info: Optional[ServerInfo] = None
@@ -535,7 +541,7 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-    def _print_files_info(self, infos: List[FileInfo]):
+    def _print_file_infos(self, infos: List[FileInfo]):
 
         longest_size_str = 0
 
@@ -610,7 +616,7 @@ class Shell:
         return pwd + "> "
 
 
-class ClientArgument:
+class ClientArguments:
     VERBOSE =   ["-v", "--verbose"]
     PORT =      ["-p", "--port"]
     HELP =      ["-h", "--help"]
@@ -621,20 +627,20 @@ class ClientArgument:
 def main():
     args = Args(sys.argv[1:])
 
-    if ClientArgument.HELP in args:
+    if ClientArguments.HELP in args:
         terminate(HELP)
 
-    if ClientArgument.VERSION in args:
+    if ClientArguments.VERSION in args:
         terminate(APP_INFO)
 
-    init_logging_from_args(args, ClientArgument.VERBOSE)
+    init_logging_from_args(args, ClientArguments.VERBOSE)
 
     i(APP_INFO)
 
     server_discover_port = Conf.DEFAULT_SERVER_DISCOVER_PORT
 
-    if ClientArgument.PORT in args:
-        server_discover_port = to_int(args.get_param(ClientArgument.PORT))
+    if ClientArguments.PORT in args:
+        server_discover_port = to_int(args.get_param(ClientArguments.PORT))
 
     # Start in interactive mode
     client = Client(server_discover_port)

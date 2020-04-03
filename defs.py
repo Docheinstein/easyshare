@@ -31,11 +31,11 @@ class ServerIface(ABC):
         pass
 
     @abstractmethod
-    def rcd(self, path) -> ServerResponse:
+    def rcd(self, path: str) -> ServerResponse:
         pass
 
     @abstractmethod
-    def rls(self) -> ServerResponse:
+    def rls(self, sort_by="name") -> ServerResponse:
         pass
 
     @abstractmethod
