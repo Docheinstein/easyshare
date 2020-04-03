@@ -63,6 +63,14 @@ class LsArguments:
     SORT_BY_SIZE = ["-s", "--sort"]
 
 
+class OpenArguments:
+    TIMEOUT = ["-t", "--timeout"]
+
+
+class ScanArguments:
+    TIMEOUT = ["-t", "--timeout"]
+
+
 def error_string(error_code: int) -> str:
     error_code = error_code if error_code in ERRORS_STR else ErrorCode.ERROR
     return ERRORS_STR[error_code]
@@ -153,7 +161,7 @@ class Connection:
         d("c_connected: %d", self.c_connected)
         return self.c_connected
 
-    def sharing_rpwd(self):
+    def rpwd(self):
         return os.path.join(self.c_sharing,
                             self.c_rpwd).rstrip(os.sep)
 
@@ -250,11 +258,7 @@ class Client:
         pass
 
     def _execute_cd(self, args: Args):
-        directory = args.get_param()
-
-        if not directory:
-            error_print(ErrorCode.INVALID_COMMAND_SYNTAX)
-            return
+        directory = args.get_param(default="/")
 
         i(">> CD " + directory)
         if not os.path.isdir(os.path.join(os.getcwd(), directory)):
@@ -319,28 +323,30 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-    def _execute_mkdir(self, args):
-        if len(args) <= 0:
-            eprint(ErrorCode.INVALID_COMMAND_SYNTAX)
+    def _execute_mkdir(self, args: Args):
+        directory = args.get_param()
+
+        if not directory:
+            error_print(ErrorCode.INVALID_COMMAND_SYNTAX)
             return
 
-        directory = args[0]
-        i(">> RMKDIR " + directory)
+        i(">> MKDIR " + directory)
         try:
             os.mkdir(directory)
         except Exception:
             error_print(ErrorCode.COMMAND_EXECUTION_FAILED)
 
-    def _execute_rmkdir(self, args):
+    def _execute_rmkdir(self, args: Args):
         if not self.connection:
             error_print(ErrorCode.NOT_CONNECTED)
             return
 
-        if len(args) <= 0:
-            eprint(ErrorCode.INVALID_COMMAND_SYNTAX)
+        directory = args.get_param()
+
+        if not directory:
+            error_print(ErrorCode.INVALID_COMMAND_SYNTAX)
             return
 
-        directory = args[0]
         i(">> RMKDIR " + directory)
 
         resp = self.connection.rmkdir(directory)
@@ -350,8 +356,7 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-
-    def _execute_pwd(self, args):
+    def _execute_pwd(self, _: Args):
         i(">> PWD")
 
         try:
@@ -359,13 +364,13 @@ class Client:
         except Exception:
             error_print(ErrorCode.COMMAND_EXECUTION_FAILED)
 
-    def _execute_rpwd(self, args):
+    def _execute_rpwd(self, _: Args):
         if not self.connection:
             error_print(ErrorCode.NOT_CONNECTED)
             return
 
         i(">> RPWD")
-        print(self.connection.sharing_rpwd())
+        print(self.connection.rpwd())
 
     def _execute_open(self, args: Args):
         sharing_name = args.get_param()
@@ -373,25 +378,29 @@ class Client:
             error_print(ErrorCode.INVALID_COMMAND_SYNTAX)
             return
 
-        i(">> OPEN %s", sharing_name)
+        timeout = to_int(args.get_param(OpenArguments.TIMEOUT,
+                                        default=Conf.DISCOVER_DEFAULT_TIMEOUT_SEC))
+
+        i(">> OPEN %s (timeout = %d)", sharing_name, timeout)
 
         server_info: Optional[ServerInfo] = None
 
-        def response_handler(client_address: Endpoint,
+        def response_handler(client_endpoint: Endpoint,
                              a_server_info: ServerInfo) -> bool:
             nonlocal server_info
             d("Handling DISCOVER response from %s\n%s",
-                          str(client_address), str(a_server_info))
+              str(client_endpoint), str(a_server_info))
             for sharing in a_server_info["sharings"]:
                 if sharing == sharing_name:
                     d("Sharing [%s] found at %s:%d",
-                                  sharing, a_server_info["ip"], a_server_info["port"])
+                      sharing, a_server_info["ip"], a_server_info["port"])
                     server_info = a_server_info
                     return False    # Stop DISCOVER
 
             return True             # Continue DISCOVER
 
-        Discoverer(self.server_discover_port, response_handler).discover()
+        Discoverer(self.server_discover_port, response_handler,
+                   timeout=timeout).discover()
 
         if not server_info:
             error_print(ErrorCode.SHARING_NOT_FOUND)
@@ -403,40 +412,49 @@ class Client:
         else:
             d("Reusing existing connection with %s", server_info["uri"])
 
-        # Send OPEN
+        # Actually send OPEN
 
         resp = self.connection.open(sharing_name)
         if is_server_response_success(resp):
             d("Successfully connected to %s:%d",
-                          server_info["ip"], server_info["port"])
+              server_info["ip"], server_info["port"])
         else:
             self._handle_error_response(resp)
-            self.connection = None
+            self.connection = None  # Invalidate connection
 
-    def _execute_scan(self, args):
-        i(">> SCAN")
+    def _execute_scan(self, args: Args):
+        timeout = to_int(args.get_param(OpenArguments.TIMEOUT,
+                                        default=Conf.DISCOVER_DEFAULT_TIMEOUT_SEC))
 
-        servers_info: List[ServerInfo] = []
+        i(">> SCAN (timeout = %d)")
+
+        servers_found = 0
 
         def response_handler(client_address: Endpoint,
                              server_info: ServerInfo) -> bool:
+            nonlocal servers_found
+
             d("Handling DISCOVER response from %s\n%s", str(client_address), str(server_info))
-            servers_info.append(server_info)
-            return True     # Go ahead
+            # Print as soon as they come
 
-        Discoverer(self.server_discover_port, response_handler).discover()
+            if servers_found > 0:
+                print("")
+            else:
+                i("======================")
 
-        # Print sharings
-        i("======================")
-        for idx, server_info in enumerate(servers_info):
             print("{} ({}:{})"
                   .format(server_info["name"], server_info["ip"], server_info["port"]))
 
             for sharing_name in server_info["sharings"]:
                 print("  " + sharing_name)
 
-            if idx < len(servers_info) - 1:
-                print("")
+            servers_found += 1
+
+            return True     # Go ahead
+
+        Discoverer(self.server_discover_port, response_handler,
+                   timeout=timeout).discover()
+
         i("======================")
 
     def _execute_get(self, args):
@@ -607,7 +625,7 @@ class Shell:
     def _build_prompt_string(self):
         pwd = os.getcwd()
         if self.client.is_connected():
-            rpwd = self.client.connection.sharing_rpwd()
+            rpwd = self.client.connection.rpwd()
         else:
             rpwd = None
 

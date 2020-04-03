@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict, Union, Tuple, Any
 
 from utils import strip_prefix, is_valid_list, is_str
 
@@ -45,12 +45,13 @@ class Args:
         :param default: default value to return if nothing is found
         :return: the first parameter of the argument
         """
-        params = self.get_params(arg_names, default=default)
-        if not params or position >= len(params):
+        params, found = self._get_params(arg_names, default=default, tell_found=True)
+        if not found or position >= len(params):
             return params
         return params[position]
 
-    def get_params(self, arg_names: Optional[List[str]] = None, default=None) -> Optional[List[str]]:
+    def get_params(self, arg_names: Optional[List[str]] = None,
+                   default=None) -> Optional[List[str]]:
         """
         Returns the parameters of the argument whose name matches one
         of the specified arg_names or 'default' (None as default) if
@@ -60,10 +61,19 @@ class Args:
         :param default: default value to return if nothing is found
         :return: the parameters of the argument
         """
-        mparams = self.get_mparams(arg_names, default=default)
-        if not mparams:
-            return mparams
-        return mparams[0]
+        return self._get_params(arg_names, default)
+
+    def get_mparams(self, arg_names: Optional[List[str]] = None,
+                     default=None) -> Optional[List[List[str]]]:
+        """
+        Returns the (multiple) parameters lists of the argument whose name matches one
+        of the specified arg_names or 'default' (None as default) if
+        the argument does not exists within the parsed arguments.
+        :param arg_names: list of possible argument names (e.g. short and long format)
+        :param default: default value to return if nothing is found
+        :return: the parameters lists of the argument
+        """
+        return self._get_mparams(arg_names, default)
 
     def get_mparams_count(self, arg_names: Optional[List[str]] = None) -> int:
         """
@@ -75,22 +85,51 @@ class Args:
         :param arg_names:
         :return: the number of parameters lists
         """
-        mparams = self.get_mparams(arg_names)
-        if not mparams:
+        mparams, found = self._get_mparams(arg_names, tell_found=True)
+        if not found:
             return 0
         return len(mparams)
 
-    def get_mparams(self, arg_names: Optional[List[str]] = None, default=None) -> Optional[List[List[str]]]:
+    def _get_params(self, arg_names: Optional[List[str]] = None, default=None,
+                    tell_found=False) -> Union[Optional[List[str]],
+                                               Tuple[Optional[List[str]],
+                                                     bool]]:
+        """
+        Returns the parameters of the argument whose name matches one
+        of the specified arg_names or 'default' (None as default) if
+        the argument does not exists within the parsed arguments.
+        An empty list is returned if the argument exists but has no params.
+        :param arg_names: list of possible argument names (e.g. short and long format)
+        :param default: default value to return if nothing is found
+        :param tell_found: whether return a tuple whose second value is whether
+                            the argument has been found
+        :return: the parameters of the argument [, found]
+        """
+        mparams, found = self._get_mparams(arg_names, default=default, tell_found=True)
+        if not found or not mparams:
+            return Args._wrap_finding(mparams, False, tell_found)
+
+        return Args._wrap_finding(mparams[0], True, tell_found)
+
+    def _get_mparams(self, arg_names: Optional[List[str]] = None, default=None,
+                     tell_found=False) -> Union[Optional[List[List[str]]],
+                                                Tuple[Optional[List[List[str]]],
+                                                      bool]]:
         """
         Returns the (multiple) parameters lists of the argument whose name matches one
         of the specified arg_names or 'default' (None as default) if
         the argument does not exists within the parsed arguments.
         :param arg_names: list of possible argument names (e.g. short and long format)
         :param default: default value to return if nothing is found
-        :return: the parameters lists of the argument
+        :param tell_found: whether return a tuple whose second value is whether
+                            the argument has been found
+        :return: the parameters lists of the argument [, found]
         """
+        self._debug("tell_found: ", tell_found)
+
         if not arg_names:
-            return self._args[None]
+            # None refers to the first parameters without leading '-'
+            return Args._wrap_finding(self._args[None], True, tell_found)
 
         ret = None
 
@@ -111,9 +150,22 @@ class Args:
                 ret.append(param_list)
 
         if ret is None:
-            return default
+            # Nothing found
+            self._debug("Nothing found: ")
+            return Args._wrap_finding(default, False, tell_found)
 
-        return ret
+        return Args._wrap_finding(ret, True, tell_found)
+
+    @staticmethod
+    def _wrap_finding(something: Any, found: bool, tell_found: bool):
+        """
+        Returns 'something' if tell_found is False or ('something', found) otherwise.
+        :param something:
+        :param found:
+        :param tell_found:
+        :return: 'something' or ('something', found)
+        """
+        return something if not tell_found else (something, found)
 
     def _parse(self, args: List[str]):
         # REMIND:
