@@ -114,7 +114,8 @@ class Discoverer:
 
         out_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         out_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        d("Sending DISCOVER message: %s", str(discover_message))
+        d("Sending DISCOVER on port %d message: %s",
+          self.server_discover_port, str(discover_message))
         out_sock.sendto(discover_message, out_addr)
 
         # Listen
@@ -232,7 +233,7 @@ class Client:
             Commands.SCAN: self._execute_scan
         }
 
-    def execute_command(self, command_line):
+    def execute_command_line(self, command_line: str) -> bool:
         command_line_parts = shlex.split(command_line)
         if len(command_line_parts) < 1:
             return False
@@ -240,9 +241,12 @@ class Client:
         command = command_line_parts[0]
         command_args = Args(command_line_parts[1:])
 
+        return self.execute_command(command, command_args)
+
+    def execute_command(self, command: str, args: Args) -> bool:
         if command in self.command_dispatcher:
-            t("Handling command %s%s", command, command_args)
-            self.command_dispatcher[command](command_args)
+            t("Handling command %s (%s)", command, args)
+            self.command_dispatcher[command](args)
             return True
         else:
             return False
@@ -610,7 +614,7 @@ class Shell:
             try:
                 prompt = self._build_prompt_string()
                 command = input(prompt)
-                outcome = self.client.execute_command(command)
+                outcome = self.client.execute_command_line(command)
 
                 if not outcome:
                     error_print(ErrorCode.COMMAND_NOT_RECOGNIZED)
@@ -620,7 +624,6 @@ class Shell:
             except EOFError:
                 d("CTRL+D detected: exiting")
                 break
-
 
     def _build_prompt_string(self):
         pwd = os.getcwd()
@@ -642,18 +645,22 @@ class ClientArguments:
 
 
 
+
+
+
 def main():
     args = Args(sys.argv[1:])
+
+    init_logging_from_args(args, ClientArguments.VERBOSE)
+
+    i(APP_INFO)
+    d(args)
 
     if ClientArguments.HELP in args:
         terminate(HELP)
 
     if ClientArguments.VERSION in args:
         terminate(APP_INFO)
-
-    init_logging_from_args(args, ClientArguments.VERBOSE)
-
-    i(APP_INFO)
 
     server_discover_port = Conf.DEFAULT_SERVER_DISCOVER_PORT
 
@@ -662,8 +669,30 @@ def main():
 
     # Start in interactive mode
     client = Client(server_discover_port)
-    shell = Shell(client)
-    shell.input_loop()
+
+    # Allow some commands directly from command line
+    # GET, SCAN
+    full_command = args.get_params()
+
+    COMMAND_LINE_COMMANDS = [Commands.GET, Commands.SCAN]
+
+    if full_command:
+        command = full_command.pop(0)
+
+        if command not in COMMAND_LINE_COMMANDS:
+            utils.abort("Unknown command: {}".format(command))
+
+        # Execute directly
+        # Take out the first token as "command" and leave
+        # everything else as it is
+        d("Executing command directly from command line: %s (%s)",
+          command, args)
+        client.execute_command(command, args)
+    else:
+        # Start the shell
+        d("Executing shell")
+        shell = Shell(client)
+        shell.input_loop()
 
 
 if __name__ == "__main__":

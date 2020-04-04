@@ -4,7 +4,7 @@ from utils import strip_prefix, is_valid_list, is_str
 
 
 class Args:
-    DEBUG = True
+    DEBUG = False
 
     def __init__(self, args: List[str]):
         self._args: Dict[Union[None, str], List[List[str]]] = {}
@@ -129,7 +129,8 @@ class Args:
 
         if not arg_names:
             # None refers to the first parameters without leading '-'
-            return Args._wrap_finding(self._args[None], True, tell_found)
+            return Args._wrap_finding(self._args.get(None, default),
+                                      True, tell_found)
 
         ret = None
 
@@ -151,7 +152,7 @@ class Args:
 
         if ret is None:
             # Nothing found
-            self._debug("Nothing found: ")
+            self._debug("Nothing found")
             return Args._wrap_finding(default, False, tell_found)
 
         return Args._wrap_finding(ret, True, tell_found)
