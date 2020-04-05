@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/../easyshare/.idea/easyshare.iml" filepath="$PROJECT_DIR$/../easyshare/.idea/easyshare.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/easyshare.iml" filepath="$PROJECT_DIR$/.idea/easyshare.iml" />
     </modules>
   </component>
 </project>

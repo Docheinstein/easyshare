@@ -1,0 +1,35 @@
+Metadata-Version: 1.2
+Name: easyshare
+Version: 0.1
+Summary: FTP/SMB like protocol
+Home-page: https://github.com/Docheinstein/easyshare
+Author: Stefano Dottore
+Author-email: docheinstein@gmail.com
+License: MIT
+Description: Easyshare
+        ====
+        
+        REQUIREMENTS
+        ------------
+        
+        Requires at least Python 3.5.
+        
+        INSTALLATION
+        ------------
+        
+        
+        USAGE
+        -----
+        
+        TESTING
+        -------
+        
+        
+        LICENSE
+        -------
+        
+        Easyshare is `MIT licensed <./LICENSE>`__.
+        
+Keywords: easyshare
+Platform: UNKNOWN
+Requires-Python: >=3.5
