@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import List
 
 from easyshare.protocol.response import Response
 
@@ -9,7 +10,7 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def open(self, sharing_name) -> Response:
+    def open(self, sharing_name: str) -> Response:
         pass
 
     @abstractmethod
@@ -25,20 +26,16 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def rls(self, sort_by="name") -> Response:
+    def rls(self, sort_by: str = "name") -> Response:
         pass
 
     @abstractmethod
-    def rmkdir(self, directory) -> Response:
+    def rmkdir(self, directory: str) -> Response:
         pass
 
     @abstractmethod
-    def get(self, files) -> Response:
+    def get(self, files: List[str]) -> Response:
         pass
-
-    # @abstractmethod
-    # def get_next(self, transaction) -> ServerResponse:
-    #     pass
 
     @abstractmethod
     def get_next(self, transaction) -> Response:

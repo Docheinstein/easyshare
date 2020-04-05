@@ -62,5 +62,9 @@ def bytes_to_int(b: bytes, byteorder="big"):
     return int.from_bytes(b, byteorder)
 
 
+def int_to_bytes(i: int, length,  byteorder="big"):
+    return i.to_bytes(length, byteorder)
+
+
 
 

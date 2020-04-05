@@ -1,10 +1,9 @@
 import threading
 from typing import Callable
 
-from easyshare.consts.net import ADDR_ANY
 from easyshare.shared.log import d
 from easyshare.shared.endpoint import Endpoint
-from easyshare.utils.net import socket_udp
+from easyshare.socket.udp import SocketUdpIn
 
 
 class DiscoverDeamon(threading.Thread):
@@ -17,9 +16,9 @@ class DiscoverDeamon(threading.Thread):
     def run(self) -> None:
         d("Starting DISCOVER deamon")
 
-        sock = socket_udp(ADDR_ANY, self.port)
+        sock = SocketUdpIn(port=self.port)
 
         while True:
-            data, client_endpoint = sock.recvfrom(1024)
+            data, client_endpoint = sock.recv()
             d("Received DISCOVER request from: %s", client_endpoint)
             self.callback(client_endpoint, data)

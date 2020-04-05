@@ -6,16 +6,16 @@ import threading
 import time
 import Pyro4 as Pyro4
 
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from easyshare import utils
 from easyshare.shared.args import Args
-from easyshare.shared.conf import APP_VERSION, APP_NAME_SERVER_SHORT, APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, \
-    SERVER_NAME_ALPHABET
+from easyshare.shared.conf import APP_VERSION, APP_NAME_SERVER_SHORT, \
+    APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET
 from easyshare.config.parser import parse_config
 from easyshare.shared.log import init_logging_from_args, e, w, i, d, t
 from easyshare.server.client import ClientContext
-from easyshare.server.discoverdeamon import DiscoverDeamon
+from easyshare.server.discover import DiscoverDeamon
 from easyshare.server.sharing import Sharing
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.iserver import IServer
@@ -23,16 +23,25 @@ from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.response import response_success, response_error, Response
 from easyshare.protocol.errors import ServerErrors
 from easyshare.utils.app import terminate, abort
-from easyshare.utils.json import to_json_str
+from easyshare.utils.json import json_to_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
 from easyshare.utils.str import randstring, strip, satisfy
 from easyshare.utils.types import bytes_to_int, str_to_bytes, to_int, to_bool, is_valid_list
 
+# ==================================================================
+
+
 APP_INFO = APP_NAME_SERVER + " (" + APP_NAME_SERVER_SHORT + ") v. " + APP_VERSION
 
-HELP = """easyshare deamon (esd)
+
+# === HELPS ===
+
+HELP_APP = """easyshare deamon (esd)
 ...
 """
+
+
+# === ARGUMENTS ===
 
 
 class ServerArguments:
@@ -53,9 +62,15 @@ class ServerConfigKeys:
     SHARING_READ_ONLY = "read-only"
 
 
+# === ERRORS ===
+
+
 class ErrorsStrings:
     INVALID_PORT = "Invalid port"
     INVALID_SERVER_NAME = "Invalid server name"
+
+
+# ==================================================================
 
 
 class Server(IServer):
@@ -107,7 +122,7 @@ class Server(IServer):
 
         d("Client response port is %d", client_discover_response_port)
 
-        discover_response = str_to_bytes(to_json_str(response))
+        discover_response = str_to_bytes(json_to_str(response))
 
         # Respond to the port the client says in the paylod
         # (not necessary the one from which the request come)
@@ -115,7 +130,7 @@ class Server(IServer):
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         d("Sending DISCOVER response back to %s\n%s",
-          resp_endpoint, to_json_str(response, pretty=True))
+          resp_endpoint, json_to_str(response, pretty=True))
         sock.sendto(discover_response, resp_endpoint)
 
     def start(self):
@@ -174,7 +189,7 @@ class Server(IServer):
         return response_success(client.rpwd)
 
     @Pyro4.expose
-    def rcd(self, path) -> Response:
+    def rcd(self, path: str) -> Response:
         if not path:
             return response_error(ServerErrors.INVALID_COMMAND_SYNTAX)
 
@@ -204,7 +219,7 @@ class Server(IServer):
         return response_success(client.rpwd)
 
     @Pyro4.expose
-    def rls(self, sort_by="name") -> Response:
+    def rls(self, sort_by: str = "name") -> Response:
         client = self._current_request_client()
         if not client:
             w("Client not connected: %s", self._current_request_endpoint())
@@ -233,7 +248,7 @@ class Server(IServer):
             return response_error(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
-    def rmkdir(self, directory) -> Response:
+    def rmkdir(self, directory: str) -> Response:
         client = self._current_request_client()
         if not client:
             return response_error(ServerErrors.NOT_CONNECTED)
@@ -255,7 +270,7 @@ class Server(IServer):
             return response_error(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
-    def get(self, files) -> Response:
+    def get(self, files: List[str]) -> Response:
         client = self._current_request_client()
         if not client:
             return response_error(ServerErrors.NOT_CONNECTED)
@@ -540,12 +555,12 @@ class GetFilesServer(threading.Thread):
 
 def main():
     if len(sys.argv) <= 1:
-        terminate(HELP)
+        terminate(HELP_APP)
 
     args = Args(sys.argv[1:])
 
     if ServerArguments.HELP in args:
-        terminate(HELP)
+        terminate(HELP_APP)
 
     if ServerArguments.VERSION in args:
         terminate(APP_INFO)

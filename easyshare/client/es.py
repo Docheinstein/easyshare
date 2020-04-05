@@ -7,7 +7,7 @@ from typing import Optional, Callable, List, Dict
 
 from easyshare import utils
 from easyshare.client.connection import Connection
-from easyshare.client.discoverer import Discoverer
+from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
@@ -18,12 +18,19 @@ from easyshare.shared.conf import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VE
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.log import t, i, d, w, init_logging_from_args
 from easyshare.utils.app import eprint, terminate, abort
-from easyshare.utils.meta import values
+from easyshare.utils.obj import values
 from easyshare.utils.types import to_int
+
+# ==================================================================
+
 
 APP_INFO = APP_NAME_CLIENT + " (" + APP_NAME_CLIENT_SHORT + ") v. " + APP_VERSION
 
-HELP = """\
+
+# === HELPS ===
+
+
+HELP_APP = """\
 cd      <path>      |   change local directory
 exit                |   exit shell
 get     <file>      |   download file or folder
@@ -38,6 +45,78 @@ rls                 |   list remote directory
 rmkdir  <folder>    |   create remote directory
 rpwd                |   print remote directory name
 scan    [timeout]   |   scan the network for sharings"""
+
+HELP_COMMANDS = """\
+cd      <path>      |   change local directory
+exit                |   exit shell
+get     <file>      |   download file or folder
+help                |   print command list
+ls                  |   list local directory
+mkdir   <folder>    |   create local directory
+open    <sharing>   |   connect to a server's sharing
+put     <file>      |   upload file or folder
+pwd                 |   print local directory name
+rcd     <path>      |   change remote directory
+rls                 |   list remote directory
+rmkdir  <folder>    |   create remote directory
+rpwd                |   print remote directory name
+scan    [timeout]   |   scan the network for sharings"""
+
+
+# === ARGUMENTS ===
+
+
+class ClientArguments:
+    VERBOSE =   ["-v", "--verbose"]
+    PORT =      ["-p", "--port"]
+    HELP =      ["-h", "--help"]
+    VERSION =   ["-V", "--version"]
+
+
+# === COMMANDS ===
+
+
+class Commands:
+    HELP = "help"
+    EXIT = "exit"
+
+    LOCAL_CHANGE_DIRECTORY = "cd"
+    LOCAL_LIST_DIRECTORY = "ls"
+    LOCAL_CREATE_DIRECTORY = "mkdir"
+    LOCAL_CURRENT_DIRECTORY = "pwd"
+
+    REMOTE_CHANGE_DIRECTORY = "rcd"
+    REMOTE_LIST_DIRECTORY = "rls"
+    REMOTE_CREATE_DIRECTORY = "rmkdir"
+    REMOTE_CURRENT_DIRECTORY = "rpwd"
+
+    SCAN = "scan"
+    OPEN = "open"
+
+    GET = "get"
+    PUT = "put"
+
+
+SHELL_COMMANDS = values(Commands)
+
+CLI_COMMANDS = [
+    Commands.SCAN,
+    Commands.GET
+]
+
+# === COMMANDS ARGUMENTS ===
+
+
+class LsArguments:
+    SORT_BY_SIZE = ["-s", "--sort"]
+
+
+class OpenArguments:
+    TIMEOUT = ["-t", "--timeout"]
+
+
+class ScanArguments:
+    TIMEOUT = ["-t", "--timeout"]
 
 
 # === ERRORS ===
@@ -68,8 +147,12 @@ ERRORS_STRINGS_MAP = {
     ServerErrors.INVALID_TRANSACTION: ErrorsStrings.INVALID_TRANSACTION,
 
     ClientErrors.COMMAND_NOT_RECOGNIZED: ErrorsStrings.COMMAND_NOT_RECOGNIZED,
+    ClientErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
+    ClientErrors.COMMAND_EXECUTION_FAILED: ErrorsStrings.COMMAND_EXECUTION_FAILED,
     ClientErrors.UNEXPECTED_SERVER_RESPONSE: ErrorsStrings.UNEXPECTED_SERVER_RESPONSE,
     ClientErrors.NOT_CONNECTED: ErrorsStrings.NOT_CONNECTED,
+    ClientErrors.INVALID_PATH: ErrorsStrings.INVALID_PATH,
+    ClientErrors.SHARING_NOT_FOUND: ErrorsStrings.SHARING_NOT_FOUND,
 }
 
 
@@ -81,106 +164,53 @@ def print_response_error(response: Response):
     if is_response_error(response):
         print_error(response["error"])
 
+# ==================================================================
 
-# === COMMANDS ===
-
-
-class Commands:
-    HELP = "help"
-    EXIT = "exit"
-
-    LOCAL_CHANGE_DIRECTORY = "cd"
-    LOCAL_LIST_DIRECTORY = "ls"
-    LOCAL_CREATE_DIRECTORY = "mkdir"
-    LOCAL_CURRENT_DIRECTORY = "pwd"
-
-    REMOTE_CHANGE_DIRECTORY = "rcd"
-    REMOTE_LIST_DIRECTORY = "rls"
-    REMOTE_CREATE_DIRECTORY = "rmkdir"
-    REMOTE_CURRENT_DIRECTORY = "rpwd"
-
-    OPEN = "open"
-    SCAN = "scan"
-
-    GET = "get"
-    PUT = "put"
-
-
-SHELL_COMMANDS = values(Commands)
-
-CLI_COMMANDS = [
-    Commands.SCAN,
-    Commands.GET
-]
-
-
-class LsArguments:
-    SORT_BY_SIZE = ["-s", "--sort"]
-
-
-class OpenArguments:
-    TIMEOUT = ["-t", "--timeout"]
-
-
-class ScanArguments:
-    TIMEOUT = ["-t", "--timeout"]
-
-
-# ========================
 
 class Client:
     def __init__(self, server_discover_port: int):
-        self.server_discover_port = server_discover_port
         self.connection: Optional[Connection] = None
-        # self.pwd = os.getcwd()
-        self.command_dispatcher: Dict[str, Callable[[Args], None]] = {
-            Commands.HELP: self._execute_help,
-            Commands.EXIT: self._execute_exit,
-            Commands.LOCAL_CHANGE_DIRECTORY: self._execute_cd,
-            Commands.REMOTE_CHANGE_DIRECTORY: self._execute_rcd,
-            Commands.LOCAL_LIST_DIRECTORY: self._execute_ls,
-            Commands.REMOTE_LIST_DIRECTORY: self._execute_rls,
-            Commands.LOCAL_CREATE_DIRECTORY: self._execute_mkdir,
-            Commands.REMOTE_CREATE_DIRECTORY: self._execute_rmkdir,
-            Commands.LOCAL_CURRENT_DIRECTORY: self._execute_pwd,
-            Commands.REMOTE_CURRENT_DIRECTORY: self._execute_rpwd,
-            Commands.GET: self._execute_get,
-            Commands.OPEN: self._execute_open,
-            Commands.SCAN: self._execute_scan
+
+        self._server_discover_port = server_discover_port
+
+        self._command_dispatcher: Dict[str, Callable[[Args], None]] = {
+            Commands.LOCAL_CHANGE_DIRECTORY: self._cd,
+            Commands.LOCAL_LIST_DIRECTORY: self._ls,
+            Commands.LOCAL_CREATE_DIRECTORY: self._mkdir,
+            Commands.LOCAL_CURRENT_DIRECTORY: self._pwd,
+
+            Commands.REMOTE_CHANGE_DIRECTORY: self._rcd,
+            Commands.REMOTE_LIST_DIRECTORY: self._rls,
+            Commands.REMOTE_CREATE_DIRECTORY: self._rmkdir,
+            Commands.REMOTE_CURRENT_DIRECTORY: self._rpwd,
+
+            Commands.SCAN: self._scan,
+            Commands.OPEN: self._open,
+
+            Commands.GET: self._get,
         }
 
-    def execute_command_line(self, command_line: str) -> bool:
-        command_line_parts = shlex.split(command_line)
-        if len(command_line_parts) < 1:
-            return False
-
-        command = command_line_parts[0]
-        command_args = Args(command_line_parts[1:])
-
-        return self.execute_command(command, command_args)
 
     def execute_command(self, command: str, args: Args) -> bool:
-        if command in self.command_dispatcher:
-            t("Handling command %s (%s)", command, args)
-            self.command_dispatcher[command](args)
-            return True
-        else:
+        if command not in self._command_dispatcher:
             return False
+
+        t("Handling command %s (%s)", command, args)
+        self._command_dispatcher[command](args)
+        return True
 
     def is_connected(self):
         t("self.connection = %d", True if self.connection else False)
         return self.connection and self.connection.is_connected()
 
-    def _execute_help(self, _):
-        print(HELP)
 
-    def _execute_exit(self, _):
-        pass
+    # === LOCAL COMMANDS ===
 
-    def _execute_cd(self, args: Args):
+    def _cd(self, args: Args):
         directory = args.get_param(default="/")
 
         i(">> CD " + directory)
+
         if not os.path.isdir(os.path.join(os.getcwd(), directory)):
             print_error(ClientErrors.INVALID_PATH)
             return
@@ -190,7 +220,7 @@ class Client:
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-    def _execute_ls(self, args: Args):
+    def _ls(self, args: Args):
         i(">> LS")
 
         if LsArguments.SORT_BY_SIZE in args:
@@ -204,7 +234,7 @@ class Client:
 
         self._print_file_infos(ls_result)
 
-    def _execute_mkdir(self, args: Args):
+    def _mkdir(self, args: Args):
         directory = args.get_param()
 
         if not directory:
@@ -212,12 +242,13 @@ class Client:
             return
 
         i(">> MKDIR " + directory)
+
         try:
             os.mkdir(directory)
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-    def _execute_pwd(self, _: Args):
+    def _pwd(self, _: Args):
         i(">> PWD")
 
         try:
@@ -225,7 +256,11 @@ class Client:
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-    def _execute_rpwd(self, _: Args):
+    # === REMOTE COMMANDS ===
+
+    # RPWD
+
+    def _rpwd(self, _: Args):
         if not self.connection:
             print_error(ClientErrors.NOT_CONNECTED)
             return
@@ -233,7 +268,7 @@ class Client:
         i(">> RPWD")
         print(self.connection.rpwd())
 
-    def _execute_rcd(self, args: Args):
+    def _rcd(self, args: Args):
         if not self.connection:
             print_error(ClientErrors.NOT_CONNECTED)
             return
@@ -249,7 +284,7 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-    def _execute_rls(self, args: Args):
+    def _rls(self, args: Args):
         if not self.connection:
             print_error(ClientErrors.NOT_CONNECTED)
             return
@@ -272,7 +307,7 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-    def _execute_rmkdir(self, args: Args):
+    def _rmkdir(self, args: Args):
         if not self.connection:
             print_error(ClientErrors.NOT_CONNECTED)
             return
@@ -293,7 +328,7 @@ class Client:
             self._handle_error_response(resp)
 
 
-    def _execute_open(self, args: Args):
+    def _open(self, args: Args):
         sharing_name = args.get_param()
         if not sharing_name:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -320,8 +355,7 @@ class Client:
 
             return True             # Continue DISCOVER
 
-        Discoverer(self.server_discover_port, response_handler,
-                   timeout=timeout).discover()
+        Discoverer(self._server_discover_port, response_handler).discover(timeout)
 
         if not server_info:
             print_error(ClientErrors.SHARING_NOT_FOUND)
@@ -343,7 +377,7 @@ class Client:
             self._handle_error_response(resp)
             self.connection = None  # Invalidate connection
 
-    def _execute_scan(self, args: Args):
+    def _scan(self, args: Args):
         timeout = to_int(args.get_param(OpenArguments.TIMEOUT,
                                         default=Discoverer.DEFAULT_TIMEOUT))
 
@@ -373,12 +407,11 @@ class Client:
 
             return True     # Go ahead
 
-        Discoverer(self.server_discover_port, response_handler,
-                   timeout=timeout).discover()
+        Discoverer(self._server_discover_port, response_handler).discover(timeout)
 
         i("======================")
 
-    def _execute_get(self, args):
+    def _get(self, args):
         if not self.connection:
             print_error(ClientErrors.NOT_CONNECTED)
             return
@@ -515,17 +548,21 @@ class Client:
 class Shell:
 
     def __init__(self, client: Client):
-        self.available_commands = []
         self.client = client
+        self._suggestions = []
+        self._shell_command_dispatcher: Dict[str, Callable[[Args], None]] = {
+            Commands.HELP: self._help,
+            Commands.EXIT: self._exit,
+        }
 
         readline.set_completer(self.next_suggestion)
         readline.parse_and_bind("tab: complete")
 
     def next_suggestion(self, text, state):
         if state == 0:
-            self.available_commands = [c for c in SHELL_COMMANDS if c.startswith(text)]
-        if len(self.available_commands) > 0:
-            return self.available_commands.pop()
+            self._suggestions = [c for c in SHELL_COMMANDS if c.startswith(text)]
+        if len(self._suggestions) > 0:
+            return self._suggestions.pop()
         return None
 
     def input_loop(self):
@@ -533,8 +570,19 @@ class Shell:
         while command != Commands.EXIT:
             try:
                 prompt = self._build_prompt_string()
-                command = input(prompt)
-                outcome = self.client.execute_command_line(command)
+                command_line = input(prompt)
+
+                command_line_parts = shlex.split(command_line)
+                if len(command_line_parts) < 1:
+                    print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
+                    continue
+
+                command = command_line_parts[0]
+                command_args = Args(command_line_parts[1:])
+
+                outcome = \
+                    self._execute_shell_command(command, command_args) or \
+                    self.client.execute_command(command, command_args)
 
                 if not outcome:
                     print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
@@ -546,22 +594,29 @@ class Shell:
                 break
 
     def _build_prompt_string(self):
-        pwd = os.getcwd()
         if self.client.is_connected():
-            rpwd = self.client.connection.rpwd()
+            prompt_base = "{}:/{}  ##  ".format(
+                self.client.connection.sharing_name(),
+                self.client.connection.rpwd()
+            ).rstrip()
         else:
-            rpwd = None
+            prompt_base = ""
 
-        if rpwd:
-            return rpwd + "  ##  " + pwd + "> "
-        return pwd + "> "
+        return prompt_base + os.getcwd() + "> "
 
+    def _execute_shell_command(self, command: str, args: Args) -> bool:
+        if command not in self._shell_command_dispatcher:
+            return False
 
-class ClientArguments:
-    VERBOSE =   ["-v", "--verbose"]
-    PORT =      ["-p", "--port"]
-    HELP =      ["-h", "--help"]
-    VERSION =   ["-V", "--version"]
+        t("Handling shell command %s (%s)", command, args)
+        self._shell_command_dispatcher[command](args)
+        return True
+
+    def _help(self, _: Args):
+        print(HELP_COMMANDS)
+
+    def _exit(self, _: Args):
+        pass
 
 
 def main():
@@ -573,7 +628,7 @@ def main():
     d(args)
 
     if ClientArguments.HELP in args:
-        terminate(HELP)
+        terminate(HELP_APP)
 
     if ClientArguments.VERSION in args:
         terminate(APP_INFO)
