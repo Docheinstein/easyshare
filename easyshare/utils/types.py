@@ -24,24 +24,24 @@ def is_valid_list(o: object) -> bool:
 
 # CONVERTERS
 
-def to_int(o: Any) -> Union[int, None]:
+def to_int(o: Any, default=None) -> Union[int, None]:
     try:
         return int(o)
     except Exception:
-        return None
+        return default
 
 
-def to_bool(o: object) -> Union[bool, None]:
+def to_bool(o: object, default=None) -> Union[bool, None]:
     if isinstance(o, bool):
         return o
     if isinstance(o, int):
         return o != 0
     if isinstance(o, str):
         return str_to_bool(o)
-    return None
+    return default
 
 
-def str_to_bool(s: str, ystrings=None, nstrings=None) -> Union[bool, None]:
+def str_to_bool(s: str, ystrings=None, nstrings=None, default=None) -> Union[bool, None]:
     if not ystrings:
         ystrings = ["true", "1", "yes", "y"]
     if not nstrings:
@@ -51,7 +51,7 @@ def str_to_bool(s: str, ystrings=None, nstrings=None) -> Union[bool, None]:
         return True
     if s.lower() in nstrings:
         return False
-    return None
+    return default
 
 
 def str_to_bytes(s: str):

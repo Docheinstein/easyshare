@@ -14,7 +14,7 @@ class DiscoverDeamon(threading.Thread):
         self.callback = callback
 
     def run(self) -> None:
-        d("Starting DISCOVER deamon")
+        v("Starting DISCOVER deamon")
 
         sock = SocketUdpIn(port=self.port)
 

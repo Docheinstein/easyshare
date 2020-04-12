@@ -4,16 +4,24 @@
     <list default="true" id="ea95e738-b8a2-4b8b-9d45-7b381ba14ad5" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/client/connection.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/connection.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/client/discoverer.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/discover.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/client/discover.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/discover.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/client/errors.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/errors.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/client/es.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/es.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/consts/net.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/consts/net.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/config/parser.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/config/parser.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/protocol/fileinfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/protocol/fileinfo.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/protocol/iserver.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/protocol/iserver.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/protocol/response.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/protocol/response.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/server/discoverdeamon.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/server/discover.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/protocol/serverinfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/protocol/serverinfo.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/server/discover.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/server/discover.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/server/esd.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/server/esd.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/utils/meta.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/obj.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/utils/net.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/net.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/server/sharing.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/server/sharing.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/shared/log.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/shared/log.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/utils/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/utils/json.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/json.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/utils/obj.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/obj.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/utils/os.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/os.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/utils/types.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/types.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/setup.py" beforeDir="false" afterPath="$PROJECT_DIR$/setup.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -63,11 +71,11 @@
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/easyshare/protocol" />
       <recent name="$PROJECT_DIR$/easyshare/shared" />
       <recent name="$PROJECT_DIR$/easyshare/config" />
       <recent name="$PROJECT_DIR$/easyshare" />
       <recent name="$PROJECT_DIR$/res" />
-      <recent name="$PROJECT_DIR$/easyshare/server" />
     </key>
   </component>
   <component name="RunManager">
@@ -151,7 +159,12 @@
       <workItem from="1586034065458" duration="3841000" />
       <workItem from="1586039492478" duration="2619000" />
       <workItem from="1586071033991" duration="9428000" />
-      <workItem from="1586089293572" duration="8441000" />
+      <workItem from="1586089293572" duration="8506000" />
+      <workItem from="1586116518229" duration="126000" />
+      <workItem from="1586614608118" duration="113000" />
+      <workItem from="1586635302122" duration="12290000" />
+      <workItem from="1586681209305" duration="4723000" />
+      <workItem from="1586694903897" duration="13598000" />
     </task>
     <servers />
   </component>
@@ -178,16 +191,16 @@
       <screen x="0" y="46" width="1920" height="1034" />
     </state>
     <state x="1279" y="307" width="374" height="561" key="#com.intellij.ide.util.MemberChooser/0.46.1920.1034/1920.0.1920.1080@0.46.1920.1034" timestamp="1584825565376" />
-    <state x="1936" y="0" key="#com.intellij.refactoring.rename.AutomaticRenamingDialog" timestamp="1586078232550">
+    <state x="1936" y="0" key="#com.intellij.refactoring.rename.AutomaticRenamingDialog" timestamp="1586646508479">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
     <state x="16" y="46" key="#com.intellij.refactoring.rename.AutomaticRenamingDialog/0.46.1920.1034/1920.0.1920.1080@0.46.1920.1034" timestamp="1584882474366" />
-    <state x="1936" y="0" key="#com.intellij.refactoring.rename.AutomaticRenamingDialog/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586078232550" />
-    <state x="3006" y="454" key="FileChooserDialogImpl" timestamp="1586038893620">
+    <state x="1936" y="0" key="#com.intellij.refactoring.rename.AutomaticRenamingDialog/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586646508479" />
+    <state x="3006" y="454" key="FileChooserDialogImpl" timestamp="1586116637413">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
     <state x="1086" y="481" key="FileChooserDialogImpl/0.46.1920.1034/1920.0.1920.1080@0.46.1920.1034" timestamp="1584485362534" />
-    <state x="3006" y="454" key="FileChooserDialogImpl/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586038893620" />
+    <state x="3006" y="454" key="FileChooserDialogImpl/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586116637413" />
     <state x="2637" y="148" key="SettingsEditor" timestamp="1586039274011">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
@@ -204,14 +217,14 @@
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
     <state x="2757" y="192" key="com.intellij.openapi.editor.actions.MultiplePasteAction$ClipboardContentChooser/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586097734760" />
-    <state x="1984" y="98" width="996" height="809" key="dock-window-1" timestamp="1586091405642">
+    <state x="2038" y="227" width="996" height="788" key="dock-window-1" timestamp="1586694956505">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state x="1984" y="98" width="996" height="809" key="dock-window-1/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586091405642" />
-    <state x="2508" y="230" width="865" height="660" key="find.popup" timestamp="1586097379788">
+    <state x="2038" y="227" width="996" height="788" key="dock-window-1/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586694956505" />
+    <state x="2098" y="131" width="865" height="758" key="find.popup" timestamp="1586703024419">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state x="2508" y="230" width="865" height="660" key="find.popup/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586097379788" />
+    <state x="2098" y="131" width="865" height="758" key="find.popup/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586703024419" />
     <state x="783" y="430" width="672" height="650" key="search.everywhere.popup" timestamp="1585087161311">
       <screen x="0" y="46" width="1920" height="1034" />
     </state>

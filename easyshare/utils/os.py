@@ -1,8 +1,11 @@
 import os
 from stat import S_ISDIR
-from typing import Optional, List
+from typing import Optional, List, Union
 
 from easyshare.protocol.fileinfo import FileInfo
+from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
+from easyshare.shared.log import v, w
+from easyshare.utils.types import is_str, is_list
 
 G = 1000000000
 M = 1000000
@@ -19,11 +22,17 @@ def size_str(size: int, fmt="{:0.1f}{}", identifiers=(" ", "K", "M", "G")):
     return fmt.format(size, identifiers[0])
 
 
-def ls(path: str, sort_by="name") -> Optional[List[FileInfo]]:
+def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[List[FileInfo]]:
     ret: List[FileInfo] = []
 
-    if sort_by not in ["name", "size", "type"]:
-        sort_by = "name"
+    if is_str(sort_by):
+        sort_by = [sort_by]
+
+    if not is_list(sort_by):
+        return None
+
+    sort_by_fields = filter(lambda sort_field: sort_field in ["name", "size", "ftype"], sort_by)
+    v("LS sorting by %s%s", sort_by, " (reverse)" if reverse else "")
 
     try:
         ls_result = os.listdir(path)
@@ -31,17 +40,22 @@ def ls(path: str, sort_by="name") -> Optional[List[FileInfo]]:
         # Take the other info (size, filetype, ...)
         for f in ls_result:
             f_stat = os.lstat(os.path.join(path, f))
-
             ret.append({
                 "name": f,
-                "size": f_stat.st_size,
-                "type": "dir" if S_ISDIR(f_stat.st_mode) else "file"
+                "ftype": FTYPE_DIR if S_ISDIR(f_stat.st_mode) else FTYPE_FILE,
+                "size": f_stat.st_size
             })
 
-        # Sort the results
-        ret = sorted(ret, key=lambda fi: fi[sort_by])
+        # Sort the result for each field of sort_by
+        for sort_field in sort_by_fields:
+            ret = sorted(ret, key=lambda fi: fi[sort_field])
 
-    except Exception:
-        pass
+    except Exception as ex:
+        w("LS execution exception %s", ex)
+        return None
+
+    if reverse:
+        ret.reverse()
+        return ret
 
     return ret

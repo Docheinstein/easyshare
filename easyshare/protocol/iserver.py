@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Union
 
 from easyshare.protocol.response import Response
 
@@ -26,7 +26,7 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def rls(self, sort_by: str = "name") -> Response:
+    def rls(self, sort_by: List[str], reverse=False) -> Response:
         pass
 
     @abstractmethod

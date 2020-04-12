@@ -4,29 +4,29 @@ import sys
 import socket
 import threading
 import time
+
 import Pyro4 as Pyro4
 
 from typing import Dict, Optional, List
 
-from easyshare import utils
+from easyshare.protocol.response import create_success_response, create_error_response, Response
+from easyshare.server.sharing import Sharing
 from easyshare.shared.args import Args
 from easyshare.shared.conf import APP_VERSION, APP_NAME_SERVER_SHORT, \
     APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET
 from easyshare.config.parser import parse_config
-from easyshare.shared.log import init_logging_from_args, e, w, i, d, t
+from easyshare.shared.log import e, w, i, d, init_logging, v, VERBOSITY_VERBOSE
 from easyshare.server.client import ClientContext
 from easyshare.server.discover import DiscoverDeamon
-from easyshare.server.sharing import Sharing
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.iserver import IServer
-from easyshare.protocol.serverinfo import ServerInfo
-from easyshare.protocol.response import response_success, response_error, Response
 from easyshare.protocol.errors import ServerErrors
 from easyshare.utils.app import terminate, abort
-from easyshare.utils.json import json_to_str
+from easyshare.utils.json import json_to_str, json_to_bytes
 from easyshare.utils.net import get_primary_ip, is_valid_port
+from easyshare.utils.os import ls
 from easyshare.utils.str import randstring, strip, satisfy
-from easyshare.utils.types import bytes_to_int, str_to_bytes, to_int, to_bool, is_valid_list
+from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list
 
 # ==================================================================
 
@@ -45,6 +45,7 @@ HELP_APP = """easyshare deamon (esd)
 
 
 class ServerArguments:
+    TRACE = ["-t", "--trace"]
     VERBOSE = ["-v", "--verbose"]
     SHARE = ["-s", "--share"]
     CONFIG = ["-c", "--config"]
@@ -104,15 +105,15 @@ class Server(IServer):
 
         server_endpoint = self._endpoint()
 
-        response_data: ServerInfo = {
+        response_data = {
             "uri": self.uri,
             "name": self.name,
             "ip": server_endpoint[0],
             "port": server_endpoint[1],
-            "sharings": list(self.sharings.keys())
+            "sharings": [sh.info() for sh in self.sharings.values()]
         }
 
-        response = response_success(response_data)
+        response = create_success_response(response_data)
 
         client_discover_response_port = bytes_to_int(data)
 
@@ -122,16 +123,18 @@ class Server(IServer):
 
         d("Client response port is %d", client_discover_response_port)
 
-        discover_response = str_to_bytes(json_to_str(response))
+        # TODO: OutSocket
 
         # Respond to the port the client says in the paylod
         # (not necessary the one from which the request come)
         resp_endpoint = (client_endpoint[0], client_discover_response_port)
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
         d("Sending DISCOVER response back to %s\n%s",
           resp_endpoint, json_to_str(response, pretty=True))
-        sock.sendto(discover_response, resp_endpoint)
+
+        sock.sendto(json_to_bytes(response), resp_endpoint)
 
     def start(self):
         i("Starting DISCOVER deamon")
@@ -141,18 +144,18 @@ class Server(IServer):
         self.pyro_deamon.requestLoop()
 
     @Pyro4.expose
-    def list(self):
+    def list(self) -> Response:
         i("<< LIST %s", str(self._current_request_endpoint()))
         time.sleep(0.5)
-        return response_success(self.sharings)
+        return create_success_response([sh.info() for sh in self.sharings.values()])
 
     @Pyro4.expose
-    def open(self, sharing_name: str):
+    def open(self, sharing_name: str) -> Response:
         if not sharing_name:
-            return response_error(ServerErrors.INVALID_COMMAND_SYNTAX)
+            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         if sharing_name not in self.sharings:
-            return response_error(ServerErrors.SHARING_NOT_FOUND)
+            return create_error_response(ServerErrors.SHARING_NOT_FOUND)
 
         client_endpoint = self._current_request_endpoint()
         i("<< OPEN %s %s", sharing_name, str(client_endpoint))
@@ -172,7 +175,7 @@ class Server(IServer):
             i("Already connected client (%s) changed sharing to %s",
               str(client), client.sharing_name)
 
-        return response_success()
+        return create_success_response()
 
     def close(self):
         pass
@@ -184,18 +187,18 @@ class Server(IServer):
 
         client = self._current_request_client()
         if not client:
-            return response_error(ServerErrors.NOT_CONNECTED)
+            return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        return response_success(client.rpwd)
+        return create_success_response(client.rpwd)
 
     @Pyro4.expose
     def rcd(self, path: str) -> Response:
         if not path:
-            return response_error(ServerErrors.INVALID_COMMAND_SYNTAX)
+            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         client = self._current_request_client()
         if not client:
-            return response_error(ServerErrors.NOT_CONNECTED)
+            return create_error_response(ServerErrors.NOT_CONNECTED)
 
         i("<< RCD %s (%s)", path, str(client))
 
@@ -205,27 +208,27 @@ class Server(IServer):
 
         if not self._is_path_allowed_for_client(client, new_path):
             e("Path is invalid (out of sharing domain)")
-            return response_error(ServerErrors.INVALID_PATH)
+            return create_error_response(ServerErrors.INVALID_PATH)
 
         if not os.path.isdir(new_path):
             e("Path does not exists")
-            return response_error(ServerErrors.INVALID_PATH)
+            return create_error_response(ServerErrors.INVALID_PATH)
 
-        d("Path exists, success")
+        v("Path exists, success")
 
         client.rpwd = self._trailing_path_for_client(client, new_path)
         d("New rpwd: %s", client.rpwd)
 
-        return response_success(client.rpwd)
+        return create_success_response(client.rpwd)
 
     @Pyro4.expose
-    def rls(self, sort_by: str = "name") -> Response:
+    def rls(self, sort_by: List[str], reverse=False) -> Response:
         client = self._current_request_client()
         if not client:
             w("Client not connected: %s", self._current_request_endpoint())
-            return response_error(ServerErrors.NOT_CONNECTED)
+            return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< RLS (%s)",  str(client))
+        i("<< RLS %s%s (%s)", sort_by, " | reverse " if reverse else "", str(client))
 
         try:
             client_path = self._current_client_path(client)
@@ -234,24 +237,24 @@ class Server(IServer):
 
             # Check path legality (it should be valid, if he rcd into it...)
             if not self._is_path_allowed_for_client(client, client_path):
-                return response_error(ServerErrors.INVALID_PATH)
+                return create_error_response(ServerErrors.INVALID_PATH)
 
-            ls_result = utils.os.ls(os.getcwd(), sort_by=sort_by)
+            ls_result = ls(os.getcwd(), sort_by=sort_by, reverse=reverse)
             if not ls_result:
-                return response_error(ServerErrors.COMMAND_EXECUTION_FAILED)
+                return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
             d("RLS response %s", str(ls_result))
 
-            return response_success(ls_result)
+            return create_success_response(ls_result)
         except Exception as ex:
             e("RLS error: %s", str(ex))
-            return response_error(ServerErrors.COMMAND_EXECUTION_FAILED)
+            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
     def rmkdir(self, directory: str) -> Response:
         client = self._current_request_client()
         if not client:
-            return response_error(ServerErrors.NOT_CONNECTED)
+            return create_error_response(ServerErrors.NOT_CONNECTED)
 
         i("<< RMKDIR %s (%s)", directory, str(client))
 
@@ -261,19 +264,19 @@ class Server(IServer):
             d("Going to mkdir on %s", full_path)
 
             if not self._is_path_allowed_for_client(client, full_path):
-                return response_error(ServerErrors.INVALID_PATH)
+                return create_error_response(ServerErrors.INVALID_PATH)
 
             os.mkdir(full_path)
-            return response_success()
+            return create_success_response()
         except Exception as ex:
             e("RMKDIR error: %s", str(ex))
-            return response_error(ServerErrors.COMMAND_EXECUTION_FAILED)
+            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
     def get(self, files: List[str]) -> Response:
         client = self._current_request_client()
         if not client:
-            return response_error(ServerErrors.NOT_CONNECTED)
+            return create_error_response(ServerErrors.NOT_CONNECTED)
 
         i("<< GET %s (%s)", str(files), str(client))
 
@@ -296,7 +299,7 @@ class Server(IServer):
 
         self.gets[transaction] = transaction_handler
 
-        return response_success({
+        return create_success_response({
             "transaction": transaction,
             "port": transaction_handler.files_server.sock.getsockname()[1]
         })
@@ -305,18 +308,18 @@ class Server(IServer):
     def get_next(self, transaction) -> Response:
         client = self._current_request_client()
         if not client:
-            return response_error(ServerErrors.NOT_CONNECTED)
+            return create_error_response(ServerErrors.NOT_CONNECTED)
 
         i("<< GET_NEXT_METADATA %s (%s)", transaction, str(client))
 
         if transaction not in self.gets:
-            return response_error(ServerErrors.INVALID_TRANSACTION)
+            return create_error_response(ServerErrors.INVALID_TRANSACTION)
 
         transaction_handler = self.gets[transaction]
         remaining_files = transaction_handler.next_files
 
         # if len(self.gets[transaction]) == 0:
-        #     return server_response_success()  # Nothing else
+        #     return server_create_success_response()  # Nothing else
 
         while len(remaining_files) > 0:
 
@@ -331,7 +334,7 @@ class Server(IServer):
                 continue
 
             if os.path.isdir(next_file_path):
-                d("Found a directory: adding all inner files to remaining_files")
+                v("Found a directory: adding all inner files to remaining_files")
                 for f in os.listdir(next_file_path):
                     f_path = os.path.join(next_file_path, f)
                     d("Adding %s", f_path)
@@ -350,15 +353,15 @@ class Server(IServer):
 
             transaction_handler.files_server.push_file(next_file_path)
 
-            return response_success({
+            return create_success_response({
                 "name": trail,
                 "length": os.path.getsize(next_file_path)
             })
 
-        d("No remaining files")
+        v("No remaining files")
         transaction_handler.files_server.pushes_completed()
         # Notify the handler about it
-        return response_success("ok")
+        return create_success_response("ok")
 
     def _current_request_endpoint(self) -> Optional[Endpoint]:
         """
@@ -500,7 +503,7 @@ class GetFilesServer(threading.Thread):
             e("Invalid socket")
             return
 
-        t("Starting GetHandler")
+        d("Starting GetHandler")
         client_sock, addr = self.sock.accept()
         i("Connection established with %s", addr)
 
@@ -510,7 +513,7 @@ class GetFilesServer(threading.Thread):
             next_serving = self.servings.get()
 
             if not next_serving:
-                d("No more files: END")
+                v("No more files: END")
                 break
 
             d("Next serving: %s", next_serving)
@@ -530,9 +533,9 @@ class GetFilesServer(threading.Thread):
                 cur_pos += len(chunk)
 
                 try:
-                    t("sendall() ...")
+                    d("sendall() ...")
                     client_sock.sendall(chunk)
-                    t("sendall() OK")
+                    d("sendall() OK")
                 except Exception as ex:
                     e("sendall error %s", ex)
                     break
@@ -549,7 +552,7 @@ class GetFilesServer(threading.Thread):
         self.servings.put(path)
 
     def pushes_completed(self):
-        d("end(): no more files")
+        v("end(): no more files")
         self.servings.put(None)
 
 
@@ -565,7 +568,11 @@ def main():
     if ServerArguments.VERSION in args:
         terminate(APP_INFO)
 
-    init_logging_from_args(args, ServerArguments.VERBOSE)
+    if ServerArguments.VERBOSE in args:
+        verbosity = to_int(args.get_param(ServerArguments.VERBOSE), VERBOSITY_VERBOSE)
+        if not verbosity:
+            abort("Invalid parameter value")
+        init_logging(verbosity)
 
     i(APP_INFO)
 
@@ -652,7 +659,8 @@ def main():
             sharing = Sharing.create(
                 path=sharing_params[0],
                 name=sharing_params[1] if len(sharing_params) > 1 else None,
-                read_only=False)
+                read_only=False
+            )
 
             if not sharing:
                 w("Invalid or incomplete sharing config; skipping %s", str(sharing))
@@ -674,6 +682,21 @@ def main():
 
     server.start()
 
+#
+# class CustomJsonEncoder(JSONEncoder):
+#     def default(self, o):
+#         return items(o)
+
 
 if __name__ == "__main__":
+    # sh = Sharing("sharingname", "file", "/tmp", False)
+    # si = ServerInfo(
+    #     "http",
+    #     "nemo",
+    #     "192.168.1.1",
+    #     8001,
+    #     [sh]
+    # )
+    #
+    # print(json.dumps(si, separators=(",", ":"), cls=CustomJsonEncoder))
     main()

@@ -1,28 +1,30 @@
 import os
 from typing import Optional
 
+from easyshare.protocol.filetype import FileType, FTYPE_DIR, FTYPE_FILE
+from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.conf import SHARING_NAME_ALPHABET
 from easyshare.utils.str import keep
 
 
 class Sharing:
-    def __init__(self):
-        self.name = None
-        self.path = None
-        self.read_only = False
-
-    def __str__(self):
-        return "[{}] | {} | {}".format(
-            self.name,
-            self.path,
-            "r" if self.read_only else "rw")
+    def __init__(self, name: str, ftype: FileType, path: str, read_only: bool):
+        self.name = name
+        self.ftype = ftype
+        self.path = path
+        self.read_only = read_only
 
     @staticmethod
-    def create(name, path, read_only) -> Optional['Sharing']:
-        sharing = Sharing()
+    def create(name: str, path: str, read_only: bool) -> Optional['Sharing']:
+        # Ensure path existence
+        if not path:
+            return None
 
-        # Check path existence
-        if not path or not os.path.isdir(path):
+        if os.path.isdir(path):
+            ftype = FTYPE_DIR
+        elif os.path.isfile(path):
+            ftype = FTYPE_FILE
+        else:
             return None
 
         if not name:
@@ -34,8 +36,16 @@ class Sharing:
 
         read_only = True if read_only else False
 
-        sharing.name = name
-        sharing.path = path
-        sharing.read_only = read_only
+        return Sharing(
+            name=name,
+            ftype=ftype,
+            path=path,
+            read_only=read_only
+        )
 
-        return sharing
+    def info(self) -> SharingInfo:
+        return {
+            "name": self.name,
+            "ftype": self.ftype,
+            "read_only": self.read_only
+        }

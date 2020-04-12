@@ -47,11 +47,11 @@ def parse_config(config_path: str, *,
 
         if before == line:
             # No = found
-            t("Skipping line; no relevant content")
+            d("Skipping line; no relevant content")
             continue
 
         # Found a line with <key>=<value>
-        t("Found a key=val assignment")
+        d("Found a key=val assignment")
 
         key = before.strip()
         val = after.strip()

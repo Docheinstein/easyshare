@@ -11,8 +11,8 @@ setup(
     name="easyshare",
     version="0.1",
 
-    # Requires python3.5
-    python_requires=">=3.5",
+    # Requires python3.6
+    python_requires=">=3.6",
 
     # Automatically import easyshare packages
     packages=find_packages(),

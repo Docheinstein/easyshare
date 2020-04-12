@@ -1,10 +1,16 @@
 import json
 
+from easyshare.utils.types import str_to_bytes
+
 
 def json_to_str(d: dict, pretty=False) -> str:
     if pretty:
         return json.dumps(d, indent=4)
-    return json.dumps(d, separatoùrs=(",", ":"))
+    return json.dumps(d, separators=(",", ":"))
+
+
+def json_to_bytes(d: dict) -> bytes:
+    return str_to_bytes(json_to_str(d))
 
 
 def str_to_json(s: str) -> dict:

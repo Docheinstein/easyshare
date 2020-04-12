@@ -1,4 +1,5 @@
 import sys
+from typing import NoReturn
 
 
 def eprint(*args, **kwargs):
@@ -10,7 +11,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def terminate(message, exit_code=0):
+def terminate(message, exit_code=0) -> NoReturn:
     """
     Exit gracefully with the given message and exit code.
     :param message: the message to print to stdout before exit
@@ -20,7 +21,7 @@ def terminate(message, exit_code=0):
     exit(exit_code)
 
 
-def abort(message, exit_code=-1):
+def abort(message, exit_code=-1) -> NoReturn:
     """
     Exit ungracefully with the given message and exit code.
     :param message: the message to print to stderr before exit

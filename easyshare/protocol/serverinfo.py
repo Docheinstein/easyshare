@@ -1,9 +1,10 @@
-from typing import List, TypedDict
+from typing import List, Optional, Union, Dict
 
+from easyshare.protocol.sharinginfo import SharingInfo
 
-class ServerInfo(TypedDict):
-    uri: str
-    name: str
-    ip: str
-    port: int
-    sharings: List[str]
+ServerInfo = Dict[str, Union[str, int, List[SharingInfo]]]
+#   uri: str
+#   name: str
+#   ip: str
+#   port: int
+#   sharings: List[SharingInfo]
