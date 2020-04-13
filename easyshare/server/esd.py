@@ -9,6 +9,7 @@ import Pyro4 as Pyro4
 
 from typing import Dict, Optional, List
 
+from easyshare.protocol.filetype import FTYPE_FILE
 from easyshare.protocol.response import create_success_response, create_error_response, Response
 from easyshare.server.sharing import Sharing
 from easyshare.shared.args import Args
@@ -21,12 +22,14 @@ from easyshare.server.discover import DiscoverDeamon
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.errors import ServerErrors
+from easyshare.shared.trace import init_tracing
+from easyshare.socket.tcp import SocketTcpAcceptor
 from easyshare.socket.udp import SocketUdpOut
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.json import json_to_str, json_to_bytes
 from easyshare.utils.net import get_primary_ip, is_valid_port
-from easyshare.utils.os import ls
-from easyshare.utils.str import randstring, strip, satisfy
+from easyshare.utils.os import ls, relpath, is_relpath
+from easyshare.utils.str import randstring, satisfy, unprefix
 from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list
 
 # ==================================================================
@@ -214,7 +217,7 @@ class Server(IServer):
 
         v("Path exists, success")
 
-        client.rpwd = self._trailing_path_for_client(client, new_path)
+        client.rpwd = self._trailing_path_for_client_from_root(client, new_path)
         d("New rpwd: %s", client.rpwd)
 
         return create_success_response(client.rpwd)
@@ -237,7 +240,7 @@ class Server(IServer):
             if not self._is_path_allowed_for_client(client, client_path):
                 return create_error_response(ServerErrors.INVALID_PATH)
 
-            ls_result = ls(os.getcwd(), sort_by=sort_by, reverse=reverse)
+            ls_result = ls(client_path, sort_by=sort_by, reverse=reverse)
             if not ls_result:
                 return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
@@ -271,6 +274,10 @@ class Server(IServer):
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
+    def get_sharing(self, sharing_name: str) -> Response:
+        return create_error_response(ServerErrors.NOT_IMPLEMENTED)
+
+    @Pyro4.expose
     def get(self, files: List[str]) -> Response:
         client = self._current_request_client()
         if not client:
@@ -290,16 +297,17 @@ class Server(IServer):
 
         # Return a transaction ID for identify the transfer
         transaction = randstring()
+        v("Transaction ID: %s", transaction)
 
-        # Create a socket
+        # Create a transaction handler
         transaction_handler = GetTransactionHandler(normalized_files)
-        transaction_handler.files_server.start()
+        transaction_handler.start()
 
         self.gets[transaction] = transaction_handler
 
         return create_success_response({
             "transaction": transaction,
-            "port": transaction_handler.files_server.sock.getsockname()[1]
+            "port": transaction_handler.get_port()
         })
 
     @Pyro4.expose
@@ -332,6 +340,7 @@ class Server(IServer):
                 continue
 
             if os.path.isdir(next_file_path):
+                # Directory found
                 v("Found a directory: adding all inner files to remaining_files")
                 for f in os.listdir(next_file_path):
                     f_path = os.path.join(next_file_path, f)
@@ -340,26 +349,27 @@ class Server(IServer):
                 continue
 
             if not os.path.isfile(next_file_path):
-                w("Not file nor dir? skipping")
+                w("Not file nor dir? skipping %s", next_file_path)
                 continue
 
             # We are handling a valid file, report the metadata to the client
             d("NEXT FILE: %s", next_file_path)
 
-            trail = self._trailing_path_for_client(client, next_file_path)
+            trail = self._trailing_path_for_client_from_rpwd(client, next_file_path)
             d("Trail: %s", trail)
 
-            transaction_handler.files_server.push_file(next_file_path)
+            transaction_handler.push_file(next_file_path)
 
             return create_success_response({
                 "name": trail,
-                "length": os.path.getsize(next_file_path)
+                "ftype": FTYPE_FILE,
+                "size": os.path.getsize(next_file_path)
             })
 
         v("No remaining files")
-        transaction_handler.files_server.pushes_completed()
+        transaction_handler.pushes_completed()
         # Notify the handler about it
-        return create_success_response("ok")
+        return create_success_response()
 
     def _current_request_endpoint(self) -> Optional[Endpoint]:
         """
@@ -394,6 +404,10 @@ class Server(IServer):
         Returns the current path the given client is placed on.
         It depends on the client's sharing and on the directory he is placed on
         (which he might have changed with rcd).
+        e.g.
+            client sharing path =  /home/stefano/Applications
+            client rpwd         =                             AnApp
+                                => /home/stefano/Applications/AnApp
         :param client: the client
         :return: the path of the client, relatively to the server's filesystem
         """
@@ -407,25 +421,87 @@ class Server(IServer):
 
         return os.path.join(sharing.path, client.rpwd)
 
-    def _path_for_client(self, client: ClientContext, path: str):
+    def _path_for_client(self, client: ClientContext, path: str) -> Optional[str]:
+        """
+        Returns the path of the location composed by the 'path' of the
+        sharing the client is currently on and the 'path' itself.
+        The method allows:
+            * 'path' starting with a leading / (absolute w.r.t the sharing path)
+            * 'path' not starting with a leading / (relative w.r.t the rpwd)
+
+        e.g.
+            (ABSOLUTE)
+            client sharing path =  /home/stefano/Applications
+            client rpwd =                                     InsideAFolder
+            path                =  /AnApp
+                                => /home/stefano/Applications/AnApp
+
+            (RELATIVE)
+            client sharing path =  /home/stefano/Applications
+            client rpwd =                                     InsideAFolder
+            path                =  AnApp
+                                => /home/stefano/Applications/InsideAFolder/AnApp
+
+        """
         sharing = self._current_client_sharing(client)
 
         if not sharing:
             return None
 
-        if path.startswith(os.sep):
-            # If path begins with / it refers to the root of the current sharing
-            trail = path.lstrip(os.sep)
-        else:
-            # Otherwise it refers to a subdirectory starting from the current rpwd
-            trail = os.path.join(client.rpwd, path)
+        if is_relpath(path):
+            # It refers to a subdirectory starting from the current rpwd
+            path = os.path.join(client.rpwd, path)
+
+        # Take the trail part (without leading /)
+        trail = relpath(path)
 
         return os.path.normpath(os.path.join(sharing.path, trail))
 
-    def _trailing_path_for_client(self, client: ClientContext, path: str):
-        # with [home] = /home/stefano
-        #   /home/stefano/Applications -> Applications
-        return path.split(self._current_client_sharing(client))[1].lstrip(os.sep)
+    def _trailing_path_for_client_from_root(self, client: ClientContext, path: str) -> Optional[str]:
+        """
+        Returns the trailing part of the 'path' by stripping the path of the
+        sharing from the string's beginning.
+        The path is relative w.r.t the root of the sharing path.
+        e.g.
+            client sharing path = /home/stefano/Applications
+            client rpwd         =                            AnApp
+            (client path        = /home/stefano/Applications/AnApp          )
+            path                = /home/stefano/Applications/AnApp/afile.mp4
+                                =>                           AnApp/afile.mp4
+        """
+
+        sh = self._current_client_sharing(client)
+
+        if not sh:
+            return None
+
+        if not path.startswith(sh.path):
+            return None
+
+        return relpath(unprefix(path, sh.path))
+
+    def _trailing_path_for_client_from_rpwd(self, client: ClientContext, path: str) -> Optional[str]:
+        """
+        Returns the trailing part of the 'path' by stripping the path of the
+        sharing from the string's beginning.
+        The path is relative w.r.t the rpwd of the sharing path the client
+        is currently on.
+        e.g.
+            client sharing path = /home/stefano/Applications
+            client rpwd         =                            AnApp
+            (client path        = /home/stefano/Applications/AnApp          )
+            path                = /home/stefano/Applications/AnApp/afile.mp4
+                                =>                                 afile.mp4
+        """
+        client_path = self._current_client_path(client)
+
+        if not client_path:
+            return None
+
+        if not path.startswith(client_path):
+            return None
+
+        return relpath(unprefix(path, client_path))
 
     def _is_path_allowed_for_client(self, client: ClientContext, path: str) -> bool:
         """
@@ -476,37 +552,29 @@ class Server(IServer):
         return self.pyro_deamon.sock.getsockname()
 
 
-class GetTransactionHandler:
-    def __init__(self, files):
-        self.files_server = GetFilesServer()
+class GetTransactionHandler(threading.Thread):
+    BUFFER_SIZE = 4096
+
+    def __init__(self, files: List[str]):
         self.next_files = files
-
-
-class GetFilesServer(threading.Thread):
-    BUFFER_SIZE = 1024 * 4
-
-    def __init__(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.bind((get_primary_ip(), 0))
-        self.sock.listen(1)
-
+        self.sock = SocketTcpAcceptor()
         self.servings = queue.Queue()
         threading.Thread.__init__(self)
 
-    def create_socket(self) -> Endpoint:
-        return self.sock.getsockname()
+    def get_port(self):
+        return self.sock.port()
 
     def run(self) -> None:
         if not self.sock:
             e("Invalid socket")
             return
 
-        d("Starting GetHandler")
-        client_sock, addr = self.sock.accept()
-        i("Connection established with %s", addr)
+        d("Starting GetTransactionHandler")
+        client_sock, endpoint = self.sock.accept()
+        i("Connection established with %s", endpoint)
 
         while True:
-            # Send files until the servings buffer is fulfilled
+            # Send files until the servings buffer is empty
             # Wait on the blocking queue for the next file to send
             next_serving = self.servings.get()
 
@@ -522,7 +590,8 @@ class GetFilesServer(threading.Thread):
 
             # Send file
             while True:
-                chunk = f.read(GetFilesServer.BUFFER_SIZE)
+                time.sleep(0.1)
+                chunk = f.read(GetTransactionHandler.BUFFER_SIZE)
                 if not chunk:
                     d("Finished %s", next_serving)
                     break
@@ -531,19 +600,21 @@ class GetFilesServer(threading.Thread):
                 cur_pos += len(chunk)
 
                 try:
-                    d("sendall() ...")
-                    client_sock.sendall(chunk)
-                    d("sendall() OK")
+                    d("sending chunk...")
+                    client_sock.send(chunk)
+                    d("sending chunk DONE")
                 except Exception as ex:
-                    e("sendall error %s", ex)
+                    e("send error %s", ex)
                     break
 
                 d("%d/%d (%.2f%%)", cur_pos, file_len, cur_pos / file_len * 100)
 
             f.close()
 
-        # client_sock.shutdown(socket.SHUT_RDWR)
-        # self.sock.close()
+        v("Transaction handler job finished")
+
+        client_sock.close()
+        self.sock.close()
 
     def push_file(self, path: str):
         d("Pushing file to handler %s", path)
@@ -566,11 +637,21 @@ def main():
     if ServerArguments.VERSION in args:
         terminate(APP_INFO)
 
+    verbosity = 0
+    tracing = 0
+
     if ServerArguments.VERBOSE in args:
-        verbosity = to_int(args.get_param(ServerArguments.VERBOSE), VERBOSITY_VERBOSE)
-        if not verbosity:
-            abort("Invalid parameter value")
-        init_logging(verbosity)
+        verbosity = to_int(args.get_param(ServerArguments.VERBOSE, default=VERBOSITY_VERBOSE))
+        if verbosity is None:
+            abort("Invalid --verbose parameter value")
+
+    if ServerArguments.TRACE in args:
+        tracing = to_int(args.get_param(ServerArguments.TRACE, default=1))
+        if tracing is None:
+            abort("Invalid --trace parameter value")
+
+    init_logging(verbosity)
+    init_tracing(True if tracing else False)
 
     i(APP_INFO)
 
@@ -584,7 +665,7 @@ def main():
 
     if config_path:
         def strip_quotes(s: str) -> str:
-            return strip(s, '"\'')
+            return s.strip('"\'')
 
         cfg = parse_config(config_path)
         if cfg:

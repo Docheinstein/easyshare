@@ -54,8 +54,12 @@ def str_to_bool(s: str, ystrings=None, nstrings=None, default=None) -> Union[boo
     return default
 
 
-def str_to_bytes(s: str):
+def str_to_bytes(s: str) -> bytes:
     return bytes(s, encoding="UTF-8")
+
+
+def bytes_to_str(b: bytes) -> str:
+    return str(b, encoding="UTF-8")
 
 
 def bytes_to_int(b: bytes, byteorder="big"):

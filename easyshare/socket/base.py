@@ -7,6 +7,9 @@ from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.log import w
 
 
+DEFAULT_SOCKET_BUFSIZE = 4096
+
+
 class Socket(ABC):
     def __init__(self):
         self.sock: socket.socket = Optional[None]

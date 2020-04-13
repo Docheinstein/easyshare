@@ -1,5 +1,5 @@
 import string
-from random import random
+import random
 
 
 def randstring(length=16) -> str:
@@ -28,7 +28,7 @@ def unprefix(s: str, prefix: str) -> str:
     return s.split(prefix)[1]
 
 
-def strip(s: str, chars: str) -> str:
-    if not s:
-        return s
-    return s.strip(chars)
+# def strip(s: str, chars: str) -> str:
+#     if not s:
+#         return s
+#     return s.strip(chars)

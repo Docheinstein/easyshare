@@ -34,6 +34,10 @@ class IServer(ABC):
         pass
 
     @abstractmethod
+    def get_sharing(self, sharing_name: str) -> Response:
+        pass
+
+    @abstractmethod
     def get(self, files: List[str]) -> Response:
         pass
 

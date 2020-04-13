@@ -12,6 +12,22 @@ M = 1000000
 K = 1000
 
 
+def is_relpath(s: str) -> bool:
+    return not s.startswith(os.sep)
+
+
+def is_abspath(s: str) -> bool:
+    return s.startswith(os.sep)
+
+
+def relpath(s: str) -> str:
+    return s.lstrip(os.sep)
+
+
+def abspath(s: str) -> str:
+    return s if is_abspath(s) else (os.sep + s)
+
+
 def size_str(size: int, fmt="{:0.1f}{}", identifiers=(" ", "K", "M", "G")):
     if size > G:
         return fmt.format(size / G, identifiers[3])

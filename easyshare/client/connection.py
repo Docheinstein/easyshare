@@ -68,7 +68,7 @@ class Connection:
 
         return self.server.rmkdir(directory)
 
-    def get(self, files) -> Response:
+    def get(self, files: List[str]) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 

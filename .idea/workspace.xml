@@ -3,18 +3,18 @@
   <component name="ChangeListManager">
     <list default="true" id="ea95e738-b8a2-4b8b-9d45-7b381ba14ad5" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/TODO" beforeDir="false" afterPath="$PROJECT_DIR$/TODO" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/client/connection.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/connection.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/client/discover.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/discover.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/client/es.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/es.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/config/parser.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/config/parser.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/protocol/serverinfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/protocol/serverinfo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/server/discover.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/server/discover.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/protocol/iserver.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/protocol/iserver.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/server/esd.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/server/esd.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/server/sharing.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/server/sharing.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/shared/args.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/shared/args.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/shared/log.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/shared/log.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/shared/trace.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/shared/trace.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/socket/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/socket/base.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/socket/udp.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/socket/udp.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/test.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/tests/test.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/utils/net.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/net.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/utils/os.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/os.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/utils/str.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/str.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/utils/types.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/types.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -59,16 +59,19 @@
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="com.intellij.ide.scratch.LRUPopupBuilder$1/New Scratch File" value="Python" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/easyshare/tests" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PythonContentEntriesConfigurable" />
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/easyshare/protocol" />
       <recent name="$PROJECT_DIR$/easyshare/shared" />
+      <recent name="$PROJECT_DIR$/easyshare/tests" />
+      <recent name="$PROJECT_DIR$/easyshare/protocol" />
       <recent name="$PROJECT_DIR$/easyshare/config" />
       <recent name="$PROJECT_DIR$/easyshare" />
-      <recent name="$PROJECT_DIR$/res" />
+    </key>
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/easyshare/tests" />
     </key>
   </component>
   <component name="RunManager">
@@ -159,7 +162,8 @@
       <workItem from="1586681209305" duration="4723000" />
       <workItem from="1586694903897" duration="13807000" />
       <workItem from="1586726632106" duration="4279000" />
-      <workItem from="1586760892492" duration="3343000" />
+      <workItem from="1586760892492" duration="11910000" />
+      <workItem from="1586780626922" duration="8780000" />
     </task>
     <servers />
   </component>
@@ -216,10 +220,10 @@
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
     <state x="2038" y="227" width="996" height="788" key="dock-window-1/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586694956505" />
-    <state x="2098" y="131" width="865" height="758" key="find.popup" timestamp="1586764255726">
+    <state x="2098" y="131" width="865" height="758" key="find.popup" timestamp="1586784172318">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state x="2098" y="131" width="865" height="758" key="find.popup/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586764255726" />
+    <state x="2098" y="131" width="865" height="758" key="find.popup/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586784172318" />
     <state x="783" y="430" width="672" height="650" key="search.everywhere.popup" timestamp="1585087161311">
       <screen x="0" y="46" width="1920" height="1034" />
     </state>

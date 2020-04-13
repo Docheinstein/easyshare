@@ -1,9 +1,19 @@
+import enum
 import socket
 from typing import Optional
 
 from easyshare.consts.net import ADDR_ANY, PORT_ANY
-from easyshare.shared.log import e
 from easyshare.utils.types import is_int
+
+
+class SocketMode(enum.Enum):
+    TCP = 0
+    UDP = 1
+
+
+class SocketDirection(enum.Enum):
+    IN = 0
+    OUT = 1
 
 
 def get_primary_ip():
@@ -25,21 +35,41 @@ def is_valid_port(o: int) -> bool:
 
 def socket_udp_in(address: str = ADDR_ANY, port: int = PORT_ANY, *,
                   timeout: float = None) -> socket.socket:
-    return _socket_udp(address, port, ingoing=True, timeout=timeout)
+    return _socket(SocketMode.UDP, SocketDirection.IN,
+                   address=address, port=port,  timeout=timeout)
 
 
-def socket_udp_out(timeout: float = None, broadcast: bool = False) -> socket.socket:
-    return _socket_udp(outgoing=True, timeout=timeout, broadcast=broadcast)
+def socket_udp_out(*,
+                   timeout: float = None, broadcast: bool = False) -> socket.socket:
+    return _socket(SocketMode.UDP, SocketDirection.OUT,
+                   timeout=timeout, broadcast=broadcast)
 
 
-def _socket_udp(address: str = None, port: int = None,
-               ingoing: bool = False, outgoing: bool = False,
-               timeout: float = None, broadcast: bool = False) -> Optional[socket.socket]:
-    if not (ingoing ^ outgoing):
-        e("Socket creation failed, invalid parameteres")
+def socket_tcp_in(address: str, port: int, *,
+                  timeout: float = None,
+                  pending_connections: int = 1):
+    return _socket(SocketMode.TCP, SocketDirection.IN,
+                   address=address, port=port, timeout=timeout,
+                   pending_connections=pending_connections)
+
+
+def socket_tcp_out(address: str, port: int, *,
+                   timeout: float = None):
+    return _socket(SocketMode.TCP, SocketDirection.OUT,
+                   address=address, port=port, timeout=timeout)
+
+
+def _socket(mode: SocketMode, direction: SocketDirection,
+            address: str = None, port: int = None,
+            timeout: float = None, broadcast: bool = False,
+            pending_connections: int = 1, reuse_addr: bool = True) -> Optional[socket.socket]:
+
+    if mode == SocketMode.TCP:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)    # TCP
+    elif mode == SocketMode.UDP:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)     # UDP
+    else:
         return None
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     if timeout:
         sock.settimeout(timeout)
@@ -47,12 +77,20 @@ def _socket_udp(address: str = None, port: int = None,
     # in_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO,
     #                    struct.pack("LL", ceil(self.timeout), 0))
 
-    if ingoing:
-        sock.bind((address, port))
+    if reuse_addr:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    if outgoing:
+    if direction == SocketDirection.IN:
+        sock.bind((address, port))
+        if mode == SocketMode.TCP:
+            sock.listen(pending_connections)
+    elif direction == SocketDirection.OUT:
         if broadcast:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if mode == SocketMode.TCP:
+            sock.connect((address, port))
+    else:
+        return None
 
     return sock
 

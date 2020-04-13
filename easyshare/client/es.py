@@ -5,20 +5,24 @@ import sys
 import readline
 from typing import Optional, Callable, List, Dict
 
+import Pyro4
+from Pyro4 import util
+
 from easyshare.client.connection import Connection
 from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE
-from easyshare.protocol.response import Response, is_error_response, is_success_response
+from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.shared.args import Args
 from easyshare.shared.conf import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VERSION, DEFAULT_DISCOVER_PORT
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.log import i, d, w, init_logging, v, VERBOSITY_VERBOSE, get_verbosity, VERBOSITY_MAX, \
-    VERBOSITY_NONE, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG
+    VERBOSITY_NONE, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG, e
 from easyshare.shared.trace import init_tracing, is_tracing_enabled
+from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint, terminate, abort
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int
@@ -299,7 +303,7 @@ class Client:
         i(">> LS (sort by %s%s)", sort_by, " | reverse" if reverse else "")
 
         ls_result = ls(os.getcwd(), sort_by=sort_by, reverse=reverse)
-        if not ls_result:
+        if ls_result is None:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
         self._print_file_infos(ls_result)
@@ -450,13 +454,15 @@ class Client:
                       sharing_info.get("name"),
                       a_server_info.get("ip"),
                       a_server_info.get("port"))
-                    server_info = a_server_info
 
                     # Check if it is actually a directory
-                    if sharing_info.get("ftype") == FTYPE_DIR:
-                        return False    # Stop DISCOVER
-                    else:
+                    if sharing_info.get("ftype") != FTYPE_DIR:
                         w("The sharing %s is not a directory; cannot open", sharing_name)
+                        break
+
+                    # OK: right server name, sharing name and it's a directory
+                    server_info = a_server_info
+                    return False    # Stop DISCOVER
 
             return True             # Continue DISCOVER
 
@@ -531,110 +537,115 @@ class Client:
 
         i("======================")
 
-    def _get(self, args):
+    def _get(self, args: Args):
         # TODO: refactor this
         if not self.connection:
             print_error(ClientErrors.NOT_CONNECTED)
             return
 
-        i(">> GET %s", ", ".join(args))
-        resp = self.connection.get(args)
+        files = args.get_params(default=[])
+
+        i(">> GET %s", ", ".join(files))
+        resp = self.connection.get(files)
         d("GET response\n%s", resp)
 
-        if "data" not in resp or \
-                "transaction" not in resp["data"] or \
-                "port" not in resp["data"]:
+        if is_error_response(resp):
+            self._handle_error_response(resp)
+            return
+
+        if not is_data_response(resp):
             print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
             return
 
-        transaction = resp["data"]["transaction"]
-        port = resp["data"]["port"]
+        transaction = resp["data"].get("transaction")
+        port = resp["data"].get("port")
 
-        if is_success_response(resp):
-            v("Successfully GETed")
+        if not transaction or not port:
+            print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+            return
 
-            transfer_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            transfer_socket.connect((self.connection.server_info.ip, port))
+        v("Successfully GETed")
 
-            while True:
-                v("Fetching another file info")
-                get_next_resp = self.connection.get_next(transaction)
-                d("get_next()\n%s", get_next_resp)
+        transfer_socket = SocketTcpOut(self.connection.server_info.get("ip"), port)
 
-                if "data" not in get_next_resp:
-                    print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-                    return
+        while True:
+            v("Fetching another file info")
+            get_next_resp = self.connection.get_next(transaction)
+            d("get_next()\n%s", get_next_resp)
 
-                next_file = get_next_resp["data"]
+            if not is_data_response(resp):
+                print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+                return
 
-                if next_file == "ok":
-                    v("Nothing more to GET")
+            next_file: FileInfo = get_next_resp.get("data")
+
+            if not next_file:
+                v("Nothing more to GET")
+                break
+
+            d("NEXT: %s", str(next_file))
+            fsize = next_file.get("size")
+            fname = next_file.get("name")
+
+            # c_rpwd = self.connection.rpwd()
+            # # FIND A BETTER NAME
+            # # Strip only the trail part
+            # if self.connection.rpwd():
+            #     trail_file_name = fname.split(self.connection.rpwd())[1].lstrip(os.path.sep)
+            # else:
+            #     trail_file_name = fname
+
+            d("self.connection.c_rpwd: %s", self.connection.rpwd())
+            # d("Trail file name: %s", trail_file_name)
+            # break
+
+            # Create the file
+            v("Creating intermediate dirs locally")
+            parent_dirs, _ = os.path.split(fname)
+            if parent_dirs:
+                os.makedirs(parent_dirs, exist_ok=True)
+
+            v("Opening file locally")
+            file = open(fname, "wb")
+
+            # Really get it
+
+            BUFFER_SIZE = 4096
+
+            read = 0
+            while read < fsize:
+                recv_size = min(BUFFER_SIZE, fsize - read)
+                chunk = transfer_socket.recv(recv_size)
+
+                if not chunk:
+                    v("END")
                     break
 
-                d("NEXT: %s", next_file)
-                file_len = next_file["length"]
-                file_name = next_file["name"]
+                chunk_len = len(chunk)
 
-                c_rpwd = self.connection.rpwd()
-                # FIND A BETTER NAME
-                # Strip only the trail part
-                if self.connection.c_rpwd:
-                    trail_file_name = file_name.split(self.connection.c_rpwd)[1].lstrip(os.path.sep)
-                else:
-                    trail_file_name = file_name
+                d("Read chunk of %dB", chunk_len)
 
-                d("self.connection.c_rpwd: %s", self.connection.c_rpwd)
-                d("Trail file name: %s", trail_file_name)
+                written_chunk_len = file.write(chunk)
 
-                # Create the file
-                v("Creating intermediate dirs locally")
-                head, tail = os.path.split(trail_file_name)
-                if head:
-                    os.makedirs(head, exist_ok=True)
-
-                v("Opening file locally")
-                file = open(trail_file_name, "wb")
-
-                # Really get it
-
-                BUFFER_SIZE = 4096
-
-                read = 0
-                while read < file_len:
-                    recv_dim = min(BUFFER_SIZE, file_len - read)
-                    chunk = transfer_socket.recv(recv_dim)
-
-                    if not chunk:
-                        v("END")
-                        break
-
-                    chunk_len = len(chunk)
-
-                    d("Read chunk of %dB", chunk_len)
-
-                    written_chunk_len = file.write(chunk)
-
-                    if chunk_len != written_chunk_len:
-                        w("Written less bytes than expected: something will go wrong")
-                        exit(-1)
-
-                    read += written_chunk_len
-                    d("%d/%d (%.2f%%)", read, file_len, read / file_len * 100)
-
-                d("DONE %s", trail_file_name)
-                file.close()
-
-                if os.path.getsize(trail_file_name) == file_len:
-                    d("File OK (length match)")
-                else:
-                    w("File length mismatch. %d != %d",
-                                    os.path.getsize(trail_file_name), file_len)
+                if chunk_len != written_chunk_len:
+                    w("Written less bytes than expected: something will go wrong")
                     exit(-1)
 
-            v("Closing socket")
-            transfer_socket.close()
-        else:
-            self._handle_error_response(resp)
+                read += written_chunk_len
+                d("%d/%d (%.2f%%)", read, fsize, read / fsize * 100)
+
+            d("DONE %s", fname)
+            file.close()
+
+            if os.path.getsize(fname) == fsize:
+                d("File OK (length match)")
+            else:
+                w("File length mismatch. %d != %d",
+                  os.path.getsize(fname), fsize)
+                exit(-1)
+
+        v("Closing socket")
+        transfer_socket.close()
 
     def _print_file_infos(self, infos: List[FileInfo]):
         size_infos_str = []
@@ -804,5 +815,17 @@ def main():
         shell.input_loop()
 
 
+def main_wrapper(dump_pyro_exceptions=False):
+    if not dump_pyro_exceptions:
+        main()
+    else:
+        try:
+            main()
+        except Exception:
+            traceback = Pyro4.util.getPyroTraceback()
+            if traceback:
+                e("--- PYRO4 TRACEBACK ---\n%s", "".join(traceback))
+
+
 if __name__ == "__main__":
-    main()
+    main_wrapper(dump_pyro_exceptions=True)
