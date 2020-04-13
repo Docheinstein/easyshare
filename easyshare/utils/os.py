@@ -1,6 +1,7 @@
 import os
+import shutil
 from stat import S_ISDIR
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Tuple
 
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
@@ -10,6 +11,7 @@ from easyshare.utils.types import is_str, is_list
 G = 1000000000
 M = 1000000
 K = 1000
+UNITS = (1, K, M, G)
 
 
 def is_relpath(s: str) -> bool:
@@ -28,14 +30,16 @@ def abspath(s: str) -> str:
     return s if is_abspath(s) else (os.sep + s)
 
 
-def size_str(size: int, fmt="{:0.1f}{}", identifiers=(" ", "K", "M", "G")):
-    if size > G:
-        return fmt.format(size / G, identifiers[3])
-    if size > M:
-        return fmt.format(size / M, identifiers[2])
-    if size > K:
-        return fmt.format(size / K, identifiers[1])
-    return fmt.format(size, identifiers[0])
+def size_str(size: int,
+             prefixes=(" ", "K", "M", "G"),
+             precisions=(1, 1, 1, 1)) -> str:
+    i = len(UNITS) - 1
+    while i >= 0:
+        u = UNITS[i]
+        if size > u:
+            return ("{:0." + str(precisions[i]) + "f}{}").format(size / u, prefixes[i])
+        i -= 1
+    return "0"
 
 
 def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[List[FileInfo]]:
@@ -75,3 +79,12 @@ def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Opt
         return ret
 
     return ret
+
+
+def term_size(fallback=(80, 24)) -> Tuple[int, int]:
+    try:
+        columns, rows = shutil.get_terminal_size(fallback=fallback)
+    except:
+        w("Failed to retrieved terminal size, using fallback")
+        return fallback
+    return columns, rows

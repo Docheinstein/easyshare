@@ -2,70 +2,189 @@ import time
 import random
 
 from easyshare.shared.log import w
-from easyshare.utils.os import M, size_str
+from easyshare.utils.os import M, size_str, term_size
 
 
 class FileProgressor:
 
-    MIN_SPEED_COMPUTE_THRESHOLD_NS = 1e9
+    SIZE_PREFIXES = ("B", "KB", "MB", "GB")
+    SPEED_PREFIXES = ("B/s", "KB/s", "MB/s", "GB/s")
+
+    # Config of the render of progress bar
+
+    # We will put stuff based on how many space we have.
+    # In order of priority we have to show:
+    # W    . What
+    # WP   . Percentage
+    # WPT  . Transferred (Partial / Total)
+    # WPTS . Speed
+    # WPTSB. Bar (taking up as much space as possible)
+
+    # W    . "test.bin"
+    # WP   . "test.bin  5%"                                   | S0,S4
+    # WPT  . "test.bin  5%  10MB/52MB                         | S0,S2,S4
+    # WPTS . "test.bin  5%  10MB/52MB  10KB/s                 | S0,S2,S3,S4
+    # WPTSB. "test.bin  [====        ] 5%  10MB/52MB  10KB/s  | S0,S1,S2,S3,S4
+    #
+    # SPACES:         --              -  --         --      --
+    #                 S0              S1 S2         S3      S4
+
+    PROGRESS_BAR_MIN_INNER_WIDTH = 10
+    PROGRESS_BAR_MIN_OUTER_WIDTH = len("[") + PROGRESS_BAR_MIN_INNER_WIDTH + len("]")
+
+    S0 = 4
+    S1 = 1
+    S2 = 2
+    S3 = 2
+    S4 = 0
+
+    LEN_P = 4               # 100%
+    LEN_TH = 7              # 654.4KB
+    LEN_T = LEN_TH * 2 + 1  # 654.4KB/120.2GB
+    LEN_S = 9               # 654.4KB/s
+
+    S_W = S4
+    S_WP = S0 + S4
+    S_WPT = S0 + S2 + S4
+    S_WPTS = S0 + S2 + S3 + S4
+    S_WPTSB = S0 + S1 + S2 + S3 + S4
+
+    MIN_P = S_WP + LEN_P
+    MIN_PT = S_WPT + LEN_P + LEN_T
+    MIN_PTS = S_WPTS + LEN_P + LEN_T + LEN_S
+    MIN_PTSB = S_WPTSB + LEN_P + LEN_T + LEN_S + PROGRESS_BAR_MIN_OUTER_WIDTH
+
+    FMT_W = "{}" + (" " * S4)
+    FMT_WP = "{}" + (" " * S0) + "{}" + (" " * S4)
+    FMT_WPT = "{}" + (" " * S0) + "{}" + (" " * S2) + "{}"\
+              + (" " * S4)
+    FMT_WPTS = "{}" + (" " * S0) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
+    FMT_WPTSB = "{}" + (" " * S0) + "[{}]" + (" " * S1) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
 
     def __init__(self, what: str, total: int, *,
                  partial: int = 0,
-                 mark="="):
+                 progress_mark: str = "=",
+                 fps: float = 2,
+                 speed_smoothing: float = 0):
         self.what = what
         self.partial = partial
         self.total = total
-        self.mark = mark
+        self.progress_mark = progress_mark
+        self.fps = fps
+        self.speed_smoothing = speed_smoothing
         self.last_t = None
-        self.last_speed_compute_t = None
-        self.speed = None
+        self.last_speed = None
+        self.last_render_t = None
 
     def increase(self, amount: int):
         self.update(self.partial + amount)
 
-    def update(self, partial: int):
+    # noinspection PyPep8Naming
+    def update(self, partial: int, *, force: bool = False, inline: bool = True):
+        t = time.monotonic_ns()
+
         if partial < self.partial:
             w("Progress cannot go backward")
             return
 
-        t = time.monotonic_ns()
+        # Compute delta time (apart from the first call)
+        # speed = int((partial - self.partial) /
+        #             ((t - self.last_t) * 1e-9)) if self.last_t else None
+        speed = int((partial - self.partial) * 1e9 /
+                    (t - self.last_t)) if self.last_t else None
+        
+        # print("speed:",speed)
 
-        delta_amount = partial - self.partial
+        # To avoid fast up/down: dump the speed doing the average with the old one
+        if self.last_speed:
+            speed = speed * (1 - self.speed_smoothing) + \
+                    self.last_speed * self.speed_smoothing
 
-        self.partial = partial
-
-        if self.last_t and (
-                not self.last_speed_compute_t or
-                (self.last_speed_compute_t + FileProgressor.MIN_SPEED_COMPUTE_THRESHOLD_NS < t)):
-
-            # Compute delta time (apart from the first call)
-            delta_t = t - self.last_t
-            self.last_speed_compute_t = t
-            self.speed = int(delta_amount / (delta_t * 1e-9))
-
+        self.last_speed = speed
         self.last_t = t
+        self.partial = partial
 
         ratio = self.partial / self.total
         percentage = int(100 * ratio)
 
-        LEN = 50
+        # Do not render too fast (stay below FPS)
+        # Exceptions:
+        # 1. 'force' set to True
+        # 2. First update
+        if force or \
+                not self.last_render_t or \
+                ((t - self.last_render_t) * 1e-9) > 1 / self.fps:
+            self.last_render_t = t
 
-        print("{} [{}] {}%   {}/{}   {}/s".format(
-            self.what or "",
-            (self.mark * int(ratio * LEN)).ljust(LEN),
-            percentage,
-            size_str(self.partial, identifiers=("B", "KB", "MB", "GB")),
-            size_str(self.total, identifiers=("B", "KB", "MB", "GB")),
-            size_str(self.speed, identifiers=("B", "KB", "MB", "GB")) if self.speed else "",
-        ), end="\r")
+            # Retrieve the terminal size for render properly
+            cols, rows = term_size()
 
-    # @staticmethod
-    # def display(what: str, partial: int, total: int, delta_t):
+            W = self.what
+            P = str(percentage) + "%"
+            T = "{}/{}".format(
+                size_str(self.partial, prefixes=FileProgressor.SIZE_PREFIXES).rjust(FileProgressor.LEN_TH),
+                size_str(self.total, prefixes=FileProgressor.SIZE_PREFIXES).ljust(FileProgressor.LEN_TH)
+            )
+            S = size_str(speed, prefixes=FileProgressor.SPEED_PREFIXES) if speed else ""
+
+            Wlen = len(W)
+
+            # WPTSB
+            if cols >= Wlen + FileProgressor.MIN_PTSB:
+                # Use as much space as possible for the bar
+                progress_bar_inner_width = \
+                    cols - (Wlen + FileProgressor.LEN_P +
+                            FileProgressor.LEN_T + FileProgressor.LEN_S +
+                            FileProgressor.S_WPTSB + len("[]"))
+
+                progress_line = FileProgressor.FMT_WPTSB.format(
+                    W,
+                    (self.progress_mark * int(ratio * progress_bar_inner_width)).
+                        ljust(progress_bar_inner_width),
+                    P.rjust(FileProgressor.LEN_P),
+                    T.rjust(FileProgressor.LEN_T),
+                    S.rjust(FileProgressor.LEN_S)
+                )
+            # WPTS
+            elif cols >= Wlen + FileProgressor.MIN_PTS:
+                progress_line = FileProgressor.FMT_WPTS.format(
+                    W.ljust(cols - FileProgressor.MIN_PTS),
+                    P.rjust(FileProgressor.LEN_P),
+                    T.rjust(FileProgressor.LEN_T),
+                    S.rjust(FileProgressor.LEN_S)
+                )
+            # WPT
+            elif cols >= Wlen + FileProgressor.MIN_PT:
+                progress_line = FileProgressor.FMT_WPT.format(
+                    W.ljust(cols - FileProgressor.MIN_PT),
+                    P.rjust(FileProgressor.LEN_P),
+                    T.rjust(FileProgressor.LEN_T)
+                )
+            # WP
+            elif cols >= Wlen + FileProgressor.MIN_P:
+                progress_line = FileProgressor.FMT_WPT.format(
+                    W.ljust(cols - FileProgressor.MIN_P),
+                    P.rjust(FileProgressor.LEN_P)
+                )
+            # W
+            else:
+                progress_line = FileProgressor.FMT_W.format(W)
+
+            print(progress_line, end="\r" if inline else "\n")
+
+    def done(self):
+        self.update(self.total, force=True, inline=False)
 
 
 if __name__ == "__main__":
+
     prog = FileProgressor("test.bin", 100 * M)
-    for i in range(0, 100 * M, 1024):
-        time.sleep(random.randint(1, 5) * 0.0001)
-        prog.update(i)
+    part = 0
+    tot = 100 * M
+    while part < tot:
+        delta_b = random.randint(4096, 4096 * 12)
+        delta_t = random.randint(1, 5) * 0.01
+        time.sleep(delta_t)
+        prog.update(part)
+        part += delta_b
     print("Finished")

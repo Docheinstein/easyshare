@@ -21,6 +21,7 @@ from easyshare.shared.conf import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VE
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.log import i, d, w, init_logging, v, VERBOSITY_VERBOSE, get_verbosity, VERBOSITY_MAX, \
     VERBOSITY_NONE, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG, e
+from easyshare.shared.progress import FileProgressor
 from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint, terminate, abort
@@ -584,8 +585,8 @@ class Client:
                 break
 
             d("NEXT: %s", str(next_file))
-            fsize = next_file.get("size")
             fname = next_file.get("name")
+            fsize = next_file.get("size")
 
             # c_rpwd = self.connection.rpwd()
             # # FIND A BETTER NAME
@@ -613,6 +614,9 @@ class Client:
             BUFFER_SIZE = 4096
 
             read = 0
+
+            progressor = FileProgressor(fname, fsize)
+
             while read < fsize:
                 recv_size = min(BUFFER_SIZE, fsize - read)
                 chunk = transfer_socket.recv(recv_size)
@@ -633,7 +637,9 @@ class Client:
 
                 read += written_chunk_len
                 d("%d/%d (%.2f%%)", read, fsize, read / fsize * 100)
+                progressor.update(read)
 
+            progressor.done()
             d("DONE %s", fname)
             file.close()
 

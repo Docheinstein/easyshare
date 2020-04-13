@@ -590,7 +590,7 @@ class GetTransactionHandler(threading.Thread):
 
             # Send file
             while True:
-                time.sleep(0.1)
+                time.sleep(0.02)
                 chunk = f.read(GetTransactionHandler.BUFFER_SIZE)
                 if not chunk:
                     d("Finished %s", next_serving)
