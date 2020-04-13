@@ -7,6 +7,7 @@ from easyshare.protocol.response import Response, create_error_response, is_succ
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.shared.log import d
+from easyshare.shared.trace import trace_out
 
 
 class Connection:
@@ -50,6 +51,15 @@ class Connection:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
+        trace_out(
+            ip=self.server_info.get("ip"),
+            port=self.server_info.get("port"),
+            name=self.server_info.get("name"),
+            what="RLS sort by {}{}".format(
+                str(sort_by),
+                " (reverse)" if reverse else ""
+            )
+        )
         return self.server.rls(sort_by, reverse=reverse)
 
     def rmkdir(self, directory) -> Response:

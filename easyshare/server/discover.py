@@ -1,7 +1,7 @@
 import threading
 from typing import Callable
 
-from easyshare.shared.log import d
+from easyshare.shared.log import d, v
 from easyshare.shared.endpoint import Endpoint
 from easyshare.socket.udp import SocketUdpIn
 

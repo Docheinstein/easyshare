@@ -12,8 +12,7 @@ class SocketUdpIn(Socket):
     def __init__(self, address: str = ADDR_ANY, port: int = PORT_ANY, *,
                  timeout: float = None):
         super().__init__()
-        self.sock = socket_udp_in(address, port,
-                                  timeout=timeout)
+        self.sock = socket_udp_in(address, port, timeout=timeout)
 
     def recv(self, bufsize=DEFAULT_BUFFER_SIZE) -> Tuple[bytes, Endpoint]:
         return self.sock.recvfrom(bufsize)

@@ -4,6 +4,7 @@ from typing import Optional
 from easyshare.protocol.filetype import FileType, FTYPE_DIR, FTYPE_FILE
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.conf import SHARING_NAME_ALPHABET
+from easyshare.utils.obj import items
 from easyshare.utils.str import keep
 
 
@@ -13,6 +14,9 @@ class Sharing:
         self.ftype = ftype
         self.path = path
         self.read_only = read_only
+
+    def __str__(self):
+        return str(items(self))
 
     @staticmethod
     def create(name: str, path: str, read_only: bool) -> Optional['Sharing']:
@@ -32,7 +36,7 @@ class Sharing:
             _, name = os.path.split(path)
 
         # Sanitize the name anyway (only alphanum and _ is allowed)
-        name = keep(name, SHARING_NAME_ALPHABET)
+        # name = keep(name, SHARING_NAME_ALPHABET)
 
         read_only = True if read_only else False
 
@@ -42,6 +46,8 @@ class Sharing:
             path=path,
             read_only=read_only
         )
+
+
 
     def info(self) -> SharingInfo:
         return {

@@ -34,7 +34,13 @@ class Discoverer:
         out_sock = SocketUdpOut(broadcast=True)
 
         d("Broadcasting DISCOVER on port %d", self.server_discover_port)
-        trace_out(str(discover_message))
+
+        trace_out(
+            ip="",
+            port=self.server_discover_port,
+            name="broadcast",
+            what="DISCOVER {}".format(str(discover_message))
+        )
 
         out_sock.broadcast(discover_message, self.server_discover_port)
 

@@ -21,6 +21,7 @@ from easyshare.server.discover import DiscoverDeamon
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.errors import ServerErrors
+from easyshare.socket.udp import SocketUdpOut
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.json import json_to_str, json_to_bytes
 from easyshare.utils.net import get_primary_ip, is_valid_port
@@ -123,18 +124,15 @@ class Server(IServer):
 
         d("Client response port is %d", client_discover_response_port)
 
-        # TODO: OutSocket
-
         # Respond to the port the client says in the paylod
         # (not necessary the one from which the request come)
-        resp_endpoint = (client_endpoint[0], client_discover_response_port)
+        sock = SocketUdpOut()
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        d("Sending DISCOVER response back to %s:%d\n%s",
+          client_endpoint[0], client_discover_response_port,
+          json_to_str(response, pretty=True))
 
-        d("Sending DISCOVER response back to %s\n%s",
-          resp_endpoint, json_to_str(response, pretty=True))
-
-        sock.sendto(json_to_bytes(response), resp_endpoint)
+        sock.send(json_to_bytes(response), client_endpoint[0], client_discover_response_port)
 
     def start(self):
         i("Starting DISCOVER deamon")

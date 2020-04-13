@@ -10,7 +10,7 @@ from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
-from easyshare.protocol.filetype import FTYPE_DIR
+from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE
 from easyshare.protocol.response import Response, is_error_response, is_success_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.shared.args import Args
@@ -21,7 +21,7 @@ from easyshare.shared.log import i, d, w, init_logging, v, VERBOSITY_VERBOSE, ge
 from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.utils.app import eprint, terminate, abort
 from easyshare.utils.obj import values
-from easyshare.utils.types import to_int, is_int
+from easyshare.utils.types import to_int
 from easyshare.utils.os import ls, size_str
 
 # ==================================================================
@@ -90,7 +90,6 @@ class Commands:
     VERBOSE = "verbose"
     VERBOSE_SHORT = "v"
 
-
     LOCAL_CHANGE_DIRECTORY = "cd"
     LOCAL_LIST_DIRECTORY = "ls"
     LOCAL_CREATE_DIRECTORY = "mkdir"
@@ -125,11 +124,11 @@ class LsArguments:
 
 
 class OpenArguments:
-    TIMEOUT = ["-t", "--timeout"]
+    TIMEOUT = ["-T", "--timeout"]
 
 
 class ScanArguments:
-    TIMEOUT = ["-t", "--timeout"]
+    TIMEOUT = ["-T", "--timeout"]
 
 
 # === ERRORS ===
@@ -229,15 +228,13 @@ class Client:
     # === LOCAL COMMANDS ===
 
     def _trace(self, args: Args):
-        enable = args.get_param()
+        enable = to_int(args.get_param())
 
-        if enable is None or not is_int(enable):
+        if enable is None:
             # Toggle tracing if no parameter is provided
             enable = not is_tracing_enabled()
 
-        enable = True if enable > 0 else False
-
-        i(">> TRACE (%d)", 1 if enable else 0)
+        i(">> TRACE (%d)", enable)
 
         init_tracing(enable)
 
@@ -247,15 +244,16 @@ class Client:
         ))
 
     def _verbose(self, args: Args):
-        verbosity = args.get_param()
+        verbosity = to_int(args.get_param())
 
-        if verbosity is None or not is_int(verbosity):
+        if verbosity is None:
             # Increase verbosity (or disable if is already max)
             verbosity = (get_verbosity() + 1) % (VERBOSITY_MAX + 1)
 
         i(">> VERBOSE (%d)", verbosity)
 
         init_logging(verbosity)
+
 
         VERBOSITY_EXPLANATION_MAP = {
             VERBOSITY_NONE: " (disabled)",
@@ -265,6 +263,9 @@ class Client:
             VERBOSITY_VERBOSE: " (error / warn / info / verbose)",
             VERBOSITY_DEBUG: " (error / warn / info / verbose / debug)",
         }
+
+        if verbosity not in VERBOSITY_EXPLANATION_MAP:
+            verbosity = max(min(verbosity, VERBOSITY_DEBUG), VERBOSITY_NONE)
 
         print("Verbosity = {:d}{}".format(
             verbosity,
@@ -395,8 +396,14 @@ class Client:
             self._handle_error_response(resp)
 
     def _open(self, args: Args):
-        sharing_name = args.get_param()
-        if not sharing_name:
+        #                    |------sharing_location-----|
+        # open <sharing_name>[@<hostname> | @<ip>[:<port>]]
+        #      |_________________________________________|
+        #               sharing specifier
+
+        sharing_specifier = args.get_param()
+
+        if not sharing_specifier:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return
 
@@ -407,7 +414,12 @@ class Client:
             print_error(ClientErrors.INVALID_PARAMETER_VALUE)
             return False
 
-        i(">> OPEN %s (timeout = %d)", sharing_name, timeout)
+        sharing_name, _, sharing_location = sharing_specifier.partition("@")
+
+        i(">> OPEN %s%s (timeout = %d)",
+          sharing_name,
+          "@{}".format(sharing_location) if sharing_location else "",
+          timeout)
 
         server_info: Optional[ServerInfo] = None
 
@@ -416,14 +428,35 @@ class Client:
             nonlocal server_info
             d("Handling DISCOVER response from %s\n%s",
               str(client_endpoint), str(a_server_info))
+
+            # If the sharing_location is specified, it must match
+
+            if sharing_location and \
+                    sharing_location != a_server_info.get("name") and \
+                    sharing_location != a_server_info.get("ip") and \
+                    sharing_location != "{}:{}".format(a_server_info.get("ip"),
+                                                       a_server_info.get("port")):
+                d("Discarding server info which does not match the sharing_location %s", sharing_location)
+                return True  # Continue DISCOVER
+
+            # If we are here, the sharing_location either is
+            # not specified or it does match
+            # Let's see if it has the right sharing
             for sharing_info in a_server_info.get("sharings"):
+                # Check whether this server has a sharing with the name
+                # we are looking for
                 if sharing_info.get("name") == sharing_name:
                     d("Sharing [%s] found at %s:%d",
                       sharing_info.get("name"),
                       a_server_info.get("ip"),
                       a_server_info.get("port"))
                     server_info = a_server_info
-                    return False    # Stop DISCOVER
+
+                    # Check if it is actually a directory
+                    if sharing_info.get("ftype") == FTYPE_DIR:
+                        return False    # Stop DISCOVER
+                    else:
+                        w("The sharing %s is not a directory; cannot open", sharing_name)
 
             return True             # Continue DISCOVER
 
@@ -450,7 +483,7 @@ class Client:
             self.connection = None  # Invalidate connection
 
     def _scan(self, args: Args):
-        timeout = to_int(args.get_param(OpenArguments.TIMEOUT,
+        timeout = to_int(args.get_param(ScanArguments.TIMEOUT,
                                         default=Discoverer.DEFAULT_TIMEOUT))
 
         if not timeout:
@@ -478,8 +511,17 @@ class Client:
                           server_info.get("ip"),
                           server_info.get("port")))
 
+            print("  DIRECTORIES")
+
             for sharing_info in server_info.get("sharings"):
-                print("  " + sharing_info.get("name"))
+                if sharing_info.get("ftype") == FTYPE_DIR:
+                    print("   > " + sharing_info.get("name"))
+
+            print("  FILES")
+
+            for sharing_info in server_info.get("sharings"):
+                if sharing_info.get("ftype") == FTYPE_FILE:
+                    print("   > " + sharing_info.get("name"))
 
             servers_found += 1
 
@@ -650,7 +692,13 @@ class Shell:
                 prompt = self._build_prompt_string()
                 command_line = input(prompt)
 
-                command_line_parts = shlex.split(command_line)
+                try:
+                    command_line_parts = shlex.split(command_line)
+                except ValueError:
+                    w("Invalid command line")
+                    print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
+                    continue
+
                 if len(command_line_parts) < 1:
                     print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
                     continue
@@ -700,13 +748,21 @@ class Shell:
 def main():
     args = Args(sys.argv[1:])
 
-    if ClientArguments.VERBOSE in args:
-        verbosity = to_int(args.get_param(ClientArguments.VERBOSE), VERBOSITY_VERBOSE)
-        if not verbosity:
-            abort(error_string(ClientErrors.INVALID_PARAMETER_VALUE))
-        init_logging(verbosity)
+    verbosity = 0
+    tracing = 0
 
-    init_tracing(ClientArguments.TRACE in args)
+    if ClientArguments.VERBOSE in args:
+        verbosity = to_int(args.get_param(ClientArguments.VERBOSE, default=VERBOSITY_VERBOSE))
+        if verbosity is None:
+            abort("Invalid --verbose parameter value")
+
+    if ClientArguments.TRACE in args:
+        tracing = to_int(args.get_param(ClientArguments.TRACE, default=1))
+        if tracing is None:
+            abort("Invalid --trace parameter value")
+
+    init_logging(verbosity)
+    init_tracing(True if tracing else False)
 
     i(APP_INFO)
     d(args)

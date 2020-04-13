@@ -1,8 +1,10 @@
 tracing = False
 
 
-def trace_out(msg, *args, **kwargs):
-    _trace(">> " + msg, *args, **kwargs)
+def trace_out(ip, port, name, what, *args, **kwargs):
+    _trace(">> {}:{} ({})\n>>   {}".format(
+        ip, port, name, what
+    ), *args, **kwargs)
 
 
 def trace_in(msg, *args, **kwargs):

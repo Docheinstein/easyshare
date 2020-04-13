@@ -73,13 +73,12 @@ def get_verbosity() -> int:
     return verbosity
 
 
-def _init_python_logging(enabled: bool, level: int, output=sys.stderr):
+def _init_python_logging(enabled: bool, level: int, output=sys.stdout):
     """ Initializes logging. """
     global logger
 
     if not logger:
         logger = logging.getLogger("easyshare")
-        logger.setLevel(level)
 
         logging_handler = logging.StreamHandler(output)
         logging_handler.setFormatter(logging.Formatter(

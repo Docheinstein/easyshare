@@ -5,23 +5,16 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/client/connection.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/connection.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/client/discover.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/discover.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/client/errors.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/errors.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/client/es.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/client/es.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/config/parser.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/config/parser.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/protocol/fileinfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/protocol/fileinfo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/protocol/iserver.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/protocol/iserver.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/protocol/response.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/protocol/response.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/protocol/serverinfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/protocol/serverinfo.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/server/discover.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/server/discover.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/server/esd.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/server/esd.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/server/sharing.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/server/sharing.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/shared/args.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/shared/args.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/easyshare/shared/log.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/shared/log.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/utils/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/app.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/utils/json.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/json.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/utils/obj.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/obj.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/utils/os.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/os.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/easyshare/utils/types.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/utils/types.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/setup.py" beforeDir="false" afterPath="$PROJECT_DIR$/setup.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/shared/trace.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/shared/trace.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/easyshare/socket/udp.py" beforeDir="false" afterPath="$PROJECT_DIR$/easyshare/socket/udp.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -164,7 +157,9 @@
       <workItem from="1586614608118" duration="113000" />
       <workItem from="1586635302122" duration="12290000" />
       <workItem from="1586681209305" duration="4723000" />
-      <workItem from="1586694903897" duration="13598000" />
+      <workItem from="1586694903897" duration="13807000" />
+      <workItem from="1586726632106" duration="4279000" />
+      <workItem from="1586760892492" duration="3343000" />
     </task>
     <servers />
   </component>
@@ -221,10 +216,10 @@
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
     <state x="2038" y="227" width="996" height="788" key="dock-window-1/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586694956505" />
-    <state x="2098" y="131" width="865" height="758" key="find.popup" timestamp="1586703024419">
+    <state x="2098" y="131" width="865" height="758" key="find.popup" timestamp="1586764255726">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state x="2098" y="131" width="865" height="758" key="find.popup/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586703024419" />
+    <state x="2098" y="131" width="865" height="758" key="find.popup/0.46.1920.1034/1920.0.1920.1080@1920.0.1920.1080" timestamp="1586764255726" />
     <state x="783" y="430" width="672" height="650" key="search.everywhere.popup" timestamp="1585087161311">
       <screen x="0" y="46" width="1920" height="1034" />
     </state>

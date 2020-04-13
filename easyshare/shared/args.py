@@ -47,8 +47,10 @@ class Args:
         :return: the first parameter of the argument
         """
         params, found = self._get_params(arg_names, default=default, tell_found=True)
+        self._debug("get_param(), found: {}, params: {}".format(found, params))
+
         if not found or position >= len(params):
-            return params
+            return default
         return params[position]
 
     def get_params(self, arg_names: Optional[List[str]] = None,
@@ -107,6 +109,8 @@ class Args:
         :return: the parameters of the argument [, found]
         """
         mparams, found = self._get_mparams(arg_names, default=default, tell_found=True)
+        self._debug("_get_params(), found: {}, mparams: {}".format(found, mparams))
+
         if not found or not mparams:
             return Args._wrap_finding(mparams, False, tell_found)
 
