@@ -9,6 +9,8 @@ import Pyro4 as Pyro4
 
 from typing import Dict, Optional, List
 
+import colorama
+
 from easyshare.protocol.filetype import FTYPE_FILE
 from easyshare.protocol.response import create_success_response, create_error_response, Response
 from easyshare.server.sharing import Sharing
@@ -590,7 +592,7 @@ class GetTransactionHandler(threading.Thread):
 
             # Send file
             while True:
-                time.sleep(0.02)
+                time.sleep(0.001)
                 chunk = f.read(GetTransactionHandler.BUFFER_SIZE)
                 if not chunk:
                     d("Finished %s", next_serving)
@@ -626,6 +628,8 @@ class GetTransactionHandler(threading.Thread):
 
 
 def main():
+    colorama.init()
+
     if len(sys.argv) <= 1:
         terminate(HELP_APP)
 
@@ -690,7 +694,7 @@ def main():
                 )
 
                 if not sharing:
-                    w("Invalid or incomplete sharing config; skipping %s", str(sharing))
+                    w("Invalid or incomplete sharing config; skipping '%s'", str(sharing))
                     continue
 
                 d("Adding valid sharing %s", sharing_name)
@@ -742,7 +746,7 @@ def main():
             )
 
             if not sharing:
-                w("Invalid or incomplete sharing config; skipping %s", str(sharing))
+                w("Invalid or incomplete sharing config; skipping sharing '%s'", str(sharing))
                 continue
 
             d("Adding valid sharing [%s]", sharing)

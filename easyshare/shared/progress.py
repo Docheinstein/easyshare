@@ -2,13 +2,17 @@ import time
 import random
 
 from easyshare.shared.log import w
+from easyshare.utils.colors import colored, Color
 from easyshare.utils.os import M, size_str, term_size
+from easyshare.utils.time import duration_str
 
 
 class FileProgressor:
 
     SIZE_PREFIXES = ("B", "KB", "MB", "GB")
     SPEED_PREFIXES = ("B/s", "KB/s", "MB/s", "GB/s")
+
+    TIME_FORMATS = ("{}h ", "{}m ", "{}s")
 
     # Config of the render of progress bar
 
@@ -41,7 +45,10 @@ class FileProgressor:
     LEN_P = 4               # 100%
     LEN_TH = 7              # 654.4KB
     LEN_T = LEN_TH * 2 + 1  # 654.4KB/120.2GB
-    LEN_S = 9               # 654.4KB/s
+    LEN_S = 10              # 654.4KB/s
+    # ^ It would be 9 but allow 10 chars for
+    # the alternative time_instead_speed
+    # time_instead_speed:   # 1h 12m 43s
 
     S_W = S4
     S_WP = S0 + S4
@@ -65,13 +72,19 @@ class FileProgressor:
                  partial: int = 0,
                  progress_mark: str = "=",
                  fps: float = 2,
-                 speed_smoothing: float = 0):
+                 speed_smoothing: float = 0,
+                 progress_color: Color = None,
+                 done_color: Color = None):
         self.what = what
         self.partial = partial
         self.total = total
         self.progress_mark = progress_mark
-        self.fps = fps
         self.speed_smoothing = speed_smoothing
+        self.fps = fps
+        self.progress_color = progress_color
+        self.done_color = done_color
+
+        self.first_t = None
         self.last_t = None
         self.last_speed = None
         self.last_render_t = None
@@ -80,8 +93,14 @@ class FileProgressor:
         self.update(self.partial + amount)
 
     # noinspection PyPep8Naming
-    def update(self, partial: int, *, force: bool = False, inline: bool = True):
+    def update(self, partial: int, *,
+               force: bool = False,
+               inline: bool = True,
+               time_instead_speed: bool = False):
         t = time.monotonic_ns()
+
+        if not self.first_t:
+            self.first_t = t
 
         if partial < self.partial:
             w("Progress cannot go backward")
@@ -125,7 +144,12 @@ class FileProgressor:
                 size_str(self.partial, prefixes=FileProgressor.SIZE_PREFIXES).rjust(FileProgressor.LEN_TH),
                 size_str(self.total, prefixes=FileProgressor.SIZE_PREFIXES).ljust(FileProgressor.LEN_TH)
             )
-            S = size_str(speed, prefixes=FileProgressor.SPEED_PREFIXES) if speed else ""
+            S = ""
+            if time_instead_speed:
+                S = duration_str(round((t - self.first_t) * 1e-9),
+                                 fixed=False, formats=FileProgressor.TIME_FORMATS)
+            elif speed:
+                S = size_str(speed, prefixes=FileProgressor.SPEED_PREFIXES) if speed else ""
 
             Wlen = len(W)
 
@@ -137,10 +161,18 @@ class FileProgressor:
                             FileProgressor.LEN_T + FileProgressor.LEN_S +
                             FileProgressor.S_WPTSB + len("[]"))
 
+                progress_bar_inner = \
+                    (self.progress_mark * int(ratio * progress_bar_inner_width))\
+                        .ljust(progress_bar_inner_width)
+
+                if self.partial < self.total and self.progress_color:
+                    progress_bar_inner = colored(progress_bar_inner, self.progress_color)
+                elif self.partial == self.total and self.done_color:
+                    progress_bar_inner = colored(progress_bar_inner, self.done_color)
+
                 progress_line = FileProgressor.FMT_WPTSB.format(
                     W,
-                    (self.progress_mark * int(ratio * progress_bar_inner_width)).
-                        ljust(progress_bar_inner_width),
+                    progress_bar_inner,
                     P.rjust(FileProgressor.LEN_P),
                     T.rjust(FileProgressor.LEN_T),
                     S.rjust(FileProgressor.LEN_S)
@@ -173,18 +205,24 @@ class FileProgressor:
             print(progress_line, end="\r" if inline else "\n")
 
     def done(self):
-        self.update(self.total, force=True, inline=False)
+        self.update(self.total, force=True, inline=False, time_instead_speed=True)
 
 
 if __name__ == "__main__":
+    def simulate_file_progression(name: str, tot: int):
+        prog = FileProgressor(name, tot,
+                              progress_mark="*",
+                              progress_color=Color.BLUE,
+                              done_color=Color.GREEN)
+        part = 0
+        while part < tot:
+            delta_b = random.randint(4096, 4096 * 12)
+            delta_t = random.randint(1, 5) * 0.01
+            time.sleep(delta_t)
+            prog.update(part)
+            part += delta_b
+        prog.done()
 
-    prog = FileProgressor("test.bin", 100 * M)
-    part = 0
-    tot = 100 * M
-    while part < tot:
-        delta_b = random.randint(4096, 4096 * 12)
-        delta_t = random.randint(1, 5) * 0.01
-        time.sleep(delta_t)
-        prog.update(part)
-        part += delta_b
-    print("Finished")
+    simulate_file_progression("test.bin", 5 * M)
+    # simulate_file_progression("test.bin", 100 * M)
+

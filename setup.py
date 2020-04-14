@@ -37,5 +37,6 @@ setup(
     long_description=read('README.rst'),
     license="MIT",
     keywords="easyshare",
-    url="https://github.com/Docheinstein/easyshare", install_requires=['Pyro4']
+    url="https://github.com/Docheinstein/easyshare",
+    install_requires=['Pyro4', 'colorama', 'termcolor']
 )

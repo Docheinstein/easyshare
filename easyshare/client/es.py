@@ -6,6 +6,7 @@ import readline
 from typing import Optional, Callable, List, Dict
 
 import Pyro4
+import colorama
 from Pyro4 import util
 
 from easyshare.client.connection import Connection
@@ -116,6 +117,7 @@ SHELL_COMMANDS = values(Commands)
 
 CLI_COMMANDS = [
     Commands.SCAN,
+    Commands.OPEN,
     Commands.GET
 ]
 
@@ -483,7 +485,7 @@ class Client:
 
         resp = self.connection.open(sharing_name)
         if is_success_response(resp):
-            d("Successfully connected to %s:%d",
+            v("Successfully connected to %s:%d",
               server_info.get("ip"), server_info.get("port"))
         else:
             self._handle_error_response(resp)
@@ -615,7 +617,7 @@ class Client:
 
             read = 0
 
-            progressor = FileProgressor(fname, fsize)
+            progressor = FileProgressor("GET " + fname, fsize)
 
             while read < fsize:
                 recv_size = min(BUFFER_SIZE, fsize - read)
@@ -646,9 +648,8 @@ class Client:
             if os.path.getsize(fname) == fsize:
                 d("File OK (length match)")
             else:
-                w("File length mismatch. %d != %d",
+                e("File length mismatch. %d != %d",
                   os.path.getsize(fname), fsize)
-                exit(-1)
 
         v("Closing socket")
         transfer_socket.close()
@@ -763,6 +764,7 @@ class Shell:
 
 
 def main():
+    colorama.init()
     args = Args(sys.argv[1:])
 
     verbosity = 0
@@ -814,7 +816,8 @@ def main():
         d("Executing command directly from command line: %s (%s)",
           command, args)
         client.execute_command(command, args)
-    else:
+
+    if not full_command or client.is_connected():
         # Start the shell
         v("Executing shell")
         shell = Shell(client)

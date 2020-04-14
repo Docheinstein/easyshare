@@ -1,17 +1,16 @@
-1) Client use a random port for discovery
-2) Arguments parsing
-3) Configuration file
-4) Read only protection
-5) Percentage progress for GET (tqdm?)
-5.5) Colors
-6) No color option
-7) Refactor all
-8) Commands for es.py (e.g. get, ls, ...)
-10) Authentication
-11) Next suggestions?
-12) Rename, mv
-13) Close
-14) Get on file if done outside any connection
 
-
-[LS]
+- read only protection
+    - how to handle with -s?
+- colors
+    - No color option
+- authentication
+- next suggestions based on what's currently written
+    - commands
+    - commands options
+    - file list
+    - (remote file list => ls)
+- rename, mv, rm
+- rrename, rmv, rrm
+- close for quit current connection
+- GET file (if outside any connection)
+- benchmark GET, for decide buffer size, ...
