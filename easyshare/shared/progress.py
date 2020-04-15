@@ -2,7 +2,7 @@ import time
 import random
 
 from easyshare.shared.log import w
-from easyshare.utils.colors import colored, Color
+from easyshare.utils.colors import colored, Color, init_colors
 from easyshare.utils.os import M, size_str, term_size
 from easyshare.utils.time import duration_str
 
@@ -70,24 +70,26 @@ class FileProgressor:
 
     def __init__(self, what: str, total: int, *,
                  partial: int = 0,
-                 progress_mark: str = "=",
                  fps: float = 2,
-                 speed_smoothing: float = 0,
+                 progress_mark: str = "=",
                  progress_color: Color = None,
                  done_color: Color = None):
         self.what = what
         self.partial = partial
         self.total = total
-        self.progress_mark = progress_mark
-        self.speed_smoothing = speed_smoothing
         self.fps = fps
+        self.period_ns = (1 / fps) * 1e9
+        self.progress_mark = progress_mark
         self.progress_color = progress_color
         self.done_color = done_color
 
         self.first_t = None
         self.last_t = None
-        self.last_speed = None
         self.last_render_t = None
+
+        self.speed_period_t = None
+        self.speed_period_avg = 0
+        self.speed_period_samples = 0
 
     def increase(self, amount: int):
         self.update(self.partial + amount)
@@ -99,6 +101,7 @@ class FileProgressor:
                time_instead_speed: bool = False):
         t = time.monotonic_ns()
 
+        # Remind the first update (for render the total time at the end)
         if not self.first_t:
             self.first_t = t
 
@@ -106,20 +109,31 @@ class FileProgressor:
             w("Progress cannot go backward")
             return
 
-        # Compute delta time (apart from the first call)
-        # speed = int((partial - self.partial) /
-        #             ((t - self.last_t) * 1e-9)) if self.last_t else None
-        speed = int((partial - self.partial) * 1e9 /
-                    (t - self.last_t)) if self.last_t else None
-        
-        # print("speed:",speed)
+        # Compute speed (apart from the first call)
+        speed = None
 
-        # To avoid fast up/down: dump the speed doing the average with the old one
-        if self.last_speed:
-            speed = speed * (1 - self.speed_smoothing) + \
-                    self.last_speed * self.speed_smoothing
+        if self.last_t:
+            # Compute delta time
+            instant_speed = int((partial - self.partial) * 1e9 /
+                        (t - self.last_t))
 
-        self.last_speed = speed
+            # Do an average with the speed of the current period
+            # (the period depends on the fps)
+            if not self.speed_period_t or \
+                    (t - self.speed_period_t) > self.period_ns:
+                # New period: reset the speed avg
+                self.speed_period_t = t
+                self.speed_period_samples = 0
+                self.speed_period_avg = 0
+
+            self.speed_period_avg = \
+                (self.speed_period_samples * self.speed_period_avg + instant_speed) // \
+                (self.speed_period_samples + 1)
+
+            speed = self.speed_period_avg
+
+            self.speed_period_samples += 1
+
         self.last_t = t
         self.partial = partial
 
@@ -130,9 +144,8 @@ class FileProgressor:
         # Exceptions:
         # 1. 'force' set to True
         # 2. First update
-        if force or \
-                not self.last_render_t or \
-                ((t - self.last_render_t) * 1e-9) > 1 / self.fps:
+        if force or not self.last_render_t or \
+                (t - self.last_render_t) > self.period_ns:
             self.last_render_t = t
 
             # Retrieve the terminal size for render properly
@@ -149,7 +162,7 @@ class FileProgressor:
                 S = duration_str(round((t - self.first_t) * 1e-9),
                                  fixed=False, formats=FileProgressor.TIME_FORMATS)
             elif speed:
-                S = size_str(speed, prefixes=FileProgressor.SPEED_PREFIXES) if speed else ""
+                S = size_str(speed, prefixes=FileProgressor.SPEED_PREFIXES)
 
             Wlen = len(W)
 
@@ -209,20 +222,23 @@ class FileProgressor:
 
 
 if __name__ == "__main__":
-    def simulate_file_progression(name: str, tot: int):
+    init_colors()
+
+    def simulate_file_progression(name: str, tot: int, fps: float = 2):
         prog = FileProgressor(name, tot,
+                              fps=fps,
                               progress_mark="*",
                               progress_color=Color.BLUE,
                               done_color=Color.GREEN)
         part = 0
         while part < tot:
             delta_b = random.randint(4096, 4096 * 12)
-            delta_t = random.randint(1, 5) * 0.01
+            delta_t = random.randint(1, 5) * 0.001
             time.sleep(delta_t)
             prog.update(part)
             part += delta_b
         prog.done()
 
-    simulate_file_progression("test.bin", 5 * M)
+    simulate_file_progression("test.bin", 5 * M, fps=20)
     # simulate_file_progression("test.bin", 100 * M)
 

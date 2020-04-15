@@ -7,3 +7,5 @@ class ClientErrors:
     NOT_CONNECTED =                 106
     INVALID_PATH =                  107
     SHARING_NOT_FOUND =             108
+    IMPLEMENTATION_ERROR =          109
+    CONNECTION_ERROR =              110

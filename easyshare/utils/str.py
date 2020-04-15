@@ -1,6 +1,12 @@
 import string
 import random
 
+from easyshare.utils.types import is_str
+
+
+def strstr(s: str) -> str:
+    return "\"" + s + "\"" if is_str(s) else str(s)
+
 
 def randstring(length=16) -> str:
     alphabet = string.ascii_letters + string.digits

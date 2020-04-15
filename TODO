@@ -14,3 +14,8 @@
 - close for quit current connection
 - GET file (if outside any connection)
 - benchmark GET, for decide buffer size, ...
+- verbosity/tracing refactor (unique logger? different loggers?)
+- timeout is global
+- Server concurrency on shared structures
+- everything as property
+- type: path, relpath, abspath

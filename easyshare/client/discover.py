@@ -39,7 +39,7 @@ class Discoverer:
             ip="",
             port=self.server_discover_port,
             name="broadcast",
-            what="DISCOVER {}".format(str(discover_message))
+            message="DISCOVER {}".format(str(discover_message))
         )
 
         out_sock.broadcast(discover_message, self.server_discover_port)

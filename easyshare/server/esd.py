@@ -14,6 +14,7 @@ import colorama
 from easyshare.protocol.filetype import FTYPE_FILE
 from easyshare.protocol.response import create_success_response, create_error_response, Response
 from easyshare.server.sharing import Sharing
+from easyshare.server.transaction import GetTransactionHandler
 from easyshare.shared.args import Args
 from easyshare.shared.conf import APP_VERSION, APP_NAME_SERVER_SHORT, \
     APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET
@@ -25,7 +26,6 @@ from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.errors import ServerErrors
 from easyshare.shared.trace import init_tracing
-from easyshare.socket.tcp import SocketTcpAcceptor
 from easyshare.socket.udp import SocketUdpOut
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.json import json_to_str, json_to_bytes
@@ -180,8 +180,34 @@ class Server(IServer):
 
         return create_success_response()
 
+    @Pyro4.expose
+    @Pyro4.oneway
     def close(self):
-        pass
+        client_endpoint = self._current_request_endpoint()
+        i("<< CLOSE %s", str(client_endpoint))
+        client = self._current_request_client()
+
+        if not client:
+            w("Received a close request from an unknown client")
+            return
+
+        v("Deallocating client resources...")
+
+        # Remove any pending transaction
+        for get_trans_id in client.gets:
+            # self._end_get_transaction(get_trans_id, client, abort=True)
+            if get_trans_id in self.gets:
+                v("Removing GET transaction = %s", get_trans_id)
+                self.gets.pop(get_trans_id).abort()
+
+        # Remove from clients
+        d("Removing %s from clients", client)
+
+        del self.clients[client_endpoint]
+        v("Client connection closed gracefully")
+
+        d("# clients = %d", len(self.clients))
+        d("# gets = %d", len(self.gets))
 
     @Pyro4.expose
     def rpwd(self) -> Response:
@@ -277,15 +303,37 @@ class Server(IServer):
 
     @Pyro4.expose
     def get_sharing(self, sharing_name: str) -> Response:
-        return create_error_response(ServerErrors.NOT_IMPLEMENTED)
+        client_endpoint = self._current_request_endpoint()
+
+        if not sharing_name:
+            w("Sharing name not specified")
+            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        i("<< GET [sharing] %s %s", sharing_name, str(client_endpoint))
+
+        sharing = self.sharings.get(sharing_name)
+
+        if not sharing:
+            w("Sharing '%s' not found", sharing_name)
+            return create_error_response(ServerErrors.SHARING_NOT_FOUND)
+
+        d("Making %s available for GET", sharing.path)
+        transaction_handler = self._add_get_transaction(
+            [sharing.path],
+            sharing_name=sharing_name)
+
+        return create_success_response({
+            "transaction": transaction_handler.transaction_id(),
+            "port": transaction_handler.port()
+        })
 
     @Pyro4.expose
-    def get(self, files: List[str]) -> Response:
+    def get_files(self, files: List[str]) -> Response:
         client = self._current_request_client()
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< GET %s (%s)", str(files), str(client))
+        i("<< GET [files] %s (%s)", str(files), str(client))
 
         if len(files) == 0:
             files = ["."]
@@ -297,37 +345,53 @@ class Server(IServer):
 
         d("Normalized files:\n%s", normalized_files)
 
-        # Return a transaction ID for identify the transfer
-        transaction = randstring()
-        v("Transaction ID: %s", transaction)
-
-        # Create a transaction handler
-        transaction_handler = GetTransactionHandler(normalized_files)
-        transaction_handler.start()
-
-        self.gets[transaction] = transaction_handler
+        transaction_handler = self._add_get_transaction(
+            normalized_files,
+            client=client,
+            sharing_name=client.sharing_name)
 
         return create_success_response({
-            "transaction": transaction,
-            "port": transaction_handler.get_port()
+            "transaction": transaction_handler.transaction_id(),
+            "port": transaction_handler.port()
         })
 
     @Pyro4.expose
-    def get_next(self, transaction) -> Response:
+    def get_sharing_next_info(self, transaction_id) -> Response:
+        client_endpoint = self._current_request_endpoint()
+
+        i("<< GET_SHARING_NEXT_INFO %s %s", transaction_id, str(client_endpoint))
+
+        return self._get_next_info(transaction_id)
+
+    @Pyro4.expose
+    def get_files_next_info(self, transaction_id) -> Response:
         client = self._current_request_client()
+
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< GET_NEXT_METADATA %s (%s)", transaction, str(client))
+        i("<< GET_FILES_NEXT_INFO %s %s", transaction_id, str(client))
 
-        if transaction not in self.gets:
+        return self._get_next_info(transaction_id,
+                                   client=client)
+
+    def _get_next_info(self,
+                       transaction_id: str,
+                       client: Optional[ClientContext] = None) -> Response:
+
+        d("_get_next_if %s", transaction_id)
+
+        if transaction_id not in self.gets:
             return create_error_response(ServerErrors.INVALID_TRANSACTION)
 
-        transaction_handler = self.gets[transaction]
-        remaining_files = transaction_handler.next_files
+        transaction_handler = self.gets[transaction_id]
 
-        # if len(self.gets[transaction]) == 0:
-        #     return server_create_success_response()  # Nothing else
+        sharing = self.sharings.get(transaction_handler.sharing_name())
+        if not sharing:
+            e("Sharing '%s' not found", transaction_handler.sharing_name())
+            return create_error_response(ServerErrors.SHARING_NOT_FOUND)
+
+        remaining_files = transaction_handler.next_files()
 
         while len(remaining_files) > 0:
 
@@ -337,7 +401,9 @@ class Server(IServer):
             d("Next file path: %s", next_file_path)
 
             # Check domain validity
-            if not self._is_path_allowed_for_client(client, next_file_path):
+            # (if client is null the domain is valid for sure since it should
+            # be the sharing path we added ourself)
+            if client and not self._is_path_allowed_for_client(client, next_file_path):
                 w("Invalid file found: skipping %s", next_file_path)
                 continue
 
@@ -357,9 +423,15 @@ class Server(IServer):
             # We are handling a valid file, report the metadata to the client
             d("NEXT FILE: %s", next_file_path)
 
-            trail = self._trailing_path_for_client_from_rpwd(client, next_file_path)
+            if client:
+                trail = self._trailing_path_for_client_from_rpwd(client, next_file_path)
+            else:
+                trail = self._trailing_path_for_sharing(sharing, next_file_path)
+
             d("Trail: %s", trail)
 
+            # Push the file the transaction handler (make it available
+            # for the actual download)
             transaction_handler.push_file(next_file_path)
 
             return create_success_response({
@@ -369,9 +441,67 @@ class Server(IServer):
             })
 
         v("No remaining files")
-        transaction_handler.pushes_completed()
-        # Notify the handler about it
+        transaction_handler.done()
+
+        # Notify the client about it
         return create_success_response()
+
+    def _add_get_transaction(self,
+                             files: List[str],
+                             sharing_name: str,
+                             client: Optional[ClientContext] = None) -> GetTransactionHandler:
+
+        d("_add_get_transaction files: %s", files)
+        # Create a transaction handler
+        transaction_handler = GetTransactionHandler(
+            files,
+            sharing_name,
+            on_end=self._on_get_transaction_end,
+            owner=client)
+
+        transaction_id = transaction_handler.transaction_id()
+        v("Transaction ID: %s", transaction_id)
+
+        transaction_handler.start()
+
+        if client:
+            client.gets.append(transaction_id)
+
+        self.gets[transaction_id] = transaction_handler
+
+        return transaction_handler
+
+    def _on_get_transaction_end(self, finished_transaction: GetTransactionHandler):
+        trans_id = finished_transaction.transaction_id()
+
+        v("Finished transaction %s", trans_id)
+
+        if trans_id in self.gets:
+            d("Removing transaction from gets")
+            del self.gets[trans_id]
+
+        owner = finished_transaction.owner()
+
+        if owner:
+            d("Removing transaction from '%s' gets", owner)
+            owner.gets.remove(trans_id)
+
+    # def _end_get_transaction(self, transaction_id: str,
+    #                          client: Optional[ClientContext], *,
+    #                          abort: bool = False):
+    #     if transaction_id not in self.gets:
+    #         w("Transaction with id %s not found", transaction_id)
+    #         return
+    #
+    #     transaction_handler = self.gets.pop(transaction_id)
+    #
+    #     if abort:
+    #         d("_end_get_transaction: aborting transaction")
+    #         transaction_handler.abort()
+    #
+    #     if client:
+    #         client.gets.remove(transaction_id)
+
 
     def _current_request_endpoint(self) -> Optional[Endpoint]:
         """
@@ -459,6 +589,36 @@ class Server(IServer):
 
         return os.path.normpath(os.path.join(sharing.path, trail))
 
+    def _trailing_path(self, prefix: str, full: str) -> Optional[str]:
+        """
+        Returns the trailing part of the path 'full' by stripping the path 'prefix'.
+        The path is relative w.r.t the root of the sharing path.
+        e.g.
+            prefix                = /home/stefano/Applications
+            full                  = /home/stefano/Applications/AnApp/afile.mp4
+                                =>                           AnApp/afile.mp4
+        """
+
+        if not full or not prefix:
+            return None
+
+        if not full.startswith(prefix):
+            return None
+
+        return relpath(unprefix(full, prefix))
+
+    def _trailing_path_for_sharing(self, sharing: Sharing, path: str) -> Optional[str]:
+        """
+        Returns the trailing part of the 'path' by stripping the path of the
+        sharing from the string's beginning.
+        The path is relative w.r.t the root of the sharing path.
+        e.g.
+            sharing path        = /home/stefano/Applications
+            path                = /home/stefano/Applications/AnApp/afile.mp4
+                                =>                           AnApp/afile.mp4
+        """
+        return self._trailing_path(sharing.path, path) if sharing else None
+
     def _trailing_path_for_client_from_root(self, client: ClientContext, path: str) -> Optional[str]:
         """
         Returns the trailing part of the 'path' by stripping the path of the
@@ -466,21 +626,12 @@ class Server(IServer):
         The path is relative w.r.t the root of the sharing path.
         e.g.
             client sharing path = /home/stefano/Applications
-            client rpwd         =                            AnApp
-            (client path        = /home/stefano/Applications/AnApp          )
+            [client rpwd         =                            AnApp         ]
+            [client path        = /home/stefano/Applications/AnApp          ]
             path                = /home/stefano/Applications/AnApp/afile.mp4
                                 =>                           AnApp/afile.mp4
         """
-
-        sh = self._current_client_sharing(client)
-
-        if not sh:
-            return None
-
-        if not path.startswith(sh.path):
-            return None
-
-        return relpath(unprefix(path, sh.path))
+        return self._trailing_path_for_sharing(self._current_client_sharing(client), path)
 
     def _trailing_path_for_client_from_rpwd(self, client: ClientContext, path: str) -> Optional[str]:
         """
@@ -495,15 +646,7 @@ class Server(IServer):
             path                = /home/stefano/Applications/AnApp/afile.mp4
                                 =>                                 afile.mp4
         """
-        client_path = self._current_client_path(client)
-
-        if not client_path:
-            return None
-
-        if not path.startswith(client_path):
-            return None
-
-        return relpath(unprefix(path, client_path))
+        return self._trailing_path(self._current_client_path(client), path)
 
     def _is_path_allowed_for_client(self, client: ClientContext, path: str) -> bool:
         """
@@ -546,6 +689,37 @@ class Server(IServer):
         except:
             return False
 
+    def _trace_request(self, function: str, *function_args, **function_kwargs):
+        pass
+
+    def trace_response(self):
+        #
+        # def _perform_request(self, ,
+        #                      *remote_function_args,
+        #                      **remote_function_kwargs) -> Optional[Response]:
+        #     if is_tracing_enabled():
+        #         remote_function_args_str = "{}{}".format(
+        #             ", ".join([strstr(x) for x in remote_function_args])
+        #             if remote_function_args else "",
+        #
+        #             ", ".join([str(k) + "=" + strstr(v) for k, v in remote_function_kwargs.items()])
+        #             if remote_function_kwargs else ""
+        #         )
+        #         trace_out(ip=self.server_info.get("ip"),
+        #                   port=self.server_info.get("port"),
+        #                   name=self.server_info.get("name"),
+        #                   message="{} ({})".format(remote_function, remote_function_args_str))
+        #
+        #     resp = self.server.__getattr__(remote_function)(*remote_function_args, **remote_function_kwargs)
+        #
+        #     if is_tracing_enabled() and resp:
+        #         trace_in(ip=self.server_info.get("ip"),
+        #                  port=self.server_info.get("port"),
+        #                  name=self.server_info.get("name"),
+        #                  message="{}\n{}".format(remote_function, json_to_str(resp, pretty=True)))
+
+            return resp
+
     def _endpoint(self) -> Endpoint:
         """
         Returns the current endpoint (ip, port) the server (Pyro deamon) is bound to.
@@ -554,82 +728,7 @@ class Server(IServer):
         return self.pyro_deamon.sock.getsockname()
 
 
-class GetTransactionHandler(threading.Thread):
-    BUFFER_SIZE = 4096
-
-    def __init__(self, files: List[str]):
-        self.next_files = files
-        self.sock = SocketTcpAcceptor()
-        self.servings = queue.Queue()
-        threading.Thread.__init__(self)
-
-    def get_port(self):
-        return self.sock.port()
-
-    def run(self) -> None:
-        if not self.sock:
-            e("Invalid socket")
-            return
-
-        d("Starting GetTransactionHandler")
-        client_sock, endpoint = self.sock.accept()
-        i("Connection established with %s", endpoint)
-
-        while True:
-            # Send files until the servings buffer is empty
-            # Wait on the blocking queue for the next file to send
-            next_serving = self.servings.get()
-
-            if not next_serving:
-                v("No more files: END")
-                break
-
-            d("Next serving: %s", next_serving)
-
-            f = open(next_serving, "rb")
-            cur_pos = 0
-            file_len = os.path.getsize(next_serving)
-
-            # Send file
-            while True:
-                time.sleep(0.001)
-                chunk = f.read(GetTransactionHandler.BUFFER_SIZE)
-                if not chunk:
-                    d("Finished %s", next_serving)
-                    break
-
-                d("Read chunk of %dB", len(chunk))
-                cur_pos += len(chunk)
-
-                try:
-                    d("sending chunk...")
-                    client_sock.send(chunk)
-                    d("sending chunk DONE")
-                except Exception as ex:
-                    e("send error %s", ex)
-                    break
-
-                d("%d/%d (%.2f%%)", cur_pos, file_len, cur_pos / file_len * 100)
-
-            f.close()
-
-        v("Transaction handler job finished")
-
-        client_sock.close()
-        self.sock.close()
-
-    def push_file(self, path: str):
-        d("Pushing file to handler %s", path)
-        self.servings.put(path)
-
-    def pushes_completed(self):
-        v("end(): no more files")
-        self.servings.put(None)
-
-
 def main():
-    colorama.init()
-
     if len(sys.argv) <= 1:
         terminate(HELP_APP)
 
@@ -669,7 +768,7 @@ def main():
 
     if config_path:
         def strip_quotes(s: str) -> str:
-            return s.strip('"\'')
+            return s.strip('"\'') if s else s
 
         cfg = parse_config(config_path)
         if cfg:

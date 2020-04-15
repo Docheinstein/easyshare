@@ -14,7 +14,7 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def close(self) -> Response:
+    def close(self):
         pass
 
     @abstractmethod
@@ -38,9 +38,13 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def get(self, files: List[str]) -> Response:
+    def get_files(self, files: List[str]) -> Response:
         pass
 
     @abstractmethod
-    def get_next(self, transaction) -> Response:
+    def get_sharing_next_info(self, transaction) -> Response:
+        pass
+
+    @abstractmethod
+    def get_files_next_info(self, transaction) -> Response:
         pass

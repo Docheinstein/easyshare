@@ -1,6 +1,6 @@
 from typing import TypedDict, Optional, Any, Union, Dict
 
-from easyshare.utils.types import is_int
+from easyshare.utils.types import is_int, is_dict
 
 Response = Dict[str, Union[str, bool, Any]]
 #   success: bool
@@ -23,15 +23,15 @@ def create_error_response(error_code=None) -> Response:
 
 
 def is_success_response(resp: Response) -> bool:
-    return resp and resp.get("success", False) is True
+    return is_dict(resp) and resp.get("success", False) is True
 
 
 def is_data_response(resp: Response) -> bool:
-    return resp and is_success_response(resp) and resp.get("data") is not None
+    return is_dict(resp) and is_success_response(resp) and resp.get("data") is not None
 
 
 def is_error_response(resp: Response, error_code=None) -> bool:
-    return resp and resp.get("success") is False and is_int(resp.get("error"))\
+    return is_dict(resp) and resp.get("success") is False and is_int(resp.get("error"))\
            and (not error_code or resp.get("error") == error_code)
 
 

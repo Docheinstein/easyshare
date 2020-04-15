@@ -1,20 +1,20 @@
+import enum
 import os
 import shlex
-import socket
 import sys
 import readline
 from typing import Optional, Callable, List, Dict
 
 import Pyro4
-import colorama
 from Pyro4 import util
+from Pyro4.errors import ConnectionClosedError, PyroError
 
 from easyshare.client.connection import Connection
 from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
-from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE
+from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.shared.args import Args
@@ -26,6 +26,7 @@ from easyshare.shared.progress import FileProgressor
 from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint, terminate, abort
+from easyshare.utils.colors import init_colors, Color
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int
 from easyshare.utils.os import ls, size_str
@@ -81,6 +82,7 @@ class ClientArguments:
     PORT =      ["-p", "--port"]
     HELP =      ["-h", "--help"]
     VERSION =   ["-V", "--version"]
+    NO_COLOR =  ["--no-color"]
 
 
 # === COMMANDS ===
@@ -108,6 +110,7 @@ class Commands:
 
     SCAN = "scan"
     OPEN = "open"
+    CLOSE = "close"
 
     GET = "get"
     PUT = "put"
@@ -138,6 +141,12 @@ class ScanArguments:
     TIMEOUT = ["-T", "--timeout"]
 
 
+# === MISC ===
+
+class GetMode(enum.Enum):
+    FILES = "files"
+    SHARING = "sharing"
+
 # === ERRORS ===
 
 
@@ -154,6 +163,8 @@ class ErrorsStrings:
 
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
     UNEXPECTED_SERVER_RESPONSE = "Unexpected server response"
+    IMPLEMENTATION_ERROR = "Implementation error"
+    CONNECTION_ERROR = "Connection error"
 
 
 ERRORS_STRINGS_MAP = {
@@ -174,6 +185,8 @@ ERRORS_STRINGS_MAP = {
     ClientErrors.NOT_CONNECTED: ErrorsStrings.NOT_CONNECTED,
     ClientErrors.INVALID_PATH: ErrorsStrings.INVALID_PATH,
     ClientErrors.SHARING_NOT_FOUND: ErrorsStrings.SHARING_NOT_FOUND,
+    ClientErrors.IMPLEMENTATION_ERROR: ErrorsStrings.IMPLEMENTATION_ERROR,
+    ClientErrors.CONNECTION_ERROR: ErrorsStrings.CONNECTION_ERROR,
 }
 
 
@@ -200,25 +213,26 @@ class Client:
         self._server_discover_port = server_discover_port
 
         self._command_dispatcher: Dict[str, Callable[[Args], None]] = {
-            Commands.TRACE: self._trace,
-            Commands.TRACE_SHORT: self._trace,
-            Commands.VERBOSE: self._verbose,
-            Commands.VERBOSE_SHORT: self._verbose,
+            Commands.TRACE: self.trace,
+            Commands.TRACE_SHORT: self.trace,
+            Commands.VERBOSE: self.verbose,
+            Commands.VERBOSE_SHORT: self.verbose,
 
-            Commands.LOCAL_CHANGE_DIRECTORY: self._cd,
-            Commands.LOCAL_LIST_DIRECTORY: self._ls,
-            Commands.LOCAL_CREATE_DIRECTORY: self._mkdir,
-            Commands.LOCAL_CURRENT_DIRECTORY: self._pwd,
+            Commands.LOCAL_CHANGE_DIRECTORY: self.cd,
+            Commands.LOCAL_LIST_DIRECTORY: self.ls,
+            Commands.LOCAL_CREATE_DIRECTORY: self.mkdir,
+            Commands.LOCAL_CURRENT_DIRECTORY: self.pwd,
 
-            Commands.REMOTE_CHANGE_DIRECTORY: self._rcd,
-            Commands.REMOTE_LIST_DIRECTORY: self._rls,
-            Commands.REMOTE_CREATE_DIRECTORY: self._rmkdir,
-            Commands.REMOTE_CURRENT_DIRECTORY: self._rpwd,
+            Commands.REMOTE_CHANGE_DIRECTORY: self.rcd,
+            Commands.REMOTE_LIST_DIRECTORY: self.rls,
+            Commands.REMOTE_CREATE_DIRECTORY: self.rmkdir,
+            Commands.REMOTE_CURRENT_DIRECTORY: self.rpwd,
 
-            Commands.SCAN: self._scan,
-            Commands.OPEN: self._open,
+            Commands.SCAN: self.scan,
+            Commands.OPEN: self.open,
+            Commands.CLOSE: self.close,
 
-            Commands.GET: self._get,
+            Commands.GET: self.get,
         }
 
     def execute_command(self, command: str, args: Args) -> bool:
@@ -234,7 +248,7 @@ class Client:
 
     # === LOCAL COMMANDS ===
 
-    def _trace(self, args: Args):
+    def trace(self, args: Args):
         enable = to_int(args.get_param())
 
         if enable is None:
@@ -250,7 +264,7 @@ class Client:
             " (enabled)" if enable else " (disabled)"
         ))
 
-    def _verbose(self, args: Args):
+    def verbose(self, args: Args):
         verbosity = to_int(args.get_param())
 
         if verbosity is None:
@@ -279,8 +293,7 @@ class Client:
             VERBOSITY_EXPLANATION_MAP.get(verbosity, "")
         ))
 
-
-    def _cd(self, args: Args):
+    def cd(self, args: Args):
         directory = args.get_param(default="/")
 
         i(">> CD %s", directory)
@@ -294,7 +307,7 @@ class Client:
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-    def _ls(self, args: Args):
+    def ls(self, args: Args):
         sort_by = ["name"]
         reverse = LsArguments.REVERSE in args
 
@@ -311,7 +324,7 @@ class Client:
 
         self._print_file_infos(ls_result)
 
-    def _mkdir(self, args: Args):
+    def mkdir(self, args: Args):
         directory = args.get_param()
 
         if not directory:
@@ -325,7 +338,7 @@ class Client:
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-    def _pwd(self, _: Args):
+    def pwd(self, _: Args):
         i(">> PWD")
 
         try:
@@ -337,7 +350,7 @@ class Client:
 
     # RPWD
 
-    def _rpwd(self, _: Args):
+    def rpwd(self, _: Args):
         if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
             return
@@ -345,7 +358,7 @@ class Client:
         i(">> RPWD")
         print(self.connection.rpwd())
 
-    def _rcd(self, args: Args):
+    def rcd(self, args: Args):
         if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
             return
@@ -360,8 +373,8 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-    def _rls(self, args: Args):
-        if not self.connection:
+    def rls(self, args: Args):
+        if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
             return
 
@@ -382,8 +395,8 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-    def _rmkdir(self, args: Args):
-        if not self.connection:
+    def rmkdir(self, args: Args):
+        if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
             return
 
@@ -402,7 +415,7 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-    def _open(self, args: Args):
+    def open(self, args: Args):
         #                    |------sharing_location-----|
         # open <sharing_name>[@<hostname> | @<ip>[:<port>]]
         #      |_________________________________________|
@@ -428,48 +441,12 @@ class Client:
           "@{}".format(sharing_location) if sharing_location else "",
           timeout)
 
-        server_info: Optional[ServerInfo] = None
-
-        def response_handler(client_endpoint: Endpoint,
-                             a_server_info: ServerInfo) -> bool:
-            nonlocal server_info
-            d("Handling DISCOVER response from %s\n%s",
-              str(client_endpoint), str(a_server_info))
-
-            # If the sharing_location is specified, it must match
-
-            if sharing_location and \
-                    sharing_location != a_server_info.get("name") and \
-                    sharing_location != a_server_info.get("ip") and \
-                    sharing_location != "{}:{}".format(a_server_info.get("ip"),
-                                                       a_server_info.get("port")):
-                d("Discarding server info which does not match the sharing_location %s", sharing_location)
-                return True  # Continue DISCOVER
-
-            # If we are here, the sharing_location either is
-            # not specified or it does match
-            # Let's see if it has the right sharing
-            for sharing_info in a_server_info.get("sharings"):
-                # Check whether this server has a sharing with the name
-                # we are looking for
-                if sharing_info.get("name") == sharing_name:
-                    d("Sharing [%s] found at %s:%d",
-                      sharing_info.get("name"),
-                      a_server_info.get("ip"),
-                      a_server_info.get("port"))
-
-                    # Check if it is actually a directory
-                    if sharing_info.get("ftype") != FTYPE_DIR:
-                        w("The sharing %s is not a directory; cannot open", sharing_name)
-                        break
-
-                    # OK: right server name, sharing name and it's a directory
-                    server_info = a_server_info
-                    return False    # Stop DISCOVER
-
-            return True             # Continue DISCOVER
-
-        Discoverer(self._server_discover_port, response_handler).discover(timeout)
+        server_info: ServerInfo = self._discover_sharing(
+            name=sharing_name,
+            location=sharing_location,
+            ftype=FTYPE_DIR,
+            timeout=timeout
+        )
 
         if not server_info:
             print_error(ClientErrors.SHARING_NOT_FOUND)
@@ -489,9 +466,19 @@ class Client:
               server_info.get("ip"), server_info.get("port"))
         else:
             self._handle_error_response(resp)
-            self.connection = None  # Invalidate connection
+            self.close()
 
-    def _scan(self, args: Args):
+    def close(self, _: Optional[Args] = None):
+        if not self.is_connected():
+            print_error(ClientErrors.NOT_CONNECTED)
+            return
+
+        i(">> CLOSE")
+
+        self.connection.close()  # async call
+        self.connection = None   # Invalidate connection
+
+    def scan(self, args: Args):
         timeout = to_int(args.get_param(ScanArguments.TIMEOUT,
                                         default=Discoverer.DEFAULT_TIMEOUT))
 
@@ -503,17 +490,17 @@ class Client:
 
         servers_found = 0
 
-        def response_handler(client_address: Endpoint,
+        def response_handler(client: Endpoint,
                              server_info: ServerInfo) -> bool:
             nonlocal servers_found
 
-            d("Handling DISCOVER response from %s\n%s", str(client_address), str(server_info))
+            d("Handling DISCOVER response from %s\n%s", str(client), str(server_info))
             # Print as soon as they come
 
-            if servers_found > 0:
-                print("")
-            else:
+            if not servers_found:
                 i("======================")
+            else:
+                print("")
 
             print("{} ({}:{})"
                   .format(server_info.get("name"),
@@ -540,16 +527,71 @@ class Client:
 
         i("======================")
 
-    def _get(self, args: Args):
-        # TODO: refactor this
-        if not self.connection:
+    def get_files(self, args: Args):
+        if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
             return
 
         files = args.get_params(default=[])
 
-        i(">> GET %s", ", ".join(files))
-        resp = self.connection.get(files)
+        i(">> GET [files] %s", files)
+        self._do_get(self.connection, GetMode.FILES, files)
+
+    def get_sharing(self, args: Args):
+        if self.is_connected():
+            # We should not reach this point if we are connected to a sharing
+            print_error(ClientErrors.IMPLEMENTATION_ERROR)
+            return
+
+        sharing_specifier = args.get_param()
+
+        if not sharing_specifier:
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            return
+
+        sharing_name, _, sharing_location = sharing_specifier.rpartition("@")
+
+        if not sharing_name:
+            # if @ is not found, rpartition put the entire string on
+            # the last element of th tuple
+            sharing_name = sharing_location
+            sharing_location = None
+
+        timeout = to_int(args.get_param(ScanArguments.TIMEOUT,
+                                        default=Discoverer.DEFAULT_TIMEOUT))
+
+        if not timeout:
+            print_error(ClientErrors.INVALID_PARAMETER_VALUE)
+            return False
+
+        # We have to perform a discover
+
+        server_info: ServerInfo = self._discover_sharing(
+            name=sharing_name,
+            location=sharing_location,
+            timeout=timeout
+        )
+
+        if not server_info:
+            print_error(ClientErrors.SHARING_NOT_FOUND)
+            return False
+
+        d("Creating new temporary connection with %s", server_info.get("uri"))
+        connection = Connection(server_info)
+
+        i(">> GET [sharing] %s", sharing_name)
+        self._do_get(connection, GetMode.SHARING, sharing_name)
+
+    def _do_get(self, connection: Connection, mode: GetMode, *args):
+        if mode != GetMode.SHARING and mode != GetMode.FILES:
+            w("Unknown GET mode")
+            return
+
+        if mode == GetMode.SHARING:
+            resp = connection.get_sharing(*args)
+        else:
+            resp = connection.get_files(*args)
+
         d("GET response\n%s", resp)
 
         if is_error_response(resp):
@@ -560,21 +602,25 @@ class Client:
             print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
             return
 
-        transaction = resp["data"].get("transaction")
+        transaction_id = resp["data"].get("transaction")
         port = resp["data"].get("port")
 
-        if not transaction or not port:
+        if not transaction_id or not port:
             print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
             return
 
         v("Successfully GETed")
 
-        transfer_socket = SocketTcpOut(self.connection.server_info.get("ip"), port)
+        transfer_socket = SocketTcpOut(connection.server_info.get("ip"), port)
 
         while True:
             v("Fetching another file info")
-            get_next_resp = self.connection.get_next(transaction)
-            d("get_next()\n%s", get_next_resp)
+            if mode == GetMode.SHARING:
+                get_next_resp = connection.get_sharing_next_info(transaction_id)
+            else:
+                get_next_resp = connection.get_files_next_info(transaction_id)
+
+            d("get_next_info()\n%s", get_next_resp)
 
             if not is_data_response(resp):
                 print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
@@ -598,7 +644,7 @@ class Client:
             # else:
             #     trail_file_name = fname
 
-            d("self.connection.c_rpwd: %s", self.connection.rpwd())
+            d("self.connection.c_rpwd: %s", connection.rpwd())
             # d("Trail file name: %s", trail_file_name)
             # break
 
@@ -617,7 +663,9 @@ class Client:
 
             read = 0
 
-            progressor = FileProgressor("GET " + fname, fsize)
+            progressor = FileProgressor("GET " + fname, fsize,
+                                        progress_color=Color.BLUE,
+                                        done_color=Color.GREEN)
 
             while read < fsize:
                 recv_size = min(BUFFER_SIZE, fsize - read)
@@ -651,8 +699,75 @@ class Client:
                 e("File length mismatch. %d != %d",
                   os.path.getsize(fname), fsize)
 
-        v("Closing socket")
+        v("GET transaction %s finished, closing socket", transaction_id)
         transfer_socket.close()
+
+    def get(self, args: Args):
+        # 'get' command is multipurpose
+        # 1. Inside a connection: get a list of files (or directories)
+        # 2. Outside a connection:
+        #   2.1 get a file sharing (ftype = 'file')
+        #   2.2 get all the content of directory sharing (ftype = 'dir')
+
+        if self.is_connected():
+            d("GET => get_files")
+            self.get_files(args)
+        else:
+            d("GET => get_sharings")
+            self.get_sharing(args)
+
+    def _discover_sharing(self,
+                          name: str = None,
+                          location: str = None,
+                          ftype: FileType = None,
+                          timeout: int = Discoverer.DEFAULT_TIMEOUT) -> Optional[ServerInfo]:
+        """
+        Performs a discovery for find whose server the given
+        'sharing_name' belongs to.
+
+        """
+
+        server_info: Optional[ServerInfo] = None
+
+        def response_handler(client_endpoint: Endpoint,
+                             a_server_info: ServerInfo) -> bool:
+            nonlocal server_info
+            d("Handling DISCOVER response from %s\n%s",
+              str(client_endpoint), str(a_server_info))
+
+            # Check if 'location' matches (if specified)
+            if location and \
+                    location != a_server_info.get("name") and \
+                    location != a_server_info.get("ip") and \
+                    location != "{}:{}".format(a_server_info.get("ip"),
+                                               a_server_info.get("port")):
+                d("Discarding server info which does not match the location filter '%s'", location)
+                return True  # Continue DISCOVER
+
+            for sharing_info in a_server_info.get("sharings"):
+
+                # Check if 'name' matches (if specified)
+                if name and sharing_info.get("name") != name:
+                    d("Ignoring sharing which does not match the name filter '%s'", name)
+                    continue
+
+                if ftype and sharing_info.get("ftype") != ftype:
+                    d("Ignoring sharing which does not match the ftype filter '%s'", ftype)
+                    continue
+
+                # FOUND
+                d("Sharing [%s] found at %s:%d",
+                  sharing_info.get("name"),
+                  a_server_info.get("ip"),
+                  a_server_info.get("port"))
+
+                server_info = a_server_info
+                return False    # Stop DISCOVER
+
+            return True             # Continue DISCOVER
+
+        Discoverer(self._server_discover_port, response_handler).discover(timeout)
+        return server_info
 
     def _print_file_infos(self, infos: List[FileInfo]):
         size_infos_str = []
@@ -676,7 +791,7 @@ class Client:
     def _handle_error_response(self, resp: Response):
         if is_error_response(ServerErrors.NOT_CONNECTED):
             v("Received a NOT_CONNECTED response: destroying connection")
-            self.connection = None
+            self.close()
         print_response_error(resp)
 
 
@@ -710,6 +825,10 @@ class Shell:
                 prompt = self._build_prompt_string()
                 command_line = input(prompt)
 
+                if not command_line:
+                    w("Empty command line")
+                    continue
+
                 try:
                     command_line_parts = shlex.split(command_line)
                 except ValueError:
@@ -730,11 +849,24 @@ class Shell:
 
                 if not outcome:
                     print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
+            except PyroError:
+                v("Pyro error occurred")
+                print_error(ClientErrors.CONNECTION_ERROR)
+                # Close client connection anyway
+                try:
+                    if self.client.is_connected():
+                        d("Trying to close connection gracefully")
+                        self.client.close()
+                except PyroError:
+                    d("Cannot communicate with remote: invalidating connection")
+                    self.client.connection = None
             except KeyboardInterrupt:
                 v("CTRL+C detected")
                 print()
             except EOFError:
                 v("CTRL+D detected: exiting")
+                if self.client.is_connected():
+                    self.client.close()
                 break
 
     def _build_prompt_string(self):
@@ -764,7 +896,6 @@ class Shell:
 
 
 def main():
-    colorama.init()
     args = Args(sys.argv[1:])
 
     verbosity = 0
@@ -792,6 +923,8 @@ def main():
     if ClientArguments.VERSION in args:
         terminate(APP_INFO)
 
+    init_colors(ClientArguments.NO_COLOR not in args)
+
     server_discover_port = DEFAULT_DISCOVER_PORT
 
     if ClientArguments.PORT in args:
@@ -813,10 +946,12 @@ def main():
         # Execute directly
         # Take out the first token as "command" and leave
         # everything else as it is
-        d("Executing command directly from command line: %s (%s)",
-          command, args)
+        d("Executing command directly from command line: %s (%s)", command, args)
         client.execute_command(command, args)
 
+    # Start the shell
+    # 1. If a command was not specified
+    # 2. We are connected (probably due to open from a direct command)
     if not full_command or client.is_connected():
         # Start the shell
         v("Executing shell")
@@ -833,7 +968,7 @@ def main_wrapper(dump_pyro_exceptions=False):
         except Exception:
             traceback = Pyro4.util.getPyroTraceback()
             if traceback:
-                e("--- PYRO4 TRACEBACK ---\n%s", "".join(traceback))
+                e("--- PYRO4 REMOTE TRACEBACK ---\n%s", "".join(traceback))
 
 
 if __name__ == "__main__":
