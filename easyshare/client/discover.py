@@ -8,7 +8,7 @@ from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.shared.trace import trace_out, trace_in
 from easyshare.socket.udp import SocketUdpIn, SocketUdpOut
-from easyshare.utils.json import bytes_to_json, json_to_str
+from easyshare.utils.json import bytes_to_json, json_to_str, json_to_pretty_str
 from easyshare.utils.types import int_to_bytes
 
 
@@ -73,7 +73,7 @@ class Discoverer:
             resp: Response = bytes_to_json(raw_resp)
 
             trace_in(
-                "DISCOVER\n{}".format(json_to_str(resp, pretty=True)),
+                "DISCOVER\n{}".format(json_to_pretty_str(resp)),
                 ip=endpoint[0],
                 port=endpoint[1]
             )

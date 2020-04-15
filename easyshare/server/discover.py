@@ -3,6 +3,7 @@ from typing import Callable
 
 from easyshare.shared.log import d, v
 from easyshare.shared.endpoint import Endpoint
+from easyshare.shared.trace import trace_out, trace_in
 from easyshare.socket.udp import SocketUdpIn
 
 
@@ -20,5 +21,12 @@ class DiscoverDeamon(threading.Thread):
 
         while True:
             data, client_endpoint = sock.recv()
+
+            trace_in(
+                "DISCOVER {}".format(str(data)),
+                ip=client_endpoint[0],
+                port=client_endpoint[1]
+            )
+
             d("Received DISCOVER request from: %s", client_endpoint)
             self.callback(client_endpoint, data)

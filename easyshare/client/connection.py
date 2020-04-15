@@ -60,7 +60,7 @@ class Connection:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        return self.server.rls(sort_by=sort_by, reverse=reverse)
+        return self.server.rls(sort_by, reverse=reverse)
 
     def rmkdir(self, directory) -> Response:
         if not self.is_connected():

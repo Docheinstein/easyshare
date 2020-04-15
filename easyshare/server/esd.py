@@ -1,3 +1,4 @@
+import inspect
 import os
 import queue
 import sys
@@ -7,7 +8,7 @@ import time
 
 import Pyro4 as Pyro4
 
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any, Callable, TypeVar
 
 import colorama
 
@@ -25,13 +26,15 @@ from easyshare.server.discover import DiscoverDeamon
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.errors import ServerErrors
-from easyshare.shared.trace import init_tracing
+from easyshare.shared.trace import init_tracing, trace_in, trace_out
 from easyshare.socket.udp import SocketUdpOut
 from easyshare.utils.app import terminate, abort
-from easyshare.utils.json import json_to_str, json_to_bytes
+from easyshare.utils.colors import init_colors
+from easyshare.utils.json import json_to_str, json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
 from easyshare.utils.os import ls, relpath, is_relpath
 from easyshare.utils.str import randstring, satisfy, unprefix
+from easyshare.utils.trace import args_to_str
 from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list
 
 # ==================================================================
@@ -60,6 +63,7 @@ class ServerArguments:
     READ_ONLY = ["-r", "--read-only"]
     HELP = ["-h", "--help"]
     VERSION = ["-V", "--version"]
+    NO_COLOR = ["--no-color"]
 
 
 class ServerConfigKeys:
@@ -79,6 +83,51 @@ class ErrorsStrings:
 
 # ==================================================================
 
+# === TRACING ===
+
+API = TypeVar('API', bound=Callable[..., Any])
+
+
+def trace_api(api: API) -> API:
+    def traced_api(server: 'Server', *vargs, **kwargs) -> Optional[Response]:
+        requester = server._current_request_endpoint()
+        # print("api: ", api.__name__)
+        # print("args: ", args)
+        # print("kwargs: ", kwargs)
+        # for finfo in inspect.stack():
+        #     print(finfo.frame.f_code.co_name)
+
+        # caller_frame = inspect.stack()[0].frame
+        # caller_name = caller_frame.f_code.co_name
+        # caller_args = {key: val for key, val in caller_frame.f_locals.items() if key != "self"}
+        # caller_args_str = args_to_str(kwargs=caller_args)
+
+        trace_in("{} ({})".format(api.__name__, args_to_str(vargs, kwargs)),
+                 ip=requester[0],
+                 port=requester[1])
+
+        resp = api(server, *vargs, **kwargs)
+
+        if resp:
+            trace_out("{}\n{}".format(api.__name__, json_to_pretty_str(resp)),
+                      ip=requester[0],
+                      port=requester[1])
+        # else: probably a oneway call without response
+        return resp
+
+    return traced_api
+
+# requester = self._current_request_endpoint()
+#
+# caller_frame = inspect.stack()[1].frame
+# caller_name = caller_frame.f_code.co_name
+# caller_args = {key: val for key, val in caller_frame.f_locals.items() if key != "self"}
+# caller_args_str = args_to_str(kwargs=caller_args)
+#
+# trace_in("{} ({})".format(caller_name, caller_args_str),
+#          ip=requester[0],
+#          port=requester[1],
+# )
 
 class Server(IServer):
 
@@ -135,7 +184,13 @@ class Server(IServer):
 
         d("Sending DISCOVER response back to %s:%d\n%s",
           client_endpoint[0], client_discover_response_port,
-          json_to_str(response, pretty=True))
+          json_to_pretty_str(response))
+
+        trace_out(
+            "DISCOVER {}".format(json_to_pretty_str(response)),
+            ip=client_endpoint[0],
+            port=client_discover_response_port
+        )
 
         sock.send(json_to_bytes(response), client_endpoint[0], client_discover_response_port)
 
@@ -147,12 +202,14 @@ class Server(IServer):
         self.pyro_deamon.requestLoop()
 
     @Pyro4.expose
+    @trace_api
     def list(self) -> Response:
         i("<< LIST %s", str(self._current_request_endpoint()))
         time.sleep(0.5)
         return create_success_response([sh.info() for sh in self.sharings.values()])
 
     @Pyro4.expose
+    @trace_api
     def open(self, sharing_name: str) -> Response:
         if not sharing_name:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
@@ -182,6 +239,7 @@ class Server(IServer):
 
     @Pyro4.expose
     @Pyro4.oneway
+    @trace_api
     def close(self):
         client_endpoint = self._current_request_endpoint()
         i("<< CLOSE %s", str(client_endpoint))
@@ -210,6 +268,7 @@ class Server(IServer):
         d("# gets = %d", len(self.gets))
 
     @Pyro4.expose
+    @trace_api
     def rpwd(self) -> Response:
         # NOT NEEDED
         i("<< RPWD %s", str(self._current_request_endpoint()))
@@ -221,6 +280,7 @@ class Server(IServer):
         return create_success_response(client.rpwd)
 
     @Pyro4.expose
+    @trace_api
     def rcd(self, path: str) -> Response:
         if not path:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
@@ -251,6 +311,7 @@ class Server(IServer):
         return create_success_response(client.rpwd)
 
     @Pyro4.expose
+    @trace_api
     def rls(self, sort_by: List[str], reverse=False) -> Response:
         client = self._current_request_client()
         if not client:
@@ -280,6 +341,7 @@ class Server(IServer):
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
+    @trace_api
     def rmkdir(self, directory: str) -> Response:
         client = self._current_request_client()
         if not client:
@@ -302,6 +364,7 @@ class Server(IServer):
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
+    @trace_api
     def get_sharing(self, sharing_name: str) -> Response:
         client_endpoint = self._current_request_endpoint()
 
@@ -328,6 +391,7 @@ class Server(IServer):
         })
 
     @Pyro4.expose
+    @trace_api
     def get_files(self, files: List[str]) -> Response:
         client = self._current_request_client()
         if not client:
@@ -356,6 +420,7 @@ class Server(IServer):
         })
 
     @Pyro4.expose
+    @trace_api
     def get_sharing_next_info(self, transaction_id) -> Response:
         client_endpoint = self._current_request_endpoint()
 
@@ -364,6 +429,7 @@ class Server(IServer):
         return self._get_next_info(transaction_id)
 
     @Pyro4.expose
+    @trace_api
     def get_files_next_info(self, transaction_id) -> Response:
         client = self._current_request_client()
 
@@ -696,37 +762,6 @@ class Server(IServer):
         except:
             return False
 
-    def _trace_request(self, function: str, *function_args, **function_kwargs):
-        pass
-
-    def trace_response(self):
-        #
-        # def _perform_request(self, ,
-        #                      *remote_function_args,
-        #                      **remote_function_kwargs) -> Optional[Response]:
-        #     if is_tracing_enabled():
-        #         remote_function_args_str = "{}{}".format(
-        #             ", ".join([strstr(x) for x in remote_function_args])
-        #             if remote_function_args else "",
-        #
-        #             ", ".join([str(k) + "=" + strstr(v) for k, v in remote_function_kwargs.items()])
-        #             if remote_function_kwargs else ""
-        #         )
-        #         trace_out(ip=self.server_info.get("ip"),
-        #                   port=self.server_info.get("port"),
-        #                   name=self.server_info.get("name"),
-        #                   message="{} ({})".format(remote_function, remote_function_args_str))
-        #
-        #     resp = self.server.__getattr__(remote_function)(*remote_function_args, **remote_function_kwargs)
-        #
-        #     if is_tracing_enabled() and resp:
-        #         trace_in(ip=self.server_info.get("ip"),
-        #                  port=self.server_info.get("port"),
-        #                  name=self.server_info.get("name"),
-        #                  message="{}\n{}".format(remote_function, json_to_str(resp, pretty=True)))
-
-            return resp
-
     def _endpoint(self) -> Endpoint:
         """
         Returns the current endpoint (ip, port) the server (Pyro deamon) is bound to.
@@ -740,6 +775,8 @@ def main():
         terminate(HELP_APP)
 
     args = Args(sys.argv[1:])
+
+    init_colors(ServerArguments.NO_COLOR not in args)
 
     if ServerArguments.HELP in args:
         terminate(HELP_APP)

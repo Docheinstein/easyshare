@@ -1,4 +1,3 @@
-
 - read only protection
     - how to handle with -s?
 - colors
@@ -21,3 +20,6 @@
 - type: path, relpath, abspath
 - handler overwriting with -o or -y option
 - timeout float
+- different implementation of args/kwargs for allow 'scan' in any position?
+- -v=5 or -v 5
+- server trace

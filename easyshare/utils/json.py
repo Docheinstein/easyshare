@@ -9,6 +9,10 @@ def json_to_str(d: dict, pretty=False) -> str:
     return json.dumps(d, separators=(",", ":"))
 
 
+def json_to_pretty_str(d: dict, pretty=False) -> str:
+    return json_to_str(d, pretty=True)
+
+
 def json_to_bytes(d: dict) -> bytes:
     return str_to_bytes(json_to_str(d))
 
