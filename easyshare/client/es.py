@@ -26,7 +26,7 @@ from easyshare.shared.progress import FileProgressor
 from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint, terminate, abort
-from easyshare.utils.colors import init_colors, Color
+from easyshare.utils.colors import init_colors, Color, red
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int
 from easyshare.utils.os import ls, size_str
@@ -898,6 +898,8 @@ class Shell:
 def main():
     args = Args(sys.argv[1:])
 
+    init_colors(ClientArguments.NO_COLOR not in args)
+
     verbosity = 0
     tracing = 0
 
@@ -923,7 +925,6 @@ def main():
     if ClientArguments.VERSION in args:
         terminate(APP_INFO)
 
-    init_colors(ClientArguments.NO_COLOR not in args)
 
     server_discover_port = DEFAULT_DISCOVER_PORT
 
@@ -968,7 +969,7 @@ def main_wrapper(dump_pyro_exceptions=False):
         except Exception:
             traceback = Pyro4.util.getPyroTraceback()
             if traceback:
-                e("--- PYRO4 REMOTE TRACEBACK ---\n%s", "".join(traceback))
+                e("--- PYRO4 REMOTE TRACEBACK ---\n%s", red("".join(traceback)))
 
 
 if __name__ == "__main__":

@@ -66,24 +66,24 @@ class Connection:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        return self.rmkdir(directory)
+        return self.server.rmkdir(directory)
 
     def get_sharing(self, sharing_name: str) -> Response:
         # Allowed without a connection
-        return self.get_sharing(sharing_name)
+        return self.server.get_sharing(sharing_name)
 
     def get_sharing_next_info(self, transaction_id: str) -> Response:
         # Allowed without a connection
-        return self.get_sharing_next_info(transaction_id)
+        return self.server.get_sharing_next_info(transaction_id)
 
     def get_files(self, files: List[str]) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        return self.get_files(files)
+        return self.server.get_files(files)
 
     def get_files_next_info(self, transaction_id: str) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        return self.get_files_next_info(transaction_id)
+        return self.server.get_files_next_info(transaction_id)

@@ -3,17 +3,29 @@ from easyshare.utils.colors import magenta, cyan
 tracing = False
 
 
-def trace_out(ip: str, port: int, name: str, message: str):
+def trace_out(message: str, ip: str, port: int, alias: str = None):
     _trace(
-        magenta(">> {}:{} ({})\n>>   {}".format(
-            ip, port, name, message))
+        magenta(
+            ">> {}:{}{}\n>>   {}".format(
+                ip,
+                port,
+                " (" + alias + ")" if alias else "",
+                message
+            ),
+        )
     )
 
 
-def trace_in(ip: str, port: int, name: str, message: str):
+def trace_in(message: str, ip: str, port: int, alias: str = None):
     _trace(
-        cyan("<< {}:{} ({})\n<<   {}".format(
-            ip, port, name, message))
+        cyan(
+            "<< {}:{}{}\n<<   {}".format(
+                ip,
+                port,
+                " (" + alias + ")" if alias else "",
+                message
+            ),
+        )
     )
 
 

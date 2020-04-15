@@ -1,6 +1,8 @@
 import logging
 import sys
+from typing import Optional
 
+from easyshare.utils.colors import blue, red, yellow, green, magenta
 from easyshare.utils.types import is_int
 
 LOGGING_CRITICAL = logging.CRITICAL
@@ -20,7 +22,7 @@ VERBOSITY_DEBUG = 5
 VERBOSITY_MAX = VERBOSITY_DEBUG
 
 
-logger = None
+logger: Optional[logging.Logger] = None
 verbosity = None
 
 
@@ -81,13 +83,24 @@ def _init_python_logging(enabled: bool, level: int, output=sys.stdout):
         logger = logging.getLogger("easyshare")
 
         logging_handler = logging.StreamHandler(output)
-        logging_handler.setFormatter(logging.Formatter(
-            fmt="[%(levelname)s] %(asctime)s %(message)s",
-            datefmt="%d/%m/%y %H:%M:%S"))
+
+        formatter = logging.Formatter(
+            fmt="%(levelname)s %(asctime)s %(message)s",
+        )
+        formatter.default_time_format = "%H:%M:%S"
+        formatter.default_msec_format = "%s.%03d"
+
+        logging_handler.setFormatter(formatter)
 
         logger.addHandler(logging_handler)
 
-        logging.addLevelName(LOGGING_VERBOSE, "VERBOSE")
+        LEVEL_STRLEN = 7
+
+        logging.addLevelName(LOGGING_ERROR, red("[ERROR]".ljust(LEVEL_STRLEN)))
+        logging.addLevelName(LOGGING_WARNING, yellow("[WARN]".ljust(LEVEL_STRLEN)))
+        logging.addLevelName(LOGGING_INFO, blue("[INFO]".ljust(LEVEL_STRLEN)))
+        logging.addLevelName(LOGGING_VERBOSE, green("[VERB]".ljust(LEVEL_STRLEN)))
+        logging.addLevelName(LOGGING_DEBUG, magenta("[DEBUG]".ljust(LEVEL_STRLEN)))
 
         def verbose(self, message, *args, **kws):
             if self.isEnabledFor(LOGGING_VERBOSE):

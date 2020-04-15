@@ -6,9 +6,9 @@ from easyshare.protocol.response import Response, is_data_response
 from easyshare.shared.log import d, w, v
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.serverinfo import ServerInfo
-from easyshare.shared.trace import trace_out
+from easyshare.shared.trace import trace_out, trace_in
 from easyshare.socket.udp import SocketUdpIn, SocketUdpOut
-from easyshare.utils.json import bytes_to_json
+from easyshare.utils.json import bytes_to_json, json_to_str
 from easyshare.utils.types import int_to_bytes
 
 
@@ -36,10 +36,10 @@ class Discoverer:
         d("Broadcasting DISCOVER on port %d", self.server_discover_port)
 
         trace_out(
+            "DISCOVER {}".format(str(discover_message)),
             ip="",
             port=self.server_discover_port,
-            name="broadcast",
-            message="DISCOVER {}".format(str(discover_message))
+            alias="broadcast"
         )
 
         out_sock.broadcast(discover_message, self.server_discover_port)
@@ -71,6 +71,12 @@ class Discoverer:
 
             d("Received DISCOVER response from: %s", endpoint)
             resp: Response = bytes_to_json(raw_resp)
+
+            trace_in(
+                "DISCOVER\n{}".format(json_to_str(resp, pretty=True)),
+                ip=endpoint[0],
+                port=endpoint[1]
+            )
 
             if not is_data_response(resp):
                 w("Invalid DISCOVER response")

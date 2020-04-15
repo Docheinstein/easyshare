@@ -2,7 +2,7 @@ import time
 import random
 
 from easyshare.shared.log import w
-from easyshare.utils.colors import colored, Color, init_colors
+from easyshare.utils.colors import fg, Color, init_colors
 from easyshare.utils.os import M, size_str, term_size
 from easyshare.utils.time import duration_str
 
@@ -179,9 +179,9 @@ class FileProgressor:
                         .ljust(progress_bar_inner_width)
 
                 if self.partial < self.total and self.progress_color:
-                    progress_bar_inner = colored(progress_bar_inner, self.progress_color)
+                    progress_bar_inner = fg(progress_bar_inner, self.progress_color)
                 elif self.partial == self.total and self.done_color:
-                    progress_bar_inner = colored(progress_bar_inner, self.done_color)
+                    progress_bar_inner = fg(progress_bar_inner, self.done_color)
 
                 progress_line = FileProgressor.FMT_WPTSB.format(
                     W,

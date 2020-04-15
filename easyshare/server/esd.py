@@ -413,7 +413,12 @@ class Server(IServer):
                 for f in os.listdir(next_file_path):
                     f_path = os.path.join(next_file_path, f)
                     d("Adding %s", f_path)
-                    remaining_files.append(f_path)
+                    # Push to the begin instead of the end
+                    # In this way we perform a breadth-first search
+                    # instead of a depth-first search, which makes more sense
+                    # because we will push the files that belongs to the same
+                    # directory at the same time
+                    remaining_files.insert(0, f_path)
                 continue
 
             if not os.path.isfile(next_file_path):
@@ -426,7 +431,9 @@ class Server(IServer):
             if client:
                 trail = self._trailing_path_for_client_from_rpwd(client, next_file_path)
             else:
-                trail = self._trailing_path_for_sharing(sharing, next_file_path)
+                sharing_path_head, _ = os.path.split(sharing.path)
+                d("sharing_path_head: ", sharing_path_head)
+                trail = self._trailing_path(sharing_path_head, next_file_path)
 
             d("Trail: %s", trail)
 

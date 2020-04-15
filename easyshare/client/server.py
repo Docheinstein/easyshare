@@ -1,4 +1,3 @@
-import inspect
 from typing import Any
 
 from Pyro4 import Proxy
@@ -31,18 +30,18 @@ class ServerProxy(Proxy):
                 ", ".join([strstr(x) for x in vargs]) if vargs else "",
                 ", ".join([str(k) + "=" + strstr(v) for k, v in kwargs.items()]) if kwargs else ""
             )
-            trace_out(ip=self._server_ip,
+            trace_out("{} ({})".format(methodname, remote_function_args_str),
+                      ip=self._server_ip,
                       port=self._server_port,
-                      name=self._server_name,
-                      message="{} ({})".format(methodname, remote_function_args_str))
+                      alias=self._server_name)
 
         resp = super()._pyroInvoke(methodname, vargs, kwargs, flags, objectId)
 
         if is_tracing_enabled() and resp:
-            trace_in(ip=self._server_ip,
+            trace_in("{}\n{}".format(methodname, json_to_str(resp, pretty=True)),
+                     ip=self._server_ip,
                      port=self._server_port,
-                     name=self._server_name,
-                     message="{}\n{}".format(methodname, json_to_str(resp, pretty=True)))
+                     alias=self._server_name)
 
         return resp
 
