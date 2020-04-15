@@ -832,10 +832,23 @@ def main():
     # Add sharings from command line
     # If a sharing with the same name already exists due to config file,
     # the values of the command line will overwrite those
-    sharings_params = args.get_mparams(ServerArguments.SHARE)
 
-    # sharings_mparams can contain more than one sharing params
+    sharings_noarg_params = args.get_params()
+
+    # sharings_arg_mparams can contain more than one sharing params
     # e.g. [['home', '/home/stefano'], ['tmp', '/tmp']]
+    sharings_arg_mparams = args.get_mparams(ServerArguments.SHARE)
+
+    sharings_params = []
+
+    # Eventually add sharing specified without -s (the first one)
+    if sharings_noarg_params:
+        sharings_params.append(sharings_noarg_params)
+
+    # Eventually add sharings specified with -s or --sharing
+    if sharings_arg_mparams:
+        for sh_params in sharings_arg_mparams:
+            sharings_params.append(sh_params)
 
     if sharings_params:
         # Add sharings to server
@@ -867,6 +880,7 @@ def main():
 
     # Add every sharing to the server
     for sharing in sharings.values():
+        print("+ " + sharing.name + " --> " + sharing.path)
         server.add_sharing(sharing)
 
     server.start()

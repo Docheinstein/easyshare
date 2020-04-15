@@ -19,3 +19,5 @@
 - Server concurrency on shared structures
 - everything as property
 - type: path, relpath, abspath
+- handler overwriting with -o or -y option
+- timeout float

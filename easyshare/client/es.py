@@ -507,17 +507,20 @@ class Client:
                           server_info.get("ip"),
                           server_info.get("port")))
 
-            print("  DIRECTORIES")
+            d_sharings = [sh.get("name") for sh in server_info.get("sharings")
+                          if sh.get("ftype") == FTYPE_DIR]
+            f_sharings = [sh.get("name") for sh in server_info.get("sharings")
+                          if sh.get("ftype") == FTYPE_FILE]
 
-            for sharing_info in server_info.get("sharings"):
-                if sharing_info.get("ftype") == FTYPE_DIR:
-                    print("   > " + sharing_info.get("name"))
+            if d_sharings:
+                print("  DIRECTORIES")
+                for dsh in d_sharings:
+                    print("  - " + dsh)
 
-            print("  FILES")
-
-            for sharing_info in server_info.get("sharings"):
-                if sharing_info.get("ftype") == FTYPE_FILE:
-                    print("   > " + sharing_info.get("name"))
+            if f_sharings:
+                print("  FILES")
+                for fsh in f_sharings:
+                    print("  - " + fsh)
 
             servers_found += 1
 
@@ -936,13 +939,17 @@ def main():
 
     # Allow some commands directly from command line
     # GET, SCAN
-    full_command = args.get_params()
+    cli_command_line = args.get_params()
 
-    if full_command:
-        command = full_command.pop(0)
+    start_shell = True if not cli_command_line else False
+
+    if not start_shell:
+        command = cli_command_line.pop(0)
 
         if command not in CLI_COMMANDS:
             abort("Unknown command: {}".format(command))
+
+        start_shell = (command == Commands.OPEN)
 
         # Execute directly
         # Take out the first token as "command" and leave
@@ -952,8 +959,8 @@ def main():
 
     # Start the shell
     # 1. If a command was not specified
-    # 2. We are connected (probably due to open from a direct command)
-    if not full_command or client.is_connected():
+    # 2. We are connected (due to open from a direct command)
+    if start_shell:
         # Start the shell
         v("Executing shell")
         shell = Shell(client)
