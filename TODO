@@ -23,3 +23,5 @@
 - different implementation of args/kwargs for allow 'scan' in any position?
 - -v=5 or -v 5
 - server trace
+- full size progress mark
+- typing based on python version
