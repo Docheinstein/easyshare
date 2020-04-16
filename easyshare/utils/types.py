@@ -1,5 +1,5 @@
 # CHECKERS
-from typing import Union, Any
+from typing import Union, Any, Optional
 
 
 def is_int(o: object) -> bool:
@@ -8,6 +8,14 @@ def is_int(o: object) -> bool:
 
 def is_str(o: object) -> bool:
     return isinstance(o, str)
+
+
+def is_bool(o: object) -> bool:
+    return isinstance(o, bool)
+
+
+def is_bytes(o: object) -> bool:
+    return isinstance(o, bytes)
 
 
 def is_dict(o: dict) -> bool:
@@ -24,20 +32,28 @@ def is_valid_list(o: object) -> bool:
 
 # CONVERTERS
 
-def to_int(o: Any, default=None) -> Union[int, None]:
+def to_int(o: Any, default=None) -> Optional[int]:
     try:
         return int(o)
     except Exception:
         return default
 
 
-def to_bool(o: object, default=None) -> Union[bool, None]:
-    if isinstance(o, bool):
+def to_bool(o: Any, default=None) -> Optional[bool]:
+    if is_bool(o):
         return o
-    if isinstance(o, int):
+    if is_int(o):
         return o != 0
-    if isinstance(o, str):
+    if is_str(o):
         return str_to_bool(o)
+    return default
+
+
+def to_bytes(o: Any, default=None) -> Optional[bytes]:
+    if is_bytes(o):
+        return o
+    if is_str(o):
+        return str_to_bytes(o)
     return default
 
 

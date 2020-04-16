@@ -5,8 +5,8 @@ from typing import NoReturn
 def eprint(*args, **kwargs):
     """
     Prints to stderr.
-    :param args: arguments argument to pass to print()
-    :param kwargs: keyword argument to pass to print()
+    :param args: arguments argument to passwd to print()
+    :param kwargs: keyword argument to passwd to print()
     """
     print(*args, file=sys.stderr, **kwargs)
 

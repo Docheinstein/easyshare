@@ -11,3 +11,5 @@ DEFAULT_DISCOVER_PORT = 12011
 
 SERVER_NAME_ALPHABET = string.ascii_letters + "_-"
 SHARING_NAME_ALPHABET = string.ascii_letters + "_-"
+
+AUTH_FMT = "{}${}${}"   # type$salt$hash
