@@ -48,3 +48,7 @@ class IServer(ABC):
     @abstractmethod
     def get_files_next_info(self, transaction) -> Response:
         pass
+
+    @abstractmethod
+    def ping(self) -> Response:
+        pass

@@ -1,5 +1,7 @@
-from typing import List, Union
+from typing import List, Union, Optional
 
+import Pyro4
+from Pyro4.core import _BatchProxyAdapter
 
 from easyshare.client.errors import ClientErrors
 from easyshare.client.server import ServerProxy
@@ -17,6 +19,9 @@ class Connection:
         self._connected = False
         self._sharing_name = None
         self._rpwd = ""
+
+    def create_batch(self) -> Optional[Union[IServer, _BatchProxyAdapter]]:
+        return Pyro4.batch(self.server)
 
     def is_connected(self) -> bool:
         return self._connected
@@ -67,6 +72,12 @@ class Connection:
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
         return self.server.rmkdir(directory)
+
+    def ping(self) -> Response:
+        if not self.is_connected():
+            return create_error_response(ClientErrors.NOT_CONNECTED)
+
+        return self.server.ping()
 
     def get_sharing(self, sharing_name: str) -> Response:
         # Allowed without a connection

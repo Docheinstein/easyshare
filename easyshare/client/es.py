@@ -9,6 +9,7 @@ from typing import Optional, Callable, List, Dict, Union, Tuple, Any
 
 import Pyro4
 from Pyro4 import util
+from Pyro4.core import _BatchProxyAdapter
 from Pyro4.errors import ConnectionClosedError, PyroError
 
 from easyshare.client.connection import Connection
@@ -17,6 +18,7 @@ from easyshare.client.errors import ClientErrors
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
+from easyshare.protocol.iserver import IServer
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
@@ -31,6 +33,7 @@ from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint, terminate, abort
 from easyshare.utils.colors import init_colors, Color, red, fg
+from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int, to_bool, str_to_bool, bool_to_str
 from easyshare.utils.os import ls, size_str, rm
@@ -121,6 +124,7 @@ class Commands:
     PUT = "put"
 
     INFO = "info"
+    PING = "ping"
 
 
 SHELL_COMMANDS = values(Commands)
@@ -129,7 +133,7 @@ CLI_COMMANDS = [
     Commands.SCAN,
     Commands.OPEN,
     Commands.GET,
-    Commands.INFO
+    Commands.INFO,
 ]
 
 # === COMMANDS ARGUMENTS ===
@@ -251,13 +255,15 @@ class Client:
             Commands.GET: self.get,
 
             Commands.INFO: self.info,
+
+            Commands.PING: self.ping,
         }
 
     def execute_command(self, command: str, args: Args) -> bool:
         if command not in self._command_dispatcher:
             return False
 
-        d("Handling command %s (%s)", command, args)
+        d("Client: handling command %s (%s)", command, args)
         self._command_dispatcher[command](args)
         return True
 
@@ -602,6 +608,16 @@ class Client:
             # Server info retrieved successfully
             print_server_info(server_info)
 
+    def ping(self, _: Args):
+        if not self.is_connected():
+            print_error(ClientErrors.NOT_CONNECTED)
+            return
+
+        resp = self.connection.ping()
+        if is_data_response(resp) and resp.get("data") == "pong":
+            print("Connection is UP")
+        else:
+            print("Connection is DOWN")
 
     def get_files(self, args: Args):
         if not self.is_connected():
@@ -933,16 +949,16 @@ class Client:
         f_sharings = [sh.get("name") for sh in sharings if sh.get("ftype") == FTYPE_FILE]
 
         if d_sharings:
-            s += "  DIRECTORIES"
+            s += "  DIRECTORIES\n"
             for dsh in d_sharings:
-                s += "  - " + dsh
+                s += "  - " + dsh + "\n"
 
         if f_sharings:
-            s += "  FILES"
+            s += "  FILES\n"
             for fsh in f_sharings:
-                s += "  - " + fsh
+                s += "  - " + fsh + "\n"
 
-        return s
+        return s.rstrip("\n")
 
     @staticmethod
     def _print_file_infos(infos: List[FileInfo]):

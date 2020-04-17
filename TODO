@@ -20,7 +20,10 @@
 - -v=5 or -v 5
 - server trace
 - remove debug and make verbose -> info
-- get empty directories too
 - bathed calls open,get
-- info
 - help (usage), man
+- pyro callback for handle rrm
+- keepalive for handle client disconnect?
+- ssl
+- decorators: require_connection, ...
+- tracedproxy instead of serverpoxy

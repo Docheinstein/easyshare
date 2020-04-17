@@ -355,6 +355,10 @@ class Server(IServer):
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
+    def ping(self):
+        return create_success_response("pong")
+
+    @Pyro4.expose
     @trace_api
     def get_sharing(self, sharing_name: str) -> Response:
         client_endpoint = self._current_request_endpoint()
