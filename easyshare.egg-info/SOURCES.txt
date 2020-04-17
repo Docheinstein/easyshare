@@ -1,6 +1,0 @@
-README.rst
-setup.py
-easyshare.egg-info/PKG-INFO
-easyshare.egg-info/SOURCES.txt
-easyshare.egg-info/dependency_links.txt
-easyshare.egg-info/top_level.txt

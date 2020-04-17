@@ -4,3 +4,4 @@ sharing
 test2
 .zshrc
 /easyshare.egg-info/
+__pycache__
