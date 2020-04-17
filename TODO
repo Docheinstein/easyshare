@@ -14,7 +14,6 @@
 - Server concurrency on shared structures
 - everything as property
 - type: path, relpath, abspath
-- handler overwriting of files with GET/PUT
 - allow automatic overriding with -o or -y option
 - timeout float
 - different implementation of args/kwargs for allow 'scan' in any position?

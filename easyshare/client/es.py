@@ -1,9 +1,11 @@
 import enum
 import os
 import shlex
+import shutil
 import sys
 import readline
-from typing import Optional, Callable, List, Dict, Union
+from inspect import Traceback
+from typing import Optional, Callable, List, Dict, Union, Tuple, Any
 
 import Pyro4
 from Pyro4 import util
@@ -30,7 +32,7 @@ from easyshare.utils.app import eprint, terminate, abort
 from easyshare.utils.colors import init_colors, Color, red, fg
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int, to_bool, str_to_bool
-from easyshare.utils.os import ls, size_str
+from easyshare.utils.os import ls, size_str, rm
 
 # ==================================================================
 
@@ -103,6 +105,7 @@ class Commands:
     LOCAL_LIST_DIRECTORY = "ls"
     LOCAL_CREATE_DIRECTORY = "mkdir"
     LOCAL_CURRENT_DIRECTORY = "pwd"
+    LOCAL_REMOVE = "rm"
 
     REMOTE_CHANGE_DIRECTORY = "rcd"
     REMOTE_LIST_DIRECTORY = "rls"
@@ -115,6 +118,7 @@ class Commands:
 
     GET = "get"
     PUT = "put"
+
 
 
 SHELL_COMMANDS = values(Commands)
@@ -228,6 +232,7 @@ class Client:
             Commands.LOCAL_LIST_DIRECTORY: self.ls,
             Commands.LOCAL_CREATE_DIRECTORY: self.mkdir,
             Commands.LOCAL_CURRENT_DIRECTORY: self.pwd,
+            Commands.LOCAL_REMOVE: self.rm,
 
             Commands.REMOTE_CHANGE_DIRECTORY: self.rcd,
             Commands.REMOTE_LIST_DIRECTORY: self.rls,
@@ -351,6 +356,20 @@ class Client:
             print(os.getcwd())
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
+
+    def rm(self, args: Args):
+        path = args.get_param()
+
+        if not path:
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            return
+
+        i(">> RM " + path)
+
+        def handle_rm_error(err):
+            eprint(err)
+
+        rm(path, error_callback=handle_rm_error)
 
     # === REMOTE COMMANDS ===
 

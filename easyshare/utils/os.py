@@ -1,12 +1,13 @@
+import errno
 import os
 import shutil
 import sys
 from stat import S_ISDIR
-from typing import Optional, List, Union, Tuple
+from typing import Optional, List, Union, Tuple, Any, Callable
 
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
-from easyshare.shared.log import v, w
+from easyshare.shared.log import v, w, e
 from easyshare.utils.types import is_str, is_list
 
 G = 1000000000
@@ -72,7 +73,7 @@ def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Opt
             ret = sorted(ret, key=lambda fi: fi[sort_field])
 
     except Exception as ex:
-        w("LS execution exception %s", ex)
+        e("LS execution exception %s", ex)
         return None
 
     if reverse:
@@ -80,6 +81,46 @@ def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Opt
         return ret
 
     return ret
+
+
+def rm(path: str, error_callback: Callable[[Exception], None] = None) -> bool:
+    try:
+        if os.path.isfile(path):
+            os.remove(path)
+            return True
+
+        if os.path.isdir(path):
+            def handle_rmtree_error(error_func,
+                                    error_path,
+                                    error_excinfo: Tuple[Any, Exception, Any]):
+
+                excinfo_class, excinfo_error, excinfo_traceback = error_excinfo
+
+                e("RM error occurred on path '%s': %s",
+                  error_path,
+                  excinfo_error)
+
+                if error_callback:  # should be defined
+                    error_callback(excinfo_error)
+
+            ignore_errors = True if error_callback else False
+            shutil.rmtree(path, ignore_errors=ignore_errors, onerror=handle_rmtree_error)
+            return True
+
+        e("Cannot delete; not file nor dir '%s'", path)
+
+        # Manually notify a file not found exception
+        if error_callback:
+            error_callback(FileNotFoundError(
+                errno.ENOENT, os.strerror(errno.ENOENT), path
+            ))
+        return False
+    except Exception as ex:
+        # Notify the exception of a valid action (could be permission denied, ...)
+        e("RM execution exception %s", ex)
+        if error_callback:
+            error_callback(ex)
+        return False
 
 
 def terminal_size(fallback=(80, 24)) -> Tuple[int, int]:
