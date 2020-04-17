@@ -3,6 +3,11 @@ import ssl
 from easyshare.socket.tcp import SocketTcpAcceptor
 from easyshare.utils.types import str_to_bytes, bytes_to_str
 
+# Create cert and private key with:
+# openssl req -x509 -keyout privkey.pem -days 365 -nodes -out cert.pem
+
+# For read certificate content:
+# openssl x509 -in cert.pem -text
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 ssl_context.load_cert_chain(certfile="/home/stefano/Temp/certs/localhost/cert.pem",
                             keyfile="/home/stefano/Temp/certs/localhost/private_key.pem")

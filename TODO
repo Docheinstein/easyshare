@@ -1,6 +1,7 @@
 - read only protection
     - how to handle with -s?
 - colors
+    - for ls too
     - No color option
 - authentication
 - next suggestions based on what's currently written

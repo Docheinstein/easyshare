@@ -30,13 +30,14 @@ class Discoverer:
         d("Client discover port: %d", in_sock.port())
 
         # Send discover
-        discover_message = int_to_bytes(in_sock.port(), 2)
+        discover_message_raw = in_sock.port()
+        discover_message = int_to_bytes(discover_message_raw, 2)
         out_sock = SocketUdpOut(broadcast=True)
 
         d("Broadcasting DISCOVER on port %d", self.server_discover_port)
 
         trace_out(
-            "DISCOVER {}".format(str(discover_message)),
+            "DISCOVER {} ({})".format(str(discover_message), discover_message_raw),
             ip="",
             port=self.server_discover_port,
             alias="broadcast"

@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple
 
@@ -30,9 +31,9 @@ def abspath(s: str) -> str:
     return s if is_abspath(s) else (os.sep + s)
 
 
-def size_str(size: int,
+def size_str(size: float,
              prefixes=(" ", "K", "M", "G"),
-             precisions=(1, 1, 1, 1)) -> str:
+             precisions=(0, 0, 1, 1)) -> str:
     i = len(UNITS) - 1
     while i >= 0:
         u = UNITS[i]
@@ -81,10 +82,25 @@ def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Opt
     return ret
 
 
-def term_size(fallback=(80, 24)) -> Tuple[int, int]:
+def terminal_size(fallback=(80, 24)) -> Tuple[int, int]:
     try:
         columns, rows = shutil.get_terminal_size(fallback=fallback)
     except:
         w("Failed to retrieved terminal size, using fallback")
         return fallback
     return columns, rows
+
+
+def is_unicode_supported(stream=sys.stdout) -> bool:
+    encoding = stream.encoding
+
+    try:
+        '\u2588'.encode(stream.encoding)
+        return True
+    except UnicodeEncodeError:
+        return False
+    except Exception:
+        try:
+            return encoding.lower().startswith("utf-") or encoding == "U8"
+        except:
+            return False

@@ -91,16 +91,6 @@ API = TypeVar('API', bound=Callable[..., Any])
 def trace_api(api: API) -> API:
     def traced_api(server: 'Server', *vargs, **kwargs) -> Optional[Response]:
         requester = server._current_request_endpoint()
-        # print("api: ", api.__name__)
-        # print("args: ", args)
-        # print("kwargs: ", kwargs)
-        # for finfo in inspect.stack():
-        #     print(finfo.frame.f_code.co_name)
-
-        # caller_frame = inspect.stack()[0].frame
-        # caller_name = caller_frame.f_code.co_name
-        # caller_args = {key: val for key, val in caller_frame.f_locals.items() if key != "self"}
-        # caller_args_str = args_to_str(kwargs=caller_args)
 
         trace_in("{} ({})".format(api.__name__, args_to_str(vargs, kwargs)),
                  ip=requester[0],
@@ -112,7 +102,7 @@ def trace_api(api: API) -> API:
             trace_out("{}\n{}".format(api.__name__, json_to_pretty_str(resp)),
                       ip=requester[0],
                       port=requester[1])
-        # else: probably a oneway call without response
+        # else: should be a one-way call without response
         return resp
 
     return traced_api

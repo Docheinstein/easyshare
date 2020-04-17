@@ -1,11 +1,11 @@
 import os
 import queue
+import random
 import threading
 import time
 from typing import List, Optional, Callable
 
 from easyshare.server.client import ClientContext
-from easyshare.server.sharing import Sharing
 from easyshare.shared.log import e, d, i, v
 from easyshare.socket.tcp import SocketTcpAcceptor
 from easyshare.utils.str import randstring
@@ -74,7 +74,8 @@ class GetTransactionHandler(threading.Thread):
 
             # Send file
             while True:
-                time.sleep(0.001)
+                r = random.random() * 0.01
+                time.sleep(0.01 + r)
                 chunk = f.read(GetTransactionHandler.BUFFER_SIZE)
                 if not chunk:
                     d("Finished %s", next_serving)

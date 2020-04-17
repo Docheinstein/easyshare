@@ -5,6 +5,7 @@ from easyshare.shared.log import d, v
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.trace import trace_out, trace_in
 from easyshare.socket.udp import SocketUdpIn
+from easyshare.utils.types import int_to_bytes, bytes_to_int
 
 
 class DiscoverDeamon(threading.Thread):
@@ -23,7 +24,7 @@ class DiscoverDeamon(threading.Thread):
             data, client_endpoint = sock.recv()
 
             trace_in(
-                "DISCOVER {}".format(str(data)),
+                "DISCOVER {} ({})".format(str(data),  bytes_to_int(data)),
                 ip=client_endpoint[0],
                 port=client_endpoint[1]
             )

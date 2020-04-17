@@ -31,3 +31,4 @@ class SocketUdpOut(SocketUdp):
     def __init__(self, *, timeout: float = None, broadcast: bool = False):
         super().__init__()
         self.sock = socket_udp_out(timeout=timeout, broadcast=broadcast)
+

@@ -1,13 +1,36 @@
+import math
 import time
 import random
+from enum import Enum
+from typing import Tuple
 
 from easyshare.shared.log import w
+from easyshare.utils import os
 from easyshare.utils.colors import fg, Color, init_colors
-from easyshare.utils.os import M, size_str, term_size
+from easyshare.utils.os import M, size_str, terminal_size, K, is_unicode_supported
 from easyshare.utils.time import duration_str
 
 
+class ProgressBarStyle(Enum):
+    AUTO = object()
+    ASCII = object()
+    UNICODE = object()
+
+
 class FileProgressor:
+
+    UNICODE_PROGRESS_NON_FULL_BLOCKS = [
+        "",
+        "\u258f",
+        "\u258e",
+        "\u258d",
+        "\u258c",
+        "\u258b",
+        "\u258a",
+        "\u2589"
+    ]
+    UNICODE_PROGRESS_NON_FULL_BLOCKS_COUNT = len(UNICODE_PROGRESS_NON_FULL_BLOCKS)
+    UNICODE_PROGRESS_BLOCK_FULL = '\u2588'
 
     SIZE_PREFIXES = ("B", "KB", "MB", "GB")
     SPEED_PREFIXES = ("B/s", "KB/s", "MB/s", "GB/s")
@@ -34,7 +57,7 @@ class FileProgressor:
     #                 S0              S1 S2         S3      S4
 
     PROGRESS_BAR_MIN_INNER_WIDTH = 10
-    PROGRESS_BAR_MIN_OUTER_WIDTH = len("[") + PROGRESS_BAR_MIN_INNER_WIDTH + len("]")
+    PROGRESS_BAR_MIN_OUTER_WIDTH = PROGRESS_BAR_MIN_INNER_WIDTH + 2
 
     S0 = 4
     S1 = 1
@@ -66,76 +89,91 @@ class FileProgressor:
     FMT_WPT = "{}" + (" " * S0) + "{}" + (" " * S2) + "{}"\
               + (" " * S4)
     FMT_WPTS = "{}" + (" " * S0) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
-    FMT_WPTSB = "{}" + (" " * S0) + "[{}]" + (" " * S1) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
 
-    def __init__(self, what: str, total: int, *,
+    FMT_WPTSB = "{}" + (" " * S0) + "{}" + (" " * S1) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
+
+    def __init__(self,
+                 total: int, *,
+                 description: str,
                  partial: int = 0,
-                 fps: float = 2,
-                 progress_mark: str = "=",
-                 progress_color: Color = None,
-                 done_color: Color = None):
-        self.what = what
+                 ui_fps: float = 20,
+                 speed_fps: float = 4,
+                 progress_bar_style: ProgressBarStyle = ProgressBarStyle.AUTO,
+                 progress_bar_ascii_mark: str = "=",
+                 color_progress: Color = None,
+                 color_done: Color = None):
+
+        self.description = description
         self.partial = partial
         self.total = total
-        self.fps = fps
-        self.period_ns = (1 / fps) * 1e9
-        self.progress_mark = progress_mark
-        self.progress_color = progress_color
-        self.done_color = done_color
+        self.ui_fps = ui_fps
+        self.speed_fps = speed_fps
+        self.progress_bar_ascii_mark = progress_bar_ascii_mark
+        self.color_progress = color_progress
+        self.color_done = color_done
+
+        self.ui_period_ns = (1 / ui_fps) * 1e9
+        self.speed_period_ns = (1 / speed_fps) * 1e9
 
         self.first_t = None
         self.last_t = None
         self.last_render_t = None
 
         self.speed_period_t = None
-        self.speed_period_avg = 0
-        self.speed_period_samples = 0
+        self.speed_period_partial = 0
+
+        self.speed_last_period_avg = 0
+
+        if progress_bar_style == ProgressBarStyle.UNICODE:
+            self.unicode = True
+        elif progress_bar_style == ProgressBarStyle.ASCII:
+            self.unicode = False
+        else:
+            self.unicode = is_unicode_supported()
 
     def increase(self, amount: int):
         self.update(self.partial + amount)
 
     # noinspection PyPep8Naming
-    def update(self, partial: int, *,
+    def update(self,
+               partial: int, *,
                force: bool = False,
                inline: bool = True,
                time_instead_speed: bool = False):
+
+        if partial < self.partial:
+            w("Progress cannot go backward")
+            return
+
         t = time.monotonic_ns()
 
         # Remind the first update (for render the total time at the end)
         if not self.first_t:
             self.first_t = t
 
-        if partial < self.partial:
-            w("Progress cannot go backward")
-            return
-
         # Compute speed (apart from the first call)
-        speed = None
-
         if self.last_t:
-            # Compute delta time
-            instant_speed = int((partial - self.partial) * 1e9 /
-                        (t - self.last_t))
+            # Increase the byte count of the current speed period
+            self.speed_period_partial += (partial - self.partial)
 
-            # Do an average with the speed of the current period
-            # (the period depends on the fps)
-            if not self.speed_period_t or \
-                    (t - self.speed_period_t) > self.period_ns:
-                # New period: reset the speed avg
+            if self.speed_period_t:
+                speed_period_delta_t = t - self.speed_period_t
+
+                if speed_period_delta_t > self.speed_period_ns:
+                    # New period
+
+                    # Calculate the avg speed
+                    self.speed_last_period_avg = self.speed_period_partial * 1e9 / speed_period_delta_t
+
+                    # Reset the sampling variables
+                    self.speed_period_partial = 0
+                    self.speed_period_t = t
+            else:
+                # First period
                 self.speed_period_t = t
-                self.speed_period_samples = 0
-                self.speed_period_avg = 0
 
-            self.speed_period_avg = \
-                (self.speed_period_samples * self.speed_period_avg + instant_speed) // \
-                (self.speed_period_samples + 1)
-
-            speed = self.speed_period_avg
-
-            self.speed_period_samples += 1
-
-        self.last_t = t
         self.partial = partial
+        self.last_t = t
 
         ratio = self.partial / self.total
         percentage = int(100 * ratio)
@@ -145,24 +183,25 @@ class FileProgressor:
         # 1. 'force' set to True
         # 2. First update
         if force or not self.last_render_t or \
-                (t - self.last_render_t) > self.period_ns:
+                (t - self.last_render_t) > self.ui_period_ns:
             self.last_render_t = t
 
             # Retrieve the terminal size for render properly
-            cols, rows = term_size()
+            cols, rows = terminal_size()
 
-            W = self.what
+            W = self.description
             P = str(percentage) + "%"
             T = "{}/{}".format(
                 size_str(self.partial, prefixes=FileProgressor.SIZE_PREFIXES).rjust(FileProgressor.LEN_TH),
                 size_str(self.total, prefixes=FileProgressor.SIZE_PREFIXES).ljust(FileProgressor.LEN_TH)
             )
             S = ""
+
             if time_instead_speed:
                 S = duration_str(round((t - self.first_t) * 1e-9),
                                  fixed=False, formats=FileProgressor.TIME_FORMATS)
-            elif speed:
-                S = size_str(speed, prefixes=FileProgressor.SPEED_PREFIXES)
+            elif self.speed_last_period_avg:
+                S = size_str(self.speed_last_period_avg, prefixes=FileProgressor.SPEED_PREFIXES)
 
             Wlen = len(W)
 
@@ -172,20 +211,13 @@ class FileProgressor:
                 progress_bar_inner_width = \
                     cols - (Wlen + FileProgressor.LEN_P +
                             FileProgressor.LEN_T + FileProgressor.LEN_S +
-                            FileProgressor.S_WPTSB + len("[]"))
+                            FileProgressor.S_WPTSB + 2 * len("|"))
 
-                progress_bar_inner = \
-                    (self.progress_mark * int(ratio * progress_bar_inner_width))\
-                        .ljust(progress_bar_inner_width)
-
-                if self.partial < self.total and self.progress_color:
-                    progress_bar_inner = fg(progress_bar_inner, self.progress_color)
-                elif self.partial == self.total and self.done_color:
-                    progress_bar_inner = fg(progress_bar_inner, self.done_color)
+                progress_bar = self._progress_bar_string(progress_bar_inner_width, ratio)
 
                 progress_line = FileProgressor.FMT_WPTSB.format(
                     W,
-                    progress_bar_inner,
+                    progress_bar,
                     P.rjust(FileProgressor.LEN_P),
                     T.rjust(FileProgressor.LEN_T),
                     S.rjust(FileProgressor.LEN_S)
@@ -220,25 +252,86 @@ class FileProgressor:
     def done(self):
         self.update(self.total, force=True, inline=False, time_instead_speed=True)
 
+    def _progress_bar_string(self, progress_bar_inner_width: int, progress_ratio: float) -> str:
+        # The inner progress can be built with either
+        # 1. A progress mark (e.g. =)
+        # 2. Progress blocks, which are UNICODE for create a fancy
+        #    fulfilled bar
+
+        if self.unicode:
+            prefix, inner, postfix = self._progress_bar_unicode_blocks(progress_bar_inner_width, progress_ratio)
+        else:
+            prefix, inner, postfix = self._progress_bar_ascii_marks(progress_bar_inner_width, progress_ratio)
+
+        inner = inner.ljust(progress_bar_inner_width)
+
+        if self.partial < self.total and self.color_progress:
+            inner = fg(inner, self.color_progress)
+
+        if self.partial == self.total and self.color_done:
+            inner = fg(inner, self.color_done)
+
+        return prefix + inner + postfix
+
+    def _progress_bar_ascii_marks(self,
+                                  progress_bar_inner_width: int,
+                                  progress_ratio: float) -> Tuple[str, str, str]:
+
+        return (
+            "[",
+            "{}".format(
+                self.progress_bar_ascii_mark * int(progress_ratio * progress_bar_inner_width)
+            ),
+            "]"
+        )
+
+    def _progress_bar_unicode_blocks(self,
+                                     progress_bar_inner_width: int,
+                                     progress_ratio: float) -> Tuple[str, str, str]:
+
+        last_block_filling, full_blocks = math.modf(progress_bar_inner_width * progress_ratio)
+        last_block_chr = FileProgressor.UNICODE_PROGRESS_NON_FULL_BLOCKS[
+            int(last_block_filling * FileProgressor.UNICODE_PROGRESS_NON_FULL_BLOCKS_COUNT)
+        ]
+
+        return (
+            "|",
+            "{}{}".format(
+                FileProgressor.UNICODE_PROGRESS_BLOCK_FULL * round(full_blocks),
+                last_block_chr
+            ),
+            "|"
+        )
+
 
 if __name__ == "__main__":
     init_colors()
 
-    def simulate_file_progression(name: str, tot: int, fps: float = 2):
-        prog = FileProgressor(name, tot,
-                              fps=fps,
-                              progress_mark="*",
-                              progress_color=Color.BLUE,
-                              done_color=Color.GREEN)
+    def simulate_file_progression(name: str, tot: int,
+                                  fps=2, sfps=2,
+                                  delta_b=4096, delta_t=0.001):
+
+        prog = FileProgressor(tot,
+                              description=name,
+                              ui_fps=fps,
+                              speed_fps=sfps,
+                              color_progress=Color.BLUE,
+                              # progress_bar_style=ProgressBarStyle.ASCII,
+                              color_done=Color.GREEN)
         part = 0
+
         while part < tot:
-            delta_b = random.randint(4096, 4096 * 12)
-            delta_t = random.randint(1, 5) * 0.001
-            time.sleep(delta_t)
+            bs = random.randint(delta_b, delta_b * 12)
+            t =  delta_t + random.random() * delta_t
+
+            part += bs
+            time.sleep(t)
+
             prog.update(part)
-            part += delta_b
+
         prog.done()
 
-    simulate_file_progression("test.bin", 5 * M, fps=20)
-    # simulate_file_progression("test.bin", 100 * M)
+
+    simulate_file_progression("test.bin", 100 * M, fps=20, sfps=2,
+                              delta_b=409, delta_t=0.001)
 
