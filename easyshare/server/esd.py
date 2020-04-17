@@ -155,7 +155,8 @@ class Server(IServer):
             "name": self.name,
             "ip": server_endpoint[0],
             "port": server_endpoint[1],
-            "sharings": [sh.info() for sh in self.sharings.values()]
+            "sharings": [sh.info() for sh in self.sharings.values()],
+            "auth": False
         }
 
         response = create_success_response(response_data)

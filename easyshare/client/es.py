@@ -19,6 +19,7 @@ from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
+from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.args import Args
 from easyshare.shared.conf import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VERSION, DEFAULT_DISCOVER_PORT, DIR_COLOR, \
     FILE_COLOR, PROGRESS_COLOR, DONE_COLOR
@@ -31,7 +32,7 @@ from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint, terminate, abort
 from easyshare.utils.colors import init_colors, Color, red, fg
 from easyshare.utils.obj import values
-from easyshare.utils.types import to_int, to_bool, str_to_bool
+from easyshare.utils.types import to_int, to_bool, str_to_bool, bool_to_str
 from easyshare.utils.os import ls, size_str, rm
 
 # ==================================================================
@@ -119,6 +120,7 @@ class Commands:
     GET = "get"
     PUT = "put"
 
+    INFO = "info"
 
 
 SHELL_COMMANDS = values(Commands)
@@ -126,7 +128,8 @@ SHELL_COMMANDS = values(Commands)
 CLI_COMMANDS = [
     Commands.SCAN,
     Commands.OPEN,
-    Commands.GET
+    Commands.GET,
+    Commands.INFO
 ]
 
 # === COMMANDS ARGUMENTS ===
@@ -168,6 +171,7 @@ class ErrorsStrings:
     NOT_CONNECTED = "Not connected"
     COMMAND_EXECUTION_FAILED = "Command execution failed"
     SHARING_NOT_FOUND = "Sharing not found"
+    SERVER_NOT_FOUND = "Server not found"
     INVALID_PATH = "Invalid path"
     INVALID_TRANSACTION = "Invalid transaction"
 
@@ -195,6 +199,7 @@ ERRORS_STRINGS_MAP = {
     ClientErrors.NOT_CONNECTED: ErrorsStrings.NOT_CONNECTED,
     ClientErrors.INVALID_PATH: ErrorsStrings.INVALID_PATH,
     ClientErrors.SHARING_NOT_FOUND: ErrorsStrings.SHARING_NOT_FOUND,
+    ClientErrors.SERVER_NOT_FOUND: ErrorsStrings.SERVER_NOT_FOUND,
     ClientErrors.IMPLEMENTATION_ERROR: ErrorsStrings.IMPLEMENTATION_ERROR,
     ClientErrors.CONNECTION_ERROR: ErrorsStrings.CONNECTION_ERROR,
 }
@@ -244,6 +249,8 @@ class Client:
             Commands.CLOSE: self.close,
 
             Commands.GET: self.get,
+
+            Commands.INFO: self.info,
         }
 
     def execute_command(self, command: str, args: Args) -> bool:
@@ -333,7 +340,7 @@ class Client:
         if ls_result is None:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-        self._print_file_infos(ls_result)
+        Client._print_file_infos(ls_result)
 
     def mkdir(self, args: Args):
         directory = args.get_param()
@@ -416,7 +423,7 @@ class Client:
         resp = self.connection.rls(sort_by, reverse=reverse)
 
         if is_success_response(resp):
-            self._print_file_infos(resp.get("data"))
+            Client._print_file_infos(resp.get("data"))
         else:
             self._handle_error_response(resp)
 
@@ -439,6 +446,7 @@ class Client:
             pass
         else:
             self._handle_error_response(resp)
+
 
     def open(self, args: Args):
         #                    |------sharing_location-----|
@@ -532,20 +540,7 @@ class Client:
                           server_info.get("ip"),
                           server_info.get("port")))
 
-            d_sharings = [sh.get("name") for sh in server_info.get("sharings")
-                          if sh.get("ftype") == FTYPE_DIR]
-            f_sharings = [sh.get("name") for sh in server_info.get("sharings")
-                          if sh.get("ftype") == FTYPE_FILE]
-
-            if d_sharings:
-                print("  DIRECTORIES")
-                for dsh in d_sharings:
-                    print("  - " + dsh)
-
-            if f_sharings:
-                print("  FILES")
-                for fsh in f_sharings:
-                    print("  - " + fsh)
+            Client._print_sharings(server_info.get("sharings"))
 
             servers_found += 1
 
@@ -554,6 +549,59 @@ class Client:
         Discoverer(self._server_discover_port, response_handler).discover(timeout)
 
         i("======================")
+
+    def info(self, args: Args):
+        # Can be done either
+        # 1. If connected to a server: we already have the server info
+        # 2. If not connected to a server: we have to fetch the server info
+
+        # Without parameter it means we are trying to see the info of the
+        # current connection
+        # With a paremeter it means we are trying to see the info of a server
+        # The param should be <hostname> | <ip[:port]>
+
+        def print_server_info(server_info: ServerInfo):
+            print(
+                "Name: {}\n"
+                "IP: {}\n"
+                "Port: {}\n"
+                "Auth: {}\n"
+                "Sharings\n{}"
+                .format(
+                    server_info.get("name"),
+                    server_info.get("ip"),
+                    server_info.get("port"),
+                    bool_to_str(server_info.get("auth"), "yes", "no"),
+                    Client._sharings_string(server_info.get("sharings"))
+                )
+            )
+
+        if self.is_connected():
+            # Connected, print current server info
+            d("Info while connected, printing current server info")
+            print_server_info(self.connection.server_info)
+        else:
+            # Not connected, we need a parameter that specifies the server
+            server_specifier = args.get_param()
+
+            if not server_specifier:
+                e("Server specifier not found")
+                print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+                return
+
+            i(">> INFO %s", server_specifier)
+
+            server_info: ServerInfo = self._discover_server(
+                location=server_specifier
+            )
+
+            if not server_info:
+                print_error(ClientErrors.SERVER_NOT_FOUND)
+                return False
+
+            # Server info retrieved successfully
+            print_server_info(server_info)
+
 
     def get_files(self, args: Args):
         if not self.is_connected():
@@ -792,14 +840,42 @@ class Client:
             d("GET => get_sharings")
             self.get_sharing(args)
 
+    def _discover_server(self, location: str) -> Optional[ServerInfo]:
+
+        if not location:
+            e("Server location must be specified")
+            return None
+
+        server_info: Optional[ServerInfo] = None
+
+        def response_handler(client_endpoint: Endpoint,
+                             a_server_info: ServerInfo) -> bool:
+            nonlocal server_info
+            d("Handling DISCOVER response from %s\n%s",
+              str(client_endpoint), str(a_server_info))
+
+            # Check if 'location' matches (if specified)
+            if location == a_server_info.get("name") or \
+                location == a_server_info.get("ip") or \
+                location == "{}:{}".format(a_server_info.get("ip"),
+                                           a_server_info.get("port")):
+                server_info = a_server_info
+                return False    # Stop DISCOVER
+
+            return True  # Continue DISCOVER
+
+        Discoverer(self._server_discover_port, response_handler).discover()
+        return server_info
+
+
     def _discover_sharing(self,
                           name: str = None,
                           location: str = None,
                           ftype: FileType = None,
                           timeout: int = Discoverer.DEFAULT_TIMEOUT) -> Optional[ServerInfo]:
         """
-        Performs a discovery for find whose server the given
-        'sharing_name' belongs to.
+        Performs a discovery for find whose server the sharing with the given
+        'name' belongs to.
 
         """
 
@@ -845,7 +921,31 @@ class Client:
         Discoverer(self._server_discover_port, response_handler).discover(timeout)
         return server_info
 
-    def _print_file_infos(self, infos: List[FileInfo]):
+    @staticmethod
+    def _print_sharings(sharings: List[SharingInfo]):
+        print(Client._sharings_string(sharings))
+
+    @staticmethod
+    def _sharings_string(sharings: List[SharingInfo]) -> str:
+        s = ""
+
+        d_sharings = [sh.get("name") for sh in sharings if sh.get("ftype") == FTYPE_DIR]
+        f_sharings = [sh.get("name") for sh in sharings if sh.get("ftype") == FTYPE_FILE]
+
+        if d_sharings:
+            s += "  DIRECTORIES"
+            for dsh in d_sharings:
+                s += "  - " + dsh
+
+        if f_sharings:
+            s += "  FILES"
+            for fsh in f_sharings:
+                s += "  - " + fsh
+
+        return s
+
+    @staticmethod
+    def _print_file_infos(infos: List[FileInfo]):
         size_infos_str = []
         longest_size_str = 0
 

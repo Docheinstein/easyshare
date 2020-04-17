@@ -21,3 +21,6 @@
 - server trace
 - remove debug and make verbose -> info
 - get empty directories too
+- bathed calls open,get
+- info
+- help (usage), man

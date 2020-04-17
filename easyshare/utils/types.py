@@ -70,6 +70,13 @@ def str_to_bool(s: str, ystrings=None, nstrings=None, default=None) -> Union[boo
     return default
 
 
+def bool_to_str(b: bool, true: str = "true", false: str = "false", default: str = None) -> Optional[str]:
+    if not is_bool(b):
+        return default
+
+    return true if b is True else false
+
+
 def str_to_bytes(s: str) -> bytes:
     return bytes(s, encoding="UTF-8")
 
