@@ -1,8 +1,14 @@
-from typing import Optional, Dict, Union
+from typing import Dict, Union
 
 from easyshare.protocol.filetype import FileType
 
-SharingInfo = Dict[str, Union[str, FileType, bool]]
-#   name: str
-#   ftype: str
-#   read_only: bool
+try:
+    # From python 3.8
+    from typing import TypedDict
+
+    class SharingInfo(TypedDict):
+        name: str
+        ftype: FileType
+        read_only: bool
+except:
+    SharingInfo = Dict[str, Union[str, FileType, bool]]

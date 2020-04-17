@@ -1,8 +1,5 @@
 - read only protection
     - how to handle with -s?
-- colors
-    - for ls too
-    - No color option
 - authentication
 - next suggestions based on what's currently written
     - commands
@@ -11,8 +8,6 @@
     - (remote file list => ls)
 - rename, mv, rm
 - rrename, rmv, rrm
-- close for quit current connection
-- GET file (if outside any connection)
 - benchmark GET, for decide buffer size, ...
 - verbosity/tracing refactor (unique logger? different loggers?)
 - timeout is global
@@ -24,5 +19,3 @@
 - different implementation of args/kwargs for allow 'scan' in any position?
 - -v=5 or -v 5
 - server trace
-- full size progress mark
-- typing based on python version

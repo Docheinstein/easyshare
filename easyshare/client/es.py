@@ -18,7 +18,8 @@ from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.shared.args import Args
-from easyshare.shared.conf import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VERSION, DEFAULT_DISCOVER_PORT
+from easyshare.shared.conf import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VERSION, DEFAULT_DISCOVER_PORT, DIR_COLOR, \
+    FILE_COLOR
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.log import i, d, w, init_logging, v, VERBOSITY_VERBOSE, get_verbosity, VERBOSITY_MAX, \
     VERBOSITY_NONE, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG, e
@@ -26,7 +27,7 @@ from easyshare.shared.progress import FileProgressor
 from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint, terminate, abort
-from easyshare.utils.colors import init_colors, Color, red
+from easyshare.utils.colors import init_colors, Color, red, fg
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int
 from easyshare.utils.os import ls, size_str
@@ -786,10 +787,20 @@ class Client:
         for idx, info in enumerate(infos):
             d("f_info: %s", info)
 
+            fname = info.get("name")
+
+            if info.get("ftype") == FTYPE_DIR:
+                ftype = "D"
+                fname = fg(fname, DIR_COLOR)
+            else:
+                ftype = "F"
+                fname = fg(fname, FILE_COLOR)
+
             print("{}  {}  {}".format(
-                ("D" if info.get("ftype") == FTYPE_DIR else "F"),
+                ftype,
                 size_infos_str[idx].rjust(longest_size_str),
-                info.get("name")))
+                fname
+            ))
 
     def _handle_error_response(self, resp: Response):
         if is_error_response(ServerErrors.NOT_CONNECTED):

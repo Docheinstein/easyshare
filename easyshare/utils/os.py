@@ -64,7 +64,7 @@ def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Opt
             ret.append({
                 "name": f,
                 "ftype": FTYPE_DIR if S_ISDIR(f_stat.st_mode) else FTYPE_FILE,
-                "size": f_stat.st_size
+                "size": f_stat.st_size,
             })
 
         # Sort the result for each field of sort_by

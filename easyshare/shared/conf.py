@@ -1,5 +1,7 @@
 import string
 
+from easyshare.utils.colors import Color
+
 APP_NAME = "easyshare"
 APP_NAME_SERVER = "easyshare deamon"
 APP_NAME_CLIENT = "easyshare client"
@@ -13,3 +15,6 @@ SERVER_NAME_ALPHABET = string.ascii_letters + "_-"
 SHARING_NAME_ALPHABET = string.ascii_letters + "_-"
 
 AUTH_FMT = "{}${}${}"   # type$salt$hash
+
+DIR_COLOR = Color.BLUE
+FILE_COLOR = Color.GREEN
