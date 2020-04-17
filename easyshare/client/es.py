@@ -3,7 +3,7 @@ import os
 import shlex
 import sys
 import readline
-from typing import Optional, Callable, List, Dict
+from typing import Optional, Callable, List, Dict, Union
 
 import Pyro4
 from Pyro4 import util
@@ -140,6 +140,11 @@ class OpenArguments:
 
 class ScanArguments:
     TIMEOUT = ["-T", "--timeout"]
+
+
+class GetArguments:
+    YES_TO_ALL = ["-Y", "--yes"]
+    NO_TO_ALL = ["-N", "--no"]
 
 
 # === MISC ===
@@ -539,7 +544,7 @@ class Client:
         files = args.get_params(default=[])
 
         i(">> GET [files] %s", files)
-        self._do_get(self.connection, GetMode.FILES, files)
+        self._do_get(self.connection, GetMode.FILES, files, args)
 
     def get_sharing(self, args: Args):
         if self.is_connected():
@@ -584,17 +589,21 @@ class Client:
         connection = Connection(server_info)
 
         i(">> GET [sharing] %s", sharing_name)
-        self._do_get(connection, GetMode.SHARING, sharing_name)
+        self._do_get(connection, GetMode.SHARING, sharing_name, args)
 
-    def _do_get(self, connection: Connection, mode: GetMode, *args):
+    def _do_get(self,
+                connection: Connection,
+                mode: GetMode,
+                targets: Union[str, List[str]],
+                args: Args):
         if mode != GetMode.SHARING and mode != GetMode.FILES:
             w("Unknown GET mode")
             return
 
         if mode == GetMode.SHARING:
-            resp = connection.get_sharing(*args)
+            resp = connection.get_sharing(targets)
         else:
-            resp = connection.get_files(*args)
+            resp = connection.get_files(targets)
 
         d("GET response\n%s", resp)
 
@@ -618,6 +627,13 @@ class Client:
         transfer_socket = SocketTcpOut(connection.server_info.get("ip"), port)
 
         overwrite_all: Optional[bool] = None
+
+        if GetArguments.YES_TO_ALL in args:
+            overwrite_all = True
+        if GetArguments.NO_TO_ALL in args:
+            overwrite_all = False
+
+        v("Overwrite all mode: %d", overwrite_all)
 
         while True:
             v("Fetching another file info")
