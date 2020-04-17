@@ -74,8 +74,8 @@ class GetTransactionHandler(threading.Thread):
 
             # Send file
             while True:
-                r = random.random() * 0.01
-                time.sleep(0.01 + r)
+                r = random.random() * 0.001
+                time.sleep(0.001 + r)
                 chunk = f.read(GetTransactionHandler.BUFFER_SIZE)
                 if not chunk:
                     d("Finished %s", next_serving)

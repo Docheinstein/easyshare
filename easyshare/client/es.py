@@ -19,7 +19,7 @@ from easyshare.protocol.response import Response, is_error_response, is_success_
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.shared.args import Args
 from easyshare.shared.conf import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VERSION, DEFAULT_DISCOVER_PORT, DIR_COLOR, \
-    FILE_COLOR
+    FILE_COLOR, PROGRESS_COLOR, DONE_COLOR
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.log import i, d, w, init_logging, v, VERBOSITY_VERBOSE, get_verbosity, VERBOSITY_MAX, \
     VERBOSITY_NONE, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG, e
@@ -29,7 +29,7 @@ from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint, terminate, abort
 from easyshare.utils.colors import init_colors, Color, red, fg
 from easyshare.utils.obj import values
-from easyshare.utils.types import to_int
+from easyshare.utils.types import to_int, to_bool, str_to_bool
 from easyshare.utils.os import ls, size_str
 
 # ==================================================================
@@ -617,6 +617,8 @@ class Client:
 
         transfer_socket = SocketTcpOut(connection.server_info.get("ip"), port)
 
+        overwrite_all: Optional[bool] = None
+
         while True:
             v("Fetching another file info")
             if mode == GetMode.SHARING:
@@ -636,29 +638,61 @@ class Client:
                 v("Nothing more to GET")
                 break
 
-            d("NEXT: %s", str(next_file))
             fname = next_file.get("name")
             fsize = next_file.get("size")
+            ftype = next_file.get("ftype")
 
-            # c_rpwd = self.connection.rpwd()
-            # # FIND A BETTER NAME
-            # # Strip only the trail part
-            # if self.connection.rpwd():
-            #     trail_file_name = fname.split(self.connection.rpwd())[1].lstrip(os.path.sep)
-            # else:
-            #     trail_file_name = fname
+            d("NEXT: %s of type %s", fname, ftype)
 
-            d("self.connection.c_rpwd: %s", connection.rpwd())
-            # d("Trail file name: %s", trail_file_name)
-            # break
+            # Case: DIR
+            if ftype == FTYPE_DIR:
+                v("Creating dirs %s", fname)
+                os.makedirs(fname, exist_ok=True)
+                continue
 
-            # Create the file
-            v("Creating intermediate dirs locally")
+            if ftype != FTYPE_FILE:
+                w("Cannot handle this ftype")
+                continue
+
+            # Case: FILE
             parent_dirs, _ = os.path.split(fname)
             if parent_dirs:
+                v("Creating parent dirs %s", parent_dirs)
                 os.makedirs(parent_dirs, exist_ok=True)
 
-            v("Opening file locally")
+            # Check wheter it already exists
+            if os.path.isfile(fname):
+                w("File already exists, asking whether overwrite it (if needed)")
+
+                # Ask whether overwrite just once or forever
+                current_overwrite_decision = overwrite_all
+
+                # Ask until we get a valid answer
+                while current_overwrite_decision is None:
+
+                    overwrite_answer = input(
+                        "{} already exists, overwrite it? [Y : yes / yy : yes to all / n : no / nn : no to all] "
+                            .format(fname)
+                    ).lower()
+
+                    if not overwrite_answer or overwrite_answer == "y":
+                        current_overwrite_decision = True
+                    elif overwrite_answer == "n":
+                        current_overwrite_decision = False
+                    elif overwrite_answer == "yy":
+                        current_overwrite_decision = overwrite_all = True
+                    elif overwrite_answer == "nn":
+                        current_overwrite_decision = overwrite_all = False
+                    else:
+                        w("Invalid answer, asking again")
+
+                if current_overwrite_decision is False:
+                    d("Skipping " + fname)
+                    continue
+                else:
+                    d("Will overwrite file")
+
+            v("Opening file '{}' locally".format(fname))
             file = open(fname, "wb")
 
             # Really get it
@@ -667,9 +701,12 @@ class Client:
 
             read = 0
 
-            progressor = FileProgressor("GET " + fname, fsize,
-                                        progress_color=Color.BLUE,
-                                        done_color=Color.GREEN)
+            progressor = FileProgressor(
+                fsize,
+                description="GET " + fname,
+                color_progress=PROGRESS_COLOR,
+                color_done=DONE_COLOR
+            )
 
             while read < fsize:
                 recv_size = min(BUFFER_SIZE, fsize - read)

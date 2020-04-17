@@ -12,7 +12,7 @@ from typing import Dict, Optional, List, Any, Callable, TypeVar
 
 import colorama
 
-from easyshare.protocol.filetype import FTYPE_FILE
+from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import create_success_response, create_error_response, Response
 from easyshare.server.sharing import Sharing
 from easyshare.server.transaction import GetTransactionHandler
@@ -320,7 +320,7 @@ class Server(IServer):
                 return create_error_response(ServerErrors.INVALID_PATH)
 
             ls_result = ls(client_path, sort_by=sort_by, reverse=reverse)
-            if not ls_result:
+            if ls_result is None:
                 return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
             d("RLS response %s", str(ls_result))
@@ -463,27 +463,6 @@ class Server(IServer):
                 w("Invalid file found: skipping %s", next_file_path)
                 continue
 
-            if os.path.isdir(next_file_path):
-                # Directory found
-                v("Found a directory: adding all inner files to remaining_files")
-                for f in os.listdir(next_file_path):
-                    f_path = os.path.join(next_file_path, f)
-                    d("Adding %s", f_path)
-                    # Push to the begin instead of the end
-                    # In this way we perform a breadth-first search
-                    # instead of a depth-first search, which makes more sense
-                    # because we will push the files that belongs to the same
-                    # directory at the same time
-                    remaining_files.insert(0, f_path)
-                continue
-
-            if not os.path.isfile(next_file_path):
-                w("Not file nor dir? skipping %s", next_file_path)
-                continue
-
-            # We are handling a valid file, report the metadata to the client
-            d("NEXT FILE: %s", next_file_path)
-
             if client:
                 trail = self._trailing_path_for_client_from_rpwd(client, next_file_path)
             else:
@@ -493,15 +472,50 @@ class Server(IServer):
 
             d("Trail: %s", trail)
 
-            # Push the file the transaction handler (make it available
-            # for the actual download)
-            transaction_handler.push_file(next_file_path)
+            # Case: FILE
+            if os.path.isfile(next_file_path):
 
-            return create_success_response({
-                "name": trail,
-                "ftype": FTYPE_FILE,
-                "size": os.path.getsize(next_file_path)
-            })
+                # We are handling a valid file, report the metadata to the client
+                d("NEXT FILE: %s", next_file_path)
+
+                # Push the file the transaction handler (make it available
+                # for the download)
+                transaction_handler.push_file(next_file_path)
+
+                return create_success_response({
+                    "name": trail,
+                    "ftype": FTYPE_FILE,
+                    "size": os.path.getsize(next_file_path)
+                })
+
+            # Case: DIR
+            elif os.path.isdir(next_file_path):
+                # Directory found
+                dir_files = os.listdir(next_file_path)
+
+                if dir_files:
+
+                    v("Found a filled directory: adding all inner files to remaining_files")
+                    for f in dir_files:
+                        f_path = os.path.join(next_file_path, f)
+                        d("Adding %s", f_path)
+                        # Push to the begin instead of the end
+                        # In this way we perform a breadth-first search
+                        # instead of a depth-first search, which makes more sense
+                        # because we will push the files that belongs to the same
+                        # directory at the same time
+                        remaining_files.insert(0, f_path)
+                else:
+                    v("Found an empty directory")
+                    d("Returning an info for the empty directory")
+
+                    return create_success_response({
+                        "name": trail,
+                        "ftype": FTYPE_DIR,
+                    })
+            # Case: UNKNOWN (non-existing/link/special files/...)
+            else:
+                w("Not file nor dir? skipping %s", next_file_path)
 
         v("No remaining files")
         transaction_handler.done()

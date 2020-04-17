@@ -18,3 +18,6 @@ AUTH_FMT = "{}${}${}"   # type$salt$hash
 
 DIR_COLOR = Color.BLUE
 FILE_COLOR = Color.GREEN
+
+PROGRESS_COLOR = Color.BLUE
+DONE_COLOR = Color.GREEN

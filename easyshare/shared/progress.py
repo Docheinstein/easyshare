@@ -5,7 +5,6 @@ from enum import Enum
 from typing import Tuple
 
 from easyshare.shared.log import w
-from easyshare.utils import os
 from easyshare.utils.colors import fg, Color, init_colors
 from easyshare.utils.os import M, size_str, terminal_size, K, is_unicode_supported
 from easyshare.utils.time import duration_str
