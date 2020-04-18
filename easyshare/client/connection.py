@@ -115,6 +115,12 @@ class Connection:
 
         return self.server.rls(sort_by, reverse=reverse)
 
+    def rtree(self, sort_by: List[str], reverse=False, depth: int = int) -> Response:
+        if not self.is_connected():
+            return create_error_response(ClientErrors.NOT_CONNECTED)
+
+        return self.server.rtree(sort_by, reverse=reverse, depth=depth)
+
     def rmkdir(self, directory) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)

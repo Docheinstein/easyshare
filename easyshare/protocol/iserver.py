@@ -26,7 +26,11 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def rls(self, sort_by: List[str], reverse=False) -> Response:
+    def rls(self, sort_by: List[str], reverse: bool = False) -> Response:
+        pass
+
+    @abstractmethod
+    def rtree(self, sort_by: List[str], reverse: bool = False, depth: int = None) -> Response:
         pass
 
     @abstractmethod

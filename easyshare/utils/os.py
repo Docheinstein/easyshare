@@ -1,18 +1,15 @@
 import errno
 import os
 import shutil
-import sys
 from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
-import anytree
-from anytree import RenderTree, AnyNode, AbstractStyle, ContStyle, ContRoundStyle
 
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
-from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR, FileType
+from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.shared.log import v, w, e
-from easyshare.tree.tree import preorder_traversal, TreeNodeDict
-from easyshare.utils.json import json_to_pretty_str, json_to_str
+from easyshare.tree.tree import TreeRenderPostOrder
+from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.types import is_str, is_list
 
 G = 1000000000
@@ -49,7 +46,10 @@ def size_str(size: float,
     return "0"
 
 
-def tree(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[FileInfoTreeNode]:
+def tree(path: str,
+         sort_by: Union[str, List[str]] = "name",
+         reverse=False,
+         max_depth: int = None) -> Optional[FileInfoTreeNode]:
     if is_str(sort_by):
         sort_by = [sort_by]
 
@@ -69,6 +69,7 @@ def tree(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> O
     }
 
     cursor = root
+    depth = 0
 
     try:
         while True:
@@ -76,9 +77,10 @@ def tree(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> O
             cur_path = cursor.get("path")
             cur_ftype = cursor.get("ftype")
 
-            if cur_ftype == FTYPE_DIR and "children_unseen_info" not in cursor:
+            if cur_ftype == FTYPE_DIR and "children_unseen_info" not in cursor\
+                    and (not max_depth or depth < max_depth):
                 # Compute children, just the first time
-                print("Computing children of {}".format(cur_path))
+                # print("Computing children of {}".format(cur_path))
 
                 cursor["children_unseen_info"] = _ls(cur_path, sort_by_fields, reverse)
 
@@ -91,23 +93,24 @@ def tree(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> O
 
                 # Go up to the parent, nothing to do here
                 if not is_root:
-                    print("Going ^ to {} ", cursor.get("parent").get("path"))
+                    # print("Going ^ to {} ", cursor.get("parent").get("path"))
                     cursor = cursor.get("parent")
+                    depth -= 1
 
-                print("Cleaning up node")
+                # print("Cleaning up node")
                 ex_cursor.pop("parent", None)
                 ex_cursor.pop("children_unseen_info", None)
                 ex_cursor.pop("path", None)
 
                 if is_root:
-                    print("done")
+                    # print("done")
                     break
 
                 continue
 
             # There is a children unseen, take out
             unseen_child_info = cursor.get("children_unseen_info").pop(0)
-            print("Took out unseen child", unseen_child_info.get("name"))
+            # print("Took out unseen child", unseen_child_info.get("name"))
 
             # Add it to the children
             cursor.setdefault("children", [])
@@ -118,10 +121,13 @@ def tree(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> O
                 path=os.path.join(cur_path, unseen_child_info.get("name"))
             )
 
-            print("Adding child to children", child)
+            # print("Adding child to children", child)
 
             cursor.get("children").append(child)
+
+            # Go down
             cursor = child
+            depth += 1
 
     except Exception as ex:
         e("LS execution exception %s", ex)
@@ -211,44 +217,9 @@ def rm(path: str, error_callback: Callable[[Exception], None] = None) -> bool:
         return False
 
 
-def terminal_size(fallback=(80, 24)) -> Tuple[int, int]:
-    try:
-        columns, rows = shutil.get_terminal_size(fallback=fallback)
-    except:
-        w("Failed to retrieved terminal size, using fallback")
-        return fallback
-    return columns, rows
-
-
-def is_unicode_supported(stream=sys.stdout) -> bool:
-    encoding = stream.encoding
-
-    try:
-        '\u2588'.encode(stream.encoding)
-        return True
-    except UnicodeEncodeError:
-        return False
-    except Exception:
-        try:
-            return encoding.lower().startswith("utf-") or encoding == "U8"
-        except:
-            return False
-
-
 if __name__ == "__main__":
     root = tree("/home/stefano/Temp/test_cartaceo")
     print(json_to_pretty_str(root))
 
-    def tree_visitor(prefix: str, node, last_of_depth: List[int]):
-        print("{}{}{}".format(prefix, node.get("name"), str(last_of_depth).rjust(20)))
-
-    preorder_traversal(root, tree_visitor)
-
-    # for pre, fill, node in RenderTree(
-    #         tree("/home/stefano/Temp/treetest",
-    #             reverse=False,
-    #             sort_by=["name", "ftype"]
-    #         ),
-    #         style=ContRoundStyle):
-        # print(node)
-        # print("%s%s" % (pre, node.finfo.get("name")))
+    for prefix, node, _ in TreeRenderPostOrder(root):
+        print("{}{}".format(prefix, node.get("name")))

@@ -32,7 +32,7 @@ from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import init_colors
 from easyshare.utils.json import json_to_str, json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
-from easyshare.utils.os import ls, relpath, is_relpath, rm
+from easyshare.utils.os import ls, relpath, is_relpath, rm, tree
 from easyshare.utils.str import randstring, satisfy, unprefix
 from easyshare.utils.trace import args_to_str
 from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list
@@ -303,7 +303,7 @@ class Server(IServer):
 
     @Pyro4.expose
     @trace_api
-    def rls(self, sort_by: List[str], reverse=False) -> Response:
+    def rls(self, sort_by: List[str], reverse: bool = False) -> Response:
         client = self._current_request_client()
         if not client:
             w("Client not connected: %s", self._current_request_endpoint())
@@ -330,6 +330,38 @@ class Server(IServer):
         except Exception as ex:
             e("RLS error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+
+
+    @Pyro4.expose
+    @trace_api
+    def rtree(self, sort_by: List[str], reverse: bool = False, depth: int = None) -> Response:
+        client = self._current_request_client()
+        if not client:
+            w("Client not connected: %s", self._current_request_endpoint())
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+
+        i("<< RTREE %s%s (%s)", sort_by, " | reverse " if reverse else "", str(client))
+
+        try:
+            client_path = self._current_client_path(client)
+
+            d("Going to rtree on %s", client_path)
+
+            # Check path legality (it should be valid, if he rcd into it...)
+            if not self._is_path_allowed_for_client(client, client_path):
+                return create_error_response(ServerErrors.INVALID_PATH)
+
+            tree_root = tree(client_path, sort_by=sort_by, reverse=reverse, max_depth=depth)
+            if tree_root is None:
+                return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+
+            d("RTREE response %s", json_to_pretty_str(tree_root))
+
+            return create_success_response(tree_root)
+        except Exception as ex:
+            e("RTREE error: %s", str(ex))
+            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+
 
     @Pyro4.expose
     @trace_api

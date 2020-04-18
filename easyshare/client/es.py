@@ -32,8 +32,10 @@ from easyshare.shared.log import i, d, w, init_logging, v, VERBOSITY_VERBOSE, ge
 from easyshare.shared.progress import FileProgressor
 from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
+from easyshare.tree.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.utils.app import eprint, terminate, abort
 from easyshare.utils.colors import init_colors, Color, red, fg
+from easyshare.utils.env import terminal_size
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int, to_bool, str_to_bool, bool_to_str
@@ -143,15 +145,18 @@ CLI_COMMANDS = [
 
 
 class LsArguments:
-    SORT_BY_SIZE = ["-S", "-s", "--sort"]
+    SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
+    SIZE = ["-S"]
 
 
 class TreeArguments:
-    SORT_BY_SIZE = ["-S", "-s", "--sort"]
+    SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
+    MAX_DEPTH = ["-d", "--depth"]
+    SIZE = ["-S"]
 
 
 class OpenArguments:
@@ -255,6 +260,7 @@ class Client:
 
             Commands.REMOTE_CHANGE_DIRECTORY: self.rcd,
             Commands.REMOTE_LIST_DIRECTORY: self.rls,
+            Commands.REMOTE_TREE_DIRECTORY: self.rtree,
             Commands.REMOTE_CREATE_DIRECTORY: self.rmkdir,
             Commands.REMOTE_CURRENT_DIRECTORY: self.rpwd,
 
@@ -356,7 +362,7 @@ class Client:
         if ls_result is None:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-        Client._print_list_files_info(ls_result)
+        Client._print_list_files_info(ls_result, show_size=LsArguments.SIZE in args)
 
     def tree(self, args: Args):
         sort_by = ["name"]
@@ -367,14 +373,19 @@ class Client:
         if TreeArguments.GROUP in args:
             sort_by.append("ftype")
 
+        # FIXME: max_depth = 0
+        max_depth = to_int(args.get_param(TreeArguments.MAX_DEPTH))
+
         i(">> TREE (sort by %s%s)", sort_by, " | reverse" if reverse else "")
 
-        tree_root = tree(os.getcwd(), sort_by=sort_by, reverse=reverse)
+        tree_root = tree(os.getcwd(), sort_by=sort_by, reverse=reverse, max_depth=max_depth)
 
         if tree_root is None:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-        Client._print_tree_files_info(tree_root)
+        Client._print_tree_files_info(tree_root,
+                                      max_depth=max_depth,
+                                      show_size=TreeArguments.SIZE in args)
 
     def mkdir(self, args: Args):
         directory = args.get_param()
@@ -440,6 +451,7 @@ class Client:
         else:
             self._handle_error_response(resp)
 
+
     def rls(self, args: Args):
         if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
@@ -457,10 +469,40 @@ class Client:
 
         resp = self.connection.rls(sort_by, reverse=reverse)
 
-        if is_success_response(resp):
-            Client._print_list_files_info(resp.get("data"))
-        else:
+        if not is_data_response(resp):
             self._handle_error_response(resp)
+            return
+
+        Client._print_list_files_info(resp.get("data"),
+                                      show_size=LsArguments.SIZE in args)
+
+    def rtree(self, args: Args):
+        if not self.is_connected():
+            print_error(ClientErrors.NOT_CONNECTED)
+            return
+
+        sort_by = ["name"]
+        reverse = TreeArguments.REVERSE in args
+
+        if TreeArguments.SORT_BY_SIZE in args:
+            sort_by.append("size")
+        if TreeArguments.GROUP in args:
+            sort_by.append("ftype")
+
+        # FIXME: max_depth = 0
+        max_depth = to_int(args.get_param(TreeArguments.MAX_DEPTH))
+
+        i(">> RTREE (sort by %s%s)", sort_by, " | reverse" if reverse else "")
+
+        resp = self.connection.rtree(sort_by, reverse=reverse, depth=max_depth)
+
+        if not is_data_response(resp):
+            self._handle_error_response(resp)
+            return
+
+        Client._print_tree_files_info(resp.get("data"),
+                                      max_depth=max_depth,
+                                      show_size=TreeArguments.SIZE in args)
 
     def rmkdir(self, args: Args):
         if not self.is_connected():
@@ -1017,45 +1059,38 @@ class Client:
         return s.rstrip("\n")
 
     @staticmethod
-    def _print_tree_files_info(root: AnyNode):
-        for prefix, filling, node in RenderTree(root):
-            ftype = node.finfo.get("ftype")
-            size = node.finfo.get("size")
-            print("{} [{}]  {}".format(
+    def _print_tree_files_info(root: TreeNodeDict,
+                               max_depth: int = None,
+                               show_size: bool = False):
+        for prefix, node, depth in TreeRenderPostOrder(root, depth=max_depth):
+            ftype = node.get("ftype")
+            size = node.get("size")
+
+            print("{}{}{}".format(
                 prefix,
-                size_str(size).ljust(4),
-                fg(node.finfo.get("name"), DIR_COLOR if ftype == FTYPE_DIR else FILE_COLOR),
+                "[{}]  ".format(size_str(size).rjust(4)) if show_size else "",
+                fg(node.get("name"), color=DIR_COLOR if ftype == FTYPE_DIR else FILE_COLOR),
             ))
 
+
     @staticmethod
-    def _print_list_files_info(infos: List[FileInfo]):
-        size_infos_str = []
-        longest_size_str = 0
-
-        for idx, info in enumerate(infos):
-            size_info_str = size_str(info.get("size"))
-            size_infos_str.append(size_info_str)
-            longest_size_str = max(longest_size_str, len(size_info_str))
-
-        d("longest_size_str %d", longest_size_str)
-
-        for idx, info in enumerate(infos):
+    def _print_list_files_info(infos: List[FileInfo], show_size: bool = False):
+        for info in infos:
             d("f_info: %s", info)
 
             fname = info.get("name")
+            size = info.get("size")
 
             if info.get("ftype") == FTYPE_DIR:
-                ftype = "D"
+                ftype_short = "D"
                 fname = fg(fname, DIR_COLOR)
-                fsize = ""
             else:
-                ftype = "F"
+                ftype_short = "F"
                 fname = fg(fname, FILE_COLOR)
-                fsize = size_infos_str[idx]
 
-            print("{}  {}  {}".format(
-                ftype,
-                fsize.rjust(longest_size_str),
+            print("{}  {}{}".format(
+                ftype_short,
+                "{}  ".format(size_str(size).rjust(4)) if show_size else "",
                 fname
             ))
 

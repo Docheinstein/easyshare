@@ -42,12 +42,12 @@ def styled(s: str, fg: Color = None, bg: Color = None, attrs: Union[Style, List[
                              attrs=[a.value for a in list(attrs)] if attrs else None) if colorful else s
 
 
-def fg(s: str, fg: Color, attrs: Union[Style, List[Style]] = None) -> str:
-    return styled(s, fg=fg, attrs=attrs)
+def fg(s: str, color: Color, attrs: Union[Style, List[Style]] = None) -> str:
+    return styled(s, fg=color, attrs=attrs)
 
 
-def bg(s: str, bg: Color, attrs: Union[Style, List[Style]] = None) -> str:
-    return styled(s, bg=bg, attrs=attrs)
+def bg(s: str, color: Color, attrs: Union[Style, List[Style]] = None) -> str:
+    return styled(s, bg=color, attrs=attrs)
 
 
 def red(s: str) -> str:

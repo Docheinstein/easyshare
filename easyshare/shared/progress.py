@@ -1,12 +1,14 @@
 import math
 import time
 import random
+from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Tuple
 
 from easyshare.shared.log import w
 from easyshare.utils.colors import fg, Color, init_colors
-from easyshare.utils.os import M, size_str, terminal_size, K, is_unicode_supported
+from easyshare.utils.env import is_unicode_supported, terminal_size
+from easyshare.utils.os import M, size_str
 from easyshare.utils.time import duration_str
 
 
@@ -16,9 +18,30 @@ class ProgressBarStyle(Enum):
     UNICODE = object()
 
 
-class FileProgressor:
+class ProgressBarRenderer(ABC):
+    @abstractmethod
+    def render(self, inner_width: int, progress_ratio: float) -> Tuple[str, str, str]:
+        pass
 
-    UNICODE_PROGRESS_NON_FULL_BLOCKS = [
+
+class ProgressBarRendererAscii(ProgressBarRenderer):
+
+    def __init__(self, mark: str = "="):
+        self.mark = mark
+
+    def render(self, inner_width: int, progress_ratio: float) -> Tuple[str, str, str]:
+        return (
+            "[",
+            "{}".format(
+                self.mark * int(progress_ratio * inner_width)
+            ),
+            "]"
+        )
+
+
+class ProgressBarRendererUnicode(ProgressBarRenderer):
+
+    NON_FULL_BLOCKS = [
         "",
         "\u258f",
         "\u258e",
@@ -28,8 +51,43 @@ class FileProgressor:
         "\u258a",
         "\u2589"
     ]
-    UNICODE_PROGRESS_NON_FULL_BLOCKS_COUNT = len(UNICODE_PROGRESS_NON_FULL_BLOCKS)
-    UNICODE_PROGRESS_BLOCK_FULL = '\u2588'
+    NON_FULL_BLOCKS_COUNT = len(NON_FULL_BLOCKS)
+    BLOCK_FULL = "\u2588"
+    VBAR = "\u2502"
+
+    def render(self, inner_width: int, progress_ratio: float) -> Tuple[str, str, str]:
+        last_block_filling, full_blocks = math.modf(inner_width * progress_ratio)
+        last_block_chr = ProgressBarRendererUnicode.NON_FULL_BLOCKS[
+            int(last_block_filling * ProgressBarRendererUnicode.NON_FULL_BLOCKS_COUNT)
+        ]
+
+        return (
+            ProgressBarRendererUnicode.VBAR,
+            "{}{}".format(
+                ProgressBarRendererUnicode.BLOCK_FULL * round(full_blocks),
+                last_block_chr
+            ),
+            ProgressBarRendererUnicode.VBAR
+        )
+
+
+class ProgressBarRendererFactory:
+    @staticmethod
+    def ascii(mark: str = "=") -> ProgressBarRenderer:
+        return ProgressBarRendererAscii(mark)
+
+    @staticmethod
+    def unicode() -> ProgressBarRenderer:
+        return ProgressBarRendererUnicode()
+
+    @staticmethod
+    def auto() -> ProgressBarRenderer:
+        if is_unicode_supported():
+            return ProgressBarRendererFactory.unicode()
+        return ProgressBarRendererFactory.ascii()
+
+
+class FileProgressor:
 
     SIZE_PREFIXES = ("B", "KB", "MB", "GB")
     SPEED_PREFIXES = ("B/s", "KB/s", "MB/s", "GB/s")
@@ -97,8 +155,7 @@ class FileProgressor:
                  partial: int = 0,
                  ui_fps: float = 20,
                  speed_fps: float = 4,
-                 progress_bar_style: ProgressBarStyle = ProgressBarStyle.AUTO,
-                 progress_bar_ascii_mark: str = "=",
+                 progress_bar_renderer: ProgressBarRenderer = ProgressBarRendererFactory.auto(),
                  color_progress: Color = None,
                  color_done: Color = None):
 
@@ -107,7 +164,7 @@ class FileProgressor:
         self.total = total
         self.ui_fps = ui_fps
         self.speed_fps = speed_fps
-        self.progress_bar_ascii_mark = progress_bar_ascii_mark
+        self.progress_bar_renderer = progress_bar_renderer
         self.color_progress = color_progress
         self.color_done = color_done
 
@@ -122,13 +179,6 @@ class FileProgressor:
         self.speed_period_partial = 0
 
         self.speed_last_period_avg = 0
-
-        if progress_bar_style == ProgressBarStyle.UNICODE:
-            self.unicode = True
-        elif progress_bar_style == ProgressBarStyle.ASCII:
-            self.unicode = False
-        else:
-            self.unicode = is_unicode_supported()
 
     def increase(self, amount: int):
         self.update(self.partial + amount)
@@ -257,10 +307,9 @@ class FileProgressor:
         # 2. Progress blocks, which are UNICODE for create a fancy
         #    fulfilled bar
 
-        if self.unicode:
-            prefix, inner, postfix = self._progress_bar_unicode_blocks(progress_bar_inner_width, progress_ratio)
-        else:
-            prefix, inner, postfix = self._progress_bar_ascii_marks(progress_bar_inner_width, progress_ratio)
+        prefix, inner, postfix = self.progress_bar_renderer.render(
+            progress_bar_inner_width, progress_ratio
+        )
 
         inner = inner.ljust(progress_bar_inner_width)
 
@@ -271,36 +320,6 @@ class FileProgressor:
             inner = fg(inner, self.color_done)
 
         return prefix + inner + postfix
-
-    def _progress_bar_ascii_marks(self,
-                                  progress_bar_inner_width: int,
-                                  progress_ratio: float) -> Tuple[str, str, str]:
-
-        return (
-            "[",
-            "{}".format(
-                self.progress_bar_ascii_mark * int(progress_ratio * progress_bar_inner_width)
-            ),
-            "]"
-        )
-
-    def _progress_bar_unicode_blocks(self,
-                                     progress_bar_inner_width: int,
-                                     progress_ratio: float) -> Tuple[str, str, str]:
-
-        last_block_filling, full_blocks = math.modf(progress_bar_inner_width * progress_ratio)
-        last_block_chr = FileProgressor.UNICODE_PROGRESS_NON_FULL_BLOCKS[
-            int(last_block_filling * FileProgressor.UNICODE_PROGRESS_NON_FULL_BLOCKS_COUNT)
-        ]
-
-        return (
-            "|",
-            "{}{}".format(
-                FileProgressor.UNICODE_PROGRESS_BLOCK_FULL * round(full_blocks),
-                last_block_chr
-            ),
-            "|"
-        )
 
 
 if __name__ == "__main__":
