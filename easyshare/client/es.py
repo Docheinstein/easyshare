@@ -671,35 +671,44 @@ class Client:
         d("Creating new temporary connection with %s", server_info.get("uri"))
         connection = Connection(server_info)
 
+        # Open connection
+
+        v("Opening temporary connection")
+        open_response = connection.open(sharing_name)
+
+        if not is_success_response(open_response):
+            w("Cannot open connection; aborting")
+            print_response_error(open_response)
+            return
+
         i(">> GET [sharing] %s", sharing_name)
-        self._do_get(connection, GetMode.SHARING, sharing_name, args)
+        self._do_get(connection, ["."], args)
+
+        # Close connection
+        d("Closing temporary connection")
+        connection.close()
 
     def _do_get(self,
                 connection: Connection,
-                mode: GetMode,
-                targets: Union[str, List[str]],
+                files: List[str],
                 args: Args):
-        if mode != GetMode.SHARING and mode != GetMode.FILES:
-            w("Unknown GET mode")
+        # Open the connection if needed
+        if not connection.is_connected():
+            e("Connection must be opened for do GET")
             return
 
-        if mode == GetMode.SHARING:
-            resp = connection.get_sharing(targets)
-        else:
-            resp = connection.get_files(targets)
+        get_response = connection.get(files)
 
-        d("GET response\n%s", resp)
-
-        if is_error_response(resp):
-            self._handle_error_response(resp)
-            return
-
-        if not is_data_response(resp):
+        if not is_data_response(get_response):
             print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
             return
 
-        transaction_id = resp["data"].get("transaction")
-        port = resp["data"].get("port")
+        if is_error_response(get_response):
+            Client._handle_connection_error_response(connection, get_response)
+            return
+
+        transaction_id = get_response["data"].get("transaction")
+        port = get_response["data"].get("port")
 
         if not transaction_id or not port:
             print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
@@ -716,19 +725,16 @@ class Client:
         if GetArguments.NO_TO_ALL in args:
             overwrite_all = False
 
-        v("Overwrite all mode: %d", overwrite_all)
+        v("Overwrite all mode: %s", bool_to_str(overwrite_all))
 
         while True:
             v("Fetching another file info")
-            if mode == GetMode.SHARING:
-                get_next_resp = connection.get_sharing_next_info(transaction_id)
-            else:
-                get_next_resp = connection.get_files_next_info(transaction_id)
+            get_next_resp = connection.get_next_info(transaction_id)
 
             d("get_next_info()\n%s", get_next_resp)
 
-            if not is_data_response(resp):
-                print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+            if not is_success_response(get_next_resp):
+                print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
                 return
 
             next_file: FileInfo = get_next_resp.get("data")
@@ -853,7 +859,7 @@ class Client:
             d("GET => get_files")
             self.get_files(args)
         else:
-            d("GET => get_sharings")
+            d("GET => get_sharing")
             self.get_sharing(args)
 
     def _discover_server(self, location: str) -> Optional[ServerInfo]:
@@ -991,9 +997,13 @@ class Client:
             ))
 
     def _handle_error_response(self, resp: Response):
+        Client._handle_connection_error_response(self.connection, resp)
+
+    @staticmethod
+    def _handle_connection_error_response(connection: Connection, resp: Response):
         if is_error_response(ServerErrors.NOT_CONNECTED):
             v("Received a NOT_CONNECTED response: destroying connection")
-            self.close()
+            connection.close()
         print_response_error(resp)
 
 

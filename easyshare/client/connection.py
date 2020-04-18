@@ -8,10 +8,27 @@ from easyshare.client.server import ServerProxy
 from easyshare.protocol.response import Response, create_error_response, is_success_response
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.serverinfo import ServerInfo
-from easyshare.shared.log import d
+from easyshare.shared.log import d, v
+from easyshare.utils.json import json_to_pretty_str
 
+
+# def batchable(func):
+#     def batchable_func(connection: 'Connection', *vargs, **kwargs) -> Response:
+#         if connection._batch is None:
+#             # Non batch
+#             return func
+#
+#         v("Called method while in batch mode")
+#         # Get the pyro wrapper for the method and call it
+#         getattr(connection._batch, func.__name, *vargs, **kwargs)()
+#
+#     return batchable_func
+#
 
 class Connection:
+
+    RESPONSE_HANDLER_FUNC_NAME_PATTERN = "_handle_{}_response"
+
     def __init__(self, server_info: ServerInfo):
         d("Initializing new Connection")
         self.server_info: ServerInfo = server_info
@@ -20,8 +37,40 @@ class Connection:
         self._sharing_name = None
         self._rpwd = ""
 
-    def create_batch(self) -> Optional[Union[IServer, _BatchProxyAdapter]]:
-        return Pyro4.batch(self.server)
+        self._batch: Optional[_BatchProxyAdapter] = None
+    #
+    # def start_batch(self):
+    #     self._batch = Pyro4.batch(self.server)
+    #
+    # def exec_batch(self) -> Optional[List[Response]]:
+    #     if not self._batch:
+    #         return None
+    #
+    #     # Retrieve the calls params
+    #     calls = list(self._batch._BatchProxyAdapter__calls)
+    #     d("Batch calls: %s", calls)
+    #
+    #     # Execute the calls
+    #     responses_generator = self._batch()
+    #     responses = []
+    #
+    #     for idx, resp in enumerate(responses_generator):
+    #         funcname, funcargs, funckwargs = calls[idx]
+    #
+    #         d("Got batch response for request '%s': \n%s",
+    #           funcname,
+    #           json_to_pretty_str(resp)
+    #         )
+    #
+    #         # Eventually handle the response
+    #         handler_func_name = Connection.RESPONSE_HANDLER_FUNC_NAME_PATTERN.format(funcname)
+    #         if hasattr(self, handler_func_name):
+    #             d("Found a response handler, passing response to it")
+    #             getattr(self, handler_func_name)(funcargs, funckwargs)
+    #
+    #         responses.append(resp)
+    #
+    #     return responses
 
     def is_connected(self) -> bool:
         return self._connected
@@ -33,7 +82,6 @@ class Connection:
         return self._rpwd
 
     def open(self, sharing_name: str) -> Response:
-        # resp = self._perform_request("open", sharing_name)
         resp = self.server.open(sharing_name)
 
         if is_success_response(resp):
@@ -79,22 +127,14 @@ class Connection:
 
         return self.server.ping()
 
-    def get_sharing(self, sharing_name: str) -> Response:
-        # Allowed without a connection
-        return self.server.get_sharing(sharing_name)
-
-    def get_sharing_next_info(self, transaction_id: str) -> Response:
-        # Allowed without a connection
-        return self.server.get_sharing_next_info(transaction_id)
-
-    def get_files(self, files: List[str]) -> Response:
+    def get(self, files: List[str]) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        return self.server.get_files(files)
+        return self.server.get(files)
 
-    def get_files_next_info(self, transaction_id: str) -> Response:
+    def get_next_info(self, transaction_id: str) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        return self.server.get_files_next_info(transaction_id)
+        return self.server.get_next_info(transaction_id)

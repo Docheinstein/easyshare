@@ -33,21 +33,32 @@ class IServer(ABC):
     def rmkdir(self, directory: str) -> Response:
         pass
 
+
     @abstractmethod
-    def get_sharing(self, sharing_name: str) -> Response:
+    def get(self, files: List[str]) -> Response:
         pass
 
     @abstractmethod
-    def get_files(self, files: List[str]) -> Response:
+    def get_next_info(self, transaction) -> Response:
         pass
 
-    @abstractmethod
-    def get_sharing_next_info(self, transaction) -> Response:
-        pass
 
-    @abstractmethod
-    def get_files_next_info(self, transaction) -> Response:
-        pass
+    #
+    # @abstractmethod
+    # def get_sharing(self, sharing_name: str) -> Response:
+    #     pass
+    #
+    # @abstractmethod
+    # def get_files(self, files: List[str]) -> Response:
+    #     pass
+    #
+    # @abstractmethod
+    # def get_sharing_next_info(self, transaction) -> Response:
+    #     pass
+    #
+    # @abstractmethod
+    # def get_files_next_info(self, transaction) -> Response:
+    #     pass
 
     @abstractmethod
     def ping(self) -> Response:

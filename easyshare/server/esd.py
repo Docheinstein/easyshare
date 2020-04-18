@@ -355,39 +355,13 @@ class Server(IServer):
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
+    @trace_api
     def ping(self):
         return create_success_response("pong")
 
     @Pyro4.expose
     @trace_api
-    def get_sharing(self, sharing_name: str) -> Response:
-        client_endpoint = self._current_request_endpoint()
-
-        if not sharing_name:
-            w("Sharing name not specified")
-            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        i("<< GET [sharing] %s %s", sharing_name, str(client_endpoint))
-
-        sharing = self.sharings.get(sharing_name)
-
-        if not sharing:
-            w("Sharing '%s' not found", sharing_name)
-            return create_error_response(ServerErrors.SHARING_NOT_FOUND)
-
-        d("Making %s available for GET", sharing.path)
-        transaction_handler = self._add_get_transaction(
-            [sharing.path],
-            sharing_name=sharing_name)
-
-        return create_success_response({
-            "transaction": transaction_handler.transaction_id(),
-            "port": transaction_handler.port()
-        })
-
-    @Pyro4.expose
-    @trace_api
-    def get_files(self, files: List[str]) -> Response:
+    def get(self, files: List[str]) -> Response:
         client = self._current_request_client()
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
@@ -416,31 +390,13 @@ class Server(IServer):
 
     @Pyro4.expose
     @trace_api
-    def get_sharing_next_info(self, transaction_id) -> Response:
-        client_endpoint = self._current_request_endpoint()
-
-        i("<< GET_SHARING_NEXT_INFO %s %s", transaction_id, str(client_endpoint))
-
-        return self._get_next_info(transaction_id)
-
-    @Pyro4.expose
-    @trace_api
-    def get_files_next_info(self, transaction_id) -> Response:
+    def get_next_info(self, transaction_id) -> Response:
         client = self._current_request_client()
 
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< GET_FILES_NEXT_INFO %s %s", transaction_id, str(client))
-
-        return self._get_next_info(transaction_id,
-                                   client=client)
-
-    def _get_next_info(self,
-                       transaction_id: str,
-                       client: Optional[ClientContext] = None) -> Response:
-
-        d("_get_next_if %s", transaction_id)
+        i("<< GET_NEXT_INFO %s %s", transaction_id, str(client))
 
         if transaction_id not in self.gets:
             return create_error_response(ServerErrors.INVALID_TRANSACTION)
