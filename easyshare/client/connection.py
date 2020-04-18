@@ -121,6 +121,12 @@ class Connection:
 
         return self.server.rmkdir(directory)
 
+    def rrm(self, paths: List[str]) -> Response:
+        if not self.is_connected():
+            return create_error_response(ClientErrors.NOT_CONNECTED)
+
+        return self.server.rrm(paths)
+
     def ping(self) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)

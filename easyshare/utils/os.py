@@ -5,9 +5,13 @@ import sys
 from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
+import anytree
+from anytree import RenderTree, AnyNode, AbstractStyle, ContStyle, ContRoundStyle
+
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.shared.log import v, w, e
+from easyshare.utils.json import json_to_pretty_str, json_to_str
 from easyshare.utils.types import is_str, is_list
 
 G = 1000000000
@@ -44,7 +48,7 @@ def size_str(size: float,
     return "0"
 
 
-def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[List[FileInfo]]:
+def tree(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[AnyNode]:
     ret: List[FileInfo] = []
 
     if is_str(sort_by):
@@ -53,32 +57,118 @@ def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Opt
     if not is_list(sort_by):
         return None
 
-    sort_by_fields = filter(lambda sort_field: sort_field in ["name", "size", "ftype"], sort_by)
+    sort_by_fields = list(filter(lambda sort_field: sort_field in ["name", "size", "ftype"], sort_by))
+    print("TREE sorting by {}{}".format(sort_by, " (reverse)" if reverse else ""))
+
+    f_stat = os.lstat(path)
+
+    tree_root = AnyNode(
+        fpath=path,
+        finfo={
+            "name": ".",
+            "ftype": FTYPE_DIR if S_ISDIR(f_stat.st_mode) else FTYPE_FILE,
+            "size": f_stat.st_size
+        },
+        nexts=_ls(path, sort_by_fields, reverse)
+    )
+
+    cur_ref = tree_root
+
+    try:
+        while True:
+
+            cur_path = cur_ref.fpath
+            # print("cur_path |", cur_path)
+
+            # Check whether the current node has valid nexts
+            # (It has nexsts only if it is a dir and has something inside it)
+            if not getattr(cur_ref, "nexts", None):
+                # No next, go upward or quit if we are on the root
+                if cur_ref.parent:
+                    cur_ref = cur_ref.parent
+                    # print("went upwardto ", cur_ref.finfo.get("name"))
+                    continue
+                else:
+                    # print("done")
+                    break
+
+            # Treating a directory with something inside
+
+            # Get the next finfo (from the beginning)
+            next_finfo = cur_ref.nexts.pop(0)
+            next_fname = next_finfo.get("name")
+            next_ftype = next_finfo.get("ftype")
+            next_path = os.path.join(cur_path, next_fname)
+
+            # print("Taken out finfo '{}'".format(json_to_str(next_finfo)))
+
+            # Add the node
+            ex_cur_ref = cur_ref
+
+            cur_ref = AnyNode(
+                parent=ex_cur_ref,
+                fpath=next_path,
+                finfo=next_finfo
+            )
+
+            # print("Linked {} -> {}".format(ex_cur_ref.fpath, cur_ref.fpath))
+
+            if next_ftype != FTYPE_DIR:
+                # Nothing else to do here
+                continue
+
+            # We have to compute the nexts for this dir and sort using
+            # the given parameters
+
+            cur_ref.nexts = _ls(next_path, sort_by_fields, reverse)
+
+            # print("Computed next of {} = {}".format(cur_ref.fpath, cur_ref.nexts))
+
+
+    except Exception as ex:
+        # print("TREE execution exception %s" % ex)
+        return None
+
+    return tree_root
+
+
+def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[List[FileInfo]]:
+    if is_str(sort_by):
+        sort_by = [sort_by]
+
+    if not is_list(sort_by):
+        return None
+
+    sort_by_fields = list(filter(lambda sort_field: sort_field in ["name", "size", "ftype"], sort_by))
     v("LS sorting by %s%s", sort_by, " (reverse)" if reverse else "")
 
     try:
-        ls_result = os.listdir(path)
-
-        # Take the other info (size, filetype, ...)
-        for f in ls_result:
-            f_stat = os.lstat(os.path.join(path, f))
-            ret.append({
-                "name": f,
-                "ftype": FTYPE_DIR if S_ISDIR(f_stat.st_mode) else FTYPE_FILE,
-                "size": f_stat.st_size,
-            })
-
-        # Sort the result for each field of sort_by
-        for sort_field in sort_by_fields:
-            ret = sorted(ret, key=lambda fi: fi[sort_field])
-
+        return _ls(path, sort_by_fields, reverse)
     except Exception as ex:
         e("LS execution exception %s", ex)
         return None
 
+
+def _ls(path: str, sort_by_fields: List[str], reverse=False) -> List[FileInfo]:
+    ret: List[FileInfo] = []
+
+    ls_result = os.listdir(path)
+
+    # Take the other info (size, filetype, ...)
+    for f in ls_result:
+        f_stat = os.lstat(os.path.join(path, f))
+        ret.append({
+            "name": f,
+            "ftype": FTYPE_DIR if S_ISDIR(f_stat.st_mode) else FTYPE_FILE,
+            "size": f_stat.st_size,
+        })
+
+    # Sort the result for each field of sort_by
+    for sort_field in sort_by_fields:
+        ret = sorted(ret, key=lambda fi: fi[sort_field])
+
     if reverse:
         ret.reverse()
-        return ret
 
     return ret
 
@@ -145,3 +235,14 @@ def is_unicode_supported(stream=sys.stdout) -> bool:
             return encoding.lower().startswith("utf-") or encoding == "U8"
         except:
             return False
+
+
+if __name__ == "__main__":
+    for pre, fill, node in RenderTree(
+            tree("/home/stefano/Temp/treetest",
+                reverse=False,
+                sort_by=["name", "ftype"]
+            ),
+            style=ContRoundStyle):
+        # print(node)
+        print("%s%s" % (pre, node.finfo.get("name")))

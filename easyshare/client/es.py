@@ -11,6 +11,7 @@ import Pyro4
 from Pyro4 import util
 from Pyro4.core import _BatchProxyAdapter
 from Pyro4.errors import ConnectionClosedError, PyroError
+from anytree import AnyNode, RenderTree
 
 from easyshare.client.connection import Connection
 from easyshare.client.discover import Discoverer
@@ -36,7 +37,7 @@ from easyshare.utils.colors import init_colors, Color, red, fg
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int, to_bool, str_to_bool, bool_to_str
-from easyshare.utils.os import ls, size_str, rm
+from easyshare.utils.os import ls, size_str, rm, tree
 
 # ==================================================================
 
@@ -107,12 +108,14 @@ class Commands:
 
     LOCAL_CHANGE_DIRECTORY = "cd"
     LOCAL_LIST_DIRECTORY = "ls"
+    LOCAL_TREE_DIRECTORY = "tree"
     LOCAL_CREATE_DIRECTORY = "mkdir"
     LOCAL_CURRENT_DIRECTORY = "pwd"
     LOCAL_REMOVE = "rm"
 
     REMOTE_CHANGE_DIRECTORY = "rcd"
     REMOTE_LIST_DIRECTORY = "rls"
+    REMOTE_TREE_DIRECTORY = "rtree"
     REMOTE_CREATE_DIRECTORY = "rmkdir"
     REMOTE_CURRENT_DIRECTORY = "rpwd"
 
@@ -140,6 +143,12 @@ CLI_COMMANDS = [
 
 
 class LsArguments:
+    SORT_BY_SIZE = ["-S", "-s", "--sort"]
+    REVERSE = ["-r", "--reverse"]
+    GROUP = ["-g", "--group"]
+
+
+class TreeArguments:
     SORT_BY_SIZE = ["-S", "-s", "--sort"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
@@ -239,6 +248,7 @@ class Client:
 
             Commands.LOCAL_CHANGE_DIRECTORY: self.cd,
             Commands.LOCAL_LIST_DIRECTORY: self.ls,
+            Commands.LOCAL_TREE_DIRECTORY: self.tree,
             Commands.LOCAL_CREATE_DIRECTORY: self.mkdir,
             Commands.LOCAL_CURRENT_DIRECTORY: self.pwd,
             Commands.LOCAL_REMOVE: self.rm,
@@ -346,7 +356,25 @@ class Client:
         if ls_result is None:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-        Client._print_file_infos(ls_result)
+        Client._print_list_files_info(ls_result)
+
+    def tree(self, args: Args):
+        sort_by = ["name"]
+        reverse = TreeArguments.REVERSE in args
+
+        if TreeArguments.SORT_BY_SIZE in args:
+            sort_by.append("size")
+        if TreeArguments.GROUP in args:
+            sort_by.append("ftype")
+
+        i(">> TREE (sort by %s%s)", sort_by, " | reverse" if reverse else "")
+
+        tree_root = tree(os.getcwd(), sort_by=sort_by, reverse=reverse)
+
+        if tree_root is None:
+            print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
+
+        Client._print_tree_files_info(tree_root)
 
     def mkdir(self, args: Args):
         directory = args.get_param()
@@ -371,18 +399,19 @@ class Client:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
     def rm(self, args: Args):
-        path = args.get_param()
+        paths = args.get_params()
 
-        if not path:
+        if not paths:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return
 
-        i(">> RM " + path)
+        i(">> RM %s", paths)
 
         def handle_rm_error(err):
             eprint(err)
 
-        rm(path, error_callback=handle_rm_error)
+        for path in paths:
+            rm(path, error_callback=handle_rm_error)
 
     # === REMOTE COMMANDS ===
 
@@ -429,7 +458,7 @@ class Client:
         resp = self.connection.rls(sort_by, reverse=reverse)
 
         if is_success_response(resp):
-            Client._print_file_infos(resp.get("data"))
+            Client._print_list_files_info(resp.get("data"))
         else:
             self._handle_error_response(resp)
 
@@ -452,6 +481,27 @@ class Client:
             pass
         else:
             self._handle_error_response(resp)
+
+    def rrm(self, args: Args):
+        if not self.is_connected():
+            print_error(ClientErrors.NOT_CONNECTED)
+            return
+
+        paths = args.get_params()
+
+        if not paths:
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            return
+
+        i(">> RRM %s ", paths)
+
+        resp = self.connection.rrm(paths)
+        if is_success_response(resp):
+            v("Successfully RRMed")
+            pass
+        else:
+            self._handle_error_response(resp)
+
 
 
     def open(self, args: Args):
@@ -627,7 +677,7 @@ class Client:
         files = args.get_params(default=[])
 
         i(">> GET [files] %s", files)
-        self._do_get(self.connection, GetMode.FILES, files, args)
+        self._do_get(self.connection, files, args)
 
     def get_sharing(self, args: Args):
         if self.is_connected():
@@ -967,7 +1017,18 @@ class Client:
         return s.rstrip("\n")
 
     @staticmethod
-    def _print_file_infos(infos: List[FileInfo]):
+    def _print_tree_files_info(root: AnyNode):
+        for prefix, filling, node in RenderTree(root):
+            ftype = node.finfo.get("ftype")
+            size = node.finfo.get("size")
+            print("{} [{}]  {}".format(
+                prefix,
+                size_str(size).ljust(4),
+                fg(node.finfo.get("name"), DIR_COLOR if ftype == FTYPE_DIR else FILE_COLOR),
+            ))
+
+    @staticmethod
+    def _print_list_files_info(infos: List[FileInfo]):
         size_infos_str = []
         longest_size_str = 0
 
@@ -986,13 +1047,15 @@ class Client:
             if info.get("ftype") == FTYPE_DIR:
                 ftype = "D"
                 fname = fg(fname, DIR_COLOR)
+                fsize = ""
             else:
                 ftype = "F"
                 fname = fg(fname, FILE_COLOR)
+                fsize = size_infos_str[idx]
 
             print("{}  {}  {}".format(
                 ftype,
-                size_infos_str[idx].rjust(longest_size_str),
+                fsize.rjust(longest_size_str),
                 fname
             ))
 

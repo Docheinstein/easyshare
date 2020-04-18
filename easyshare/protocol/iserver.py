@@ -33,6 +33,9 @@ class IServer(ABC):
     def rmkdir(self, directory: str) -> Response:
         pass
 
+    @abstractmethod
+    def rrm(self, paths: List[str]) -> Response:
+        pass
 
     @abstractmethod
     def get(self, files: List[str]) -> Response:

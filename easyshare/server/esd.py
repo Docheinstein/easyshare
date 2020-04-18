@@ -32,7 +32,7 @@ from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import init_colors
 from easyshare.utils.json import json_to_str, json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
-from easyshare.utils.os import ls, relpath, is_relpath
+from easyshare.utils.os import ls, relpath, is_relpath, rm
 from easyshare.utils.str import randstring, satisfy, unprefix
 from easyshare.utils.trace import args_to_str
 from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list
@@ -353,6 +353,27 @@ class Server(IServer):
         except Exception as ex:
             e("RMKDIR error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+
+    @Pyro4.expose
+    @trace_api
+    def rrm(self, paths: List[str]) -> Response:
+        client = self._current_request_client()
+        if not client:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+
+        i("<< RRM %s (%s)", paths, str(client))
+
+        try:
+            def handle_rm_error(err):
+                v("RM error: notifying remote about:\n%s", err)
+
+            for path in paths:
+                rm(path, error_callback=handle_rm_error)
+
+        except Exception as ex:
+            e("RRM error: %s", str(ex))
+            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+
 
     @Pyro4.expose
     @trace_api

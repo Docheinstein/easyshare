@@ -20,7 +20,6 @@
 - -v=5 or -v 5
 - server trace
 - remove debug and make verbose -> info
-- bathed calls open,get
 - help (usage), man
 - pyro callback for handle rrm
 - keepalive for handle client disconnect?
