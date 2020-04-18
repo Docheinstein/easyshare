@@ -120,6 +120,7 @@ class Commands:
     REMOTE_TREE_DIRECTORY = "rtree"
     REMOTE_CREATE_DIRECTORY = "rmkdir"
     REMOTE_CURRENT_DIRECTORY = "rpwd"
+    REMOTE_REMOVE = "rrm"
 
     SCAN = "scan"
     OPEN = "open"
@@ -263,6 +264,7 @@ class Client:
             Commands.REMOTE_TREE_DIRECTORY: self.rtree,
             Commands.REMOTE_CREATE_DIRECTORY: self.rmkdir,
             Commands.REMOTE_CURRENT_DIRECTORY: self.rpwd,
+            Commands.REMOTE_REMOVE: self.rrm,
 
             Commands.SCAN: self.scan,
             Commands.OPEN: self.open,
@@ -540,11 +542,14 @@ class Client:
         resp = self.connection.rrm(paths)
         if is_success_response(resp):
             v("Successfully RRMed")
-            pass
+            if is_data_response(resp):
+                errors = resp.get("data").get("errors")
+                if errors:
+                    w("%d errors occurred while doing rrm", len(errors))
+                    for err in errors:
+                        eprint(err)
         else:
             self._handle_error_response(resp)
-
-
 
     def open(self, args: Args):
         #                    |------sharing_location-----|

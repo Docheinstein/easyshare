@@ -373,7 +373,9 @@ class Server(IServer):
         i("<< RMKDIR %s (%s)", directory, str(client))
 
         try:
-            full_path = os.path.join(self._current_client_path(client), directory)
+            # full_path = os.path.join(self._current_client_path(client), directory)
+            # TODO: test
+            full_path = self._path_for_client(client, directory)
 
             d("Going to mkdir on %s", full_path)
 
@@ -396,11 +398,33 @@ class Server(IServer):
         i("<< RRM %s (%s)", paths, str(client))
 
         try:
+            errors = []
+
             def handle_rm_error(err):
-                v("RM error: notifying remote about:\n%s", err)
+                v("RM error: adding error to notify to remote:\n%s", err)
+                errors.append(str(err))
 
             for path in paths:
+
+                rm_path = self._path_for_client(client, path)
+
+                d("RM on path: %s", rm_path)
+
+                if not self._is_path_allowed_for_client(client, rm_path):
+                    e("Path is invalid (out of sharing domain)")
+                    return create_error_response(ServerErrors.INVALID_PATH)
+
                 rm(path, error_callback=handle_rm_error)
+
+            # Eventually put errors in the response
+
+            response_data = None
+
+            if errors:
+                w("Reporting %d errors to the client", len(errors))
+                response_data = {"errors": errors}
+
+            return create_success_response(response_data)
 
         except Exception as ex:
             e("RRM error: %s", str(ex))
