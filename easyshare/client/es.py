@@ -545,7 +545,7 @@ class Client:
             if is_data_response(resp):
                 errors = resp.get("data").get("errors")
                 if errors:
-                    w("%d errors occurred while doing rrm", len(errors))
+                    e("%d errors occurred while doing rrm", len(errors))
                     for err in errors:
                         eprint(err)
         else:

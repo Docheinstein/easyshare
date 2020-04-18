@@ -392,8 +392,11 @@ class Server(IServer):
     @trace_api
     def rrm(self, paths: List[str]) -> Response:
         client = self._current_request_client()
+
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
+
+        sharing = self._current_client_sharing(client)
 
         i("<< RRM %s (%s)", paths, str(client))
 
@@ -414,7 +417,18 @@ class Server(IServer):
                     e("Path is invalid (out of sharing domain)")
                     return create_error_response(ServerErrors.INVALID_PATH)
 
-                rm(path, error_callback=handle_rm_error)
+                # Do not allow to remove the entire sharing
+                try:
+                    if os.path.samefile(sharing.path, rm_path):
+                        e("Cannot delete the sharing's root directory; aborting")
+                        return create_error_response(ServerErrors.INVALID_PATH)
+                    # Ok..
+                except Exception:
+                    pass
+                    # Maybe the file does not exists, don't worry and pass
+                    # it to rm that will handle it properly with error_callback
+
+                rm(rm_path, error_callback=handle_rm_error)
 
             # Eventually put errors in the response
 
