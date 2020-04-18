@@ -8,9 +8,10 @@ from typing import Optional, List, Union, Tuple, Any, Callable
 import anytree
 from anytree import RenderTree, AnyNode, AbstractStyle, ContStyle, ContRoundStyle
 
-from easyshare.protocol.fileinfo import FileInfo
-from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
+from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
+from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR, FileType
 from easyshare.shared.log import v, w, e
+from easyshare.tree.tree import preorder_traversal, TreeNodeDict
 from easyshare.utils.json import json_to_pretty_str, json_to_str
 from easyshare.utils.types import is_str, is_list
 
@@ -48,9 +49,7 @@ def size_str(size: float,
     return "0"
 
 
-def tree(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[AnyNode]:
-    ret: List[FileInfo] = []
-
+def tree(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[FileInfoTreeNode]:
     if is_str(sort_by):
         sort_by = [sort_by]
 
@@ -62,74 +61,73 @@ def tree(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> O
 
     f_stat = os.lstat(path)
 
-    tree_root = AnyNode(
-        fpath=path,
-        finfo={
-            "name": ".",
-            "ftype": FTYPE_DIR if S_ISDIR(f_stat.st_mode) else FTYPE_FILE,
-            "size": f_stat.st_size
-        },
-        nexts=_ls(path, sort_by_fields, reverse)
-    )
+    root = {
+        "path": path,
+        "name": ".",
+        "ftype": FTYPE_DIR if S_ISDIR(f_stat.st_mode) else FTYPE_FILE,
+        "size": f_stat.st_size,
+    }
 
-    cur_ref = tree_root
+    cursor = root
 
     try:
         while True:
 
-            cur_path = cur_ref.fpath
-            # print("cur_path |", cur_path)
+            cur_path = cursor.get("path")
+            cur_ftype = cursor.get("ftype")
 
-            # Check whether the current node has valid nexts
-            # (It has nexsts only if it is a dir and has something inside it)
-            if not getattr(cur_ref, "nexts", None):
-                # No next, go upward or quit if we are on the root
-                if cur_ref.parent:
-                    cur_ref = cur_ref.parent
-                    # print("went upwardto ", cur_ref.finfo.get("name"))
-                    continue
-                else:
-                    # print("done")
+            if cur_ftype == FTYPE_DIR and "children_unseen_info" not in cursor:
+                # Compute children, just the first time
+                print("Computing children of {}".format(cur_path))
+
+                cursor["children_unseen_info"] = _ls(cur_path, sort_by_fields, reverse)
+
+            if not cursor.get("children_unseen_info"):
+                # No unseen children, we have to go up
+
+                is_root = True if not cursor.get("parent") else False
+
+                ex_cursor = cursor
+
+                # Go up to the parent, nothing to do here
+                if not is_root:
+                    print("Going ^ to {} ", cursor.get("parent").get("path"))
+                    cursor = cursor.get("parent")
+
+                print("Cleaning up node")
+                ex_cursor.pop("parent", None)
+                ex_cursor.pop("children_unseen_info", None)
+                ex_cursor.pop("path", None)
+
+                if is_root:
+                    print("done")
                     break
 
-            # Treating a directory with something inside
-
-            # Get the next finfo (from the beginning)
-            next_finfo = cur_ref.nexts.pop(0)
-            next_fname = next_finfo.get("name")
-            next_ftype = next_finfo.get("ftype")
-            next_path = os.path.join(cur_path, next_fname)
-
-            # print("Taken out finfo '{}'".format(json_to_str(next_finfo)))
-
-            # Add the node
-            ex_cur_ref = cur_ref
-
-            cur_ref = AnyNode(
-                parent=ex_cur_ref,
-                fpath=next_path,
-                finfo=next_finfo
-            )
-
-            # print("Linked {} -> {}".format(ex_cur_ref.fpath, cur_ref.fpath))
-
-            if next_ftype != FTYPE_DIR:
-                # Nothing else to do here
                 continue
 
-            # We have to compute the nexts for this dir and sort using
-            # the given parameters
+            # There is a children unseen, take out
+            unseen_child_info = cursor.get("children_unseen_info").pop(0)
+            print("Took out unseen child", unseen_child_info.get("name"))
 
-            cur_ref.nexts = _ls(next_path, sort_by_fields, reverse)
+            # Add it to the children
+            cursor.setdefault("children", [])
 
-            # print("Computed next of {} = {}".format(cur_ref.fpath, cur_ref.nexts))
+            child = dict(
+                unseen_child_info,
+                parent=cursor,
+                path=os.path.join(cur_path, unseen_child_info.get("name"))
+            )
 
+            print("Adding child to children", child)
+
+            cursor.get("children").append(child)
+            cursor = child
 
     except Exception as ex:
-        # print("TREE execution exception %s" % ex)
+        e("LS execution exception %s", ex)
         return None
 
-    return tree_root
+    return root
 
 
 def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[List[FileInfo]]:
@@ -238,11 +236,19 @@ def is_unicode_supported(stream=sys.stdout) -> bool:
 
 
 if __name__ == "__main__":
-    for pre, fill, node in RenderTree(
-            tree("/home/stefano/Temp/treetest",
-                reverse=False,
-                sort_by=["name", "ftype"]
-            ),
-            style=ContRoundStyle):
+    root = tree("/home/stefano/Temp/test_cartaceo")
+    print(json_to_pretty_str(root))
+
+    def tree_visitor(prefix: str, node, last_of_depth: List[int]):
+        print("{}{}{}".format(prefix, node.get("name"), str(last_of_depth).rjust(20)))
+
+    preorder_traversal(root, tree_visitor)
+
+    # for pre, fill, node in RenderTree(
+    #         tree("/home/stefano/Temp/treetest",
+    #             reverse=False,
+    #             sort_by=["name", "ftype"]
+    #         ),
+    #         style=ContRoundStyle):
         # print(node)
-        print("%s%s" % (pre, node.finfo.get("name")))
+        # print("%s%s" % (pre, node.finfo.get("name")))
