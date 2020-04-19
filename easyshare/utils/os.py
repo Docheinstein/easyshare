@@ -43,7 +43,7 @@ def size_str(size: float,
         if size > u:
             return ("{:0." + str(precisions[i]) + "f}{}").format(size / u, prefixes[i])
         i -= 1
-    return "0"
+    return "0{}".format(prefixes[0])
 
 
 def tree(path: str,
@@ -215,6 +215,24 @@ def rm(path: str, error_callback: Callable[[Exception], None] = None) -> bool:
         if error_callback:
             error_callback(ex)
         return False
+
+
+def mv(src: str, dest: str) -> bool:
+    try:
+        shutil.move(src, dest)
+        return True
+    except Exception as ex:
+        e("MV exception %s", ex)
+        raise ex
+
+
+def cp(src: str, dest: str) -> bool:
+    try:
+        shutil.copy2(src, dest, follow_symlinks=False)
+        return True
+    except Exception as ex:
+        e("CP exception %s", ex)
+        raise ex
 
 
 if __name__ == "__main__":

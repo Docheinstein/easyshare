@@ -448,6 +448,10 @@ class Server(IServer):
     @Pyro4.expose
     @trace_api
     def ping(self):
+        for x in range(0, 10):
+            d("[%d] Sleeping", x)
+            time.sleep(1)
+        d("Creating 'pong' response")
         return create_success_response("pong")
 
     @Pyro4.expose

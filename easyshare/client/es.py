@@ -39,7 +39,7 @@ from easyshare.utils.env import terminal_size
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int, to_bool, str_to_bool, bool_to_str
-from easyshare.utils.os import ls, size_str, rm, tree
+from easyshare.utils.os import ls, size_str, rm, tree, mv, cp
 
 # ==================================================================
 
@@ -114,6 +114,8 @@ class Commands:
     LOCAL_CREATE_DIRECTORY = "mkdir"
     LOCAL_CURRENT_DIRECTORY = "pwd"
     LOCAL_REMOVE = "rm"
+    LOCAL_MOVE = "mv"
+    LOCAL_COPY = "cp"
 
     REMOTE_CHANGE_DIRECTORY = "rcd"
     REMOTE_LIST_DIRECTORY = "rls"
@@ -258,6 +260,8 @@ class Client:
             Commands.LOCAL_CREATE_DIRECTORY: self.mkdir,
             Commands.LOCAL_CURRENT_DIRECTORY: self.pwd,
             Commands.LOCAL_REMOVE: self.rm,
+            Commands.LOCAL_MOVE: self.mv,
+            Commands.LOCAL_COPY: self.cp,
 
             Commands.REMOTE_CHANGE_DIRECTORY: self.rcd,
             Commands.REMOTE_LIST_DIRECTORY: self.rls,
@@ -425,6 +429,98 @@ class Client:
 
         for path in paths:
             rm(path, error_callback=handle_rm_error)
+
+    def mv(self, args: Args):
+        """
+        mv <src>... <dest>
+
+        A1  At least two parameters
+        A2  If a <src> doesn't exist => IGNORES it
+
+        2 args:
+        B1  If <dest> exists
+            B1.1    If type of <dest> is DIR => put <src> into <dest> anyway
+
+            B1.2    If type of <dest> is FILE
+                B1.2.1  If type of <src> is DIR => ERROR
+                B1.2.2  If type of <src> is FILE => OVERWRITE
+        B2  If <dest> doesn't exist => preserve type of <src>
+
+        3 args:
+        C1  if <dest> exists => must be a dir
+        C2  If <dest> doesn't exist => ERROR
+
+        """
+        mv_args = args.get_params()
+        args_count = len(mv_args)
+
+        if not mv_args or args_count < 2:
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            return
+
+        dest = mv_args.pop()
+
+        # C1/C2 check: with 3+ arguments
+        if args_count >= 3:
+            # C1  if <dest> exists => must be a dir
+            # C2  If <dest> doesn't exist => ERROR
+            # => must be a valid dir
+            if not os.path.isdir(dest):
+                eprint("'%s' must be an existing directory", dest)
+                return
+
+        # Every other constraint is well handled by shutil.move()
+        errors = []
+
+        for src in mv_args:
+            v(">> MV <%s> <%s>", src, dest)
+            try:
+                mv(src, dest)
+            except Exception as ex:
+                errors.append(str(ex))
+
+        if errors:
+            e("%d errors occurred", len(errors))
+
+        for err in errors:
+            eprint(err)
+
+
+    def cp(self, args: Args):
+
+        cp_args = args.get_params()
+        args_count = len(cp_args)
+
+        if not cp_args or args_count < 2:
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            return
+
+        dest = cp_args.pop()
+
+        # C1/C2 check: with 3+ arguments
+        if args_count >= 3:
+            # C1  if <dest> exists => must be a dir
+            # C2  If <dest> doesn't exist => ERROR
+            # => must be a valid dir
+            if not os.path.isdir(dest):
+                eprint("'%s' must be an existing directory", dest)
+                return
+
+        # Every other constraint is well handled by shutil.move()
+        errors = []
+
+        for src in cp_args:
+            v(">> CP <%s> <%s>", src, dest)
+            try:
+                cp(src, dest)
+            except Exception as ex:
+                errors.append(str(ex))
+
+        if errors:
+            e("%d errors occurred", len(errors))
+
+        for err in errors:
+            eprint(err)
 
     # === REMOTE COMMANDS ===
 
@@ -1039,6 +1135,7 @@ class Client:
 
         Discoverer(self._server_discover_port, response_handler).discover(timeout)
         return server_info
+
 
     @staticmethod
     def _print_sharings(sharings: List[SharingInfo]):

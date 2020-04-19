@@ -28,3 +28,4 @@
 - tracedproxy instead of serverpoxy
 - check arguments very well
 - unify api such as ls/rls tree/rtree
+- decide whether catch or raise exceptions in utils.os
