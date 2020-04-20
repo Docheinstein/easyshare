@@ -42,6 +42,14 @@ class IServer(ABC):
         pass
 
     @abstractmethod
+    def rmv(self, sources: List[str], destination: str) -> Response:
+        pass
+
+    @abstractmethod
+    def rcp(self, sources: List[str], destination: str) -> Response:
+        pass
+
+    @abstractmethod
     def get(self, files: List[str]) -> Response:
         pass
 

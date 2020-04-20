@@ -133,6 +133,18 @@ class Connection:
 
         return self.server.rrm(paths)
 
+    def rcp(self, sources: List[str], destination: str) -> Response:
+        if not self.is_connected():
+            return create_error_response(ClientErrors.NOT_CONNECTED)
+
+        return self.server.rcp(sources, destination)
+
+    def rmv(self, sources: List[str], destination: str) -> Response:
+        if not self.is_connected():
+            return create_error_response(ClientErrors.NOT_CONNECTED)
+
+        return self.server.rmv(sources, destination)
+
     def ping(self) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)

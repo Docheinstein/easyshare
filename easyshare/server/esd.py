@@ -32,7 +32,7 @@ from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import init_colors
 from easyshare.utils.json import json_to_str, json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
-from easyshare.utils.os import ls, relpath, is_relpath, rm, tree
+from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv
 from easyshare.utils.str import randstring, satisfy, unprefix
 from easyshare.utils.trace import args_to_str
 from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list
@@ -444,6 +444,134 @@ class Server(IServer):
             e("RRM error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
+    @Pyro4.expose
+    @trace_api
+    def rmv(self, sources: List[str], destination: str) -> Response:
+        client = self._current_request_client()
+
+        if not client:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+
+        if not sources or not destination:
+            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        dest_full_path = self._path_for_client(client, destination)
+
+        if not self._is_path_allowed_for_client(client, dest_full_path):
+            e("Path is invalid (out of sharing domain)")
+            return create_error_response(ServerErrors.INVALID_PATH)
+
+        # C1/C2 check: with 3+ arguments
+        if len(sources) >= 2:
+            # C1  if <dest> exists => must be a dir
+            # C2  If <dest> doesn't exist => ERROR
+            # => must be a valid dir
+            if not os.path.isdir(dest_full_path):
+                e("'%s' must be an existing directory", dest_full_path)
+                return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+
+        i("<< RMV %s -> %s (%s)", sources, destination, str(client))
+
+        try:
+            errors = []
+
+            for src in sources:
+
+                src_full_path = self._path_for_client(client, src)
+
+                if not self._is_path_allowed_for_client(client, src_full_path):
+                    if len(sources) == 1:
+                        return create_error_response(ServerErrors.INVALID_PATH)
+
+                    errors.append("Invalid path")
+                    continue
+
+                try:
+                    d("MV %s -> %s", src_full_path, dest_full_path)
+
+                    mv(src_full_path, dest_full_path)
+                except Exception as ex:
+                    errors.append(str(ex))
+
+                if errors:
+                    e("%d errors occurred", len(errors))
+
+            response_data = None
+
+            if errors:
+                w("Reporting %d errors to the client", len(errors))
+                response_data = {"errors": errors}
+
+            return create_success_response(response_data)
+
+        except Exception as ex:
+            e("RMV error: %s", str(ex))
+            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+
+    @Pyro4.expose
+    @trace_api
+    def rcp(self, sources: List[str], destination: str) -> Response:
+        client = self._current_request_client()
+
+        if not client:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+
+        if not sources or not destination:
+            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+
+        dest_full_path = self._path_for_client(client, destination)
+
+        if not self._is_path_allowed_for_client(client, dest_full_path):
+            e("Path is invalid (out of sharing domain)")
+            return create_error_response(ServerErrors.INVALID_PATH)
+
+        # C1/C2 check: with 3+ arguments
+        if len(sources) >= 2:
+            # C1  if <dest> exists => must be a dir
+            # C2  If <dest> doesn't exist => ERROR
+            # => must be a valid dir
+            if not os.path.isdir(dest_full_path):
+                e("'%s' must be an existing directory", dest_full_path)
+                return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+
+        i("<< RCP %s -> %s (%s)", sources, destination, str(client))
+
+        try:
+            errors = []
+
+            for src in sources:
+
+                src_full_path = self._path_for_client(client, src)
+
+                if not self._is_path_allowed_for_client(client, src_full_path):
+                    if len(sources) == 1:
+                        return create_error_response(ServerErrors.INVALID_PATH)
+
+                    errors.append("Invalid path")
+                    continue
+
+                try:
+                    d("CP %s -> %s", src_full_path, dest_full_path)
+
+                    cp(src_full_path, dest_full_path)
+                except Exception as ex:
+                    errors.append(str(ex))
+
+                if errors:
+                    e("%d errors occurred", len(errors))
+
+            response_data = None
+
+            if errors:
+                w("Reporting %d errors to the client", len(errors))
+                response_data = {"errors": errors}
+
+            return create_success_response(response_data)
+
+        except Exception as ex:
+            e("RCP error: %s", str(ex))
+            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
     @trace_api

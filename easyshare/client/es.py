@@ -123,6 +123,8 @@ class Commands:
     REMOTE_CREATE_DIRECTORY = "rmkdir"
     REMOTE_CURRENT_DIRECTORY = "rpwd"
     REMOTE_REMOVE = "rrm"
+    REMOTE_MOVE = "rmv"
+    REMOTE_COPY = "rcp"
 
     SCAN = "scan"
     OPEN = "open"
@@ -269,6 +271,8 @@ class Client:
             Commands.REMOTE_CREATE_DIRECTORY: self.rmkdir,
             Commands.REMOTE_CURRENT_DIRECTORY: self.rpwd,
             Commands.REMOTE_REMOVE: self.rrm,
+            Commands.REMOTE_MOVE: self.rmv,
+            Commands.REMOTE_COPY: self.rcp,
 
             Commands.SCAN: self.scan,
             Commands.OPEN: self.open,
@@ -646,6 +650,73 @@ class Client:
                         eprint(err)
         else:
             self._handle_error_response(resp)
+
+    def rcp(self, args: Args):
+        if not self.is_connected():
+            print_error(ClientErrors.NOT_CONNECTED)
+            return
+
+        paths = args.get_params()
+
+        if not paths:
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            return
+
+        dest = paths.pop()
+
+        if not dest or not paths:
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            return
+
+        i(">> RCP %s -> %s", str(paths), dest)
+
+        resp = self.connection.rcp(paths, dest)
+        if is_success_response(resp):
+            v("Successfully RCPed")
+
+            if is_data_response(resp):
+                errors = resp.get("data").get("errors")
+                if errors:
+                    e("%d errors occurred while doing rcp", len(errors))
+                    for err in errors:
+                        eprint(err)
+
+        else:
+            self._handle_error_response(resp)
+
+    def rmv(self, args: Args):
+        if not self.is_connected():
+            print_error(ClientErrors.NOT_CONNECTED)
+            return
+
+        paths = args.get_params()
+
+        if not paths:
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            return
+
+        dest = paths.pop()
+
+        if not dest or not paths:
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            return
+
+        i(">> RMV %s -> %s", str(paths), dest)
+
+        resp = self.connection.rmv(paths, dest)
+        if is_success_response(resp):
+            v("Successfully RMVed")
+
+            if is_data_response(resp):
+                errors = resp.get("data").get("errors")
+                if errors:
+                    e("%d errors occurred while doing rmv", len(errors))
+                    for err in errors:
+                        eprint(err)
+
+        else:
+            self._handle_error_response(resp)
+
 
     def open(self, args: Args):
         #                    |------sharing_location-----|
