@@ -1,10 +1,12 @@
 import enum
 import os
+import random
 import shlex
 import shutil
 import sys
 import readline
 from inspect import Traceback
+from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Union, Tuple, Any
 
 import Pyro4
@@ -33,6 +35,7 @@ from easyshare.shared.progress import FileProgressor
 from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.tree.tree import TreeNodeDict, TreeRenderPostOrder
+from easyshare.utils import time
 from easyshare.utils.app import eprint, terminate, abort
 from easyshare.utils.colors import init_colors, Color, red, fg
 from easyshare.utils.env import terminal_size
@@ -279,6 +282,7 @@ class Client:
             Commands.CLOSE: self.close,
 
             Commands.GET: self.get,
+            Commands.PUT: self.put,
 
             Commands.INFO: self.info,
 
@@ -883,23 +887,27 @@ class Client:
         else:
             print("Connection is DOWN")
 
-    def get_files(self, args: Args):
+
+
+    def put_files(self, args: Args):
         if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
             return
 
         files = args.get_params(default=[])
 
-        i(">> GET [files] %s", files)
-        self._do_get(self.connection, files, args)
+        i(">> PUT [files] %s", files)
+        self._do_put(self.connection, files, args)
 
-    def get_sharing(self, args: Args):
+
+    def put_sharing(self, args: Args):
         if self.is_connected():
             # We should not reach this point if we are connected to a sharing
             print_error(ClientErrors.IMPLEMENTATION_ERROR)
             return
 
-        sharing_specifier = args.get_param()
+        params = args.get_params()
+        sharing_specifier = params.pop(0)
 
         if not sharing_specifier:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -945,18 +953,245 @@ class Client:
             print_response_error(open_response)
             return
 
-        i(">> GET [sharing] %s", sharing_name)
-        self._do_get(connection, ["."], args)
+        files = ["."] if not params else params
+        i(">> PUT [sharing] %s %s", sharing_name)
+        self._do_put(connection, files, args)
 
         # Close connection
         d("Closing temporary connection")
         connection.close()
 
+    def get_files(self, args: Args):
+        if not self.is_connected():
+            print_error(ClientErrors.NOT_CONNECTED)
+            return
+
+        files = args.get_params(default=[])
+
+        i(">> GET [files] %s", files)
+        self._do_get(self.connection, files, args)
+
+    def get_sharing(self, args: Args):
+        if self.is_connected():
+            # We should not reach this point if we are connected to a sharing
+            print_error(ClientErrors.IMPLEMENTATION_ERROR)
+            return
+
+        params = args.get_params()
+        sharing_specifier = params.pop(0)
+
+        if not sharing_specifier:
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            return
+
+        sharing_name, _, sharing_location = sharing_specifier.rpartition("@")
+
+        if not sharing_name:
+            # if @ is not found, rpartition put the entire string on
+            # the last element of th tuple
+            sharing_name = sharing_location
+            sharing_location = None
+
+        timeout = to_int(args.get_param(ScanArguments.TIMEOUT,
+                                        default=Discoverer.DEFAULT_TIMEOUT))
+
+        if not timeout:
+            print_error(ClientErrors.INVALID_PARAMETER_VALUE)
+            return False
+
+        # We have to perform a discover
+
+        server_info: ServerInfo = self._discover_sharing(
+            name=sharing_name,
+            location=sharing_location,
+            timeout=timeout
+        )
+
+        if not server_info:
+            print_error(ClientErrors.SHARING_NOT_FOUND)
+            return False
+
+        d("Creating new temporary connection with %s", server_info.get("uri"))
+        connection = Connection(server_info)
+
+        # Open connection
+
+        v("Opening temporary connection")
+        open_response = connection.open(sharing_name)
+
+        if not is_success_response(open_response):
+            w("Cannot open connection; aborting")
+            print_response_error(open_response)
+            return
+
+        files = ["."] if not params else params
+        i(">> GET [sharing] %s %s", sharing_name)
+        self._do_get(connection, files, args)
+
+        # Close connection
+        d("Closing temporary connection")
+        connection.close()
+
+    def _do_put(self,
+                connection: Connection,
+                files: List[str],
+                args: Args):
+        if not connection.is_connected():
+            e("Connection must be opened for do GET")
+            return
+
+        put_response = connection.put()
+
+        # if not is_data_response(put_response):
+        #     print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+        #     return
+
+        if not is_success_response(put_response):
+            Client._handle_connection_error_response(connection, put_response)
+            return
+
+        transaction_id = put_response["data"].get("transaction")
+        port = put_response["data"].get("port")
+
+        if not transaction_id or not port:
+            print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+            return
+
+        v("Successfully PUTed")
+        transfer_socket = SocketTcpOut(connection.server_info.get("ip"), port)
+
+        sendfiles: List[dict] = []
+
+        for f in files:
+            _, trail = os.path.split(f)
+            d("-> trail: %s", trail)
+            sendfile = {
+                "local": f,
+                "remote": trail
+            }
+            d("Adding sendfile %s", json_to_pretty_str(sendfile))
+            sendfiles.append(sendfile)
+
+
+        def send_file(local_path: str, remote_path: str):
+            fstat = os.fstat(local_path)
+            fsize = fstat.st_size
+
+            if S_ISDIR(fstat.st_mode):
+                ftype = FTYPE_DIR
+            elif S_ISREG(fstat.st_mode):
+                ftype = FTYPE_FILE
+            else:
+                w("Unknown file type")
+                return
+
+            finfo = {
+                "name": remote_path,
+                "ftype": ftype,
+                "size": fsize
+            }
+
+            d("send_file finfo: %s", json_to_pretty_str(finfo))
+
+            d("doing a put_next_info")
+
+            resp = connection.put_next_info(transaction_id, finfo)
+
+            if not is_success_response(resp):
+                Client._handle_connection_error_response(connection, resp)
+                return
+
+            d("Actually sending the file")
+
+            BUFFER_SIZE = 4096
+
+            f = open(local_path, "rb")
+
+            cur_pos = 0
+
+            progressor = FileProgressor(
+                fsize,
+                description="PUT " + local_path,
+                color_progress=PROGRESS_COLOR,
+                color_done=DONE_COLOR
+            )
+
+            while cur_pos < fsize:
+                r = random.random() * 0.001
+                time.sleep(0.001 + r)
+
+                chunk = f.read(BUFFER_SIZE)
+                d("Read chunk of %dB", len(chunk))
+
+                if not chunk:
+                    d("Finished %s", local_path)
+                    # FIXME: sending something?
+                    break
+
+                transfer_socket.send(chunk)
+
+                cur_pos += len(chunk)
+                progressor.update(cur_pos)
+
+            progressor.done()
+            d("DONE %s", local_path)
+            f.close()
+
+        while sendfiles:
+            v("Putting another file info")
+            next_file = sendfiles.pop()
+
+            # Check what is this
+            # 1. Non existing: skip
+            # 2. A file: send it directly (parent dirs won't be replicated)
+            # 3. A dir: send it recursively
+
+            next_file_local = next_file.get("local")
+            next_file_remote = next_file.get("remote")
+
+            if os.path.isfile(next_file_local):
+                # Send it directly
+                d("-> is a FILE")
+                send_file(next_file_local, next_file_remote)
+
+            elif os.path.isdir(next_file_local):
+                # Send it recursively
+
+                d("-> is a DIR")
+
+                # Directory found
+                dir_files = os.listdir(next_file_local)
+
+                if dir_files:
+
+                    v("Found a filled directory: adding all inner files to remaining_files")
+                    for f in dir_files:
+                        f_path_local = os.path.join(next_file_local, f)
+                        f_path_remote = os.path.join(next_file_remote, f)
+                        # Push to the begin instead of the end
+                        # In this way we perform a breadth-first search
+                        # instead of a depth-first search, which makes more sense
+                        # because we will push the files that belongs to the same
+                        # directory at the same time
+                        sendfile = {
+                            "local": f_path_local,
+                            "remote": f_path_remote
+                        }
+                        d("Adding sendfile %s", json_to_pretty_str(sendfile))
+
+                        sendfiles.insert(0, sendfile)
+                else:
+                    v("Found an empty directory")
+                    d("Pushing an info for the empty directory")
+
+                    send_file(next_file_local, next_file_remote)
+            else:
+                w("Unknown file type, doing nothing")
+
     def _do_get(self,
                 connection: Connection,
                 files: List[str],
                 args: Args):
-        # Open the connection if needed
         if not connection.is_connected():
             e("Connection must be opened for do GET")
             return
@@ -1125,6 +1360,14 @@ class Client:
         else:
             d("GET => get_sharing")
             self.get_sharing(args)
+
+    def put(self, args: Args):
+        if self.is_connected():
+            d("PUT => put_files")
+            self.put_files(args)
+        else:
+            d("PUT => put_sharing")
+            self.put_sharing(args)
 
     def _discover_server(self, location: str) -> Optional[ServerInfo]:
 

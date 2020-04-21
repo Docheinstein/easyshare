@@ -12,10 +12,11 @@ from typing import Dict, Optional, List, Any, Callable, TypeVar
 
 import colorama
 
+from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import create_success_response, create_error_response, Response
 from easyshare.server.sharing import Sharing
-from easyshare.server.transaction import GetTransactionHandler
+from easyshare.server.transactions import GetTransactionHandler, PutTransactionHandler
 from easyshare.shared.args import Args
 from easyshare.shared.conf import APP_VERSION, APP_NAME_SERVER_SHORT, \
     APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET
@@ -128,6 +129,7 @@ class Server(IServer):
         # sharing_name -> sharing
         self.sharings: Dict[str, Sharing] = {}
         self.clients: Dict[Endpoint, ClientContext] = {}
+        self.puts: Dict[str, PutTransactionHandler] = {}
         self.gets: Dict[str, GetTransactionHandler] = {}
 
         self.pyro_deamon = Pyro4.Daemon(host=self.ip)
@@ -582,6 +584,37 @@ class Server(IServer):
         d("Creating 'pong' response")
         return create_success_response("pong")
 
+
+    @Pyro4.expose
+    @trace_api
+    def put(self, files: List[str]) -> Response:
+        client = self._current_request_client()
+        if not client:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+
+        i("<< PUT [files] (%s)",  str(client))
+
+        # if len(files) == 0:
+        #     files = ["."]
+        #
+        # # Compute real path for each name
+        # normalized_files = []
+        # for f in files:
+        #     normalized_files.append(self._path_for_client(client, f))
+
+        # d("Normalized files:\n%s", normalized_files)
+
+        transaction_handler = self._add_put_transaction(
+            client=client,
+            sharing_name=client.sharing_name
+        )
+
+        return create_success_response({
+            "transaction": transaction_handler.transaction_id(),
+            "port": transaction_handler.port()
+        })
+
+
     @Pyro4.expose
     @trace_api
     def get(self, files: List[str]) -> Response:
@@ -610,6 +643,57 @@ class Server(IServer):
             "transaction": transaction_handler.transaction_id(),
             "port": transaction_handler.port()
         })
+
+
+    @Pyro4.expose
+    @trace_api
+    def put_next_info(self, transaction_id, finfo: FileInfo) -> Response:
+        client = self._current_request_client()
+
+        if not client:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+
+        i("<< PUT_NEXT_INFO %s %s", transaction_id, str(client))
+
+        if transaction_id not in self.puts:
+            return create_error_response(ServerErrors.INVALID_TRANSACTION)
+
+        transaction_handler = self.puts[transaction_id]
+
+        sharing = self.sharings.get(transaction_handler.sharing_name())
+        if not sharing:
+            e("Sharing '%s' not found", transaction_handler.sharing_name())
+            return create_error_response(ServerErrors.SHARING_NOT_FOUND)
+
+        if not finfo:
+            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        # Check whether is a dir or a file
+        fname = finfo.get("name")
+        ftype = finfo.get("ftype")
+        fsize = finfo.get("size")
+
+        full_path = self._path_for_client(client, fname)
+
+        if ftype == FTYPE_DIR:
+            v("Creating dirs %s", full_path)
+            os.makedirs(full_path, exist_ok=True)
+            return create_success_response()
+
+        if ftype == FTYPE_FILE:
+            parent_dirs, _ = os.path.split(full_path)
+            if parent_dirs:
+                v("Creating parent dirs %s", parent_dirs)
+                os.makedirs(parent_dirs, exist_ok=True)
+        else:
+            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        # Check wheter it already exists
+        if os.path.isfile(full_path):
+            w("File already exists, (should) asking whether overwrite it (if needed)")
+
+        transaction_handler.push_file(full_path, fsize)
+
 
     @Pyro4.expose
     @trace_api
@@ -706,6 +790,29 @@ class Server(IServer):
 
         # Notify the client about it
         return create_success_response()
+
+    def _add_put_transaction(self,
+                             sharing_name: str,
+                             client: Optional[ClientContext] = None) -> PutTransactionHandler:
+
+        d("_add_put_transaction files")
+        # Create a transaction handler
+        transaction_handler = PutTransactionHandler(
+            sharing_name,
+            on_end=self._on_get_transaction_end,
+            owner=client)
+
+        transaction_id = transaction_handler.transaction_id()
+        v("Transaction ID: %s", transaction_id)
+
+        transaction_handler.start()
+
+        if client:
+            client.puts.append(transaction_id)
+
+        self.puts[transaction_id] = transaction_handler
+
+        return transaction_handler
 
     def _add_get_transaction(self,
                              files: List[str],

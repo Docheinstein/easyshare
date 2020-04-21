@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Union
 
+from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response
 
 
@@ -56,6 +57,19 @@ class IServer(ABC):
     @abstractmethod
     def get_next_info(self, transaction) -> Response:
         pass
+
+    @abstractmethod
+    def put(self, files: List[str]) -> Response:
+        pass
+
+    @abstractmethod
+    def put_next_info(self, transaction, info: FileInfo) -> Response:
+        pass
+
+
+    # @abstractmethod
+    # def get_next_info(self, transaction) -> Response:
+    #     pass
 
 
     #

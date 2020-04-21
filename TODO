@@ -29,3 +29,5 @@
 - check arguments very well
 - unify api such as ls/rls tree/rtree
 - decide whether catch or raise exceptions in utils.os
+- GET: notify warnings to remote on the next get_info
+- transaction handler is probably to split in two

@@ -5,6 +5,7 @@ from Pyro4.core import _BatchProxyAdapter
 
 from easyshare.client.errors import ClientErrors
 from easyshare.client.server import ServerProxy
+from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response, create_error_response, is_success_response
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.serverinfo import ServerInfo
@@ -150,6 +151,18 @@ class Connection:
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
         return self.server.ping()
+
+    def put(self) -> Response:
+        if not self.is_connected():
+            return create_error_response(ClientErrors.NOT_CONNECTED)
+
+        return self.server.put()
+
+    def put_next_info(self, transaction, finfo: FileInfo) -> Response:
+        if not self.is_connected():
+            return create_error_response(ClientErrors.NOT_CONNECTED)
+
+        return self.server.put_next_info(transaction, finfo)
 
     def get(self, files: List[str]) -> Response:
         if not self.is_connected():

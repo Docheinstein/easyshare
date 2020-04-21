@@ -5,6 +5,7 @@ import threading
 import time
 from typing import List, Optional, Callable
 
+from easyshare.protocol.fileinfo import FileInfo
 from easyshare.server.client import ClientContext
 from easyshare.shared.log import e, d, i, v
 from easyshare.socket.tcp import SocketTcpAcceptor
@@ -36,6 +37,7 @@ class GetTransactionHandler(threading.Thread):
         return self._owner
 
     def next_files(self) -> List[str]:
+        # TODO useless
         return self._next_files
 
     def transaction_id(self) -> str:
@@ -73,7 +75,7 @@ class GetTransactionHandler(threading.Thread):
             file_len = os.path.getsize(next_serving)
 
             # Send file
-            while True:
+            while cur_pos < file_len:
                 r = random.random() * 0.001
                 time.sleep(0.001 + r)
                 chunk = f.read(GetTransactionHandler.BUFFER_SIZE)
@@ -121,4 +123,120 @@ class GetTransactionHandler(threading.Thread):
     def done(self):
         v("end(): no more files")
         self._servings.put(None)
+
+
+class PutTransactionHandler(threading.Thread):
+    BUFFER_SIZE = 4096
+
+    def __init__(self,
+                 sharing_name: str,
+                 owner: Optional[ClientContext] = None,
+                 on_end: Callable[['GetTransactionHandler'], None] = None,
+                 transaction_id: str = None):
+        self._transaction_id = transaction_id or randstring()
+        self._sock = SocketTcpAcceptor()
+        self._incomings = queue.Queue()
+        self._sharing_name = sharing_name
+        self._owner = owner
+        self._on_end = on_end
+        threading.Thread.__init__(self)
+
+    def sharing_name(self) -> str:
+        return self._sharing_name
+
+    def owner(self) -> Optional[ClientContext]:
+        return self._owner
+
+    def transaction_id(self) -> str:
+        return self._transaction_id
+
+    def port(self) -> int:
+        return self._sock.port()
+
+    def run(self) -> None:
+        if not self._sock:
+            e("Invalid socket")
+            return
+
+        d("Starting PutTransactionHandler")
+        client_sock, endpoint = self._sock.accept()
+        i("Connection established with %s", endpoint)
+
+        go_ahead = True
+
+        while go_ahead:
+            d("blocking wait on next_servings")
+
+            # Recv files until the servings buffer is empty
+            # Wait on the blocking queue for the next file to recv
+            next_incoming = self._incomings.get()
+
+            if not next:
+                v("No more files: END")
+                break
+
+            next_path, next_size = next_incoming
+
+            d("Next incoming: %s", next_incoming)
+
+            f = open(next_path, "wb")
+            cur_pos = 0
+            # file_len = os.path.getsize(next_serving)
+            #
+            # Recv file
+            while cur_pos < next_size:
+                r = random.random() * 0.001
+                time.sleep(0.001 + r)
+
+                chunk = client_sock.recv(GetTransactionHandler.BUFFER_SIZE)
+
+                # chunk = f.read(PutTransactionHandler.BUFFER_SIZE)
+
+                if not chunk:
+                    d("Finished %s", next_path)
+                    break
+
+                d("Read chunk of %dB", len(chunk))
+                cur_pos += len(chunk)
+
+                f.write(chunk)
+
+                #
+                # try:
+                #     d("sending chunk...")
+                #     client_sock.send(chunk)
+                #     d("sending chunk DONE")
+                # except Exception as ex:
+                #     e("send error %s", ex)
+                #     # Abort transaction
+                #     go_ahead = False
+                #     break
+
+                d("%d/%d (%.2f%%)", cur_pos, next_size, cur_pos / next_size * 100)
+
+            d("Closing file %s", next_path)
+            f.close()
+
+        v("Transaction handler job finished")
+
+        client_sock.close()
+        self._sock.close()
+
+        # Callback
+        if self._on_end:
+            self._on_end(self)
+
+    def push_file(self, path: str, size: int):
+        d("Pushing file info to handler %s (%d)", path, size)
+        self._incomings.put((path, size))
+
+    def abort(self):
+        v("aborting transaction")
+        with self._incomings.mutex:
+            self._incomings.queue.clear()
+        self._incomings.put(None)
+
+    def done(self):
+        v("end(): no more files")
+        self._incomings.put(None)
 

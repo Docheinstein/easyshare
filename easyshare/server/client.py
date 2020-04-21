@@ -9,6 +9,7 @@ class ClientContext:
         self.sharing_name: Optional[str] = None
         self.rpwd = ""
         self.gets: List[str] = []
+        self.puts: List[str] = []
 
     def __str__(self):
         return self.endpoint[0] + ":" + str(self.endpoint[1])
