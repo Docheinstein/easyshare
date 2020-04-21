@@ -59,7 +59,7 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def put(self, files: List[str]) -> Response:
+    def put(self) -> Response:
         pass
 
     @abstractmethod

@@ -587,7 +587,7 @@ class Server(IServer):
 
     @Pyro4.expose
     @trace_api
-    def put(self, files: List[str]) -> Response:
+    def put(self) -> Response:
         client = self._current_request_client()
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
@@ -693,6 +693,8 @@ class Server(IServer):
             w("File already exists, (should) asking whether overwrite it (if needed)")
 
         transaction_handler.push_file(full_path, fsize)
+
+        return create_success_response()
 
 
     @Pyro4.expose

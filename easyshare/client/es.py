@@ -5,6 +5,7 @@ import shlex
 import shutil
 import sys
 import readline
+import time
 from inspect import Traceback
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Union, Tuple, Any
@@ -35,7 +36,6 @@ from easyshare.shared.progress import FileProgressor
 from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.tree.tree import TreeNodeDict, TreeRenderPostOrder
-from easyshare.utils import time
 from easyshare.utils.app import eprint, terminate, abort
 from easyshare.utils.colors import init_colors, Color, red, fg
 from easyshare.utils.env import terminal_size
@@ -1074,7 +1074,7 @@ class Client:
 
 
         def send_file(local_path: str, remote_path: str):
-            fstat = os.fstat(local_path)
+            fstat = os.lstat(local_path)
             fsize = fstat.st_size
 
             if S_ISDIR(fstat.st_mode):
