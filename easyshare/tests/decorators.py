@@ -11,7 +11,7 @@ def foo(x):
     print("Your string: " + x)
 
 
-def class_decorator(func):
+def classmethod_decorator(func):
     def wrapper(self, *args, **kwargs):
         print("<before>")
         func(self, *args, **kwargs)
@@ -24,11 +24,24 @@ class AnyClass:
     def __init__(self):
         self.a = 4
 
-    @class_decorator
+    @classmethod_decorator
     def fool(self, x):
         print("You class string: " + x)
 
 
+def classdec(arg1):
+
+    print("classdec", arg1)
+
+    return arg1
+
+
+@classdec("ls")
+class Command:
+    pass
+
+
 if __name__ == "__main__":
     # foo("ciao")
-    AnyClass().fool("hello")
+    # Command().name
+    Command()

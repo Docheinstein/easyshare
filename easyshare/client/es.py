@@ -6,9 +6,10 @@ import shutil
 import sys
 import readline
 import time
+from abc import ABC, abstractmethod
 from inspect import Traceback
 from stat import S_ISDIR, S_ISREG
-from typing import Optional, Callable, List, Dict, Union, Tuple, Any
+from typing import Optional, Callable, List, Dict, Union, Tuple, Any, Type
 
 import Pyro4
 from Pyro4 import util
@@ -40,7 +41,8 @@ from easyshare.utils.app import eprint, terminate, abort
 from easyshare.utils.colors import init_colors, Color, red, fg
 from easyshare.utils.env import terminal_size
 from easyshare.utils.json import json_to_pretty_str
-from easyshare.utils.obj import values
+from easyshare.utils.obj import values, items
+from easyshare.utils.str import unprefix, satisfy
 from easyshare.utils.types import to_int, to_bool, str_to_bool, bool_to_str
 from easyshare.utils.os import ls, size_str, rm, tree, mv, cp
 
@@ -101,6 +103,47 @@ class ClientArguments:
 # === COMMANDS ===
 
 
+class CommandArg:
+    def __init__(self, arg_names: List[str], arg_help: str):
+        self.names = arg_names
+        self.help = arg_help
+
+    def __str__(self):
+        return "{}  {}".format(", ".join(self.names), self.help)
+
+
+class CommandInfo(ABC):
+    def __init__(self):
+        pass
+
+    # @classmethod
+    # @abstractmethod
+    # def name(cls) -> str:
+    #     pass
+
+    @classmethod
+    @abstractmethod
+    def args(cls) -> List[CommandArg]:
+        pass
+
+
+class CommandInfoImpl(CommandInfo, ABC):
+    @classmethod
+    def args(cls) -> List[CommandArg]:
+        if not hasattr(cls, "ARGS"):
+            setattr(cls, "ARGS", [attr for attr in values(cls) if isinstance(attr, CommandArg)])
+        return getattr(cls, "ARGS")
+
+
+class LsInfo(CommandInfoImpl):
+    SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
+    REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
+    GROUP = CommandArg(["-g", "--group"], "Group by file type")
+    SIZE = CommandArg(["-S"], "Show file size")
+
+
+
+
 class Commands:
     HELP = "help"
     EXIT = "exit"
@@ -111,23 +154,23 @@ class Commands:
     VERBOSE = "verbose"
     VERBOSE_SHORT = "v"
 
-    LOCAL_CHANGE_DIRECTORY = "cd"
+    LOCAL_CURRENT_DIRECTORY = "pwd"
     LOCAL_LIST_DIRECTORY = "ls"
     LOCAL_TREE_DIRECTORY = "tree"
+    LOCAL_CHANGE_DIRECTORY = "cd"
     LOCAL_CREATE_DIRECTORY = "mkdir"
-    LOCAL_CURRENT_DIRECTORY = "pwd"
-    LOCAL_REMOVE = "rm"
-    LOCAL_MOVE = "mv"
     LOCAL_COPY = "cp"
+    LOCAL_MOVE = "mv"
+    LOCAL_REMOVE = "rm"
 
-    REMOTE_CHANGE_DIRECTORY = "rcd"
+    REMOTE_CURRENT_DIRECTORY = "rpwd"
     REMOTE_LIST_DIRECTORY = "rls"
     REMOTE_TREE_DIRECTORY = "rtree"
+    REMOTE_CHANGE_DIRECTORY = "rcd"
     REMOTE_CREATE_DIRECTORY = "rmkdir"
-    REMOTE_CURRENT_DIRECTORY = "rpwd"
-    REMOTE_REMOVE = "rrm"
-    REMOTE_MOVE = "rmv"
     REMOTE_COPY = "rcp"
+    REMOTE_MOVE = "rmv"
+    REMOTE_REMOVE = "rrm"
 
     SCAN = "scan"
     OPEN = "open"
@@ -139,6 +182,48 @@ class Commands:
     INFO = "info"
     PING = "ping"
 
+
+COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
+    Commands.HELP: LsInfo,
+    Commands.EXIT: LsInfo,
+
+    Commands.TRACE: LsInfo,
+    Commands.TRACE_SHORT: LsInfo,
+
+    Commands.VERBOSE: LsInfo,
+    Commands.VERBOSE_SHORT: LsInfo,
+
+
+    Commands.LOCAL_CURRENT_DIRECTORY: LsInfo,
+    Commands.LOCAL_LIST_DIRECTORY: LsInfo,
+    Commands.LOCAL_TREE_DIRECTORY: LsInfo,
+    Commands.LOCAL_CHANGE_DIRECTORY: LsInfo,
+    Commands.LOCAL_CREATE_DIRECTORY: LsInfo,
+    Commands.LOCAL_COPY: LsInfo,
+    Commands.LOCAL_MOVE: LsInfo,
+    Commands.LOCAL_REMOVE: LsInfo,
+
+
+    Commands.REMOTE_CURRENT_DIRECTORY: LsInfo,
+    Commands.REMOTE_LIST_DIRECTORY: LsInfo,
+    Commands.REMOTE_TREE_DIRECTORY: LsInfo,
+    Commands.REMOTE_CHANGE_DIRECTORY: LsInfo,
+    Commands.REMOTE_CREATE_DIRECTORY: LsInfo,
+    Commands.REMOTE_COPY: LsInfo,
+    Commands.REMOTE_MOVE: LsInfo,
+    Commands.REMOTE_REMOVE: LsInfo,
+
+
+    Commands.SCAN: LsInfo,
+    Commands.OPEN: LsInfo,
+    Commands.CLOSE: LsInfo,
+
+    Commands.GET: LsInfo,
+    Commands.PUT: LsInfo,
+
+    Commands.INFO: LsInfo,
+    Commands.PING: LsInfo,
+}
 
 SHELL_COMMANDS = values(Commands)
 
@@ -152,11 +237,22 @@ CLI_COMMANDS = [
 # === COMMANDS ARGUMENTS ===
 
 
+def arghelp(arg_names: List[str], arg_help: str = "") -> str:
+    return "{}{}".format("".join(arg_names), help)
+
+
 class LsArguments:
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
     SIZE = ["-S"]
+
+
+class LsArgumentsHelp:
+    SORT_BY_SIZE = arghelp(LsArguments.SORT_BY_SIZE, "Sort by size")
+    REVERSE = arghelp(LsArguments.REVERSE, "Reverse sort order")
+    GROUP = arghelp(LsArguments.GROUP, "Group by file type")
+    SIZE = arghelp(LsArguments.SORT_BY_SIZE, "Show file size")
 
 
 class TreeArguments:
@@ -184,6 +280,10 @@ class PutArguments:
     YES_TO_ALL = ["-Y", "--yes"]
     NO_TO_ALL = ["-N", "--no"]
 
+
+COMMANDS_ARGS_HELP = {
+    Commands.LOCAL_LIST_DIRECTORY: LsArgumentsHelp
+}
 
 # === MISC ===
 
@@ -1595,14 +1695,104 @@ class Shell:
             Commands.EXIT: self._exit,
         }
 
-        readline.set_completer(self.next_suggestion)
+        # readline.parse_and_bind("tab: menu-complete")
         readline.parse_and_bind("tab: complete")
+        # readline.parse_and_bind("set bell-style none")
+        readline.parse_and_bind("set completion-query-items 40")
+        readline.set_completer(self.next_suggestion)
+
+        def pre_input():
+            readline.parse_and_bind("set completion-display-width -1")
+            readline.parse_and_bind("tab: complete")
+
+        readline.set_pre_input_hook(pre_input)
+
+        # Important: remove - from the delimiters for handle suggestions
+        # starting with '-' properly
+        # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
+        readline.set_completer_delims(readline.get_completer_delims().replace("-", ""))
 
     def next_suggestion(self, text, state):
+        raw_line_buffer = readline.get_line_buffer()
+
+        # d("[%d] next_suggestion\n text = %s\n line_buffer = %s", state, text, raw_line_buffer)
+        # d("get_completer_delims %s", readline.get_completer_delims())
+        # d("get_completion_type %d", readline.get_completion_type())
+
+        line_buffer = raw_line_buffer.lstrip()
+
         if state == 0:
-            self._suggestions = [c for c in SHELL_COMMANDS if c.startswith(text)]
+            render_one_column = False
+            enable_completion = True
+
+            # Figure out what's to show
+
+            # Possibles case:
+            # 1. Complete the name of a command / show the possible commands
+            # 2. Show the parameters of a command
+            # 3. Other action command dependent (e.g. show local/remote files)
+            # 4. Insert a space after a complete token
+
+            for comm, comm_info in COMMANDS_INFO.items():
+                if line_buffer.startswith(comm + " "):
+                    # Typing a COMPLETE command
+                    # e.g. 'ls '
+
+                    # Now there are two cases:
+                    # 2. Show the parameters of the command
+                    # 3. Show something command dependent
+
+                    if text.startswith("-"):
+
+                        # Case 2: show command parameters
+                        render_one_column = True
+                        enable_completion = False
+
+                        longest_args_names = 0
+
+                        for comm_args in comm_info.args():
+                            longest_args_names = max(
+                                longest_args_names,
+                                len(", ".join(comm_args.names))
+                            )
+
+                        for comm_args in comm_info.args():
+                            self._suggestions.append("{}    {}".format(
+                                (", ".join(comm_args.names)).ljust(longest_args_names),
+                                comm_args.help
+                            ))
+                    else:
+                        # Case 3: show command dependent stuff
+                        self._suggestions = [f for f in os.listdir(os.getcwd()) if f.startswith(text)]
+
+                    # No need to go ahead, there is just one command with this name
+                    break
+
+                if comm.startswith(line_buffer):
+                    # Typing an INCOMPLETE command
+                    # e.g. 'clos '
+
+                    # Case 1: complete command
+                    self._suggestions.append(comm)
+
+            # If there is only a command that begins with
+            # this name, complete the command (and insert a space)
+            if enable_completion and len(self._suggestions) == 1:
+                suggestion: str = self._suggestions.pop()
+
+                readline.insert_text(unprefix(suggestion, text) + " ")
+                return None
+
+            readline.parse_and_bind("set completion-display-width {}".format(
+                "1" if render_one_column else "-1"
+            ))
+            readline.parse_and_bind("tab: {}".format(
+                "complete" if enable_completion else "possible-completions"
+            ))
+
         if len(self._suggestions) > 0:
             return self._suggestions.pop()
+
         return None
 
     def input_loop(self):
