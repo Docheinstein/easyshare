@@ -82,8 +82,8 @@ class Connection:
     def rpwd(self) -> str:
         return self._rpwd
 
-    def open(self, sharing_name: str) -> Response:
-        resp = self.server.open(sharing_name)
+    def open(self, sharing_name: str, password: str = None) -> Response:
+        resp = self.server.open(sharing_name, password)
 
         if is_success_response(resp):
             self._connected = True

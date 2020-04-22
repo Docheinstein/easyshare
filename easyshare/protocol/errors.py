@@ -8,3 +8,4 @@ class ServerErrors:
     INVALID_PATH =              206
     INVALID_TRANSACTION =       207
     NOT_ALLOWED =               208
+    AUTHENTICATION_FAILED =     209

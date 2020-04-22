@@ -12,6 +12,7 @@ from typing import Dict, Optional, List, Any, Callable, TypeVar
 
 import colorama
 
+from easyshare.passwd.auth import create_auth_string, AuthType, parse_auth_string
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import create_success_response, create_error_response, Response
@@ -203,12 +204,28 @@ class Server(IServer):
 
     @Pyro4.expose
     @trace_api
-    def open(self, sharing_name: str) -> Response:
+    def open(self, sharing_name: str, password: str = None) -> Response:
         if not sharing_name:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        if sharing_name not in self.sharings:
+        sharing = self.sharings.get(sharing_name)
+
+        if not sharing:
             return create_error_response(ServerErrors.SHARING_NOT_FOUND)
+
+        # Authentication
+        if sharing.password:
+            v("Sharing is protected, checking password against the provided one")
+            # Check both plain and hashed
+            if sharing.password == password:
+                d("Plain auth OK")
+            else:
+                auth_type, salt, hashed = parse_auth_string(sharing.password)
+                if auth_type:
+                    create_auth_string(auth_type, salt)
+                return create_error_response(ServerErrors.AUTHENTICATION_FAILED)
+
+        # OK, authenticated (or non-protected sharing)
 
         client_endpoint = self._current_request_endpoint()
         i("<< OPEN %s %s", sharing_name, str(client_endpoint))
@@ -743,7 +760,7 @@ class Server(IServer):
             if sharing.path == next_file_path:
                 # Getting (file) sharing
                 sharing_path_head, _ = os.path.split(sharing.path)
-                d("sharing_path_head: ", sharing_path_head)
+                d("sharing_path_head: %s", sharing_path_head)
                 trail = self._trailing_path(sharing_path_head, next_file_path)
             else:
                 trail = self._trailing_path_for_client_from_rpwd(client, next_file_path)
@@ -1131,10 +1148,16 @@ def main():
                 if ServerConfigKeys.PASSWORD in global_section:
                     password = strip_quotes(global_section.get(ServerConfigKeys.PASSWORD, name))
 
+                    if password:
+                        d("Global password found")
+
             # Sharings
             for sharing_name, sharing_settings in cfg.items():
 
                 sharing_password = strip_quotes(sharing_settings.get(ServerConfigKeys.PASSWORD))
+
+                if sharing_password:
+                    d("Sharing %s is protected by password", sharing_name)
 
                 sharing = Sharing.create(
                     name=strip_quotes(sharing_name),
@@ -1204,7 +1227,8 @@ def main():
 
             sharing = Sharing.create(
                 path=sharing_params[0],
-                name=sharing_params[1] if len(sharing_params) > 1 else None
+                name=sharing_params[1] if len(sharing_params) > 1 else None,
+                password=password  # allow parameters...
             )
 
             if not sharing:

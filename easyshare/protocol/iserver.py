@@ -11,7 +11,7 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def open(self, sharing_name: str) -> Response:
+    def open(self, sharing_name: str, password: str = None) -> Response:
         pass
 
     @abstractmethod

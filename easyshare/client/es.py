@@ -6,8 +6,9 @@ import sys
 import readline
 import time
 from abc import ABC, abstractmethod
+from getpass import getpass
 from stat import S_ISDIR, S_ISREG
-from typing import Optional, Callable, List, Dict, Type, Union
+from typing import Optional, Callable, List, Dict, Type, Union, Tuple
 
 from Pyro4.errors import ConnectionClosedError, PyroError
 
@@ -110,6 +111,9 @@ class SuggestionsIntent:
         self.space_after_completion = space_after_completion
         self.columns = columns
 
+    def __str__(self):
+        return json_to_pretty_str(items(self))
+
 
 class CommandArg:
     def __init__(self, arg_names: List[str], arg_help: str):
@@ -170,7 +174,7 @@ class ArgsCommandInfo(CommandInfo):
 
         return SuggestionsIntent(suggestions,
                                  completion=False,
-                                 columns=1)
+                                 columns=0)
 
 
 class ListLocalCommandInfo(ArgsCommandInfo):
@@ -250,7 +254,7 @@ class VerboseCommandInfo(CommandInfo):
                 VerboseCommandInfo.V4]
              ],
             completion=False,
-            columns=1,
+            columns=0,
         )
 
 
@@ -266,7 +270,7 @@ class TraceCommandInfo(CommandInfo):
                 TraceCommandInfo.T1]
              ],
             completion=False,
-            columns=1,
+            columns=0,
         )
 
 
@@ -278,6 +282,10 @@ class GetCommandInfo(ArgsCommandInfo):
 class PutCommandInfo(ArgsCommandInfo):
     YES_TO_ALL = CommandArg(["-Y", "--yes"], "Always overwrite existing files")
     NO_TO_ALL = CommandArg(["-N", "--no"], "Never overwrite existing files")
+
+
+class ScanCommandInfo(ArgsCommandInfo):
+    DETAILS = CommandArg(["-l"], "Show more details")
 
 
 class Commands:
@@ -350,7 +358,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_REMOVE: CommandInfo,
 
 
-    Commands.SCAN: CommandInfo,
+    Commands.SCAN: ScanCommandInfo,
     Commands.OPEN: CommandInfo,
     Commands.CLOSE: CommandInfo,
 
@@ -394,6 +402,7 @@ class OpenArguments:
 
 class ScanArguments:
     TIMEOUT = ["-T", "--timeout"]
+    DETAILS = ["-l"]
 
 
 class GetArguments:
@@ -427,6 +436,7 @@ class ErrorsStrings:
     INVALID_PATH = "Invalid path"
     INVALID_TRANSACTION = "Invalid transaction"
     NOT_ALLOWED = "Not allowed"
+    AUTHENTICATION_FAILED = "Authentication failed"
 
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
     UNEXPECTED_SERVER_RESPONSE = "Unexpected server response"
@@ -444,6 +454,7 @@ ERRORS_STRINGS_MAP = {
     ServerErrors.INVALID_PATH: ErrorsStrings.INVALID_PATH,
     ServerErrors.INVALID_TRANSACTION: ErrorsStrings.INVALID_TRANSACTION,
     ServerErrors.NOT_ALLOWED: ErrorsStrings.NOT_ALLOWED,
+    ServerErrors.AUTHENTICATION_FAILED: ErrorsStrings.AUTHENTICATION_FAILED,
 
     ClientErrors.COMMAND_NOT_RECOGNIZED: ErrorsStrings.COMMAND_NOT_RECOGNIZED,
     ClientErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
@@ -950,7 +961,7 @@ class Client:
             self._handle_error_response(resp)
 
 
-    def open(self, args: Args):
+    def open(self, args: Args) -> bool:
         #                    |------sharing_location-----|
         # open <sharing_name>[@<hostname> | @<ip>[:<port>]]
         #      |_________________________________________|
@@ -960,7 +971,7 @@ class Client:
 
         if not sharing_specifier:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
+            return False
 
         timeout = to_int(args.get_param(OpenArguments.TIMEOUT,
                                         default=Discoverer.DEFAULT_TIMEOUT))
@@ -976,7 +987,7 @@ class Client:
           "@{}".format(sharing_location) if sharing_location else "",
           timeout)
 
-        server_info: ServerInfo = self._discover_sharing(
+        sharing_info, server_info = self._discover_sharing(
             name=sharing_name,
             location=sharing_location,
             ftype=FTYPE_DIR,
@@ -993,15 +1004,24 @@ class Client:
         else:
             d("Reusing existing connection with %s", server_info.get("uri"))
 
+        passwd = None
+
+        # Ask the password if the sharing is protected by auth
+        if sharing_info.get("auth"):
+            v("Sharing '%s' is protected by password", sharing_name)
+            passwd = getpass()
+
         # Actually send OPEN
 
-        resp = self.connection.open(sharing_name)
+        resp = self.connection.open(sharing_name, passwd)
         if is_success_response(resp):
             v("Successfully connected to %s:%d",
               server_info.get("ip"), server_info.get("port"))
+            return True
         else:
             self._handle_error_response(resp)
             self.close()
+            return False
 
     def close(self, _: Optional[Args] = None):
         if not self.is_connected():
@@ -1042,7 +1062,8 @@ class Client:
                           server_info.get("ip"),
                           server_info.get("port")))
 
-            Client._print_sharings(server_info.get("sharings"))
+            print(Client._sharings_string(server_info.get("sharings"),
+                                          details=ScanArguments.DETAILS in args))
 
             servers_found += 1
 
@@ -1156,7 +1177,7 @@ class Client:
 
         # We have to perform a discover
 
-        server_info: ServerInfo = self._discover_sharing(
+        sharing_info, server_info = self._discover_sharing(
             name=sharing_name,
             location=sharing_location,
             timeout=timeout
@@ -1169,7 +1190,9 @@ class Client:
         d("Creating new temporary connection with %s", server_info.get("uri"))
         connection = Connection(server_info)
 
-        # Open connection
+        # FIXME: refactor - introduce password in the method
+
+        # Open a temporary connection
 
         v("Opening temporary connection")
         open_response = connection.open(sharing_name)
@@ -1227,7 +1250,7 @@ class Client:
 
         # We have to perform a discover
 
-        server_info: ServerInfo = self._discover_sharing(
+        sharing_info, server_info = self._discover_sharing(
             name=sharing_name,
             location=sharing_location,
             timeout=timeout
@@ -1683,18 +1706,22 @@ class Client:
                           name: str = None,
                           location: str = None,
                           ftype: FileType = None,
-                          timeout: int = Discoverer.DEFAULT_TIMEOUT) -> Optional[ServerInfo]:
+                          timeout: int = Discoverer.DEFAULT_TIMEOUT) -> Tuple[Optional[SharingInfo], Optional[ServerInfo]]:
         """
         Performs a discovery for find whose server the sharing with the given
         'name' belongs to.
 
         """
 
+        sharing_info: Optional[SharingInfo] = None
         server_info: Optional[ServerInfo] = None
 
         def response_handler(client_endpoint: Endpoint,
                              a_server_info: ServerInfo) -> bool:
+
+            nonlocal sharing_info
             nonlocal server_info
+
             d("Handling DISCOVER response from %s\n%s",
               str(client_endpoint), str(a_server_info))
 
@@ -1707,53 +1734,58 @@ class Client:
                 d("Discarding server info which does not match the location filter '%s'", location)
                 return True  # Continue DISCOVER
 
-            for sharing_info in a_server_info.get("sharings"):
+            for a_sharing_info in a_server_info.get("sharings"):
 
                 # Check if 'name' matches (if specified)
-                if name and sharing_info.get("name") != name:
+                if name and a_sharing_info.get("name") != name:
                     d("Ignoring sharing which does not match the name filter '%s'", name)
                     continue
 
-                if ftype and sharing_info.get("ftype") != ftype:
+                if ftype and a_sharing_info.get("ftype") != ftype:
                     d("Ignoring sharing which does not match the ftype filter '%s'", ftype)
+                    w("Found a sharing with the right name but wrong ftype, wrong command maybe?")
                     continue
 
                 # FOUND
                 d("Sharing [%s] found at %s:%d",
-                  sharing_info.get("name"),
+                  a_sharing_info.get("name"),
                   a_server_info.get("ip"),
                   a_server_info.get("port"),
               )
 
                 server_info = a_server_info
+                sharing_info = a_sharing_info
                 return False    # Stop DISCOVER
 
             return True             # Continue DISCOVER
 
         Discoverer(self._server_discover_port, response_handler).discover(timeout)
-        return server_info
+        return sharing_info, server_info
 
 
     @staticmethod
-    def _print_sharings(sharings: List[SharingInfo]):
-        print(Client._sharings_string(sharings))
-
-    @staticmethod
-    def _sharings_string(sharings: List[SharingInfo]) -> str:
+    def _sharings_string(sharings: List[SharingInfo], details: bool = False) -> str:
         s = ""
 
-        d_sharings = [sh.get("name") for sh in sharings if sh.get("ftype") == FTYPE_DIR]
-        f_sharings = [sh.get("name") for sh in sharings if sh.get("ftype") == FTYPE_FILE]
+        d_sharings = [sh for sh in sharings if sh.get("ftype") == FTYPE_DIR]
+        f_sharings = [sh for sh in sharings if sh.get("ftype") == FTYPE_FILE]
+
+        def sharing_string(sharing: SharingInfo):
+            ss = "  - " + sharing.get("name")
+            if details and sharing.get("auth"):
+                ss += "  (auth required)"
+            ss += "\n"
+            return ss
 
         if d_sharings:
             s += "  DIRECTORIES\n"
             for dsh in d_sharings:
-                s += "  - " + dsh + "\n"
+                s += sharing_string(dsh)
 
         if f_sharings:
             s += "  FILES\n"
             for fsh in f_sharings:
-                s += "  - " + fsh + "\n"
+                s += sharing_string(fsh)
 
         return s.rstrip("\n")
 
@@ -1854,6 +1886,7 @@ class Shell:
 
                     d("Fetching suggestions intent for command '%s'", comm_name)
                     suggestions_intent = comm_info.suggestions(token, line_buffer, self.client)
+                    d("Fetched intent %s", suggestions_intent)
 
                     if suggestions_intent:
                         self._suggestions = suggestions_intent.suggestions
@@ -1880,6 +1913,9 @@ class Shell:
 
                 if append_space:
                     self._suggestions[0] += " "
+
+            d("Configuring readline with cols = %d, autocomplete = %d",
+              columns_count, enable_completion)
 
             readline.parse_and_bind("set completion-display-width {}".format(
                 columns_count

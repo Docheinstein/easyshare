@@ -17,7 +17,7 @@ class Sharing:
         self.password = password
 
     def __str__(self):
-        return str(items(self))
+        return str({k: v for k, v in items(self).items() if "password" not in k})
 
     @staticmethod
     def create(name: str, path: str, read_only: bool = False, password: str = None) -> Optional['Sharing']:
