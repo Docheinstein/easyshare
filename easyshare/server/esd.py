@@ -692,6 +692,7 @@ class Server(IServer):
         # Check wheter it already exists
         if os.path.isfile(full_path):
             w("File already exists, (should) asking whether overwrite it (if needed)")
+            return create_success_response("ask_overwrite")
 
         transaction_handler.push_file(full_path, fsize)
 

@@ -180,6 +180,11 @@ class GetArguments:
     NO_TO_ALL = ["-N", "--no"]
 
 
+class PutArguments:
+    YES_TO_ALL = ["-Y", "--yes"]
+    NO_TO_ALL = ["-N", "--no"]
+
+
 # === MISC ===
 
 class GetMode(enum.Enum):
@@ -1043,6 +1048,15 @@ class Client:
         if len(files) == 0:
             files = ["."]
 
+        overwrite_all: Optional[bool] = None
+
+        if PutArguments.YES_TO_ALL in args:
+            overwrite_all = True
+        if PutArguments.NO_TO_ALL in args:
+            overwrite_all = False
+
+        v("Overwrite all mode: %s", bool_to_str(overwrite_all))
+
         put_response = connection.put()
 
         # if not is_data_response(put_response):
@@ -1078,6 +1092,8 @@ class Client:
 
 
         def send_file(local_path: str, remote_path: str):
+            nonlocal overwrite_all
+
             fstat = os.lstat(local_path)
             fsize = fstat.st_size
 
@@ -1104,6 +1120,38 @@ class Client:
             if not is_success_response(resp):
                 Client._handle_connection_error_response(connection, resp)
                 return
+
+            # Overwrite handling
+
+            if is_data_response(resp) and resp.get("data") == "ask_overwrite":
+
+                # Ask whether overwrite just once or forever
+                current_overwrite_decision = overwrite_all
+
+                # Ask until we get a valid answer
+                while current_overwrite_decision is None:
+
+                    overwrite_answer = input(
+                        "{} already exists, overwrite it? [Y : yes / yy : yes to all / n : no / nn : no to all] "
+                            .format(remote_path)
+                    ).lower()
+
+                    if not overwrite_answer or overwrite_answer == "y":
+                        current_overwrite_decision = True
+                    elif overwrite_answer == "n":
+                        current_overwrite_decision = False
+                    elif overwrite_answer == "yy":
+                        current_overwrite_decision = overwrite_all = True
+                    elif overwrite_answer == "nn":
+                        current_overwrite_decision = overwrite_all = False
+                    else:
+                        w("Invalid answer, asking again")
+
+                if current_overwrite_decision is False:
+                    d("Skipping " + remote_path)
+                    return
+                else:
+                    d("Will overwrite file")
 
             progressor = FileProgressor(
                 fsize,
