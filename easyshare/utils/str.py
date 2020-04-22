@@ -34,6 +34,28 @@ def unprefix(s: str, prefix: str) -> str:
     return s.split(prefix)[1]
 
 
+def rightof(s: str, sep: str, from_end=False) -> str:
+    if from_end:
+        before, _, after_or_ori = s.rpartition(sep)
+        return after_or_ori
+    else:
+        before_or_ori, _, after = s.partition(sep)
+        if after:
+            return after
+        return before_or_ori
+
+
+def leftof(s: str, sep: str, from_end=False) -> str:
+    if from_end:
+        before, _, after_or_ori = s.rpartition(sep)
+        if before:
+            return before
+        return after_or_ori
+    else:
+        before_or_ori, _, _ = s.partition(sep)
+        return before_or_ori
+
+
 # def strip(s: str, chars: str) -> str:
 #     if not s:
 #         return s

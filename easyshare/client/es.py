@@ -2,20 +2,14 @@ import enum
 import os
 import random
 import shlex
-import shutil
 import sys
 import readline
 import time
 from abc import ABC, abstractmethod
-from inspect import Traceback
 from stat import S_ISDIR, S_ISREG
-from typing import Optional, Callable, List, Dict, Union, Tuple, Any, Type
+from typing import Optional, Callable, List, Dict, Type
 
-import Pyro4
-from Pyro4 import util
-from Pyro4.core import _BatchProxyAdapter
 from Pyro4.errors import ConnectionClosedError, PyroError
-from anytree import AnyNode, RenderTree
 
 from easyshare.client.connection import Connection
 from easyshare.client.discover import Discoverer
@@ -42,7 +36,7 @@ from easyshare.utils.colors import init_colors, Color, red, fg
 from easyshare.utils.env import terminal_size
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.obj import values, items
-from easyshare.utils.str import unprefix, satisfy
+from easyshare.utils.str import unprefix, satisfy, leftof
 from easyshare.utils.types import to_int, to_bool, str_to_bool, bool_to_str
 from easyshare.utils.os import ls, size_str, rm, tree, mv, cp
 
@@ -112,22 +106,22 @@ class CommandArg:
         return "{}  {}".format(", ".join(self.names), self.help)
 
 
-class CommandInfo(ABC):
+class ICommandInfo(ABC):
     def __init__(self):
         pass
-
-    # @classmethod
-    # @abstractmethod
-    # def name(cls) -> str:
-    #     pass
 
     @classmethod
     @abstractmethod
     def args(cls) -> List[CommandArg]:
         pass
 
+    @classmethod
+    @abstractmethod
+    def suggestions(cls, prefix: str, line: str, client: 'Client') -> List[str]:
+        pass
 
-class CommandInfoImpl(CommandInfo, ABC):
+
+class CommandInfo(ICommandInfo, ABC):
     @classmethod
     def args(cls) -> List[CommandArg]:
         if not hasattr(cls, "ARGS"):
@@ -135,13 +129,67 @@ class CommandInfoImpl(CommandInfo, ABC):
         return getattr(cls, "ARGS")
 
 
-class LsInfo(CommandInfoImpl):
+class NoSuggestionsCommandInfo(CommandInfo):
+    @classmethod
+    def suggestions(cls, prefix: str, line: str, client: 'Client') -> List[str]:
+        return []
+
+
+class ListLocalSuggestionsCommandInfo(CommandInfo):
+    @classmethod
+    def suggestions(cls, prefix: str, line: str, client: 'Client') -> List[str]:
+        if prefix.endswith(os.path.sep):
+            prefix_path, prefix_trail = prefix, ""
+        else:
+            prefix_path, prefix_trail = os.path.split(prefix)
+
+        path = os.path.join(os.getcwd(), prefix_path)
+
+        d("")
+        d("prefix: %s", prefix)
+        d("prefix_path: %s", prefix_path)
+        d("prefix_trail: %s", prefix_trail)
+        d("on path: %s", path)
+
+        suggestions = []
+
+        for f in os.listdir(path):
+            d("f: %s", f)
+
+            if not f.startswith(prefix_trail):
+                continue
+
+            f_full = os.path.join(path, f)
+            f_trail = os.path.join(prefix_path, f)
+
+            d("f_full: %s", f_full)
+            d("f_trail: %s", f_trail)
+
+            if os.path.isdir(f_full):
+                # Append a dir, with a trailing / so that the next
+                # suggestion can continue to traverse the file system
+                suggestions.append(f_trail + "/")
+            else:
+                # Append a file, with a trailing space since there
+                # is no need to traverse the file system
+                suggestions.append(f_trail + " ")
+
+        return suggestions
+
+
+class LsInfo(NoSuggestionsCommandInfo):
     SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
     REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
     GROUP = CommandArg(["-g", "--group"], "Group by file type")
     SIZE = CommandArg(["-S"], "Show file size")
 
 
+class TreeInfo(NoSuggestionsCommandInfo):
+    SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
+    REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
+    GROUP = CommandArg(["-g", "--group"], "Group by file type")
+    SIZE = CommandArg(["-S"], "Show file size")
+    MAX_DEPTH = CommandArg(["-d", "--depth"], "Maximum depth")
 
 
 class Commands:
@@ -184,45 +232,45 @@ class Commands:
 
 
 COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
-    Commands.HELP: LsInfo,
-    Commands.EXIT: LsInfo,
+    Commands.HELP: NoSuggestionsCommandInfo,
+    Commands.EXIT: NoSuggestionsCommandInfo,
 
-    Commands.TRACE: LsInfo,
-    Commands.TRACE_SHORT: LsInfo,
+    Commands.TRACE: NoSuggestionsCommandInfo,
+    Commands.TRACE_SHORT: NoSuggestionsCommandInfo,
 
-    Commands.VERBOSE: LsInfo,
-    Commands.VERBOSE_SHORT: LsInfo,
-
-
-    Commands.LOCAL_CURRENT_DIRECTORY: LsInfo,
-    Commands.LOCAL_LIST_DIRECTORY: LsInfo,
-    Commands.LOCAL_TREE_DIRECTORY: LsInfo,
-    Commands.LOCAL_CHANGE_DIRECTORY: LsInfo,
-    Commands.LOCAL_CREATE_DIRECTORY: LsInfo,
-    Commands.LOCAL_COPY: LsInfo,
-    Commands.LOCAL_MOVE: LsInfo,
-    Commands.LOCAL_REMOVE: LsInfo,
+    Commands.VERBOSE: NoSuggestionsCommandInfo,
+    Commands.VERBOSE_SHORT: NoSuggestionsCommandInfo,
 
 
-    Commands.REMOTE_CURRENT_DIRECTORY: LsInfo,
+    Commands.LOCAL_CURRENT_DIRECTORY: NoSuggestionsCommandInfo,
+    Commands.LOCAL_LIST_DIRECTORY: LsInfo, # listlocal
+    Commands.LOCAL_TREE_DIRECTORY: TreeInfo, #listlocale
+    Commands.LOCAL_CHANGE_DIRECTORY: ListLocalSuggestionsCommandInfo,
+    Commands.LOCAL_CREATE_DIRECTORY: ListLocalSuggestionsCommandInfo,
+    Commands.LOCAL_COPY: ListLocalSuggestionsCommandInfo,
+    Commands.LOCAL_MOVE: ListLocalSuggestionsCommandInfo,
+    Commands.LOCAL_REMOVE: ListLocalSuggestionsCommandInfo,
+
+
+    Commands.REMOTE_CURRENT_DIRECTORY: NoSuggestionsCommandInfo,
     Commands.REMOTE_LIST_DIRECTORY: LsInfo,
-    Commands.REMOTE_TREE_DIRECTORY: LsInfo,
-    Commands.REMOTE_CHANGE_DIRECTORY: LsInfo,
-    Commands.REMOTE_CREATE_DIRECTORY: LsInfo,
-    Commands.REMOTE_COPY: LsInfo,
-    Commands.REMOTE_MOVE: LsInfo,
-    Commands.REMOTE_REMOVE: LsInfo,
+    Commands.REMOTE_TREE_DIRECTORY: TreeInfo,
+    Commands.REMOTE_CHANGE_DIRECTORY: NoSuggestionsCommandInfo,
+    Commands.REMOTE_CREATE_DIRECTORY: NoSuggestionsCommandInfo,
+    Commands.REMOTE_COPY: NoSuggestionsCommandInfo,
+    Commands.REMOTE_MOVE: NoSuggestionsCommandInfo,
+    Commands.REMOTE_REMOVE: NoSuggestionsCommandInfo,
 
 
-    Commands.SCAN: LsInfo,
-    Commands.OPEN: LsInfo,
-    Commands.CLOSE: LsInfo,
+    Commands.SCAN: NoSuggestionsCommandInfo,
+    Commands.OPEN: NoSuggestionsCommandInfo,
+    Commands.CLOSE: NoSuggestionsCommandInfo,
 
-    Commands.GET: LsInfo,
-    Commands.PUT: LsInfo,
+    Commands.GET: NoSuggestionsCommandInfo,
+    Commands.PUT: NoSuggestionsCommandInfo,
 
-    Commands.INFO: LsInfo,
-    Commands.PING: LsInfo,
+    Commands.INFO: NoSuggestionsCommandInfo,
+    Commands.PING: NoSuggestionsCommandInfo,
 }
 
 SHELL_COMMANDS = values(Commands)
@@ -246,13 +294,6 @@ class LsArguments:
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
     SIZE = ["-S"]
-
-
-class LsArgumentsHelp:
-    SORT_BY_SIZE = arghelp(LsArguments.SORT_BY_SIZE, "Sort by size")
-    REVERSE = arghelp(LsArguments.REVERSE, "Reverse sort order")
-    GROUP = arghelp(LsArguments.GROUP, "Group by file type")
-    SIZE = arghelp(LsArguments.SORT_BY_SIZE, "Show file size")
 
 
 class TreeArguments:
@@ -280,10 +321,6 @@ class PutArguments:
     YES_TO_ALL = ["-Y", "--yes"]
     NO_TO_ALL = ["-N", "--no"]
 
-
-COMMANDS_ARGS_HELP = {
-    Commands.LOCAL_LIST_DIRECTORY: LsArgumentsHelp
-}
 
 # === MISC ===
 
@@ -1695,22 +1732,18 @@ class Shell:
             Commands.EXIT: self._exit,
         }
 
-        # readline.parse_and_bind("tab: menu-complete")
         readline.parse_and_bind("tab: complete")
         # readline.parse_and_bind("set bell-style none")
+        readline.parse_and_bind("set colored-stats on")
+        readline.parse_and_bind("set mark-directories on")
         readline.parse_and_bind("set completion-query-items 40")
-        readline.set_completer(self.next_suggestion)
 
-        def pre_input():
-            readline.parse_and_bind("set completion-display-width -1")
-            readline.parse_and_bind("tab: complete")
-
-        readline.set_pre_input_hook(pre_input)
-
-        # Important: remove - from the delimiters for handle suggestions
+        # Remove '-' from the delimiters for handle suggestions
         # starting with '-' properly
         # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
-        readline.set_completer_delims(readline.get_completer_delims().replace("-", ""))
+        readline.set_completer_delims(readline.get_completer_delims().replace("-", "").replace(os.path.sep, ""))
+
+        readline.set_completer(self.next_suggestion)
 
     def next_suggestion(self, text, state):
         raw_line_buffer = readline.get_line_buffer()
@@ -1724,6 +1757,7 @@ class Shell:
         if state == 0:
             render_one_column = False
             enable_completion = True
+            add_space_after_completion = True
 
             # Figure out what's to show
 
@@ -1743,9 +1777,11 @@ class Shell:
                     # 3. Show something command dependent
 
                     if text.startswith("-"):
-
                         # Case 2: show command parameters
                         render_one_column = True
+
+                        # Disable completion so that the help string won't
+                        # be appended (e.g Sort by size)
                         enable_completion = False
 
                         longest_args_names = 0
@@ -1763,7 +1799,10 @@ class Shell:
                             ))
                     else:
                         # Case 3: show command dependent stuff
-                        self._suggestions = [f for f in os.listdir(os.getcwd()) if f.startswith(text)]
+                        self._suggestions = comm_info.suggestions(text, line_buffer, self.client)
+                        add_space_after_completion = False
+
+                        # readline.parse_and_bind("set disable-completion on")
 
                     # No need to go ahead, there is just one command with this name
                     break
@@ -1777,7 +1816,9 @@ class Shell:
 
             # If there is only a command that begins with
             # this name, complete the command (and insert a space)
-            if enable_completion and len(self._suggestions) == 1:
+            if enable_completion and \
+                    add_space_after_completion and \
+                    len(self._suggestions) == 1:
                 suggestion: str = self._suggestions.pop()
 
                 readline.insert_text(unprefix(suggestion, text) + " ")
