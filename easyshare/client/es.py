@@ -1040,6 +1040,9 @@ class Client:
             e("Connection must be opened for do GET")
             return
 
+        if len(files) == 0:
+            files = ["."]
+
         put_response = connection.put()
 
         # if not is_data_response(put_response):
@@ -1060,6 +1063,7 @@ class Client:
         v("Successfully PUTed")
         transfer_socket = SocketTcpOut(connection.server_info.get("ip"), port)
 
+        files = sorted(files, reverse=True)
         sendfiles: List[dict] = []
 
         for f in files:
@@ -1101,6 +1105,18 @@ class Client:
                 Client._handle_connection_error_response(connection, resp)
                 return
 
+            progressor = FileProgressor(
+                fsize,
+                description="PUT " + local_path,
+                color_progress=PROGRESS_COLOR,
+                color_done=DONE_COLOR
+            )
+
+            if ftype == FTYPE_DIR:
+                d("Sent a DIR, nothing else to do")
+                progressor.done()
+                return
+
             d("Actually sending the file")
 
             BUFFER_SIZE = 4096
@@ -1108,13 +1124,6 @@ class Client:
             f = open(local_path, "rb")
 
             cur_pos = 0
-
-            progressor = FileProgressor(
-                fsize,
-                description="PUT " + local_path,
-                color_progress=PROGRESS_COLOR,
-                color_done=DONE_COLOR
-            )
 
             while cur_pos < fsize:
                 r = random.random() * 0.001
@@ -1133,9 +1142,11 @@ class Client:
                 cur_pos += len(chunk)
                 progressor.update(cur_pos)
 
-            progressor.done()
             d("DONE %s", local_path)
             f.close()
+
+            progressor.done()
+
 
         while sendfiles:
             v("Putting another file info")
@@ -1160,7 +1171,7 @@ class Client:
                 d("-> is a DIR")
 
                 # Directory found
-                dir_files = os.listdir(next_file_local)
+                dir_files = sorted(os.listdir(next_file_local), reverse=True)
 
                 if dir_files:
 
@@ -1179,13 +1190,14 @@ class Client:
                         }
                         d("Adding sendfile %s", json_to_pretty_str(sendfile))
 
-                        sendfiles.insert(0, sendfile)
+                        sendfiles.append(sendfile)
                 else:
                     v("Found an empty directory")
                     d("Pushing an info for the empty directory")
 
                     send_file(next_file_local, next_file_remote)
             else:
+                eprint("Failed to send '{}'".format(next_file_local))
                 w("Unknown file type, doing nothing")
 
     def _do_get(self,
@@ -1248,10 +1260,18 @@ class Client:
 
             d("NEXT: %s of type %s", fname, ftype)
 
+            progressor = FileProgressor(
+                fsize,
+                description="GET " + fname,
+                color_progress=PROGRESS_COLOR,
+                color_done=DONE_COLOR
+            )
+
             # Case: DIR
             if ftype == FTYPE_DIR:
                 v("Creating dirs %s", fname)
                 os.makedirs(fname, exist_ok=True)
+                progressor.done()
                 continue
 
             if ftype != FTYPE_FILE:
@@ -1304,13 +1324,6 @@ class Client:
             BUFFER_SIZE = 4096
 
             read = 0
-
-            progressor = FileProgressor(
-                fsize,
-                description="GET " + fname,
-                color_progress=PROGRESS_COLOR,
-                color_done=DONE_COLOR
-            )
 
             while read < fsize:
                 recv_size = min(BUFFER_SIZE, fsize - read)
@@ -1691,15 +1704,15 @@ def main():
 
 
 def main_wrapper(dump_pyro_exceptions=False):
-    if not dump_pyro_exceptions:
-        main()
-    else:
-        try:
-            main()
-        except Exception:
-            traceback = Pyro4.util.getPyroTraceback()
-            if traceback:
-                e("--- PYRO4 REMOTE TRACEBACK ---\n%s", red("".join(traceback)))
+    # if not dump_pyro_exceptions:
+    main()
+    # else:
+    #     try:
+    #         main()
+    #     except Exception as ex:
+    #         traceback = Pyro4.util.getPyroTraceback()
+    #         if traceback:
+    #             # e("--- PYRO4 TRACEBACK ---\n%s", red("".join(traceback)))
 
 
 if __name__ == "__main__":

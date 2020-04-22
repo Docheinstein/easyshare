@@ -161,7 +161,7 @@ class FileProgressor:
 
         self.description = description
         self.partial = partial
-        self.total = total
+        self.total = total if total else 0
         self.ui_fps = ui_fps
         self.speed_fps = speed_fps
         self.progress_bar_renderer = progress_bar_renderer
@@ -189,6 +189,7 @@ class FileProgressor:
                force: bool = False,
                inline: bool = True,
                time_instead_speed: bool = False):
+        partial = partial if partial else 0
 
         if partial < self.partial:
             w("Progress cannot go backward")
@@ -224,7 +225,7 @@ class FileProgressor:
         self.partial = partial
         self.last_t = t
 
-        ratio = self.partial / self.total
+        ratio = self.partial / self.total if self.total > 0 else 1
         percentage = int(100 * ratio)
 
         # Do not render too fast (stay below FPS)

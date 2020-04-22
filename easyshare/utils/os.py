@@ -82,7 +82,12 @@ def tree(path: str,
                 # Compute children, just the first time
                 # print("Computing children of {}".format(cur_path))
 
-                cursor["children_unseen_info"] = _ls(cur_path, sort_by_fields, reverse)
+                # It might fail (e.g. permission denied)
+                try:
+                    cursor["children_unseen_info"] = _ls(cur_path, sort_by_fields, reverse)
+                except OSError:
+                    w("Cannot descend %s", cur_path)
+                    pass
 
             if not cursor.get("children_unseen_info"):
                 # No unseen children, we have to go up

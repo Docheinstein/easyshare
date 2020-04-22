@@ -632,6 +632,7 @@ class Server(IServer):
         for f in files:
             normalized_files.append(self._path_for_client(client, f))
 
+        normalized_files = sorted(normalized_files, reverse=True)
         d("Normalized files:\n%s", normalized_files)
 
         transaction_handler = self._add_get_transaction(
@@ -761,7 +762,7 @@ class Server(IServer):
             # Case: DIR
             elif os.path.isdir(next_file_path):
                 # Directory found
-                dir_files = os.listdir(next_file_path)
+                dir_files = sorted(os.listdir(next_file_path), reverse=True)
 
                 if dir_files:
 
@@ -769,12 +770,7 @@ class Server(IServer):
                     for f in dir_files:
                         f_path = os.path.join(next_file_path, f)
                         d("Adding %s", f_path)
-                        # Push to the begin instead of the end
-                        # In this way we perform a breadth-first search
-                        # instead of a depth-first search, which makes more sense
-                        # because we will push the files that belongs to the same
-                        # directory at the same time
-                        remaining_files.insert(0, f_path)
+                        remaining_files.append(f_path)
                 else:
                     v("Found an empty directory")
                     d("Returning an info for the empty directory")
