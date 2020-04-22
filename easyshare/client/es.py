@@ -426,6 +426,7 @@ class ErrorsStrings:
     SERVER_NOT_FOUND = "Server not found"
     INVALID_PATH = "Invalid path"
     INVALID_TRANSACTION = "Invalid transaction"
+    NOT_ALLOWED = "Not allowed"
 
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
     UNEXPECTED_SERVER_RESPONSE = "Unexpected server response"
@@ -442,6 +443,7 @@ ERRORS_STRINGS_MAP = {
     ServerErrors.SHARING_NOT_FOUND: ErrorsStrings.SHARING_NOT_FOUND,
     ServerErrors.INVALID_PATH: ErrorsStrings.INVALID_PATH,
     ServerErrors.INVALID_TRANSACTION: ErrorsStrings.INVALID_TRANSACTION,
+    ServerErrors.NOT_ALLOWED: ErrorsStrings.NOT_ALLOWED,
 
     ClientErrors.COMMAND_NOT_RECOGNIZED: ErrorsStrings.COMMAND_NOT_RECOGNIZED,
     ClientErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
@@ -1065,13 +1067,11 @@ class Client:
                 "Name: {}\n"
                 "IP: {}\n"
                 "Port: {}\n"
-                "Auth: {}\n"
                 "Sharings\n{}"
                 .format(
                     server_info.get("name"),
                     server_info.get("ip"),
                     server_info.get("port"),
-                    bool_to_str(server_info.get("auth"), "yes", "no"),
                     Client._sharings_string(server_info.get("sharings"))
                 )
             )
@@ -1722,7 +1722,8 @@ class Client:
                 d("Sharing [%s] found at %s:%d",
                   sharing_info.get("name"),
                   a_server_info.get("ip"),
-                  a_server_info.get("port"))
+                  a_server_info.get("port"),
+              )
 
                 server_info = a_server_info
                 return False    # Stop DISCOVER

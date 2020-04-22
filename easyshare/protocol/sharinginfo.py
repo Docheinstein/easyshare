@@ -10,5 +10,6 @@ try:
         name: str
         ftype: FileType
         read_only: bool
+        authentication: bool
 except:
     SharingInfo = Dict[str, Union[str, FileType, bool]]

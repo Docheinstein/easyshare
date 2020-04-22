@@ -70,6 +70,7 @@ class ServerArguments:
 class ServerConfigKeys:
     PORT = "port"
     NAME = "name"
+    PASSWORD = "password"
     SHARING_PATH = "path"
     SHARING_READ_ONLY = "read-only"
 
@@ -158,7 +159,6 @@ class Server(IServer):
             "ip": server_endpoint[0],
             "port": server_endpoint[1],
             "sharings": [sh.info() for sh in self.sharings.values()],
-            "auth": False
         }
 
         response = create_success_response(response_data)
@@ -669,6 +669,11 @@ class Server(IServer):
         if not finfo:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
+        if sharing.ftype == FTYPE_FILE:
+            # Cannot put within a file
+            e("Cannot put within a file sharing")
+            return create_error_response(ServerErrors.NOT_ALLOWED)
+
         # Check whether is a dir or a file
         fname = finfo.get("name")
         ftype = finfo.get("ftype")
@@ -735,12 +740,13 @@ class Server(IServer):
                 w("Invalid file found: skipping %s", next_file_path)
                 continue
 
-            if client:
-                trail = self._trailing_path_for_client_from_rpwd(client, next_file_path)
-            else:
+            if sharing.path == next_file_path:
+                # Getting (file) sharing
                 sharing_path_head, _ = os.path.split(sharing.path)
                 d("sharing_path_head: ", sharing_path_head)
                 trail = self._trailing_path(sharing_path_head, next_file_path)
+            else:
+                trail = self._trailing_path_for_client_from_rpwd(client, next_file_path)
 
             d("Trail: %s", trail)
 
@@ -1100,6 +1106,7 @@ def main():
     sharings = {}
     port = DEFAULT_DISCOVER_PORT
     name = socket.gethostname()
+    password = None
 
     # Eventually parse config file
     config_path = args.get_param(ServerArguments.CONFIG)
@@ -1119,15 +1126,21 @@ def main():
                     port = to_int(global_section.get(ServerConfigKeys.PORT))
 
                 if ServerConfigKeys.NAME in global_section:
-                    name = global_section.get(ServerConfigKeys.NAME, name)
+                    name = strip_quotes(global_section.get(ServerConfigKeys.NAME, name))
+
+                if ServerConfigKeys.PASSWORD in global_section:
+                    password = strip_quotes(global_section.get(ServerConfigKeys.PASSWORD, name))
 
             # Sharings
             for sharing_name, sharing_settings in cfg.items():
 
+                sharing_password = strip_quotes(sharing_settings.get(ServerConfigKeys.PASSWORD))
+
                 sharing = Sharing.create(
                     name=strip_quotes(sharing_name),
                     path=strip_quotes(sharing_settings.get(ServerConfigKeys.SHARING_PATH)),
-                    read_only=to_bool(sharing_settings.get(ServerConfigKeys.SHARING_READ_ONLY, False))
+                    read_only=to_bool(sharing_settings.get(ServerConfigKeys.SHARING_READ_ONLY, False)),
+                    password=sharing_password if sharing_password else password
                 )
 
                 if not sharing:
@@ -1191,8 +1204,7 @@ def main():
 
             sharing = Sharing.create(
                 path=sharing_params[0],
-                name=sharing_params[1] if len(sharing_params) > 1 else None,
-                read_only=False
+                name=sharing_params[1] if len(sharing_params) > 1 else None
             )
 
             if not sharing:

@@ -7,3 +7,4 @@ class ServerErrors:
     SHARING_NOT_FOUND =         205
     INVALID_PATH =              206
     INVALID_TRANSACTION =       207
+    NOT_ALLOWED =               208

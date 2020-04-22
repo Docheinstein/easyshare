@@ -8,17 +8,19 @@ from easyshare.utils.obj import items
 
 
 class Sharing:
-    def __init__(self, name: str, ftype: FileType, path: str, read_only: bool):
+    def __init__(self, name: str, ftype: FileType, path: str,
+                 read_only: bool, password: str = None):
         self.name = name
         self.ftype = ftype
         self.path = path
         self.read_only = read_only
+        self.password = password
 
     def __str__(self):
         return str(items(self))
 
     @staticmethod
-    def create(name: str, path: str, read_only: bool) -> Optional['Sharing']:
+    def create(name: str, path: str, read_only: bool = False, password: str = None) -> Optional['Sharing']:
         # Ensure path existence
         if not path:
             w("Sharing creation failed; path not provided")
@@ -47,12 +49,14 @@ class Sharing:
             name=name,
             ftype=ftype,
             path=path,
-            read_only=read_only
+            read_only=read_only,
+            password=password
         )
 
     def info(self) -> SharingInfo:
         return {
             "name": self.name,
             "ftype": self.ftype,
-            "read_only": self.read_only
+            "read_only": self.read_only,
+            "auth": True if self.password else False
         }

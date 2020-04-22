@@ -289,7 +289,7 @@ class FileProgressor:
                 )
             # WP
             elif cols >= Wlen + FileProgressor.MIN_P:
-                progress_line = FileProgressor.FMT_WPT.format(
+                progress_line = FileProgressor.FMT_WP.format(
                     W.ljust(cols - FileProgressor.MIN_P),
                     P.rjust(FileProgressor.LEN_P)
                 )
