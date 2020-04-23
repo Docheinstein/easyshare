@@ -17,7 +17,8 @@ SHARING_NAME_ALPHABET = string.ascii_letters + "_-"
 AUTH_FMT = "{}${}${}"   # type$salt$hash
 
 DIR_COLOR = Color.BLUE
-FILE_COLOR = Color.GREEN
+# FILE_COLOR = Color.GREEN
+FILE_COLOR = None
 
 PROGRESS_COLOR = Color.BLUE
 DONE_COLOR = Color.GREEN

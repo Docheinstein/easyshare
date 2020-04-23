@@ -7,6 +7,7 @@ import readline
 import time
 from abc import ABC, abstractmethod
 from getpass import getpass
+from math import ceil
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Type, Union, Tuple
 
@@ -33,7 +34,7 @@ from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.tree.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.utils.app import eprint, terminate, abort
-from easyshare.utils.colors import init_colors, Color, red, fg
+from easyshare.utils.colors import init_colors, Color, red, fg, styled
 from easyshare.utils.env import terminal_size
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.obj import values, items
@@ -97,22 +98,32 @@ class ClientArguments:
 
 # === COMMANDS ===
 
+class StyledSuggestion:
+    def __init__(self, suggestion: str, color: Color = None, background: Color = None):
+        self.suggestion = suggestion
+        self.color = color
+        self.background = background
+
+    def __str__(self):
+        return self.suggestion
+
 
 class SuggestionsIntent:
     def __init__(self,
-                 suggestions: List[str],
+                 suggestions: List[StyledSuggestion],
                  *,
                  completion: bool = True,
                  space_after_completion: Union[Callable[[str], bool], bool] = True,
-                 columns: int = -1,
+                 max_columns: int = None,
                  ):
-        self.suggestions = suggestions
-        self.completion = completion
-        self.space_after_completion = space_after_completion
-        self.columns = columns
+        self.suggestions: List[StyledSuggestion] = suggestions
+        self.completion: bool = completion
+        self.space_after_completion: Union[Callable[[str], bool], bool] = space_after_completion
+        self.max_columns: int = max_columns
 
     def __str__(self):
-        return json_to_pretty_str(items(self))
+        # print("suggestions:", self.suggestions)
+        return "".join([str(s) for s in self.suggestions])
 
 
 class CommandArg:
@@ -170,11 +181,11 @@ class ArgsCommandInfo(CommandInfo):
                 len(comm_args.args_str())
             )
 
-        suggestions = [comm_args.args_help_str(justify=longest_args_names) for comm_args in cls.args()]
+        suggestions = [StyledSuggestion(comm_args.args_help_str(justify=longest_args_names)) for comm_args in cls.args()]
 
         return SuggestionsIntent(suggestions,
                                  completion=False,
-                                 columns=0)
+                                 max_columns=1)
 
 
 class ListLocalCommandInfo(ArgsCommandInfo):
@@ -207,15 +218,18 @@ class ListLocalCommandInfo(ArgsCommandInfo):
             if os.path.isdir(f_full):
                 # Append a dir, with a trailing / so that the next
                 # suggestion can continue to traverse the file system
-                suggestions.append(f + "/")
+                ff = f + "/"
+                suggestions.append(StyledSuggestion(ff, color=DIR_COLOR))
             else:
                 # Append a file, with a trailing space since there
                 # is no need to traverse the file system
-                suggestions.append(f + " ")
+                ff = f + " "
+                suggestions.append(StyledSuggestion(ff, color=FILE_COLOR))
 
         # def space_after_completion(suggestion: str) -> bool:
         #     return not suggestion.endswith(os.path.sep)
 
+        # print("suggestions: ", [str(s) for s in suggestions])
         return SuggestionsIntent(suggestions,
                                  completion=True,
                                  space_after_completion=False)
@@ -246,7 +260,7 @@ class VerboseCommandInfo(CommandInfo):
     @classmethod
     def suggestions(cls, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
-            [c.args_help_str() for c in [
+            [StyledSuggestion(c.args_help_str()) for c in [
                 VerboseCommandInfo.V0,
                 VerboseCommandInfo.V1,
                 VerboseCommandInfo.V2,
@@ -254,7 +268,7 @@ class VerboseCommandInfo(CommandInfo):
                 VerboseCommandInfo.V4]
              ],
             completion=False,
-            columns=0,
+            max_columns=1,
         )
 
 
@@ -265,12 +279,12 @@ class TraceCommandInfo(CommandInfo):
     @classmethod
     def suggestions(cls, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
-            [c.args_help_str() for c in [
+            [StyledSuggestion(c.args_help_str()) for c in [
                 TraceCommandInfo.T0,
                 TraceCommandInfo.T1]
              ],
             completion=False,
-            columns=0,
+            max_columns=1,
         )
 
 
@@ -1842,17 +1856,24 @@ class Client:
 class Shell:
 
     def __init__(self, client: Client):
+        self.prompt = None
+        self.line_buffer = None
+
         self.client = client
-        self._suggestions = []
+
+        self._suggestions_intent: Optional[SuggestionsIntent] = None
+
         self._shell_command_dispatcher: Dict[str, Callable[[Args], None]] = {
             Commands.HELP: self._help,
             Commands.EXIT: self._exit,
         }
 
         readline.parse_and_bind("tab: complete")
-        # readline.parse_and_bind("set bell-style none")
-        readline.parse_and_bind("set colored-stats on")
-        readline.parse_and_bind("set mark-directories on")
+        # readline.parse_and_bind("set output-meta on")
+        # readline.parse_and_bind("set vi-cmd-mode-string none")
+        # readline.parse_and_bind("set visible-stats on")
+        # readline.parse_and_bind("set colored-stats on")
+        # readline.parse_and_bind("set mark-directories on")
         readline.parse_and_bind("set completion-query-items 40")
 
         # Remove '-' from the delimiters for handle suggestions
@@ -1863,21 +1884,65 @@ class Shell:
                                       # .replace(os.path.sep, "")
                                       )
 
+        readline.set_completion_display_matches_hook(self.display_suggestions)
+
         readline.set_completer(self.next_suggestion)
 
-    def next_suggestion(self, token: str, count: int):
-        raw_line_buffer = readline.get_line_buffer()
+    def display_suggestions(self, substitution, matches, longest_match_length):
+        # Simulate the default behaviour of readline, but:
+        # 1. Separate the concept of suggestion/rendered suggestion: in this
+        #    way we can render a colored suggestion while using the readline
+        #    core for treat it as a simple screent
+        # 2. Internally handles the max_columns constraints
+        min_col_width = longest_match_length + 2
+        term_cols, _ = terminal_size()
+        max_allowed_cols = self._suggestions_intent.max_columns if self._suggestions_intent.max_columns else 50
 
+        max_fill_cols = term_cols // min_col_width
+
+        display_cols = min(max_allowed_cols, max_fill_cols)
+        display_rows = ceil(len(self._suggestions_intent.suggestions) / display_cols)
+
+        d("longest_match_length %d", longest_match_length)
+        d("min_col_width %d", min_col_width)
+        d("term_cols %d", term_cols)
+        d("max_allowed_cols %d", max_allowed_cols)
+        d("max_fill_cols %d", max_fill_cols)
+        d("len_suggestions %d", len(self._suggestions_intent.suggestions))
+        d("display_rows %d", display_rows)
+        d("display_cols %d", display_cols)
+
+        print("")
+
+        for r in range(0, display_rows):
+            print_row = ""
+
+            for c in range(0, display_cols):
+                idx = r + c * display_rows
+                if idx < len(self._suggestions_intent.suggestions):
+                    # Add the styled suggestion
+                    styled_sugg = self._suggestions_intent.suggestions[idx]
+
+                    print_row += styled(styled_sugg.suggestion.ljust(min_col_width),
+                                        fg=styled_sugg.color, bg=styled_sugg.background)
+            print(print_row)
+
+        print(self.prompt + self.line_buffer, end="", flush=True)
+
+    def next_suggestion(self, token: str, count: int):
+        self.line_buffer = readline.get_line_buffer()
         # d("[%d] next_suggestion\n text = %s\n line_buffer = %s", state, text, raw_line_buffer)
         # d("get_completer_delims %s", readline.get_completer_delims())
         # d("get_completion_type %d", readline.get_completion_type())
 
-        line_buffer = raw_line_buffer.lstrip()
+        line_buffer = self.line_buffer.lstrip()
 
         if count == 0:
-            columns_count = -1
-            enable_completion = True
-            space_after_completion = True
+            self._suggestions_intent = SuggestionsIntent([])
+            # self._suggestions
+            # columns_count = -1
+            # enable_completion = True
+            # space_after_completion = True
 
             for comm_name, comm_info in COMMANDS_INFO.items():
                 if line_buffer.startswith(comm_name + " "):
@@ -1885,14 +1950,14 @@ class Shell:
                     # e.g. 'ls '
 
                     d("Fetching suggestions intent for command '%s'", comm_name)
-                    suggestions_intent = comm_info.suggestions(token, line_buffer, self.client)
-                    d("Fetched intent %s", suggestions_intent)
-
-                    if suggestions_intent:
-                        self._suggestions = suggestions_intent.suggestions
-                        columns_count = suggestions_intent.columns
-                        enable_completion = suggestions_intent.completion
-                        space_after_completion = suggestions_intent.space_after_completion
+                    self._suggestions_intent = comm_info.suggestions(token, line_buffer, self.client)
+                    d("Fetched intent")
+                    #
+                    # if suggestions_intent:
+                    #     self._suggestions = suggestions_intent.suggestions
+                    #     columns_count = suggestions_intent.columns
+                    #     enable_completion = suggestions_intent.completion
+                    #     space_after_completion = suggestions_intent.space_after_completion
 
                     break
 
@@ -1901,31 +1966,40 @@ class Shell:
                     # e.g. 'clos '
 
                     # Case 1: complete command
-                    self._suggestions.append(comm_name)
+                    self._suggestions_intent.suggestions.append(StyledSuggestion(comm_name))
 
             # If there is only a command that begins with
             # this name, complete the command (and eventually insert a space)
-            if enable_completion and space_after_completion and len(self._suggestions) == 1:
-                if is_bool(space_after_completion):
-                    append_space = space_after_completion
+            if self._suggestions_intent.completion and \
+                    self._suggestions_intent.space_after_completion and \
+                    len(self._suggestions_intent.suggestions) == 1:
+
+                if is_bool(self._suggestions_intent.space_after_completion):
+                    append_space = self._suggestions_intent.space_after_completion
                 else:
-                    append_space = space_after_completion(self._suggestions[0])
+                    append_space = self._suggestions_intent.space_after_completion(
+                        self._suggestions_intent.suggestions[0]
+                    )
 
                 if append_space:
-                    self._suggestions[0] += " "
+                    self._suggestions_intent.suggestions[0].suggestion += " "
 
-            d("Configuring readline with cols = %d, autocomplete = %d",
-              columns_count, enable_completion)
+            # d("Configuring readline with cols = %d, autocomplete = %d",
+            #   columns_count, enable_completion)
+            #
+            # readline.parse_and_bind("set completion-display-width {}".format(
+            #     columns_count
+            # ))
+            # readline.parse_and_bind("tab: {}".format(
+            #     "complete" if enable_completion else "possible-completions"
+            # ))
 
-            readline.parse_and_bind("set completion-display-width {}".format(
-                columns_count
-            ))
-            readline.parse_and_bind("tab: {}".format(
-                "complete" if enable_completion else "possible-completions"
-            ))
+            self._suggestions_intent.suggestions = \
+                sorted(self._suggestions_intent.suggestions, key=lambda sugg: sugg.suggestion)
 
-        if len(self._suggestions) > 0:
-            return self._suggestions.pop()
+        if count < len(self._suggestions_intent.suggestions):
+            d("Returning suggestion %d", count)
+            return self._suggestions_intent.suggestions[count].suggestion
 
         return None
 
@@ -1933,8 +2007,8 @@ class Shell:
         command = None
         while command != Commands.EXIT:
             try:
-                prompt = self._build_prompt_string()
-                command_line = input(prompt)
+                self.prompt = self._build_prompt_string()
+                command_line = input(self.prompt)
 
                 if not command_line:
                     w("Empty command line")
@@ -2010,7 +2084,13 @@ def main():
     args = Args(sys.argv[1:])
 
     init_colors(ClientArguments.NO_COLOR not in args)
-
+    print(fg("ciao", color=FILE_COLOR))
+    ss = []
+    ss.append(fg("ciao", color=FILE_COLOR))
+    ss.append(fg("hello", color=DIR_COLOR))
+    print(ss)
+    for s in ss:
+        print(s)
     verbosity = 0
     tracing = 0
 
