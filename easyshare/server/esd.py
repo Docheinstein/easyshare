@@ -12,7 +12,7 @@ from typing import Dict, Optional, List, Any, Callable, TypeVar
 
 import colorama
 
-from easyshare.passwd.auth import create_auth_string, AuthType, parse_auth_string
+from easyshare.passwd.auth import AuthFactory
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import create_success_response, create_error_response, Response
@@ -213,19 +213,18 @@ class Server(IServer):
         if not sharing:
             return create_error_response(ServerErrors.SHARING_NOT_FOUND)
 
-        # Authentication
-        if sharing.password:
-            v("Sharing is protected, checking password against the provided one")
-            # Check both plain and hashed
-            if sharing.password == password:
-                d("Plain auth OK")
-            else:
-                auth_type, salt, hashed = parse_auth_string(sharing.password)
-                if auth_type:
-                    create_auth_string(auth_type, salt)
-                return create_error_response(ServerErrors.AUTHENTICATION_FAILED)
+        if not sharing.auth:
+            return create_error_response(ServerErrors.INTERNAL_SERVER_ERROR)
 
-        # OK, authenticated (or non-protected sharing)
+        # Authentication
+        v("Authentication check - type: %s", sharing.auth.algo_name())
+        # Just ask the auth whether it matches or not
+        # (The password can either be none/plain/hash, the auth handles them all)
+        if not sharing.auth.match(password):
+            e("Auth FAILED")
+            return create_error_response(ServerErrors.AUTHENTICATION_FAILED)
+
+        i("Auth OK")
 
         client_endpoint = self._current_request_endpoint()
         i("<< OPEN %s %s", sharing_name, str(client_endpoint))
@@ -1163,7 +1162,7 @@ def main():
                     name=strip_quotes(sharing_name),
                     path=strip_quotes(sharing_settings.get(ServerConfigKeys.SHARING_PATH)),
                     read_only=to_bool(sharing_settings.get(ServerConfigKeys.SHARING_READ_ONLY, False)),
-                    password=sharing_password if sharing_password else password
+                    auth=AuthFactory.parse(sharing_password if sharing_password else password)
                 )
 
                 if not sharing:
@@ -1228,7 +1227,7 @@ def main():
             sharing = Sharing.create(
                 path=sharing_params[0],
                 name=sharing_params[1] if len(sharing_params) > 1 else None,
-                password=password  # allow parameters...
+                auth=AuthFactory.parse(password)  # allow parameters...
             )
 
             if not sharing:

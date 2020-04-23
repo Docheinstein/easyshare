@@ -1,5 +1,6 @@
 import string
 import sys
+from enum import Enum
 
 from easyshare.shared.args import Args
 from easyshare.utils import str
@@ -27,7 +28,22 @@ def test_filter():
     print(str.filter("dog/dmwe&", string.ascii_letters))
 
 
+def return_none_tuple():
+    return None, None, None
+
+
+class Dog(Enum):
+    Cat = 1
+    Dog = 2
+
 if __name__ == "__main__":
-    test_ls()
+    a, b, c = return_none_tuple()
+    print(a)
+    print(b)
+    print(c)
+    print(Dog(1))
+    print(Dog(2))
+    print(Dog(3))
+    # test_ls()
     # test_args()
     # test_filter()

@@ -1,6 +1,7 @@
 import os
 from typing import Optional
 
+from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.filetype import FileType, FTYPE_DIR, FTYPE_FILE
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.log import w
@@ -9,18 +10,20 @@ from easyshare.utils.obj import items
 
 class Sharing:
     def __init__(self, name: str, ftype: FileType, path: str,
-                 read_only: bool, password: str = None):
+                 read_only: bool, auth: Auth = AuthNone()):
         self.name = name
         self.ftype = ftype
         self.path = path
         self.read_only = read_only
-        self.password = password
+        self.auth = auth
 
     def __str__(self):
-        return str({k: v for k, v in items(self).items() if "password" not in k})
+        d: dict = self.info()
+        d["auth_type"] = self.auth.algo_name()
+        return str(d)
 
     @staticmethod
-    def create(name: str, path: str, read_only: bool = False, password: str = None) -> Optional['Sharing']:
+    def create(name: str, path: str, read_only: bool = False, auth: Auth = AuthNone()) -> Optional['Sharing']:
         # Ensure path existence
         if not path:
             w("Sharing creation failed; path not provided")
@@ -50,7 +53,7 @@ class Sharing:
             ftype=ftype,
             path=path,
             read_only=read_only,
-            password=password
+            auth=auth
         )
 
     def info(self) -> SharingInfo:
@@ -58,5 +61,5 @@ class Sharing:
             "name": self.name,
             "ftype": self.ftype,
             "read_only": self.read_only,
-            "auth": True if self.password else False
+            "auth": True if (self.auth and self.auth.algo_security() > 0) else False
         }

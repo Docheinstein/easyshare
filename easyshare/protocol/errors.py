@@ -9,3 +9,4 @@ class ServerErrors:
     INVALID_TRANSACTION =       207
     NOT_ALLOWED =               208
     AUTHENTICATION_FAILED =     209
+    INTERNAL_SERVER_ERROR =     210

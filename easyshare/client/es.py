@@ -127,13 +127,12 @@ class SuggestionsIntent:
 
 
 class CommandArg:
-    def __init__(self, arg_names: List[str], arg_help: str):
-        self.names = arg_names
+    def __init__(self, arg_aliases: List[str], arg_help: str):
+        self.aliases = arg_aliases
         self.help = arg_help
 
     def args_str(self) -> str:
-        return ", ".join(self.names)
-
+        return ", ".join(self.aliases)
 
     def args_help_str(self, justify: int = 0):
         return "{}    {}".format(
@@ -235,21 +234,6 @@ class ListLocalCommandInfo(ArgsCommandInfo):
                                  space_after_completion=False)
 
 
-class LsCommandInfo(ArgsCommandInfo):
-    SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
-    REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
-    GROUP = CommandArg(["-g", "--group"], "Group by file type")
-    SIZE = CommandArg(["-S"], "Show file size")
-
-
-class TreeCommandInfo(ArgsCommandInfo):
-    SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
-    REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
-    GROUP = CommandArg(["-g", "--group"], "Group by file type")
-    SIZE = CommandArg(["-S"], "Show file size")
-    MAX_DEPTH = CommandArg(["-d", "--depth"], "Maximum depth")
-
-
 class VerboseCommandInfo(CommandInfo):
     V0 = CommandArg(["0"], "error")
     V1 = CommandArg(["1"], "error / warning")
@@ -288,6 +272,23 @@ class TraceCommandInfo(CommandInfo):
         )
 
 
+class LsCommandInfo(ArgsCommandInfo):
+    SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
+    REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
+    GROUP = CommandArg(["-g", "--group"], "Group by file type")
+    SIZE = CommandArg(["-S"], "Show file size")
+    DETAILS = CommandArg(["-l"], "Show all the details")
+
+
+class TreeCommandInfo(ArgsCommandInfo):
+    SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
+    REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
+    GROUP = CommandArg(["-g", "--group"], "Group by file type")
+    MAX_DEPTH = CommandArg(["-d", "--depth"], "Maximum depth")
+    SIZE = CommandArg(["-S"], "Show file size")
+    DETAILS = CommandArg(["-l"], "Show all the details")
+
+
 class GetCommandInfo(ArgsCommandInfo):
     YES_TO_ALL = CommandArg(["-Y", "--yes"], "Always overwrite existing files")
     NO_TO_ALL = CommandArg(["-N", "--no"], "Never overwrite existing files")
@@ -299,7 +300,7 @@ class PutCommandInfo(ArgsCommandInfo):
 
 
 class ScanCommandInfo(ArgsCommandInfo):
-    DETAILS = CommandArg(["-l"], "Show more details")
+    DETAILS = CommandArg(["-l"], "Show all the details")
 
 
 class Commands:
@@ -353,8 +354,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
 
 
     Commands.LOCAL_CURRENT_DIRECTORY: CommandInfo,
-    Commands.LOCAL_LIST_DIRECTORY: LsCommandInfo, # listlocal
-    Commands.LOCAL_TREE_DIRECTORY: TreeCommandInfo, #listlocale
+    Commands.LOCAL_LIST_DIRECTORY: LsCommandInfo,   # listlocal
+    Commands.LOCAL_TREE_DIRECTORY: TreeCommandInfo, # listlocale
     Commands.LOCAL_CHANGE_DIRECTORY: ListLocalCommandInfo,
     Commands.LOCAL_CREATE_DIRECTORY: ListLocalCommandInfo,
     Commands.LOCAL_COPY: ListLocalCommandInfo,
@@ -451,6 +452,7 @@ class ErrorsStrings:
     INVALID_TRANSACTION = "Invalid transaction"
     NOT_ALLOWED = "Not allowed"
     AUTHENTICATION_FAILED = "Authentication failed"
+    INTERNAL_SERVER_ERROR = "Internal server error"
 
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
     UNEXPECTED_SERVER_RESPONSE = "Unexpected server response"
@@ -469,6 +471,7 @@ ERRORS_STRINGS_MAP = {
     ServerErrors.INVALID_TRANSACTION: ErrorsStrings.INVALID_TRANSACTION,
     ServerErrors.NOT_ALLOWED: ErrorsStrings.NOT_ALLOWED,
     ServerErrors.AUTHENTICATION_FAILED: ErrorsStrings.AUTHENTICATION_FAILED,
+    ServerErrors.INTERNAL_SERVER_ERROR: ErrorsStrings.INTERNAL_SERVER_ERROR,
 
     ClientErrors.COMMAND_NOT_RECOGNIZED: ErrorsStrings.COMMAND_NOT_RECOGNIZED,
     ClientErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
@@ -616,7 +619,7 @@ class Client:
 
     def ls(self, args: Args):
         sort_by = ["name"]
-        reverse = LsArguments.REVERSE in args
+        reverse = LsCommandInfo.REVERSE.aliases in args
 
         if LsArguments.SORT_BY_SIZE in args:
             sort_by.append("size")
@@ -2084,13 +2087,7 @@ def main():
     args = Args(sys.argv[1:])
 
     init_colors(ClientArguments.NO_COLOR not in args)
-    print(fg("ciao", color=FILE_COLOR))
-    ss = []
-    ss.append(fg("ciao", color=FILE_COLOR))
-    ss.append(fg("hello", color=DIR_COLOR))
-    print(ss)
-    for s in ss:
-        print(s)
+
     verbosity = 0
     tracing = 0
 
