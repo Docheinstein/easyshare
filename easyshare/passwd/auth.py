@@ -7,7 +7,7 @@ from easyshare.utils.crypt import scrypt_new, bytes_to_b64, scrypt, b64
 class Auth(ABC):
 
     @abstractmethod
-    def match(self, password: Optional[str]) -> bool:
+    def authenticate(self, password: Optional[str]) -> bool:
         pass
 
     @classmethod
@@ -22,7 +22,7 @@ class Auth(ABC):
 
 
 class AuthNone(Auth):
-    def match(self, password: Optional[str]) -> bool:
+    def authenticate(self, password: Optional[str]) -> bool:
         return True
 
     @classmethod
@@ -33,12 +33,15 @@ class AuthNone(Auth):
     def algo_name(cls) -> str:
         return "none"
 
+    def __str__(self):
+        return ""
+
 
 class AuthPlain(Auth):
     def __init__(self, plain):
         self.plain = plain
 
-    def match(self, password: Optional[str]) -> bool:
+    def authenticate(self, password: Optional[str]) -> bool:
         return self.plain == password
 
     @classmethod
@@ -48,6 +51,9 @@ class AuthPlain(Auth):
     @classmethod
     def algo_name(cls) -> str:
         return "plain"
+
+    def __str__(self):
+        return self.plain
 
 
 class AuthHash(Auth, ABC):
@@ -95,7 +101,7 @@ class AuthScrypt(AuthHash):
         salt_s, hash_s = bytes_to_b64(salt_b), bytes_to_b64(hash_b)
         return AuthScrypt(AuthScrypt.ALGORITHM_ID, salt_s, hash_s)
 
-    def match(self, password: Optional[str]) -> bool:
+    def authenticate(self, password: Optional[str]) -> bool:
         hash_b = scrypt(password, self.salt)
         hash_s = bytes_to_b64(hash_b)
         return self == AuthScrypt(AuthScrypt.ALGORITHM_ID, self.salt, hash_s)
@@ -135,7 +141,7 @@ if __name__ == "__main__":
     plaintext = "hello"
 
     # Plain auth check
-    assert AuthFactory.parse(plaintext).match(plaintext)
+    assert AuthFactory.parse(plaintext).authenticate(plaintext)
 
     # --
 
@@ -156,4 +162,4 @@ if __name__ == "__main__":
     # --
 
     # Match against plaintext
-    assert auth_dec.match(plaintext)
+    assert auth_dec.authenticate(plaintext)

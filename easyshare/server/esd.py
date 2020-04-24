@@ -73,7 +73,7 @@ class ServerConfigKeys:
     NAME = "name"
     PASSWORD = "password"
     SHARING_PATH = "path"
-    SHARING_READ_ONLY = "read-only"
+    SHARING_READ_ONLY = "readonly"
 
 
 # === ERRORS ===
@@ -92,8 +92,11 @@ API = TypeVar('API', bound=Callable[..., Any])
 
 
 def trace_api(api: API) -> API:
-    def traced_api(server: 'Server', *vargs, **kwargs) -> Optional[Response]:
+
+    def wrapped_api(server: 'Server', *vargs, **kwargs) -> Optional[Response]:
         requester = server._current_request_endpoint()
+
+
 
         trace_in("{} ({})".format(api.__name__, args_to_str(vargs, kwargs)),
                  ip=requester[0],
@@ -108,19 +111,20 @@ def trace_api(api: API) -> API:
         # else: should be a one-way call without response
         return resp
 
-    return traced_api
+    return wrapped_api
 
-# requester = self._current_request_endpoint()
-#
-# caller_frame = inspect.stack()[1].frame
-# caller_name = caller_frame.f_code.co_name
-# caller_args = {key: val for key, val in caller_frame.f_locals.items() if key != "self"}
-# caller_args_str = args_to_str(kwargs=caller_args)
-#
-# trace_in("{} ({})".format(caller_name, caller_args_str),
-#          ip=requester[0],
-#          port=requester[1],
-# )
+
+# def require_connection(api: API) -> API:
+#     def wrapped_api(server: 'Server', *vargs, **kwargs) -> Optional[Response]:
+#         client = server._current_request_client()
+#         if not client:
+#             e("Connection is required for '%s'", api.__name__)
+#             return create_error_response(ServerErrors.NOT_CONNECTED)
+#         return api(*vargs, **kwargs)
+#     setattr(wrapped_api, "__name__", api.__name__)
+#     return wrapped_api
+
+
 
 class Server(IServer):
 
@@ -220,7 +224,7 @@ class Server(IServer):
         v("Authentication check - type: %s", sharing.auth.algo_name())
         # Just ask the auth whether it matches or not
         # (The password can either be none/plain/hash, the auth handles them all)
-        if not sharing.auth.match(password):
+        if not sharing.auth.authenticate(password):
             e("Auth FAILED")
             return create_error_response(ServerErrors.AUTHENTICATION_FAILED)
 
@@ -385,8 +389,14 @@ class Server(IServer):
     @trace_api
     def rmkdir(self, directory: str) -> Response:
         client = self._current_request_client()
+
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
+
+        sharing = self._current_request_sharing()
+
+        if sharing.read_only:
+            return create_error_response(ServerErrors.NOT_WRITABLE)
 
         i("<< RMKDIR %s (%s)", directory, str(client))
 
@@ -907,6 +917,14 @@ class Server(IServer):
         :return: the client of the current request
         """
         return self.clients.get(self._current_request_endpoint())
+
+    def _current_request_sharing(self) -> Optional[Sharing]:
+        """
+        Returns the client that belongs to the current request endpoint (ip, port)
+        if exists among the known clients; otherwise returns None.
+        :return: the client of the current request
+        """
+        return self._current_client_sharing(self._current_request_client())
 
     def _current_client_sharing(self, client: ClientContext) -> Optional[Sharing]:
         """

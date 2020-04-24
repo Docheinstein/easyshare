@@ -10,3 +10,4 @@ class ServerErrors:
     NOT_ALLOWED =               208
     AUTHENTICATION_FAILED =     209
     INTERNAL_SERVER_ERROR =     210
+    NOT_WRITABLE =              211

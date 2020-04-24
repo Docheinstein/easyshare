@@ -453,6 +453,7 @@ class ErrorsStrings:
     NOT_ALLOWED = "Not allowed"
     AUTHENTICATION_FAILED = "Authentication failed"
     INTERNAL_SERVER_ERROR = "Internal server error"
+    NOT_WRITABLE = "Cannot perform the action on a readonly sharing"
 
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
     UNEXPECTED_SERVER_RESPONSE = "Unexpected server response"
@@ -1789,8 +1790,15 @@ class Client:
 
         def sharing_string(sharing: SharingInfo):
             ss = "  - " + sharing.get("name")
-            if details and sharing.get("auth"):
-                ss += "  (auth required)"
+
+            if details:
+                details_list = []
+                if sharing.get("auth"):
+                    details_list.append("auth required")
+                if sharing.get("read_only"):
+                    details_list.append("read only")
+                if details_list:
+                    ss += "  ({})".format(", ".join(details_list))
             ss += "\n"
             return ss
 
