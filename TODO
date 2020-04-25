@@ -33,3 +33,4 @@
 - transaction handler is probably to split in two
 - support any command globally?
 - ls/tree param?
+- ls no hidden files

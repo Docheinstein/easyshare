@@ -17,6 +17,19 @@ M = 1000000
 K = 1000
 UNITS = (1, K, M, G)
 
+if os.name == 'nt':
+    import win32api, win32con
+
+
+def is_hidden(s: str):
+    _, tail = os.path.split(s)
+
+    if os.name == 'nt':
+        attribute = win32api.GetFileAttributes(tail)
+        return attribute & (win32con.FILE_ATTRIBUTE_HIDDEN | win32con.FILE_ATTRIBUTE_SYSTEM)
+    else:
+        return tail.startswith('.')
+
 
 def is_relpath(s: str) -> bool:
     return not s.startswith(os.sep)

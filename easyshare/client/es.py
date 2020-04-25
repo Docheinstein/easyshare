@@ -44,7 +44,7 @@ from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.obj import values, items
 from easyshare.utils.str import unprefix, satisfy, leftof, rightof
 from easyshare.utils.types import to_int, to_bool, str_to_bool, bool_to_str, is_bool
-from easyshare.utils.os import ls, size_str, rm, tree, mv, cp
+from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden
 
 # ==================================================================
 
@@ -102,31 +102,30 @@ class ClientArguments:
 
 # === COMMANDS ===
 
-class StyledSuggestion:
-    def __init__(self, suggestion: str, color: Color = None, background: Color = None):
-        self.suggestion = suggestion
-        self.color = color
-        self.background = background
+
+class StyledString:
+    def __init__(self, string: str, styled_string: str = None):
+        self.string = string
+        self.styled_string = styled_string or string
 
     def __str__(self):
-        return self.suggestion
+        return self.string
 
 
 class SuggestionsIntent:
     def __init__(self,
-                 suggestions: List[StyledSuggestion],
+                 suggestions: List[StyledString],
                  *,
                  completion: bool = True,
                  space_after_completion: Union[Callable[[str], bool], bool] = True,
                  max_columns: int = None,
                  ):
-        self.suggestions: List[StyledSuggestion] = suggestions
+        self.suggestions: List[StyledString] = suggestions
         self.completion: bool = completion
         self.space_after_completion: Union[Callable[[str], bool], bool] = space_after_completion
         self.max_columns: int = max_columns
 
     def __str__(self):
-        # print("suggestions:", self.suggestions)
         return "".join([str(s) for s in self.suggestions])
 
 
@@ -162,6 +161,7 @@ class CommandInfo:
 
 
 class ArgsCommandInfo(CommandInfo):
+
     @classmethod
     def args(cls) -> List[CommandArg]:
         if not hasattr(cls, "ARGS"):
@@ -184,14 +184,19 @@ class ArgsCommandInfo(CommandInfo):
                 len(comm_args.args_str())
             )
 
-        suggestions = [StyledSuggestion(comm_args.args_help_str(justify=longest_args_names)) for comm_args in cls.args()]
+        suggestions = [StyledString(comm_args.args_help_str(justify=longest_args_names)) for comm_args in cls.args()]
 
         return SuggestionsIntent(suggestions,
                                  completion=False,
                                  max_columns=1)
 
 
-class ListLocalCommandInfo(ArgsCommandInfo):
+class ListLocalCommandInfo(ArgsCommandInfo, ABC):
+    @classmethod
+    @abstractmethod
+    def add_path_filter(cls, s: str) -> bool:
+        pass
+
     @classmethod
     def suggestions(cls, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
 
@@ -216,18 +221,22 @@ class ListLocalCommandInfo(ArgsCommandInfo):
 
             f_full = os.path.join(path_dir, f)
 
+            if not cls.add_path_filter(f_full):
+                d("Path %s doesn't pass the filter", f_full)
+                continue
+
             d("f_full: %s", f_full)
 
             if os.path.isdir(f_full):
                 # Append a dir, with a trailing / so that the next
                 # suggestion can continue to traverse the file system
                 ff = f + "/"
-                suggestions.append(StyledSuggestion(ff, color=DIR_COLOR))
+                suggestions.append(StyledString(ff, fg(ff, color=DIR_COLOR)))
             else:
                 # Append a file, with a trailing space since there
                 # is no need to traverse the file system
                 ff = f + " "
-                suggestions.append(StyledSuggestion(ff, color=FILE_COLOR))
+                suggestions.append(StyledString(ff, fg(ff, color=FILE_COLOR)))
 
         # def space_after_completion(suggestion: str) -> bool:
         #     return not suggestion.endswith(os.path.sep)
@@ -236,6 +245,25 @@ class ListLocalCommandInfo(ArgsCommandInfo):
         return SuggestionsIntent(suggestions,
                                  completion=True,
                                  space_after_completion=False)
+
+
+
+class ListLocalAllCommandInfo(ListLocalCommandInfo):
+    @classmethod
+    def add_path_filter(self, s: str) -> bool:
+        return True
+
+
+class ListLocalDirsCommandInfo(ListLocalCommandInfo):
+    @classmethod
+    def add_path_filter(self, s: str) -> bool:
+        return os.path.isdir(s)
+
+
+class ListLocalFilesCommandInfo(ListLocalCommandInfo):
+    @classmethod
+    def add_path_filter(self, s: str) -> bool:
+        return os.path.isfile(s)
 
 
 class VerboseCommandInfo(CommandInfo):
@@ -248,7 +276,7 @@ class VerboseCommandInfo(CommandInfo):
     @classmethod
     def suggestions(cls, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
-            [StyledSuggestion(c.args_help_str()) for c in [
+            [StyledString(c.args_help_str()) for c in [
                 VerboseCommandInfo.V0,
                 VerboseCommandInfo.V1,
                 VerboseCommandInfo.V2,
@@ -267,7 +295,7 @@ class TraceCommandInfo(CommandInfo):
     @classmethod
     def suggestions(cls, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
-            [StyledSuggestion(c.args_help_str()) for c in [
+            [StyledString(c.args_help_str()) for c in [
                 TraceCommandInfo.T0,
                 TraceCommandInfo.T1]
              ],
@@ -360,8 +388,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_CURRENT_DIRECTORY: CommandInfo,
     Commands.LOCAL_LIST_DIRECTORY: LsCommandInfo,   # listlocal
     Commands.LOCAL_TREE_DIRECTORY: TreeCommandInfo, # listlocale
-    Commands.LOCAL_CHANGE_DIRECTORY: ListLocalCommandInfo,
-    Commands.LOCAL_CREATE_DIRECTORY: ListLocalCommandInfo,
+    Commands.LOCAL_CHANGE_DIRECTORY: ListLocalDirsCommandInfo,
+    Commands.LOCAL_CREATE_DIRECTORY: ListLocalDirsCommandInfo,
     Commands.LOCAL_COPY: ListLocalCommandInfo,
     Commands.LOCAL_MOVE: ListLocalCommandInfo,
     Commands.LOCAL_REMOVE: ListLocalCommandInfo,
@@ -405,6 +433,8 @@ class LsArguments:
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
     SIZE = ["-S"]
+    DETAILS = ["-l"]
+    ALL = ["-a", "--all"]
 
 
 class TreeArguments:
@@ -503,6 +533,43 @@ def print_error(error_code: int):
 def print_response_error(resp: Response):
     if is_error_response(resp):
         print_error(resp["error"])
+
+
+def print_tabulated(strings: List[StyledString], max_columns: int = None):
+    term_cols, _ = terminal_size()
+
+    longest_string_length = len(str(max(strings, key=lambda ss: len(str(ss)))))
+    min_col_width = longest_string_length + 2
+
+    max_allowed_cols = max_columns if max_columns else 50
+    max_fillable_cols = term_cols // min_col_width
+
+    display_cols = min(max_allowed_cols, max_fillable_cols)
+    display_rows = ceil(len(strings) / display_cols)
+
+    d("term_cols %d", term_cols)
+    d("longest_match_length %d", longest_string_length)
+    d("min_col_width %d", min_col_width)
+    d("max_allowed_cols %d", max_allowed_cols)
+    d("max_fillable_cols %d", max_fillable_cols)
+    d("len_strings %d", len(strings))
+    d("display_rows %d", display_rows)
+    d("display_cols %d", display_cols)
+
+    for r in range(0, display_rows):
+        print_row = ""
+
+        for c in range(0, display_cols):
+            idx = r + c * display_rows
+            if idx < len(strings):
+                # Add the styled string;
+                # We have to justify keeping the non-printable
+                # characters in count
+                ss = strings[idx]
+
+                justification = min_col_width + len(ss.styled_string) - len(ss.string)
+                print_row += ss.styled_string.ljust(justification)
+        print(print_row)
 
 
 # ==================================================================
@@ -637,7 +704,13 @@ class Client:
         if ls_result is None:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-        Client._print_list_files_info(ls_result, show_size=LsArguments.SIZE in args)
+        Client._print_list_files_info(
+            ls_result,
+            show_size=LsArguments.SIZE in args or LsArguments.DETAILS in args,
+            show_file_type=LsArguments.DETAILS in args,
+            show_hidden=LsArguments.ALL in args,
+            compact=LsArguments.DETAILS not in args
+        )
 
     def tree(self, args: Args):
         sort_by = ["name"]
@@ -840,8 +913,14 @@ class Client:
             self._handle_error_response(resp)
             return
 
-        Client._print_list_files_info(resp.get("data"),
-                                      show_size=LsArguments.SIZE in args)
+        Client._print_list_files_info(
+            resp.get("data"),
+            show_size=LsArguments.SIZE in args or LsArguments.DETAILS in args,
+            show_file_type=LsArguments.DETAILS in args,
+            show_hidden=LsArguments.ALL in args,
+            compact=LsArguments.DETAILS not in args
+        )
+
 
     def rtree(self, args: Args):
         if not self.is_connected():
@@ -1847,25 +1926,56 @@ class Client:
 
 
     @staticmethod
-    def _print_list_files_info(infos: List[FileInfo], show_size: bool = False):
+    def _print_list_files_info(infos: List[FileInfo],
+                               show_file_type: bool = False,
+                               show_size: bool = False,
+                               show_hidden: bool = False,
+                               compact: bool = True,
+                               ):
+        sstrings: List[StyledString] = []
+
         for info in infos:
             d("f_info: %s", info)
 
             fname = info.get("name")
+
+            if not show_hidden and is_hidden(fname):
+                d("Not showing hidden files: %s", fname)
+                continue
+
             size = info.get("size")
 
             if info.get("ftype") == FTYPE_DIR:
                 ftype_short = "D"
-                fname = fg(fname, DIR_COLOR)
+                fname_styled = fg(fname, DIR_COLOR)
             else:
                 ftype_short = "F"
-                fname = fg(fname, FILE_COLOR)
+                fname_styled = fg(fname, FILE_COLOR)
 
-            print("{}  {}{}".format(
-                ftype_short,
-                "{}  ".format(size_str(size).rjust(4)) if show_size else "",
-                fname
-            ))
+            file_str = ""
+
+            if show_file_type:
+                s = ftype_short + "  "
+                # if not compact:
+                #     s = s.ljust(3)
+                file_str += s
+
+            if show_size:
+                s = size_str(size).rjust(4) + "  "
+                file_str += s
+
+            file_str_styled = file_str
+
+            file_str += fname
+            file_str_styled += fname_styled
+
+            sstrings.append(StyledString(file_str, file_str_styled))
+
+        if not compact:
+            for ss in sstrings:
+                print(ss.styled_string)
+        else:
+            print_tabulated(sstrings)
 
     def _handle_error_response(self, resp: Response):
         Client._handle_connection_error_response(self.connection, resp)
@@ -1922,39 +2032,9 @@ class Shell:
         #    way we can render a colored suggestion while using the readline
         #    core for treat it as a simple screent
         # 2. Internally handles the max_columns constraints
-        min_col_width = longest_match_length + 2
-        term_cols, _ = terminal_size()
-        max_allowed_cols = self._suggestions_intent.max_columns if self._suggestions_intent.max_columns else 50
-
-        max_fill_cols = term_cols // min_col_width
-
-        display_cols = min(max_allowed_cols, max_fill_cols)
-        display_rows = ceil(len(self._suggestions_intent.suggestions) / display_cols)
-
-        d("longest_match_length %d", longest_match_length)
-        d("min_col_width %d", min_col_width)
-        d("term_cols %d", term_cols)
-        d("max_allowed_cols %d", max_allowed_cols)
-        d("max_fill_cols %d", max_fill_cols)
-        d("len_suggestions %d", len(self._suggestions_intent.suggestions))
-        d("display_rows %d", display_rows)
-        d("display_cols %d", display_cols)
-
         print("")
-
-        for r in range(0, display_rows):
-            print_row = ""
-
-            for c in range(0, display_cols):
-                idx = r + c * display_rows
-                if idx < len(self._suggestions_intent.suggestions):
-                    # Add the styled suggestion
-                    styled_sugg = self._suggestions_intent.suggestions[idx]
-
-                    print_row += styled(styled_sugg.suggestion.ljust(min_col_width),
-                                        fg=styled_sugg.color, bg=styled_sugg.background)
-            print(print_row)
-
+        print_tabulated(self._suggestions_intent.suggestions,
+                        max_columns=self._suggestions_intent.max_columns)
         print(self.prompt + self.line_buffer, end="", flush=True)
 
     def next_suggestion(self, token: str, count: int):
@@ -1994,7 +2074,7 @@ class Shell:
                     # e.g. 'clos '
 
                     # Case 1: complete command
-                    self._suggestions_intent.suggestions.append(StyledSuggestion(comm_name))
+                    self._suggestions_intent.suggestions.append(StyledString(comm_name))
 
             # If there is only a command that begins with
             # this name, complete the command (and eventually insert a space)
@@ -2010,7 +2090,7 @@ class Shell:
                     )
 
                 if append_space:
-                    self._suggestions_intent.suggestions[0].suggestion += " "
+                    self._suggestions_intent.suggestions[0].string += " "
 
             # d("Configuring readline with cols = %d, autocomplete = %d",
             #   columns_count, enable_completion)
@@ -2023,11 +2103,11 @@ class Shell:
             # ))
 
             self._suggestions_intent.suggestions = \
-                sorted(self._suggestions_intent.suggestions, key=lambda sugg: sugg.suggestion)
+                sorted(self._suggestions_intent.suggestions, key=lambda sugg: sugg.string.lower())
 
         if count < len(self._suggestions_intent.suggestions):
             d("Returning suggestion %d", count)
-            return self._suggestions_intent.suggestions[count].suggestion
+            return self._suggestions_intent.suggestions[count].string
 
         return None
 
