@@ -30,6 +30,7 @@ from easyshare.server.discover import DiscoverDeamon
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.errors import ServerErrors
+from easyshare.shared.ssl import set_ssl_context, get_ssl_context
 from easyshare.shared.trace import init_tracing, trace_in, trace_out
 from easyshare.socket.udp import SocketUdpOut
 from easyshare.utils.app import terminate, abort
@@ -130,16 +131,6 @@ def trace_api(api: API) -> API:
 #     return wrapped_api
 
 
-def set_pyro_ssl_server_context(ssl_context: Optional[ssl.SSLContext]):
-    Pyro4.config.SSL = True if ssl_context else False
-    Pyro4.config.SSL_SERVERCERT = True  # dummy
-    v("Configuring Pyro4 SSL server context, enabled = %d", Pyro4.config.SSL)
-    socketutil.__ssl_server_context = ssl_context
-
-
-def get_pyro_ssl_server_context() -> Optional[ssl.SSLContext]:
-    return socketutil.__ssl_server_context
-
 
 class Server(IServer):
 
@@ -159,13 +150,12 @@ class Server(IServer):
         d("Server's discover port: %d", discover_port)
         d("Primary interface IP: %s", self.ip)
 
-        self.ssl_context = ssl_context
-        set_pyro_ssl_server_context(self.ssl_context)
+        set_ssl_context(ssl_context)
+        self.ssl_context = get_ssl_context()
 
         self.pyro_deamon = Pyro4.Daemon(host=self.ip)
         self.uri = self.pyro_deamon.register(self).asString()
         d("Server registered at URI: %s", self.uri)
-
 
     def add_sharing(self, sharing: Sharing):
         i("+ SHARING %s", sharing)
@@ -1316,26 +1306,6 @@ def main():
 
     server.start()
 
-#
-# class CustomJsonEncoder(JSONEncoder):
-#     def default(self, o):
-#         return items(o)
-
 
 if __name__ == "__main__":
-
-    # Pyro4.config.SSL = True
-    # Pyro4.config.SSL_SERVERCERT = "/home/stefano/Temp/certs/192_168_1_105/cert.pem"
-    # Pyro4.config.SSL_SERVERKEY = "/home/stefano/Temp/certs/192_168_1_105/privkey.pem"
-
-    # sh = Sharing("sharingname", "file", "/tmp", False)
-    # si = ServerInfo(
-    #     "http",
-    #     "nemo",
-    #     "192.168.1.1",
-    #     8001,
-    #     [sh]
-    # )
-    #
-    # print(json.dumps(si, separators=(",", ":"), cls=CustomJsonEncoder))
     main()

@@ -8,6 +8,7 @@ from typing import List, Optional, Callable
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.server.client import ClientContext
 from easyshare.shared.log import e, d, i, v
+from easyshare.shared.ssl import get_ssl_context
 from easyshare.socket.tcp import SocketTcpAcceptor
 from easyshare.utils.str import randstring
 
@@ -23,7 +24,7 @@ class GetTransactionHandler(threading.Thread):
                  transaction_id: str = None):
         self._transaction_id = transaction_id or randstring()
         self._next_files = files
-        self._sock = SocketTcpAcceptor()
+        self._sock = SocketTcpAcceptor(ssl_context=get_ssl_context())
         self._servings = queue.Queue()
         self._sharing_name = sharing_name
         self._owner = owner
@@ -134,7 +135,7 @@ class PutTransactionHandler(threading.Thread):
                  on_end: Callable[['GetTransactionHandler'], None] = None,
                  transaction_id: str = None):
         self._transaction_id = transaction_id or randstring()
-        self._sock = SocketTcpAcceptor()
+        self._sock = SocketTcpAcceptor(ssl_context=get_ssl_context())
         self._incomings = queue.Queue()
         self._sharing_name = sharing_name
         self._owner = owner

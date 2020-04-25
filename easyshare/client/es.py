@@ -33,6 +33,7 @@ from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.log import i, d, w, init_logging, v, VERBOSITY_VERBOSE, get_verbosity, VERBOSITY_MAX, \
     VERBOSITY_NONE, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG, e
 from easyshare.shared.progress import FileProgressor
+from easyshare.shared.ssl import get_ssl_context
 from easyshare.shared.trace import init_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.tree.tree import TreeNodeDict, TreeRenderPostOrder
@@ -1345,7 +1346,11 @@ class Client:
             return
 
         v("Successfully PUTed")
-        transfer_socket = SocketTcpOut(connection.server_info.get("ip"), port)
+        transfer_socket = SocketTcpOut(
+            connection.server_info.get("ip"), port,
+            ssl_context=get_ssl_context(),
+            ssl_server_side=False
+        )
 
         files = sorted(files, reverse=True)
         sendfiles: List[dict] = []
@@ -1545,7 +1550,11 @@ class Client:
 
         v("Successfully GETed")
 
-        transfer_socket = SocketTcpOut(connection.server_info.get("ip"), port)
+        transfer_socket = SocketTcpOut(
+            connection.server_info.get("ip"), port,
+            ssl_context=get_ssl_context(),
+            ssl_server_side=False
+        )
 
         overwrite_all: Optional[bool] = None
 
@@ -2168,24 +2177,5 @@ def main():
         shell.input_loop()
 
 
-def main_wrapper(dump_pyro_exceptions=False):
-    # if not dump_pyro_exceptions:
-    main()
-    # else:
-    #     try:
-    #         main()
-    #     except Exception as ex:
-    #         traceback = Pyro4.util.getPyroTraceback()
-    #         if traceback:
-    #             # e("--- PYRO4 TRACEBACK ---\n%s", red("".join(traceback)))
-
-
 if __name__ == "__main__":
-
-    # Pyro4.config.SSL = True
-    # Pyro4.config.SSL_CACERTS = "/home/stefano/Temp/certs/localhost/cert.pem"
-    # Pyro4.config.SSL_REQUIRECLIENTCERT = "/home/stefano/Temp/certs/localhost/cert.pem"
-
-
-
-    main_wrapper(dump_pyro_exceptions=True)
+    main()
