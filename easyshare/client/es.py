@@ -191,10 +191,15 @@ class ArgsCommandInfo(CommandInfo):
                                  max_columns=1)
 
 
-class ListLocalCommandInfo(ArgsCommandInfo, ABC):
+class ListCommandInfo(ArgsCommandInfo, ABC):
     @classmethod
     @abstractmethod
-    def add_path_filter(cls, s: str) -> bool:
+    def display_path_filter(cls, finfo: FileInfo) -> bool:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def list(cls, token: str, line: str, client: 'Client') -> List[FileInfo]:
         pass
 
     @classmethod
@@ -204,38 +209,41 @@ class ListLocalCommandInfo(ArgsCommandInfo, ABC):
         if suggestions_intent:
             return suggestions_intent
 
-        pattern = rightof(line, " ", from_end=True)
-        path_dir, path_trail = os.path.split(os.path.join(os.getcwd(), pattern))
+        # pattern = rightof(line, " ", from_end=True)
+        # path_dir, path_trail = os.path.split(os.path.join(os.getcwd(), pattern))
 
-        d("pattern: %s", pattern)
-        d("path_dir: %s", path_dir)
-        d("path_trail: %s", path_trail)
+        # d("pattern: %s", pattern)
+        # d("path_dir: %s", path_dir)
+        # d("path_trail: %s", path_trail)
 
         suggestions = []
+        for finfo in cls.list(token, line, client):
+            d("finfo: %s", finfo)
 
-        for f in os.listdir(path_dir):
-            d("f: %s", f)
+            fname = finfo.get("name")
 
-            if not f.startswith(path_trail):
+            if not cls.display_path_filter(finfo):
+                d("%s doesn't pass the filter", fname)
                 continue
 
-            f_full = os.path.join(path_dir, f)
+            _, fname_tail = os.path.split(fname)
 
-            if not cls.add_path_filter(f_full):
-                d("Path %s doesn't pass the filter", f_full)
+            if not fname_tail.startswith(token):
                 continue
 
-            d("f_full: %s", f_full)
+            # f_full = os.path.join(path_dir, f)
 
-            if os.path.isdir(f_full):
+            # d("f_full: %s", f_full)
+
+            if finfo.get("ftype") == FTYPE_DIR:
                 # Append a dir, with a trailing / so that the next
                 # suggestion can continue to traverse the file system
-                ff = f + "/"
+                ff = fname_tail + "/"
                 suggestions.append(StyledString(ff, fg(ff, color=DIR_COLOR)))
             else:
                 # Append a file, with a trailing space since there
                 # is no need to traverse the file system
-                ff = f + " "
+                ff = fname_tail + " "
                 suggestions.append(StyledString(ff, fg(ff, color=FILE_COLOR)))
 
         # def space_after_completion(suggestion: str) -> bool:
@@ -247,23 +255,78 @@ class ListLocalCommandInfo(ArgsCommandInfo, ABC):
                                  space_after_completion=False)
 
 
-
-class ListLocalAllCommandInfo(ListLocalCommandInfo):
+class ListLocalCommandInfo(ListCommandInfo, ABC):
     @classmethod
-    def add_path_filter(self, s: str) -> bool:
+    def list(cls, token: str, line: str, client: 'Client') -> List[FileInfo]:
+        d("List on token = '%s', line = '%s'", token, line)
+        pattern = rightof(line, " ", from_end=True)
+        path_dir, path_trail = os.path.split(os.path.join(os.getcwd(), pattern))
+        d("ls-ing on %s", path_dir)
+        return ls(path_dir)
+
+
+class ListRemoteCommandInfo(ListCommandInfo, ABC):
+    @classmethod
+    def list(cls, token: str, line: str, client: 'Client') -> List[FileInfo]:
+        if not client or not client.is_connected():
+            w("Cannot list() on a non connected client")
+            return []
+
+        d("List remotely on token = '%s', line = '%s'", token, line)
+        pattern = rightof(line, " ", from_end=True)
+        path_dir, path_trail = os.path.split(pattern)
+
+        d("rls-ing on %s", pattern)
+        resp = client.connection.rls(sort_by=["name"], path=path_dir)
+
+        if not is_data_response(resp):
+            w("Unable to retrieve a valid response for rls")
+            return []
+
+        return resp.get("data")
+
+
+class ListAllFilter(ListCommandInfo, ABC):
+    @classmethod
+    def display_path_filter(cls, finfo: FileInfo) -> bool:
         return True
 
 
-class ListLocalDirsCommandInfo(ListLocalCommandInfo):
+class ListDirsFilter(ListCommandInfo, ABC):
     @classmethod
-    def add_path_filter(self, s: str) -> bool:
-        return os.path.isdir(s)
+    def display_path_filter(cls, finfo: FileInfo) -> bool:
+        return finfo.get("ftype") == FTYPE_DIR
 
 
-class ListLocalFilesCommandInfo(ListLocalCommandInfo):
+class ListFilesFilter(ListCommandInfo, ABC):
     @classmethod
-    def add_path_filter(self, s: str) -> bool:
-        return os.path.isfile(s)
+    def display_path_filter(cls, finfo: FileInfo) -> bool:
+        return finfo.get("ftype") == FTYPE_FILE
+
+
+class ListLocalAllCommandInfo(ListLocalCommandInfo, ListAllFilter):
+    pass
+
+
+class ListLocalDirsCommandInfo(ListLocalCommandInfo, ListDirsFilter):
+    pass
+
+
+class ListLocalFilesCommandInfo(ListLocalCommandInfo, ListFilesFilter):
+    pass
+
+
+class ListRemoteAllCommandInfo(ListRemoteCommandInfo, ListAllFilter):
+    pass
+
+
+class ListRemoteDirsCommandInfo(ListRemoteCommandInfo, ListDirsFilter):
+    pass
+
+
+class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter):
+    pass
+
 
 
 class VerboseCommandInfo(CommandInfo):
@@ -304,7 +367,7 @@ class TraceCommandInfo(CommandInfo):
         )
 
 
-class LsCommandInfo(ArgsCommandInfo):
+class BaseLsCommandInfo(ArgsCommandInfo):
     SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
     REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
     GROUP = CommandArg(["-g", "--group"], "Group by file type")
@@ -312,13 +375,29 @@ class LsCommandInfo(ArgsCommandInfo):
     DETAILS = CommandArg(["-l"], "Show all the details")
 
 
-class TreeCommandInfo(ArgsCommandInfo):
+class LsCommandInfo(BaseLsCommandInfo, ListLocalAllCommandInfo):
+    pass
+
+
+class RlsCommandInfo(BaseLsCommandInfo, ListRemoteAllCommandInfo):
+    pass
+
+
+class BaseTreeCommandInfo(ArgsCommandInfo):
     SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
     REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
     GROUP = CommandArg(["-g", "--group"], "Group by file type")
     MAX_DEPTH = CommandArg(["-d", "--depth"], "Maximum depth")
     SIZE = CommandArg(["-S"], "Show file size")
     DETAILS = CommandArg(["-l"], "Show all the details")
+
+
+class TreeCommandInfo(BaseTreeCommandInfo, ListLocalAllCommandInfo):
+    pass
+
+
+class RtreeCommandInfo(BaseTreeCommandInfo, ListRemoteAllCommandInfo):
+    pass
 
 
 class GetCommandInfo(ArgsCommandInfo):
@@ -390,19 +469,19 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_TREE_DIRECTORY: TreeCommandInfo, # listlocale
     Commands.LOCAL_CHANGE_DIRECTORY: ListLocalDirsCommandInfo,
     Commands.LOCAL_CREATE_DIRECTORY: ListLocalDirsCommandInfo,
-    Commands.LOCAL_COPY: ListLocalCommandInfo,
-    Commands.LOCAL_MOVE: ListLocalCommandInfo,
-    Commands.LOCAL_REMOVE: ListLocalCommandInfo,
+    Commands.LOCAL_COPY: ListLocalAllCommandInfo,
+    Commands.LOCAL_MOVE: ListLocalAllCommandInfo,
+    Commands.LOCAL_REMOVE: ListLocalAllCommandInfo,
 
 
     Commands.REMOTE_CURRENT_DIRECTORY: CommandInfo,
-    Commands.REMOTE_LIST_DIRECTORY: LsCommandInfo,
-    Commands.REMOTE_TREE_DIRECTORY: TreeCommandInfo,
-    Commands.REMOTE_CHANGE_DIRECTORY: CommandInfo,
-    Commands.REMOTE_CREATE_DIRECTORY: CommandInfo,
-    Commands.REMOTE_COPY: CommandInfo,
-    Commands.REMOTE_MOVE: CommandInfo,
-    Commands.REMOTE_REMOVE: CommandInfo,
+    Commands.REMOTE_LIST_DIRECTORY: RlsCommandInfo,
+    Commands.REMOTE_TREE_DIRECTORY: RtreeCommandInfo,
+    Commands.REMOTE_CHANGE_DIRECTORY: ListRemoteDirsCommandInfo,
+    Commands.REMOTE_CREATE_DIRECTORY: ListRemoteDirsCommandInfo,
+    Commands.REMOTE_COPY: ListRemoteAllCommandInfo,
+    Commands.REMOTE_MOVE: ListRemoteAllCommandInfo,
+    Commands.REMOTE_REMOVE: ListRemoteAllCommandInfo,
 
 
     Commands.SCAN: ScanCommandInfo,
@@ -690,6 +769,10 @@ class Client:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
     def ls(self, args: Args):
+        path = args.get_param()
+        if not path:
+            path = os.getcwd()
+
         sort_by = ["name"]
         reverse = LsCommandInfo.REVERSE.aliases in args
 
@@ -700,7 +783,7 @@ class Client:
 
         i(">> LS (sort by %s%s)", sort_by, " | reverse" if reverse else "")
 
-        ls_result = ls(os.getcwd(), sort_by=sort_by, reverse=reverse)
+        ls_result = ls(path, sort_by=sort_by, reverse=reverse)
         if ls_result is None:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
@@ -891,12 +974,12 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-
     def rls(self, args: Args):
         if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
             return
 
+        path = args.get_param()
         sort_by = ["name"]
         reverse = LsArguments.REVERSE in args
 
@@ -907,7 +990,7 @@ class Client:
 
         i(">> RLS (sort by %s%s)", sort_by, " | reverse" if reverse else "")
 
-        resp = self.connection.rls(sort_by, reverse=reverse)
+        resp = self.connection.rls(sort_by, reverse=reverse, path=path)
 
         if not is_data_response(resp):
             self._handle_error_response(resp)

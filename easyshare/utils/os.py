@@ -171,13 +171,25 @@ def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Opt
         return None
 
 
-def _ls(path: str, sort_by_fields: List[str], reverse=False) -> List[FileInfo]:
+def _ls(path: str, sort_by_fields: List[str], reverse=False) -> Optional[List[FileInfo]]:
     ret: List[FileInfo] = []
 
-    ls_result = os.listdir(path)
+    if os.path.isfile(path):
+        f_stat = os.lstat(os.path.join(path))
+        _, tail = os.path.split(path)
+        return [{
+            "name": tail,
+            "ftype": FTYPE_FILE,
+            "size": f_stat.st_size
+        }]
+
+    if not os.path.isdir(path):
+
+        e("Cannot perform ls; invalid path")
+        return None
 
     # Take the other info (size, filetype, ...)
-    for f in ls_result:
+    for f in os.listdir(path):
         f_stat = os.lstat(os.path.join(path, f))
         ret.append({
             "name": f,

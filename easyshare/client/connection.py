@@ -82,17 +82,17 @@ class Connection:
 
         return resp
 
-    def rls(self, sort_by: List[str], reverse=False) -> Response:
+    def rls(self, sort_by: List[str], reverse=False, path: str = None) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        return self.server.rls(sort_by, reverse=reverse)
+        return self.server.rls(sort_by, reverse=reverse, path=path)
 
-    def rtree(self, sort_by: List[str], reverse=False, depth: int = int) -> Response:
+    def rtree(self, sort_by: List[str], reverse=False, depth: int = int, path: str = None) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        return self.server.rtree(sort_by, reverse=reverse, depth=depth)
+        return self.server.rtree(sort_by, reverse=reverse, depth=depth, path=path)
 
     def rmkdir(self, directory) -> Response:
         if not self.is_connected():

@@ -209,12 +209,6 @@ class Server(IServer):
         i("Starting PYRO request loop")
         self.pyro_deamon.requestLoop()
 
-    @Pyro4.expose
-    @trace_api
-    def list(self) -> Response:
-        i("<< LIST %s", str(self._current_request_endpoint()))
-        time.sleep(0.5)
-        return create_success_response([sh.info() for sh in self.sharings.values()])
 
     @Pyro4.expose
     @trace_api
@@ -335,7 +329,7 @@ class Server(IServer):
 
     @Pyro4.expose
     @trace_api
-    def rls(self, sort_by: List[str], reverse: bool = False) -> Response:
+    def rls(self, sort_by: List[str], reverse: bool = False, path: str = None) -> Response:
         client = self._current_request_client()
         if not client:
             w("Client not connected: %s", self._current_request_endpoint())
@@ -344,15 +338,17 @@ class Server(IServer):
         i("<< RLS %s%s (%s)", sort_by, " | reverse " if reverse else "", str(client))
 
         try:
-            client_path = self._current_client_path(client)
+            if not path:
+                path = "."
 
-            d("Going to ls on %s", client_path)
+            ls_path = self._path_for_client(client, path)
+            d("Going to ls on %s", ls_path)
 
             # Check path legality (it should be valid, if he rcd into it...)
-            if not self._is_path_allowed_for_client(client, client_path):
+            if not self._is_path_allowed_for_client(client, ls_path):
                 return create_error_response(ServerErrors.INVALID_PATH)
 
-            ls_result = ls(client_path, sort_by=sort_by, reverse=reverse)
+            ls_result = ls(ls_path, sort_by=sort_by, reverse=reverse)
             if ls_result is None:
                 return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 

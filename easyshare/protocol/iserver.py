@@ -7,10 +7,6 @@ from easyshare.protocol.response import Response
 
 class IServer(ABC):
     @abstractmethod
-    def list(self) -> Response:
-        pass
-
-    @abstractmethod
     def open(self, sharing_name: str, password: str = None) -> Response:
         pass
 
@@ -27,11 +23,11 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def rls(self, sort_by: List[str], reverse: bool = False) -> Response:
+    def rls(self, sort_by: List[str], reverse: bool = False, path: str = None) -> Response:
         pass
 
     @abstractmethod
-    def rtree(self, sort_by: List[str], reverse: bool = False, depth: int = None) -> Response:
+    def rtree(self, sort_by: List[str], reverse: bool = False, depth: int = None, path: str = None) -> Response:
         pass
 
     @abstractmethod
@@ -65,29 +61,6 @@ class IServer(ABC):
     @abstractmethod
     def put_next_info(self, transaction, info: FileInfo) -> Response:
         pass
-
-
-    # @abstractmethod
-    # def get_next_info(self, transaction) -> Response:
-    #     pass
-
-
-    #
-    # @abstractmethod
-    # def get_sharing(self, sharing_name: str) -> Response:
-    #     pass
-    #
-    # @abstractmethod
-    # def get_files(self, files: List[str]) -> Response:
-    #     pass
-    #
-    # @abstractmethod
-    # def get_sharing_next_info(self, transaction) -> Response:
-    #     pass
-    #
-    # @abstractmethod
-    # def get_files_next_info(self, transaction) -> Response:
-    #     pass
 
     @abstractmethod
     def ping(self) -> Response:
