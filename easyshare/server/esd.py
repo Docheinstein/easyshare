@@ -1,12 +1,14 @@
 import inspect
 import os
 import queue
+import ssl
 import sys
 import socket
 import threading
 import time
 
-import Pyro4 as Pyro4
+import Pyro4
+from Pyro4 import socketutil
 
 from typing import Dict, Optional, List, Any, Callable, TypeVar
 
@@ -33,7 +35,7 @@ from easyshare.socket.udp import SocketUdpOut
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import init_colors
 from easyshare.utils.json import json_to_str, json_to_bytes, json_to_pretty_str
-from easyshare.utils.net import get_primary_ip, is_valid_port
+from easyshare.utils.net import get_primary_ip, is_valid_port, create_server_ssl_context
 from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv
 from easyshare.utils.str import randstring, satisfy, unprefix
 from easyshare.utils.trace import args_to_str
@@ -74,6 +76,9 @@ class ServerConfigKeys:
     PASSWORD = "password"
     SHARING_PATH = "path"
     SHARING_READ_ONLY = "readonly"
+    SSL = "ssl"
+    SSL_CERT = "ssl_cert"
+    SSL_PRIVKEY = "ssl_privkey"
 
 
 # === ERRORS ===
@@ -125,10 +130,20 @@ def trace_api(api: API) -> API:
 #     return wrapped_api
 
 
+def set_pyro_ssl_server_context(ssl_context: Optional[ssl.SSLContext]):
+    Pyro4.config.SSL = True if ssl_context else False
+    Pyro4.config.SSL_SERVERCERT = True  # dummy
+    v("Configuring Pyro4 SSL server context, enabled = %d", Pyro4.config.SSL)
+    socketutil.__ssl_server_context = ssl_context
+
+
+def get_pyro_ssl_server_context() -> Optional[ssl.SSLContext]:
+    return socketutil.__ssl_server_context
+
 
 class Server(IServer):
 
-    def __init__(self, discover_port, name):
+    def __init__(self, discover_port, name: str, ssl_context: ssl.SSLContext = None):
         self.ip = get_primary_ip()
         self.name = name
 
@@ -138,15 +153,19 @@ class Server(IServer):
         self.puts: Dict[str, PutTransactionHandler] = {}
         self.gets: Dict[str, GetTransactionHandler] = {}
 
-        self.pyro_deamon = Pyro4.Daemon(host=self.ip)
         self.discover_deamon = DiscoverDeamon(discover_port, self.handle_discover_request)
-
-        self.uri = self.pyro_deamon.register(self).asString()
 
         d("Server's name: %s", name)
         d("Server's discover port: %d", discover_port)
         d("Primary interface IP: %s", self.ip)
+
+        self.ssl_context = ssl_context
+        set_pyro_ssl_server_context(self.ssl_context)
+
+        self.pyro_deamon = Pyro4.Daemon(host=self.ip)
+        self.uri = self.pyro_deamon.register(self).asString()
         d("Server registered at URI: %s", self.uri)
+
 
     def add_sharing(self, sharing: Sharing):
         i("+ SHARING %s", sharing)
@@ -164,6 +183,7 @@ class Server(IServer):
             "ip": server_endpoint[0],
             "port": server_endpoint[1],
             "sharings": [sh.info() for sh in self.sharings.values()],
+            "ssl": True if self.ssl_context else False
         }
 
         response = create_success_response(response_data)
@@ -1141,6 +1161,9 @@ def main():
     port = DEFAULT_DISCOVER_PORT
     name = socket.gethostname()
     password = None
+    ssl_enabled = False
+    ssl_cert = None
+    ssl_privkey = None
 
     # Eventually parse config file
     config_path = args.get_param(ServerArguments.CONFIG)
@@ -1167,6 +1190,21 @@ def main():
 
                     if password:
                         d("Global password found")
+
+                if ServerConfigKeys.SSL in global_section:
+                    # to_bool
+                    ssl_enabled = to_bool(global_section.get(ServerConfigKeys.SSL, ssl_enabled))
+
+                    if ssl_enabled:
+                        v("SSL required on")
+                        ssl_cert = strip_quotes(global_section.get(ServerConfigKeys.SSL_CERT, ssl_cert))
+                        ssl_privkey = strip_quotes(global_section.get(ServerConfigKeys.SSL_PRIVKEY, ssl_privkey))
+
+                        if not ssl_cert:
+                            w("SSL required on, but ssl_cert has not been specified")
+
+                        if not ssl_privkey:
+                            w("SSL required on, but ssl_cert has not been specified")
 
             # Sharings
             for sharing_name, sharing_settings in cfg.items():
@@ -1256,8 +1294,17 @@ def main():
 
             sharings[sharing.name] = sharing
 
+    # SSL
+
+    ssl_context = None
+    if ssl_enabled and ssl_cert and ssl_privkey:
+        v("Creating SSL context")
+        v("SSL cert: %s", ssl_cert)
+        v("SSL privkey: %s", ssl_privkey)
+        ssl_context = create_server_ssl_context(cert=ssl_cert, privkey=ssl_privkey)
+
     # Configure pyro server
-    server = Server(port, name)
+    server = Server(port, name, ssl_context)
 
     if not sharings:
         w("No sharings found, it will be an empty server")
@@ -1276,6 +1323,11 @@ def main():
 
 
 if __name__ == "__main__":
+
+    # Pyro4.config.SSL = True
+    # Pyro4.config.SSL_SERVERCERT = "/home/stefano/Temp/certs/192_168_1_105/cert.pem"
+    # Pyro4.config.SSL_SERVERKEY = "/home/stefano/Temp/certs/192_168_1_105/privkey.pem"
+
     # sh = Sharing("sharingname", "file", "/tmp", False)
     # si = ServerInfo(
     #     "http",

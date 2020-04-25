@@ -1,0 +1,576 @@
+[2020-04-25 01:00:39.448,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:00:39.468,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:00:39.476,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:00:39.476,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:00:39.476,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:00:41.620,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:00:41.620,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:00:41.621,easyshare,[35m[DEBUG][0m] Client discover port: 53902
+[2020-04-25 01:00:41.621,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:00:41.621,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:00:41.623,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:00:41.623,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 34557)
+[2020-04-25 01:00:41.624,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 34557)
+{'uri': 'PYRO:obj_a744151494b94d91aa944af94a0ac761@192.168.1.105:45633', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 45633, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}]}
+[2020-04-25 01:00:41.624,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:45633
+[2020-04-25 01:00:41.624,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:00:41.625,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:00:41.625,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_a744151494b94d91aa944af94a0ac761@192.168.1.105:45633
+[2020-04-25 01:00:41.625,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:00:41.625,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_a744151494b94d91aa944af94a0ac761
+[2020-04-25 01:00:41.625,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_a744151494b94d91aa944af94a0ac761@192.168.1.105:45633
+[2020-04-25 01:00:41.634,Pyro4.core,[31m[ERROR][0m] cannot connect to ('192.168.1.105', 45633): [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1108)
+[2020-04-25 01:00:41.634,Pyro4.core,[31m[ERROR][0m] problem getting metadata: cannot connect
+[2020-04-25 01:00:41.634,easyshare,[32m[VERB] [0m] Pyro error occurred cannot connect to ('192.168.1.105', 45633): [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1108)
+[2020-04-25 01:00:54.665,easyshare,[35m[DEBUG][0m] Client: handling command scan ({'-l': [[]]})
+[2020-04-25 01:00:54.666,easyshare,[34m[INFO] [0m] >> SCAN (timeout = 2)
+[2020-04-25 01:00:54.666,easyshare,[35m[DEBUG][0m] Client discover port: 59026
+[2020-04-25 01:00:54.666,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:00:54.666,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:00:54.667,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:00:54.667,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 54480)
+[2020-04-25 01:00:54.667,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 54480)
+{'uri': 'PYRO:obj_a744151494b94d91aa944af94a0ac761@192.168.1.105:45633', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 45633, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}]}
+[2020-04-25 01:00:54.668,easyshare,[34m[INFO] [0m] ======================
+[2020-04-25 01:00:54.668,easyshare,[35m[DEBUG][0m] Waiting for 1.998 seconds...
+[2020-04-25 01:00:56.668,easyshare,[35m[DEBUG][0m] DISCOVER timeout elapsed (2.000)
+[2020-04-25 01:00:56.668,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:00:56.668,easyshare,[34m[INFO] [0m] ======================
+[2020-04-25 01:09:07.340,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:09:07.520,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:09:07.775,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 01:09:08.610,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:09:08.629,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:09:08.638,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:09:08.638,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:09:08.639,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:09:12.685,easyshare,[35m[DEBUG][0m] Client: handling command info ({None: [['hostname']]})
+[2020-04-25 01:09:12.685,easyshare,[34m[INFO] [0m] >> INFO hostname
+[2020-04-25 01:09:12.686,easyshare,[35m[DEBUG][0m] Client discover port: 42740
+[2020-04-25 01:09:12.686,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:09:12.686,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:09:12.687,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:09:12.688,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 46986)
+[2020-04-25 01:09:12.688,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 46986)
+{'uri': 'PYRO:obj_a744151494b94d91aa944af94a0ac761@192.168.1.105:45633', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 45633, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}]}
+[2020-04-25 01:09:12.688,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:09:12.688,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:09:23.955,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:09:24.188,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 01:09:25.173,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:09:25.192,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:09:25.201,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:09:25.201,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:09:25.201,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:09:27.392,easyshare,[35m[DEBUG][0m] Client: handling command info ({None: [['hostname']]})
+[2020-04-25 01:09:27.392,easyshare,[34m[INFO] [0m] >> INFO hostname
+[2020-04-25 01:09:27.392,easyshare,[35m[DEBUG][0m] Client discover port: 38450
+[2020-04-25 01:09:27.392,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:09:27.392,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:09:27.393,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:09:27.393,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 37870)
+[2020-04-25 01:09:27.394,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 37870)
+{'uri': 'PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 39007, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:09:27.394,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:09:27.394,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:23:04.332,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:23:04.612,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 01:23:05.100,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:23:05.119,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:23:05.130,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:23:05.130,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:23:05.130,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:23:08.517,easyshare,[35m[DEBUG][0m] Client: handling command info ({None: [['hostname']]})
+[2020-04-25 01:23:08.517,easyshare,[34m[INFO] [0m] >> INFO hostname
+[2020-04-25 01:23:08.517,easyshare,[35m[DEBUG][0m] Client discover port: 43023
+[2020-04-25 01:23:08.518,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:23:08.518,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:23:08.519,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:23:08.519,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 59434)
+[2020-04-25 01:23:08.519,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 59434)
+{'uri': 'PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 39007, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:23:08.519,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:23:08.520,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:23:17.188,easyshare,[35m[DEBUG][0m] Client: handling command scan ({'-l': [[]]})
+[2020-04-25 01:23:17.188,easyshare,[34m[INFO] [0m] >> SCAN (timeout = 2)
+[2020-04-25 01:23:17.189,easyshare,[35m[DEBUG][0m] Client discover port: 46479
+[2020-04-25 01:23:17.189,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:23:17.189,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:23:17.191,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:23:17.191,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 50697)
+[2020-04-25 01:23:17.191,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 50697)
+{'uri': 'PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 39007, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:23:17.191,easyshare,[34m[INFO] [0m] ======================
+[2020-04-25 01:23:17.192,easyshare,[35m[DEBUG][0m] Waiting for 1.998 seconds...
+[2020-04-25 01:23:19.189,easyshare,[35m[DEBUG][0m] DISCOVER timeout elapsed (2.000)
+[2020-04-25 01:23:19.190,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:23:19.190,easyshare,[34m[INFO] [0m] ======================
+[2020-04-25 01:23:33.860,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:23:33.860,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:23:33.861,easyshare,[35m[DEBUG][0m] Client discover port: 56325
+[2020-04-25 01:23:33.861,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:23:33.861,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:23:33.862,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:23:33.862,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 37840)
+[2020-04-25 01:23:33.862,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 37840)
+{'uri': 'PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 39007, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:23:33.862,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:39007
+[2020-04-25 01:23:33.862,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:23:33.862,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:23:33.862,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007
+[2020-04-25 01:23:33.862,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:26:28.031,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:26:28.050,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:26:28.059,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:26:28.060,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:26:28.060,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:26:30.303,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:26:30.303,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:26:30.303,easyshare,[35m[DEBUG][0m] Client discover port: 40271
+[2020-04-25 01:26:30.304,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:26:30.304,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:26:30.305,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:26:30.305,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 33514)
+[2020-04-25 01:26:30.305,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 33514)
+{'uri': 'PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 39007, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:26:30.305,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:39007
+[2020-04-25 01:26:30.305,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:26:30.305,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:26:30.306,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007
+[2020-04-25 01:26:30.306,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:31:41.068,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:31:41.088,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:31:41.098,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:31:41.098,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:31:41.098,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:31:43.685,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:31:43.685,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:31:43.686,easyshare,[35m[DEBUG][0m] Client discover port: 36982
+[2020-04-25 01:31:43.686,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:31:43.686,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:31:43.687,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:31:43.687,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 59897)
+[2020-04-25 01:31:43.688,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 59897)
+{'uri': 'PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 39007, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:31:43.688,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:39007
+[2020-04-25 01:31:43.688,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:31:43.688,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:31:43.688,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007
+[2020-04-25 01:31:43.688,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:31:43.688,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL client context
+[2020-04-25 01:31:43.690,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_6023d9967bd9496b80874e5face33369
+[2020-04-25 01:31:43.690,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007
+[2020-04-25 01:32:07.235,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:32:07.915,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:32:08.320,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 01:32:08.792,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:32:08.810,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:32:08.819,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:32:08.819,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:32:08.819,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:32:10.529,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:32:10.529,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:32:10.529,easyshare,[35m[DEBUG][0m] Client discover port: 55119
+[2020-04-25 01:32:10.530,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:32:10.530,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:32:10.531,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:32:10.531,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 54300)
+[2020-04-25 01:32:10.532,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 54300)
+{'uri': 'PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 39007, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:32:10.532,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:39007
+[2020-04-25 01:32:10.532,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:32:10.532,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:32:10.532,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007
+[2020-04-25 01:32:10.532,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:32:10.532,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL client context
+[2020-04-25 01:32:10.535,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_6023d9967bd9496b80874e5face33369
+[2020-04-25 01:32:10.535,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007
+[2020-04-25 01:32:17.365,Pyro4.core,[31m[ERROR][0m] cannot connect to ('192.168.1.105', 39007): receiving: connection lost: [Errno 104] Connection reset by peer
+[2020-04-25 01:32:17.365,Pyro4.core,[31m[ERROR][0m] problem getting metadata: cannot connect
+[2020-04-25 01:32:17.365,easyshare,[32m[VERB] [0m] Pyro error occurred receiving: connection lost: [Errno 104] Connection reset by peer
+[2020-04-25 01:32:20.051,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:32:20.051,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:32:20.052,easyshare,[35m[DEBUG][0m] Client discover port: 40591
+[2020-04-25 01:32:20.052,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:32:20.052,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:32:20.053,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:32:20.053,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 56812)
+[2020-04-25 01:32:20.054,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 56812)
+{'uri': 'PYRO:obj_62d4a9be205141f7891ec80b4b4ee1e4@192.168.1.105:41445', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 41445, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:32:20.054,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:41445
+[2020-04-25 01:32:20.054,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:32:20.054,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:32:20.054,easyshare,[35m[DEBUG][0m] Reusing existing connection with PYRO:obj_62d4a9be205141f7891ec80b4b4ee1e4@192.168.1.105:41445
+[2020-04-25 01:32:20.054,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_6023d9967bd9496b80874e5face33369
+[2020-04-25 01:32:20.054,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_6023d9967bd9496b80874e5face33369@192.168.1.105:39007
+[2020-04-25 01:32:20.055,Pyro4.core,[31m[ERROR][0m] cannot connect to ('192.168.1.105', 39007): [Errno 111] Connection refused
+[2020-04-25 01:32:20.055,Pyro4.core,[31m[ERROR][0m] problem getting metadata: cannot connect
+[2020-04-25 01:32:20.055,easyshare,[32m[VERB] [0m] Pyro error occurred cannot connect to ('192.168.1.105', 39007): [Errno 111] Connection refused
+[2020-04-25 01:32:22.713,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:32:22.935,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 01:32:24.056,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:32:24.075,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:32:24.083,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:32:24.083,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:32:24.083,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:32:25.533,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:32:25.533,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:32:25.533,easyshare,[35m[DEBUG][0m] Client discover port: 53417
+[2020-04-25 01:32:25.534,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:32:25.534,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:32:25.536,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:32:25.536,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 45689)
+[2020-04-25 01:32:25.536,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 45689)
+{'uri': 'PYRO:obj_62d4a9be205141f7891ec80b4b4ee1e4@192.168.1.105:41445', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 41445, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:32:25.537,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:41445
+[2020-04-25 01:32:25.537,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:32:25.537,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:32:25.537,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_62d4a9be205141f7891ec80b4b4ee1e4@192.168.1.105:41445
+[2020-04-25 01:32:25.537,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:32:25.537,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL client context
+[2020-04-25 01:32:25.539,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_62d4a9be205141f7891ec80b4b4ee1e4
+[2020-04-25 01:32:25.539,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_62d4a9be205141f7891ec80b4b4ee1e4@192.168.1.105:41445
+[2020-04-25 01:32:25.541,Pyro4.core,[35m[DEBUG][0m] from meta: methods=['close', 'get', 'get_next_info', 'list', 'open', 'ping', 'put', 'put_next_info', 'rcd', 'rcp', 'rls', 'rmkdir', 'rmv', 'rpwd', 'rrm', 'rtree'], oneway methods=['close'], attributes=[]
+[2020-04-25 01:32:25.541,Pyro4.core,[35m[DEBUG][0m] connected to PYRO:obj_62d4a9be205141f7891ec80b4b4ee1e4@192.168.1.105:41445 - IPv4 - unencrypted
+[2020-04-25 01:32:25.541,Pyro4.core,[35m[DEBUG][0m] reusing existing metadata
+[2020-04-25 01:32:25.542,easyshare,[32m[VERB] [0m] Successfully connected to 192.168.1.105:41445
+[2020-04-25 01:32:37.226,easyshare,[35m[DEBUG][0m] Client: handling command rls ({})
+[2020-04-25 01:32:37.226,easyshare,[34m[INFO] [0m] >> RLS (sort by ['name'])
+[2020-04-25 01:32:37.229,easyshare,[35m[DEBUG][0m] f_info: {'name': 'TODO', 'ftype': 'file', 'size': 1081}
+[2020-04-25 01:32:37.229,easyshare,[35m[DEBUG][0m] f_info: {'name': 'adir', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:32:37.229,easyshare,[35m[DEBUG][0m] f_info: {'name': 'esd.conf', 'ftype': 'file', 'size': 103}
+[2020-04-25 01:32:37.229,easyshare,[35m[DEBUG][0m] f_info: {'name': 'for3', 'ftype': 'file', 'size': 4}
+[2020-04-25 01:32:37.230,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner2', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:32:37.230,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner3', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:32:37.230,easyshare,[35m[DEBUG][0m] f_info: {'name': 'prova', 'ftype': 'file', 'size': 2}
+[2020-04-25 01:32:37.230,easyshare,[35m[DEBUG][0m] f_info: {'name': 'res', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:32:37.230,easyshare,[35m[DEBUG][0m] f_info: {'name': 'setup.py', 'ftype': 'file', 'size': 2252}
+[2020-04-25 01:32:37.230,easyshare,[35m[DEBUG][0m] f_info: {'name': 'test_cartaceo', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:34:13.268,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:34:13.455,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 01:34:13.455,easyshare,[34m[INFO] [0m] >> CLOSE
+[2020-04-25 01:34:13.455,Pyro4.core,[35m[DEBUG][0m] connection released
+[2020-04-25 01:34:13.905,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:34:13.922,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:34:13.932,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:34:13.932,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:34:13.933,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:34:17.212,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:34:17.212,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:34:17.212,easyshare,[35m[DEBUG][0m] Client discover port: 34597
+[2020-04-25 01:34:17.213,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:34:17.213,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:34:17.214,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:34:17.214,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 60793)
+[2020-04-25 01:34:17.215,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 60793)
+{'uri': 'PYRO:obj_ec90f54b60884c2992c66999c458b903@192.168.1.105:43117', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 43117, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:34:17.215,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:43117
+[2020-04-25 01:34:17.215,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:34:17.215,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:34:17.216,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_ec90f54b60884c2992c66999c458b903@192.168.1.105:43117
+[2020-04-25 01:34:17.216,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:34:17.216,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL client context
+[2020-04-25 01:34:17.217,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_ec90f54b60884c2992c66999c458b903
+[2020-04-25 01:34:17.217,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_ec90f54b60884c2992c66999c458b903@192.168.1.105:43117
+[2020-04-25 01:34:17.219,Pyro4.core,[35m[DEBUG][0m] from meta: methods=['close', 'get', 'get_next_info', 'list', 'open', 'ping', 'put', 'put_next_info', 'rcd', 'rcp', 'rls', 'rmkdir', 'rmv', 'rpwd', 'rrm', 'rtree'], oneway methods=['close'], attributes=[]
+[2020-04-25 01:34:17.219,Pyro4.core,[35m[DEBUG][0m] connected to PYRO:obj_ec90f54b60884c2992c66999c458b903@192.168.1.105:43117 - IPv4 - unencrypted
+[2020-04-25 01:34:17.219,Pyro4.core,[35m[DEBUG][0m] reusing existing metadata
+[2020-04-25 01:34:17.220,easyshare,[32m[VERB] [0m] Successfully connected to 192.168.1.105:43117
+[2020-04-25 01:34:41.407,easyshare,[35m[DEBUG][0m] Client: handling command rls ({})
+[2020-04-25 01:34:41.407,easyshare,[34m[INFO] [0m] >> RLS (sort by ['name'])
+[2020-04-25 01:34:41.410,easyshare,[35m[DEBUG][0m] f_info: {'name': 'TODO', 'ftype': 'file', 'size': 1081}
+[2020-04-25 01:34:41.410,easyshare,[35m[DEBUG][0m] f_info: {'name': 'adir', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:34:41.410,easyshare,[35m[DEBUG][0m] f_info: {'name': 'esd.conf', 'ftype': 'file', 'size': 103}
+[2020-04-25 01:34:41.411,easyshare,[35m[DEBUG][0m] f_info: {'name': 'for3', 'ftype': 'file', 'size': 4}
+[2020-04-25 01:34:41.411,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner2', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:34:41.411,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner3', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:34:41.411,easyshare,[35m[DEBUG][0m] f_info: {'name': 'prova', 'ftype': 'file', 'size': 2}
+[2020-04-25 01:34:41.411,easyshare,[35m[DEBUG][0m] f_info: {'name': 'res', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:34:41.411,easyshare,[35m[DEBUG][0m] f_info: {'name': 'setup.py', 'ftype': 'file', 'size': 2252}
+[2020-04-25 01:34:41.412,easyshare,[35m[DEBUG][0m] f_info: {'name': 'test_cartaceo', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:37:47.491,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:37:47.713,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 01:37:47.713,easyshare,[34m[INFO] [0m] >> CLOSE
+[2020-04-25 01:37:47.713,Pyro4.core,[35m[DEBUG][0m] connection released
+[2020-04-25 01:37:48.301,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:37:48.320,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:37:48.331,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:37:48.331,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:37:48.331,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:37:55.703,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:37:55.703,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:37:55.703,easyshare,[35m[DEBUG][0m] Client discover port: 45260
+[2020-04-25 01:37:55.703,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:37:55.703,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:37:55.704,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:37:55.704,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 37010)
+[2020-04-25 01:37:55.705,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 37010)
+{'uri': 'PYRO:obj_2f186304c8264c9d84615bcab3f81486@192.168.1.105:37681', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 37681, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:37:55.705,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:37681
+[2020-04-25 01:37:55.705,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:37:55.705,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:37:55.705,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_2f186304c8264c9d84615bcab3f81486@192.168.1.105:37681
+[2020-04-25 01:37:55.705,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:37:55.705,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL client context
+[2020-04-25 01:37:55.707,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_2f186304c8264c9d84615bcab3f81486
+[2020-04-25 01:37:55.707,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_2f186304c8264c9d84615bcab3f81486@192.168.1.105:37681
+[2020-04-25 01:37:55.710,Pyro4.core,[35m[DEBUG][0m] from meta: methods=['close', 'get', 'get_next_info', 'list', 'open', 'ping', 'put', 'put_next_info', 'rcd', 'rcp', 'rls', 'rmkdir', 'rmv', 'rpwd', 'rrm', 'rtree'], oneway methods=['close'], attributes=[]
+[2020-04-25 01:37:55.710,Pyro4.core,[35m[DEBUG][0m] connected to PYRO:obj_2f186304c8264c9d84615bcab3f81486@192.168.1.105:37681 - IPv4 - unencrypted
+[2020-04-25 01:37:55.710,Pyro4.core,[35m[DEBUG][0m] reusing existing metadata
+[2020-04-25 01:37:55.710,easyshare,[32m[VERB] [0m] Successfully connected to 192.168.1.105:37681
+[2020-04-25 01:49:23.619,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:49:23.847,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 01:49:23.847,easyshare,[34m[INFO] [0m] >> CLOSE
+[2020-04-25 01:49:23.847,Pyro4.core,[35m[DEBUG][0m] connection released
+[2020-04-25 01:49:24.952,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:49:24.972,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:49:24.981,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:49:24.981,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:49:24.981,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:49:26.514,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:49:26.514,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:49:26.514,easyshare,[35m[DEBUG][0m] Client discover port: 40488
+[2020-04-25 01:49:26.515,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:49:26.515,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:49:26.516,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:49:26.517,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 52220)
+[2020-04-25 01:49:26.518,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 52220)
+{'uri': 'PYRO:obj_7a87c71ce9f3401fbdbe2bd0aa746fd5@192.168.1.105:34173', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 34173, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:49:26.518,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:34173
+[2020-04-25 01:49:26.518,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:49:26.518,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:49:26.518,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_7a87c71ce9f3401fbdbe2bd0aa746fd5@192.168.1.105:34173
+[2020-04-25 01:49:26.519,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:49:26.519,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL client context
+[2020-04-25 01:49:26.523,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL context
+[2020-04-25 01:49:26.523,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_7a87c71ce9f3401fbdbe2bd0aa746fd5
+[2020-04-25 01:49:26.523,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_7a87c71ce9f3401fbdbe2bd0aa746fd5@192.168.1.105:34173
+[2020-04-25 01:49:26.526,Pyro4.core,[35m[DEBUG][0m] from meta: methods=['close', 'get', 'get_next_info', 'list', 'open', 'ping', 'put', 'put_next_info', 'rcd', 'rcp', 'rls', 'rmkdir', 'rmv', 'rpwd', 'rrm', 'rtree'], oneway methods=['close'], attributes=[]
+[2020-04-25 01:49:26.526,Pyro4.core,[35m[DEBUG][0m] connected to PYRO:obj_7a87c71ce9f3401fbdbe2bd0aa746fd5@192.168.1.105:34173 - IPv4 - unencrypted
+[2020-04-25 01:49:26.526,Pyro4.core,[35m[DEBUG][0m] reusing existing metadata
+[2020-04-25 01:49:26.527,easyshare,[32m[VERB] [0m] Successfully connected to 192.168.1.105:34173
+[2020-04-25 01:49:34.116,easyshare,[35m[DEBUG][0m] Client: handling command rls ({})
+[2020-04-25 01:49:34.116,easyshare,[34m[INFO] [0m] >> RLS (sort by ['name'])
+[2020-04-25 01:49:34.120,easyshare,[35m[DEBUG][0m] f_info: {'name': 'TODO', 'ftype': 'file', 'size': 1081}
+[2020-04-25 01:49:34.120,easyshare,[35m[DEBUG][0m] f_info: {'name': 'adir', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:49:34.121,easyshare,[35m[DEBUG][0m] f_info: {'name': 'esd.conf', 'ftype': 'file', 'size': 103}
+[2020-04-25 01:49:34.121,easyshare,[35m[DEBUG][0m] f_info: {'name': 'for3', 'ftype': 'file', 'size': 4}
+[2020-04-25 01:49:34.121,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner2', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:49:34.121,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner3', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:49:34.121,easyshare,[35m[DEBUG][0m] f_info: {'name': 'prova', 'ftype': 'file', 'size': 2}
+[2020-04-25 01:49:34.122,easyshare,[35m[DEBUG][0m] f_info: {'name': 'res', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:49:34.122,easyshare,[35m[DEBUG][0m] f_info: {'name': 'setup.py', 'ftype': 'file', 'size': 2252}
+[2020-04-25 01:49:34.122,easyshare,[35m[DEBUG][0m] f_info: {'name': 'test_cartaceo', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 01:52:28.784,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:52:29.151,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 01:52:29.151,easyshare,[34m[INFO] [0m] >> CLOSE
+[2020-04-25 01:52:29.151,Pyro4.core,[35m[DEBUG][0m] connection released
+[2020-04-25 01:52:30.204,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:52:30.226,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:52:30.235,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:52:30.235,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:52:30.235,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:52:32.411,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:52:32.411,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:52:32.412,easyshare,[35m[DEBUG][0m] Client discover port: 45858
+[2020-04-25 01:52:32.412,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:52:32.412,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:52:32.413,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:52:32.413,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 43118)
+[2020-04-25 01:52:32.413,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 43118)
+{'uri': 'PYRO:obj_e524a1608ba5482fa40ae18e8d472249@192.168.1.105:36415', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 36415, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:52:32.413,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:36415
+[2020-04-25 01:52:32.413,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:52:32.413,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:52:32.413,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_e524a1608ba5482fa40ae18e8d472249@192.168.1.105:36415
+[2020-04-25 01:52:32.413,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:52:32.413,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL client context
+[2020-04-25 01:52:32.415,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL context
+[2020-04-25 01:52:32.415,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_e524a1608ba5482fa40ae18e8d472249
+[2020-04-25 01:52:32.415,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_e524a1608ba5482fa40ae18e8d472249@192.168.1.105:36415
+[2020-04-25 01:52:32.417,Pyro4.core,[31m[ERROR][0m] cannot connect to ('192.168.1.105', 36415): [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1108)
+[2020-04-25 01:52:32.417,Pyro4.core,[31m[ERROR][0m] problem getting metadata: cannot connect
+[2020-04-25 01:52:32.417,easyshare,[32m[VERB] [0m] Pyro error occurred cannot connect to ('192.168.1.105', 36415): [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1108)
+[2020-04-25 01:54:59.855,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 01:55:00.169,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 01:55:00.697,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 01:55:00.715,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 01:55:00.725,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 01:55:00.725,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 01:55:00.725,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 01:55:02.162,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 01:55:02.162,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 01:55:02.162,easyshare,[35m[DEBUG][0m] Client discover port: 34337
+[2020-04-25 01:55:02.163,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 01:55:02.163,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 01:55:02.165,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 01:55:02.165,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 59417)
+[2020-04-25 01:55:02.165,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 59417)
+{'uri': 'PYRO:obj_8cf57783bed74934a7355daac87e252c@192.168.1.105:35595', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 35595, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 01:55:02.166,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:35595
+[2020-04-25 01:55:02.166,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 01:55:02.166,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 01:55:02.166,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_8cf57783bed74934a7355daac87e252c@192.168.1.105:35595
+[2020-04-25 01:55:02.166,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 01:55:02.169,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL client context, enabled = 1
+[2020-04-25 01:55:02.169,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_8cf57783bed74934a7355daac87e252c
+[2020-04-25 01:55:02.169,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_8cf57783bed74934a7355daac87e252c@192.168.1.105:35595
+[2020-04-25 01:55:02.171,Pyro4.core,[31m[ERROR][0m] cannot connect to ('192.168.1.105', 35595): [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1108)
+[2020-04-25 01:55:02.171,Pyro4.core,[31m[ERROR][0m] problem getting metadata: cannot connect
+[2020-04-25 01:55:02.171,easyshare,[32m[VERB] [0m] Pyro error occurred cannot connect to ('192.168.1.105', 35595): [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1108)
+[2020-04-25 01:55:02.259,easyshare,[33m[WARN] [0m] Empty command line
+[2020-04-25 02:05:06.284,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 02:05:06.535,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 02:05:08.377,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 02:05:08.395,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 02:05:08.404,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 02:05:08.404,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 02:05:08.404,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 02:05:10.129,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 02:05:10.129,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 02:05:10.130,easyshare,[35m[DEBUG][0m] Client discover port: 50751
+[2020-04-25 02:05:10.130,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 02:05:10.130,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 02:05:10.132,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 02:05:10.132,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 52692)
+[2020-04-25 02:05:10.133,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 52692)
+{'uri': 'PYRO:obj_b88d9b1d6d844169be2b4b96821362a2@192.168.1.105:35387', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 35387, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 02:05:10.133,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:35387
+[2020-04-25 02:05:10.133,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 02:05:10.133,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 02:05:10.134,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_b88d9b1d6d844169be2b4b96821362a2@192.168.1.105:35387
+[2020-04-25 02:05:10.134,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 02:05:10.137,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL client context, enabled = 1
+[2020-04-25 02:05:10.137,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_b88d9b1d6d844169be2b4b96821362a2
+[2020-04-25 02:05:10.137,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_b88d9b1d6d844169be2b4b96821362a2@192.168.1.105:35387
+[2020-04-25 02:05:10.142,Pyro4.core,[31m[ERROR][0m] cannot connect to ('192.168.1.105', 35387): [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1108)
+[2020-04-25 02:05:10.142,Pyro4.core,[31m[ERROR][0m] problem getting metadata: cannot connect
+[2020-04-25 02:05:10.142,easyshare,[32m[VERB] [0m] Pyro error occurred cannot connect to ('192.168.1.105', 35387): [SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1108)
+[2020-04-25 02:06:48.090,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 02:06:48.441,easyshare,[32m[VERB] [0m] CTRL+D detected: exiting
+[2020-04-25 02:06:49.049,Pyro4,INFO] Pyro log configured using built-in defaults, level=DEBUG
+[2020-04-25 02:06:49.066,Pyro4.core,DEBUG] exposing all members of <class 'Pyro4.core.DaemonObject'>
+[2020-04-25 02:06:49.075,easyshare,[34m[INFO] [0m] easyshare client (es) v. 0.1
+[2020-04-25 02:06:49.075,easyshare,[35m[DEBUG][0m] {'-v': [['5']]}
+[2020-04-25 02:06:49.075,easyshare,[32m[VERB] [0m] Executing shell
+[2020-04-25 02:06:50.648,easyshare,[35m[DEBUG][0m] Client: handling command open ({None: [['test']]})
+[2020-04-25 02:06:50.649,easyshare,[34m[INFO] [0m] >> OPEN test (timeout = 2)
+[2020-04-25 02:06:50.649,easyshare,[35m[DEBUG][0m] Client discover port: 40685
+[2020-04-25 02:06:50.649,easyshare,[35m[DEBUG][0m] Broadcasting DISCOVER on port 12011
+[2020-04-25 02:06:50.649,easyshare,[35m[DEBUG][0m] Waiting for 2.000 seconds...
+[2020-04-25 02:06:50.650,easyshare,[35m[DEBUG][0m] DISCOVER socket ready for recv
+[2020-04-25 02:06:50.651,easyshare,[35m[DEBUG][0m] Received DISCOVER response from: ('192.168.1.105', 60138)
+[2020-04-25 02:06:50.651,easyshare,[35m[DEBUG][0m] Handling DISCOVER response from ('192.168.1.105', 60138)
+{'uri': 'PYRO:obj_ce51a32979074282b578759a1a0e9485@192.168.1.105:44513', 'name': 'hostname', 'ip': '192.168.1.105', 'port': 44513, 'sharings': [{'name': 'test', 'ftype': 'dir', 'read_only': True, 'auth': False}, {'name': 'testsec', 'ftype': 'dir', 'read_only': True, 'auth': True}, {'name': 'zshrc', 'ftype': 'file', 'read_only': False, 'auth': False}, {'name': 'cert.pdf', 'ftype': 'file', 'read_only': False, 'auth': False}], 'ssl': True}
+[2020-04-25 02:06:50.651,easyshare,[35m[DEBUG][0m] Sharing [test] found at 192.168.1.105:44513
+[2020-04-25 02:06:50.651,easyshare,[35m[DEBUG][0m] Stopping DISCOVER since handle_discover_response_callback returned false
+[2020-04-25 02:06:50.651,easyshare,[32m[VERB] [0m] Stopping DISCOVER listener
+[2020-04-25 02:06:50.651,easyshare,[35m[DEBUG][0m] Creating new connection with PYRO:obj_ce51a32979074282b578759a1a0e9485@192.168.1.105:44513
+[2020-04-25 02:06:50.651,easyshare,[35m[DEBUG][0m] Initializing new Connection
+[2020-04-25 02:06:50.653,easyshare,[32m[VERB] [0m] Configuring Pyro4 SSL client context, enabled = 1
+[2020-04-25 02:06:50.654,Pyro4.core,[35m[DEBUG][0m] getting metadata for object obj_ce51a32979074282b578759a1a0e9485
+[2020-04-25 02:06:50.654,Pyro4.core,[35m[DEBUG][0m] connecting to PYRO:obj_ce51a32979074282b578759a1a0e9485@192.168.1.105:44513
+[2020-04-25 02:06:50.660,Pyro4.core,[35m[DEBUG][0m] from meta: methods=['close', 'get', 'get_next_info', 'list', 'open', 'ping', 'put', 'put_next_info', 'rcd', 'rcp', 'rls', 'rmkdir', 'rmv', 'rpwd', 'rrm', 'rtree'], oneway methods=['close'], attributes=[]
+[2020-04-25 02:06:50.660,Pyro4.core,[35m[DEBUG][0m] connected to PYRO:obj_ce51a32979074282b578759a1a0e9485@192.168.1.105:44513 - IPv4 - SSL
+[2020-04-25 02:06:50.660,Pyro4.core,[35m[DEBUG][0m] reusing existing metadata
+[2020-04-25 02:06:50.661,easyshare,[32m[VERB] [0m] Successfully connected to 192.168.1.105:44513
+[2020-04-25 02:07:03.042,easyshare,[35m[DEBUG][0m] Client: handling command rls ({})
+[2020-04-25 02:07:03.042,easyshare,[34m[INFO] [0m] >> RLS (sort by ['name'])
+[2020-04-25 02:07:03.043,easyshare,[35m[DEBUG][0m] f_info: {'name': 'TODO', 'ftype': 'file', 'size': 1081}
+[2020-04-25 02:07:03.043,easyshare,[35m[DEBUG][0m] f_info: {'name': 'adir', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:03.044,easyshare,[35m[DEBUG][0m] f_info: {'name': 'esd.conf', 'ftype': 'file', 'size': 103}
+[2020-04-25 02:07:03.044,easyshare,[35m[DEBUG][0m] f_info: {'name': 'for3', 'ftype': 'file', 'size': 4}
+[2020-04-25 02:07:03.044,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner2', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:03.044,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner3', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:03.044,easyshare,[35m[DEBUG][0m] f_info: {'name': 'prova', 'ftype': 'file', 'size': 2}
+[2020-04-25 02:07:03.044,easyshare,[35m[DEBUG][0m] f_info: {'name': 'res', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:03.044,easyshare,[35m[DEBUG][0m] f_info: {'name': 'setup.py', 'ftype': 'file', 'size': 2252}
+[2020-04-25 02:07:03.044,easyshare,[35m[DEBUG][0m] f_info: {'name': 'test_cartaceo', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:11.921,easyshare,[35m[DEBUG][0m] Client: handling command info ({})
+[2020-04-25 02:07:11.922,easyshare,[35m[DEBUG][0m] Info while connected, printing current server info
+[2020-04-25 02:07:20.043,easyshare,[35m[DEBUG][0m] Client: handling command rls ({})
+[2020-04-25 02:07:20.043,easyshare,[34m[INFO] [0m] >> RLS (sort by ['name'])
+[2020-04-25 02:07:20.045,easyshare,[35m[DEBUG][0m] f_info: {'name': 'TODO', 'ftype': 'file', 'size': 1081}
+[2020-04-25 02:07:20.045,easyshare,[35m[DEBUG][0m] f_info: {'name': 'adir', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:20.046,easyshare,[35m[DEBUG][0m] f_info: {'name': 'esd.conf', 'ftype': 'file', 'size': 103}
+[2020-04-25 02:07:20.046,easyshare,[35m[DEBUG][0m] f_info: {'name': 'for3', 'ftype': 'file', 'size': 4}
+[2020-04-25 02:07:20.046,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner2', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:20.046,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner3', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:20.046,easyshare,[35m[DEBUG][0m] f_info: {'name': 'prova', 'ftype': 'file', 'size': 2}
+[2020-04-25 02:07:20.046,easyshare,[35m[DEBUG][0m] f_info: {'name': 'res', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:20.046,easyshare,[35m[DEBUG][0m] f_info: {'name': 'setup.py', 'ftype': 'file', 'size': 2252}
+[2020-04-25 02:07:20.046,easyshare,[35m[DEBUG][0m] f_info: {'name': 'test_cartaceo', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:26.314,easyshare,[35m[DEBUG][0m] Client: handling command rpwd ({})
+[2020-04-25 02:07:26.314,easyshare,[34m[INFO] [0m] >> RPWD
+[2020-04-25 02:07:33.929,easyshare,[35m[DEBUG][0m] Client: handling command t ({None: [['1']]})
+[2020-04-25 02:07:33.929,easyshare,[34m[INFO] [0m] >> TRACE (1)
+[2020-04-25 02:07:34.950,easyshare,[35m[DEBUG][0m] Client: handling command rls ({})
+[2020-04-25 02:07:34.950,easyshare,[34m[INFO] [0m] >> RLS (sort by ['name'])
+[2020-04-25 02:07:34.955,easyshare,[35m[DEBUG][0m] f_info: {'name': 'TODO', 'ftype': 'file', 'size': 1081}
+[2020-04-25 02:07:34.955,easyshare,[35m[DEBUG][0m] f_info: {'name': 'adir', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:34.955,easyshare,[35m[DEBUG][0m] f_info: {'name': 'esd.conf', 'ftype': 'file', 'size': 103}
+[2020-04-25 02:07:34.955,easyshare,[35m[DEBUG][0m] f_info: {'name': 'for3', 'ftype': 'file', 'size': 4}
+[2020-04-25 02:07:34.955,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner2', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:34.955,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner3', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:34.955,easyshare,[35m[DEBUG][0m] f_info: {'name': 'prova', 'ftype': 'file', 'size': 2}
+[2020-04-25 02:07:34.955,easyshare,[35m[DEBUG][0m] f_info: {'name': 'res', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:07:34.955,easyshare,[35m[DEBUG][0m] f_info: {'name': 'setup.py', 'ftype': 'file', 'size': 2252}
+[2020-04-25 02:07:34.956,easyshare,[35m[DEBUG][0m] f_info: {'name': 'test_cartaceo', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:08:24.579,easyshare,[32m[VERB] [0m] CTRL+C detected
+[2020-04-25 02:08:25.960,easyshare,[35m[DEBUG][0m] Client: handling command cd ({None: [['/tmp']]})
+[2020-04-25 02:08:25.960,easyshare,[34m[INFO] [0m] >> CD /tmp
+[2020-04-25 02:08:26.326,easyshare,[35m[DEBUG][0m] Client: handling command ls ({})
+[2020-04-25 02:08:26.326,easyshare,[34m[INFO] [0m] >> LS (sort by ['name'])
+[2020-04-25 02:08:26.326,easyshare,[32m[VERB] [0m] LS sorting by ['name']
+[2020-04-25 02:08:26.326,easyshare,[35m[DEBUG][0m] f_info: {'name': '.ICE-unix', 'ftype': 'dir', 'size': 60}
+[2020-04-25 02:08:26.327,easyshare,[35m[DEBUG][0m] f_info: {'name': '.Test-unix', 'ftype': 'dir', 'size': 40}
+[2020-04-25 02:08:26.327,easyshare,[35m[DEBUG][0m] f_info: {'name': '.X11-unix', 'ftype': 'dir', 'size': 60}
+[2020-04-25 02:08:26.327,easyshare,[35m[DEBUG][0m] f_info: {'name': '.XIM-unix', 'ftype': 'dir', 'size': 40}
+[2020-04-25 02:08:26.327,easyshare,[35m[DEBUG][0m] f_info: {'name': '.font-unix', 'ftype': 'dir', 'size': 40}
+[2020-04-25 02:08:26.327,easyshare,[35m[DEBUG][0m] f_info: {'name': 'Temp-4ed1fb8c-2f5e-4f0d-922a-df4419c457bc', 'ftype': 'dir', 'size': 40}
+[2020-04-25 02:08:26.327,easyshare,[35m[DEBUG][0m] f_info: {'name': 'Temp-aaa0d50d-5423-4187-bb7b-8ada26f72810', 'ftype': 'dir', 'size': 40}
+[2020-04-25 02:08:26.327,easyshare,[35m[DEBUG][0m] f_info: {'name': 'hsperfdata_stefano', 'ftype': 'dir', 'size': 60}
+[2020-04-25 02:08:26.328,easyshare,[35m[DEBUG][0m] f_info: {'name': 'sddm-auth92e06dab-f260-4faa-9d49-6f164f803ae2', 'ftype': 'file', 'size': 0}
+[2020-04-25 02:08:26.328,easyshare,[35m[DEBUG][0m] f_info: {'name': 'setup.py', 'ftype': 'file', 'size': 2252}
+[2020-04-25 02:08:26.328,easyshare,[35m[DEBUG][0m] f_info: {'name': 'systemd-private-a4173e54bc744e1fa637e3de759ef1a7-colord.service-gfAYNg', 'ftype': 'dir', 'size': 60}
+[2020-04-25 02:08:26.328,easyshare,[35m[DEBUG][0m] f_info: {'name': 'systemd-private-a4173e54bc744e1fa637e3de759ef1a7-systemd-logind.service-FtB4wh', 'ftype': 'dir', 'size': 60}
+[2020-04-25 02:08:26.328,easyshare,[35m[DEBUG][0m] f_info: {'name': 'systemd-private-a4173e54bc744e1fa637e3de759ef1a7-systemd-timesyncd.service-HTOs0f', 'ftype': 'dir', 'size': 60}
+[2020-04-25 02:08:26.328,easyshare,[35m[DEBUG][0m] f_info: {'name': 'systemd-private-a4173e54bc744e1fa637e3de759ef1a7-upower.service-USFRqg', 'ftype': 'dir', 'size': 60}
+[2020-04-25 02:08:26.328,easyshare,[35m[DEBUG][0m] f_info: {'name': 'wireshark_-_20200424230044_QqC4bV.pcapng', 'ftype': 'file', 'size': 3436816}
+[2020-04-25 02:08:26.329,easyshare,[35m[DEBUG][0m] f_info: {'name': 'wireshark_Loopback_20200424230543_dQRtAx.pcapng', 'ftype': 'file', 'size': 364}
+[2020-04-25 02:08:26.329,easyshare,[35m[DEBUG][0m] f_info: {'name': 'wireshark_eno1_20200424230041_gvvwt7.pcapng', 'ftype': 'file', 'size': 812}
+[2020-04-25 02:08:26.329,easyshare,[35m[DEBUG][0m] f_info: {'name': 'wireshark_lo_20200425020659_1qXWzX.pcapng', 'ftype': 'file', 'size': 3556}
+[2020-04-25 02:08:26.329,easyshare,[35m[DEBUG][0m] f_info: {'name': 'xauth-1000-_0', 'ftype': 'file', 'size': 57}
+[2020-04-25 02:08:28.853,easyshare,[35m[DEBUG][0m] Client: handling command rls ({})
+[2020-04-25 02:08:28.853,easyshare,[34m[INFO] [0m] >> RLS (sort by ['name'])
+[2020-04-25 02:08:28.856,easyshare,[35m[DEBUG][0m] f_info: {'name': 'TODO', 'ftype': 'file', 'size': 1081}
+[2020-04-25 02:08:28.857,easyshare,[35m[DEBUG][0m] f_info: {'name': 'adir', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:08:28.857,easyshare,[35m[DEBUG][0m] f_info: {'name': 'esd.conf', 'ftype': 'file', 'size': 103}
+[2020-04-25 02:08:28.857,easyshare,[35m[DEBUG][0m] f_info: {'name': 'for3', 'ftype': 'file', 'size': 4}
+[2020-04-25 02:08:28.857,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner2', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:08:28.858,easyshare,[35m[DEBUG][0m] f_info: {'name': 'inner3', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:08:28.858,easyshare,[35m[DEBUG][0m] f_info: {'name': 'prova', 'ftype': 'file', 'size': 2}
+[2020-04-25 02:08:28.858,easyshare,[35m[DEBUG][0m] f_info: {'name': 'res', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:08:28.858,easyshare,[35m[DEBUG][0m] f_info: {'name': 'setup.py', 'ftype': 'file', 'size': 2252}
+[2020-04-25 02:08:28.858,easyshare,[35m[DEBUG][0m] f_info: {'name': 'test_cartaceo', 'ftype': 'dir', 'size': 4096}
+[2020-04-25 02:08:31.608,easyshare,[35m[DEBUG][0m] Client: handling command get ({None: [['setup.py']]})
+[2020-04-25 02:08:31.608,easyshare,[35m[DEBUG][0m] GET => get_files
+[2020-04-25 02:08:31.608,easyshare,[34m[INFO] [0m] >> GET [files] ['setup.py']
+[2020-04-25 02:08:31.611,easyshare,[32m[VERB] [0m] Successfully GETed
+[2020-04-25 02:08:31.611,easyshare,[32m[VERB] [0m] Overwrite all mode: None
+[2020-04-25 02:08:31.611,easyshare,[32m[VERB] [0m] Fetching another file info
+[2020-04-25 02:08:31.613,easyshare,[35m[DEBUG][0m] get_next_info()
+{'success': True, 'data': {'name': 'setup.py', 'ftype': 'file', 'size': 2252}}
+[2020-04-25 02:08:31.613,easyshare,[35m[DEBUG][0m] NEXT: setup.py of type file
+[2020-04-25 02:08:31.614,easyshare,[33m[WARN] [0m] File already exists, asking whether overwrite it (if needed)
+[2020-04-25 02:08:33.223,easyshare,[35m[DEBUG][0m] Will overwrite file
+[2020-04-25 02:08:33.223,easyshare,[32m[VERB] [0m] Opening file 'setup.py' locally
+[2020-04-25 02:08:33.223,easyshare,[35m[DEBUG][0m] Read chunk of 2252B
+[2020-04-25 02:08:33.223,easyshare,[35m[DEBUG][0m] 2252/2252 (100.00%)
+[2020-04-25 02:08:33.223,easyshare,[35m[DEBUG][0m] DONE setup.py
+[2020-04-25 02:08:33.223,easyshare,[35m[DEBUG][0m] File OK (length match)
+[2020-04-25 02:08:33.224,easyshare,[32m[VERB] [0m] Fetching another file info
+[2020-04-25 02:08:33.225,easyshare,[35m[DEBUG][0m] get_next_info()
+{'success': True}
+[2020-04-25 02:08:33.225,easyshare,[32m[VERB] [0m] Nothing more to GET
+[2020-04-25 02:08:33.225,easyshare,[32m[VERB] [0m] GET transaction N8adsrurtZJlOQyA finished, closing socket

@@ -9,12 +9,15 @@ from easyshare.utils.types import str_to_bytes, bytes_to_str
 # For read certificate content:
 # openssl x509 -in cert.pem -text
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-ssl_context.load_cert_chain(certfile="/home/stefano/Temp/certs/localhost/cert.pem",
-                            keyfile="/home/stefano/Temp/certs/localhost/private_key.pem")
+ssl_context.load_cert_chain(certfile="/home/stefano/Temp/certs/192_168_1_105/cert.pem",
+                            keyfile="/home/stefano/Temp/certs/192_168_1_105/privkey.pem")
 ssl_context.verify_mode = ssl.CERT_NONE
 
+host = "192.168.1.105"
+port = 5555
+
 def main():
-    s = SocketTcpAcceptor(port=5555)
+    s = SocketTcpAcceptor(address=host, port=port)
 
     while True:
         with ssl_context.wrap_socket(s.sock, server_side=True) as sslsock:

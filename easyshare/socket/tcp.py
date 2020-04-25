@@ -1,4 +1,5 @@
 import socket
+import ssl
 
 from typing import Tuple
 
@@ -9,9 +10,6 @@ from easyshare.utils.net import socket_tcp_out, socket_tcp_in
 
 
 class SocketTcp(Socket):
-    def __init__(self):
-        super().__init__()
-
     def send(self, data: bytes):
         self.sock.sendall(data)
 
@@ -20,25 +18,45 @@ class SocketTcp(Socket):
 
 
 class SocketTcpIn(SocketTcp):
-    def __init__(self, sock: socket.socket):
-        super().__init__()
-        self.sock = sock
+    def __init__(self,
+                 sock: socket.socket,
+                 ssl_context: ssl.SSLContext = None,
+                 ssl_server_side: bool = False):
+        super().__init__(
+            sock,
+            ssl_context=ssl_context,
+            ssl_server_side=ssl_server_side
+        )
 
 
 class SocketTcpOut(SocketTcp):
-    def __init__(self, address: str, port: int, *,
-                 timeout: float = None):
-        super().__init__()
-        self.sock = socket_tcp_out(address=address, port=port, timeout=timeout)
+    def __init__(self,
+                 address: str,
+                 port: int, *,
+                 timeout: float = None,
+                 ssl_context: ssl.SSLContext = None,
+                 ssl_server_side: bool = False):
+        super().__init__(
+            socket_tcp_out(address=address, port=port, timeout=timeout),
+            ssl_context=ssl_context,
+            ssl_server_side=ssl_server_side
+        )
 
 
 class SocketTcpAcceptor(Socket):
+
     def __init__(self, *,
-                 address: str = ADDR_ANY, port: int = PORT_ANY):
-        super().__init__()
-        self.sock = socket_tcp_in(address, port)
+                 address: str = ADDR_ANY,
+                 port: int = PORT_ANY,
+                 ssl_context: ssl.SSLContext = None):
+        super().__init__(
+            socket_tcp_in(address, port),
+            ssl_context=ssl_context,
+            ssl_server_side=True
+        )
 
     def accept(self) -> Tuple[SocketTcp, Endpoint]:
         newsock, endpoint = self.sock.accept()
+        # newsock is already ssl-protected if the acceptor was protected
         return SocketTcpIn(newsock), endpoint
 

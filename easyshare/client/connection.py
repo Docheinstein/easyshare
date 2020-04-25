@@ -1,6 +1,8 @@
+import ssl
 from typing import List, Union, Optional
 
 import Pyro4
+from Pyro4 import socketutil
 from Pyro4.core import _BatchProxyAdapter
 
 from easyshare.client.errors import ClientErrors
@@ -25,6 +27,8 @@ from easyshare.utils.json import json_to_pretty_str
 #
 #     return batchable_func
 #
+from easyshare.utils.net import create_client_ssl_context
+
 
 class Connection:
 
@@ -33,45 +37,13 @@ class Connection:
     def __init__(self, server_info: ServerInfo):
         d("Initializing new Connection")
         self.server_info: ServerInfo = server_info
-        self.server: Union[IServer, ServerProxy] = ServerProxy(server_info)
         self._connected = False
         self._sharing_name = None
         self._rpwd = ""
 
-        self._batch: Optional[_BatchProxyAdapter] = None
-    #
-    # def start_batch(self):
-    #     self._batch = Pyro4.batch(self.server)
-    #
-    # def exec_batch(self) -> Optional[List[Response]]:
-    #     if not self._batch:
-    #         return None
-    #
-    #     # Retrieve the calls params
-    #     calls = list(self._batch._BatchProxyAdapter__calls)
-    #     d("Batch calls: %s", calls)
-    #
-    #     # Execute the calls
-    #     responses_generator = self._batch()
-    #     responses = []
-    #
-    #     for idx, resp in enumerate(responses_generator):
-    #         funcname, funcargs, funckwargs = calls[idx]
-    #
-    #         d("Got batch response for request '%s': \n%s",
-    #           funcname,
-    #           json_to_pretty_str(resp)
-    #         )
-    #
-    #         # Eventually handle the response
-    #         handler_func_name = Connection.RESPONSE_HANDLER_FUNC_NAME_PATTERN.format(funcname)
-    #         if hasattr(self, handler_func_name):
-    #             d("Found a response handler, passing response to it")
-    #             getattr(self, handler_func_name)(funcargs, funckwargs)
-    #
-    #         responses.append(resp)
-    #
-    #     return responses
+        # Create the proxy for the remote server
+        self.server: Union[IServer, ServerProxy] = ServerProxy(server_info)
+
 
     def is_connected(self) -> bool:
         return self._connected

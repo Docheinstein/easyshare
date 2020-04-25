@@ -2,6 +2,7 @@ import enum
 import os
 import random
 import shlex
+import ssl
 import sys
 import readline
 import time
@@ -11,6 +12,8 @@ from math import ceil
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Type, Union, Tuple
 
+import Pyro4
+from Pyro4 import socketutil
 from Pyro4.errors import ConnectionClosedError, PyroError
 
 from easyshare.client.connection import Connection
@@ -1055,6 +1058,8 @@ class Client:
         timeout = to_int(args.get_param(ScanArguments.TIMEOUT,
                                         default=Discoverer.DEFAULT_TIMEOUT))
 
+        show_details = ScanArguments.DETAILS in args
+
         if not timeout:
             print_error(ClientErrors.INVALID_PARAMETER_VALUE)
             return False
@@ -1075,13 +1080,14 @@ class Client:
             else:
                 print("")
 
-            print("{} ({}:{})"
-                  .format(server_info.get("name"),
-                          server_info.get("ip"),
-                          server_info.get("port")))
+            print("{} ({}:{})".format(
+                server_info.get("name"),
+                server_info.get("ip"),
+                server_info.get("port")))
+
 
             print(Client._sharings_string(server_info.get("sharings"),
-                                          details=ScanArguments.DETAILS in args))
+                                          details=show_details))
 
             servers_found += 1
 
@@ -1106,11 +1112,13 @@ class Client:
                 "Name: {}\n"
                 "IP: {}\n"
                 "Port: {}\n"
+                "SSL: {}\n"
                 "Sharings\n{}"
                 .format(
                     server_info.get("name"),
                     server_info.get("ip"),
                     server_info.get("port"),
+                    server_info.get("ssl"),
                     Client._sharings_string(server_info.get("sharings"))
                 )
             )
@@ -2045,8 +2053,8 @@ class Shell:
 
                 if not outcome:
                     print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
-            except PyroError:
-                v("Pyro error occurred")
+            except PyroError as pyroerr:
+                v("Pyro error occurred %s", pyroerr)
                 print_error(ClientErrors.CONNECTION_ERROR)
                 # Close client connection anyway
                 try:
@@ -2173,4 +2181,11 @@ def main_wrapper(dump_pyro_exceptions=False):
 
 
 if __name__ == "__main__":
+
+    # Pyro4.config.SSL = True
+    # Pyro4.config.SSL_CACERTS = "/home/stefano/Temp/certs/localhost/cert.pem"
+    # Pyro4.config.SSL_REQUIRECLIENTCERT = "/home/stefano/Temp/certs/localhost/cert.pem"
+
+
+
     main_wrapper(dump_pyro_exceptions=True)

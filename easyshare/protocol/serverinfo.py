@@ -11,6 +11,7 @@ try:
         name: str
         ip: str
         port: int
+        ssl: bool
         sharings: List[SharingInfo]
 except:
     ServerInfo = Dict[str, Union[str, int, List[SharingInfo]]]

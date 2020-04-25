@@ -1,8 +1,11 @@
 import enum
+import os
 import socket
+import ssl
 from typing import Optional
 
 from easyshare.consts.net import ADDR_ANY, PORT_ANY
+from easyshare.shared.log import e
 from easyshare.utils.types import is_int
 
 
@@ -57,6 +60,33 @@ def socket_tcp_out(address: str, port: int, *,
                    timeout: float = None):
     return _socket(SocketMode.TCP, SocketDirection.OUT,
                    address=address, port=port, timeout=timeout)
+
+
+def create_server_ssl_context(cert: str, privkey: str) -> Optional[ssl.SSLContext]:
+    if not os.path.isfile(cert) or not os.path.isfile(privkey):
+        return None
+
+    try:
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ssl_context.load_cert_chain(certfile=cert, keyfile=privkey)
+        ssl_context.verify_mode = ssl.CERT_NONE
+    except Exception as ex:
+        e("SSL context creation failed: %s", ex)
+        return None
+
+    return ssl_context
+
+
+def create_client_ssl_context() -> Optional[ssl.SSLContext]:
+    try:
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+    except Exception as ex:
+        e("SSL context creation failed: %s", ex)
+        return None
+
+    return ssl_context
 
 
 def _socket(mode: SocketMode, direction: SocketDirection,
