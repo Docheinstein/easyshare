@@ -44,8 +44,7 @@ from easyshare.utils.types import to_int, bool_to_str, is_bool
 from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden
 from easyshare.args import Args as Args2, ArgSpec, PARAM_INT, PARAM_PRESENCE, CustomArgParamsParser
 
-log = get_logger(__name__)
-log.set_verbosity(logging.VERBOSITY_NONE)
+log = get_logger()
 
 # ==================================================================
 
@@ -91,31 +90,6 @@ scan    [timeout]   |   scan the network for sharings"""
 
 # === ARGUMENTS ===
 
-
-class EsArgs:
-    HELP =      ["-h", "--help"]
-    VERSION =   ["-V", "--version"]
-
-    PORT =      ["-p", "--port"]
-    WAIT =      ["-w", "--wait"]
-
-    VERBOSE =   ["-v", "--verbose"]
-    TRACE =     ["-t", "--trace"]
-
-    NO_COLOR =  ["--no-color"]
-
-
-class EsCfg:
-    def __init__(self):
-        self.discover_port = conf.DEFAULT_DISCOVER_PORT
-        self.tracing = False
-        self.verbosity = logging.VERBOSITY_NONE
-        self.no_color = False
-        self.command = None
-        self.command_args: List[str] = []
-
-    def __str__(self):
-        return json_to_pretty_str(items(self))
 
 # === COMMANDS ===
 
@@ -525,13 +499,67 @@ CLI_COMMANDS = [k for k in values(Commands) if k not in NON_CLI_COMMANDS]
 # === COMMANDS ARGUMENTS ===
 
 
-class LsArguments:
+class ArgsParser(ABC):
+    @classmethod
+    @abstractmethod
+    def parse(cls, args: List[str]) -> Optional[Args2]:
+        pass
+
+
+class EsArgs(ArgsParser):
+    HELP =      ["-h", "--help"]
+    VERSION =   ["-V", "--version"]
+
+    PORT =      ["-p", "--port"]
+    WAIT =      ["-w", "--wait"]
+
+    VERBOSE =   ["-v", "--verbose"]
+    TRACE =     ["-t", "--trace"]
+
+    NO_COLOR =  ["--no-color"]
+
+    @classmethod
+    def parse(cls, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            args_specs=[
+                ArgSpec(EsArgs.HELP,
+                        CustomArgParamsParser(0, lambda _: terminate("help"))),
+                ArgSpec(EsArgs.VERSION,
+                        CustomArgParamsParser(0, lambda _: terminate("version"))),
+                ArgSpec(EsArgs.PORT, PARAM_INT),
+                ArgSpec(EsArgs.WAIT, PARAM_INT),
+                ArgSpec(EsArgs.VERBOSE, PARAM_INT),
+                ArgSpec(EsArgs.TRACE, PARAM_PRESENCE),
+                ArgSpec(EsArgs.NO_COLOR, PARAM_PRESENCE),
+            ],
+            # Stop to parse when a positional argument is found (probably a command)
+            continue_parsing_hook=lambda arg, idx, parsedargs: not parsedargs.has_vargs()
+        )
+
+
+class LsArgs(ArgsParser):
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
-    SIZE = ["-S"]
-    DETAILS = ["-l"]
+
     ALL = ["-a", "--all"]
+    DETAILS = ["-l"]
+    SIZE = ["-S"]
+
+    @classmethod
+    def parse(cls, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            args_specs=[
+                ArgSpec(LsArgs.SORT_BY_SIZE, PARAM_PRESENCE),
+                ArgSpec(LsArgs.REVERSE, PARAM_PRESENCE),
+                ArgSpec(LsArgs.GROUP, PARAM_PRESENCE),
+                ArgSpec(LsArgs.ALL, PARAM_PRESENCE),
+                ArgSpec(LsArgs.DETAILS, PARAM_PRESENCE),
+                ArgSpec(LsArgs.SIZE, PARAM_PRESENCE),
+            ]
+        )
 
 
 class TreeArguments:
@@ -669,6 +697,57 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None):
         print(print_row)
 
 
+def print_files_info_list(infos: List[FileInfo],
+                          show_file_type: bool = False,
+                          show_size: bool = False,
+                          show_hidden: bool = False,
+                          compact: bool = True):
+
+    sstrings: List[StyledString] = []
+
+    for info in infos:
+        log.i("f_info: %s", info)
+
+        fname = info.get("name")
+
+        if not show_hidden and is_hidden(fname):
+            log.i("Not showing hidden files: %s", fname)
+            continue
+
+        size = info.get("size")
+
+        if info.get("ftype") == FTYPE_DIR:
+            ftype_short = "D"
+            fname_styled = fg(fname, DIR_COLOR)
+        else:
+            ftype_short = "F"
+            fname_styled = fg(fname, FILE_COLOR)
+
+        file_str = ""
+
+        if show_file_type:
+            s = ftype_short + "  "
+            # if not compact:
+            #     s = s.ljust(3)
+            file_str += s
+
+        if show_size:
+            s = size_str(size).rjust(4) + "  "
+            file_str += s
+
+        file_str_styled = file_str
+
+        file_str += fname
+        file_str_styled += fname_styled
+
+        sstrings.append(StyledString(file_str, file_str_styled))
+
+    if not compact:
+        for ss in sstrings:
+            print(ss.styled_string)
+    else:
+        print_tabulated(sstrings)
+
 # ==================================================================
 
 
@@ -678,14 +757,14 @@ class Client:
 
         self._discover_port = discover_port
 
-        self._command_dispatcher: Dict[str, Callable[[Args], None]] = {
+        self._command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args2], None]]] = {
             Commands.TRACE: self.trace,
             Commands.TRACE_SHORT: self.trace,
             Commands.VERBOSE: self.verbose,
             Commands.VERBOSE_SHORT: self.verbose,
 
             Commands.LOCAL_CHANGE_DIRECTORY: self.cd,
-            Commands.LOCAL_LIST_DIRECTORY: self.ls,
+            Commands.LOCAL_LIST_DIRECTORY: (LsArgs, self.ls),
             Commands.LOCAL_TREE_DIRECTORY: self.tree,
             Commands.LOCAL_CREATE_DIRECTORY: self.mkdir,
             Commands.LOCAL_CURRENT_DIRECTORY: self.pwd,
@@ -713,12 +792,20 @@ class Client:
             Commands.PING: self.ping,
         }
 
-    def execute_command(self, command: str, args: List[str]) -> bool:
+    def execute_command(self, command: str, command_args: List[str]) -> bool:
         if command not in self._command_dispatcher:
             return False
+        log.i("Executing %s(%s)", command, command_args)
 
-        log.i("Executing %s(%s)", command, args)
-        self._command_dispatcher[command](args)
+        parser, executor = self._command_dispatcher[command]
+
+        # Parse args using the parsed bound to the command
+        args = parser.parse(command_args)
+
+        log.i("Parsed command arguments\n%s", args)
+
+        executor(args)
+
         return True
 
     def is_connected(self):
@@ -785,31 +872,29 @@ class Client:
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-    def ls(self, args: List[str]):
-        path = args.get_param()
-        if not path:
-            path = os.getcwd()
+    def ls(self, args: Args2):
+        path = args.get_varg(default=os.getcwd())
 
         sort_by = ["name"]
         reverse = LsCommandInfo.REVERSE.aliases in args
 
-        if LsArguments.SORT_BY_SIZE in args:
+        if LsArgs.SORT_BY_SIZE in args:
             sort_by.append("size")
-        if LsArguments.GROUP in args:
+        if LsArgs.GROUP in args:
             sort_by.append("ftype")
 
-        log.i(">> LS (sort by %s%s)", sort_by, " | reverse" if reverse else "")
+        log.i(">> LS %s (sort by %s%s)", path, sort_by, " | reverse" if reverse else "")
 
         ls_result = ls(path, sort_by=sort_by, reverse=reverse)
         if ls_result is None:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-        Client._print_list_files_info(
+        print_files_info_list(
             ls_result,
-            show_size=LsArguments.SIZE in args or LsArguments.DETAILS in args,
-            show_file_type=LsArguments.DETAILS in args,
-            show_hidden=LsArguments.ALL in args,
-            compact=LsArguments.DETAILS not in args
+            show_size=LsArgs.SIZE in args or LsArgs.DETAILS in args,
+            show_file_type=LsArgs.DETAILS in args,
+            show_hidden=LsArgs.ALL in args,
+            compact=LsArgs.DETAILS not in args
         )
 
     def tree(self, args: Args):
@@ -998,11 +1083,11 @@ class Client:
 
         path = args.get_param()
         sort_by = ["name"]
-        reverse = LsArguments.REVERSE in args
+        reverse = LsArgs.REVERSE in args
 
-        if LsArguments.SORT_BY_SIZE in args:
+        if LsArgs.SORT_BY_SIZE in args:
             sort_by.append("size")
-        if LsArguments.GROUP in args:
+        if LsArgs.GROUP in args:
             sort_by.append("ftype")
 
         log.i(">> RLS (sort by %s%s)", sort_by, " | reverse" if reverse else "")
@@ -1015,10 +1100,10 @@ class Client:
 
         Client._print_list_files_info(
             resp.get("data"),
-            show_size=LsArguments.SIZE in args or LsArguments.DETAILS in args,
-            show_file_type=LsArguments.DETAILS in args,
-            show_hidden=LsArguments.ALL in args,
-            compact=LsArguments.DETAILS not in args
+            show_size=LsArgs.SIZE in args or LsArgs.DETAILS in args,
+            show_file_type=LsArgs.DETAILS in args,
+            show_hidden=LsArgs.ALL in args,
+            compact=LsArgs.DETAILS not in args
         )
 
 
@@ -2335,35 +2420,18 @@ class Shell:
 
 def main():
     # Uncomment for enable for debug arguments parsing
-    log.set_verbosity(logging.VERBOSITY_MAX)
+    # log.set_verbosity(logging.VERBOSITY_MAX)
 
-    # def continue_parsing_hook(arg: str, idx: int, parsed_args: Args2):
-    #     return not parsed_args.has_vargs()
+    log.set_verbosity(logging.VERBOSITY_NONE)
 
     # Parse arguments
-    args = Args2.parse(
-        args=sys.argv[1:],
-        args_specs=[
-            ArgSpec(aliases=EsArgs.HELP,
-                    params_parser=CustomArgParamsParser(0, lambda _: terminate("help"))),
-            ArgSpec(aliases=EsArgs.VERSION,
-                    params_parser=CustomArgParamsParser(0, lambda _: terminate("version"))),
-            ArgSpec(aliases=EsArgs.PORT, params_parser=PARAM_INT),
-            ArgSpec(aliases=EsArgs.WAIT, params_parser=PARAM_INT),
-            ArgSpec(aliases=EsArgs.VERBOSE, params_parser=PARAM_INT),
-            ArgSpec(aliases=EsArgs.TRACE, params_parser=PARAM_PRESENCE),
-            ArgSpec(aliases=EsArgs.NO_COLOR, params_parser=PARAM_PRESENCE),
-        ],
-        # Stop to parse when a positional argument is found (probably a command)
-        continue_parsing_hook=lambda arg, idx, parsedargs: not parsedargs.has_vargs()
-    )
+    args = EsArgs.parse(sys.argv[1:])
 
-    # cfg = parse_es_arguments()
     if not args:
         abort("Error occurred while parsing arguments")
 
     # Verbosity
-    log.set_verbosity(EsArgs.VERBOSE in args)
+    log.set_verbosity(args.get_kwarg_param(EsArgs.VERBOSE, logging.VERBOSITY_NONE))
 
     log.i(APP_INFO)
     log.i("Starting with arguments\n%s", args)

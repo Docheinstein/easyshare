@@ -4,12 +4,14 @@ import shutil
 from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
-
+from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.tree.tree import TreeRenderPostOrder
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.types import is_str, is_list
+
+log = get_logger(__name__)
 
 G = 1000000000
 M = 1000000
@@ -183,7 +185,6 @@ def _ls(path: str, sort_by_fields: List[str], reverse=False) -> Optional[List[Fi
         }]
 
     if not os.path.isdir(path):
-
         log.e("Cannot perform ls; invalid path")
         return None
 

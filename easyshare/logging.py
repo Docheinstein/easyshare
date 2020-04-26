@@ -12,6 +12,7 @@ VERBOSITY_DEBUG = 4
 
 VERBOSITY_MIN = VERBOSITY_NONE
 VERBOSITY_MAX = VERBOSITY_DEBUG
+VERBOSITY_DEFAULT = VERBOSITY_INFO
 
 LEVEL_ERROR = logging.ERROR
 LEVEL_WARNING = logging.WARNING
@@ -19,11 +20,11 @@ LEVEL_INFO = logging.INFO
 LEVEL_DEBUG = logging.DEBUG
 
 VERBOSITY_TO_LEVEL = {
-    VERBOSITY_NONE: None,
+    VERBOSITY_NONE: logging.FATAL,
     VERBOSITY_ERROR: LEVEL_ERROR,
-    VERBOSITY_WARNING: VERBOSITY_WARNING,
-    VERBOSITY_INFO: VERBOSITY_INFO,
-    VERBOSITY_DEBUG: VERBOSITY_DEBUG,
+    VERBOSITY_WARNING: LEVEL_WARNING,
+    VERBOSITY_INFO: LEVEL_INFO,
+    VERBOSITY_DEBUG: LEVEL_DEBUG,
 }
 
 logging.addLevelName(LEVEL_ERROR,   styled("[ERROR]", fg=Color.RED))
@@ -49,44 +50,31 @@ class Logger(logging.Logger):
         pass
 
 
-def get_logger(name: str, level=LEVEL_WARNING, output=sys.stdout) -> Logger:
-    logger: logging.Logger = logging.getLogger(name)
-
-    # Aliases
-    def set_verbosity(self, verbosity: int):
-        if verbosity not in VERBOSITY_TO_LEVEL:
-            verbosity = rangify(verbosity, VERBOSITY_DEBUG, VERBOSITY_NONE)
-
-        if verbosity:
-            self.disabled = False
-            self.setLevel(verbosity)
-        else:
-            self.disabled = True
-
-    logging.Logger.e = logger.error
-    logging.Logger.w = logger.warning
-    logging.Logger.i = logger.info
-    logging.Logger.d = logger.debug
-    logging.Logger.set_verbosity = set_verbosity
-
-    # Message formatting
-
-    handler = logging.StreamHandler(output)
-
-    formatter = logging.Formatter(
-        fmt="%(levelname)s {%(name)s} %(asctime)s.%(msecs)03d %(message)s",
-        datefmt="%H:%M:%S"
-    )
-
-    handler.setFormatter(formatter)
-
-    logger.addHandler(handler)
-
-    logger.setLevel(level)
-
-
+def get_logger(name: str = "easyshare") -> Logger:
+    logger: Logger = logging.getLogger(name)
+    # logger.set_verbosity(verbosity)
     return logger
 
+
+# Aliases
+def _set_verbosity(self, verbosity: int):
+    if verbosity not in VERBOSITY_TO_LEVEL:
+        verbosity = rangify(verbosity, VERBOSITY_MIN, VERBOSITY_MAX)
+
+    self.setLevel(VERBOSITY_TO_LEVEL[verbosity])
+
+
+logging.Logger.e = logging.Logger.error
+logging.Logger.w = logging.Logger.warning
+logging.Logger.i = logging.Logger.info
+logging.Logger.d = logging.Logger.debug
+logging.Logger.set_verbosity = _set_verbosity
+
+logging.basicConfig(
+    format="%(levelname)s {%(name)s} %(asctime)s.%(msecs)03d %(message)s",
+    datefmt="%H:%M:%S",
+    stream=sys.stdout
+)
 
 if __name__ == "__main__":
     log = get_logger(__name__)

@@ -1,13 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import List, Any, Optional, Union, Tuple, Callable, Dict
 
-from easyshare import logging
 from easyshare.logging import get_logger
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.str import unprefix
 from easyshare.utils.types import to_int, list_wrap
 
-log = get_logger(__name__, level=logging.LEVEL_INFO)
+log = get_logger(__name__)
 
 
 class ArgParamsParser(ABC):
@@ -77,6 +76,12 @@ class Args:
     def has_vargs(self) -> bool:
         return True if self.get_vargs() is not None else False
 
+    def get_varg(self, default=None) -> Optional[Any]:
+        vargs = self.get_vargs()
+        if vargs:
+            return vargs[0]
+        return default
+
     def get_vargs(self, default=None) -> Optional[List[Any]]:
         return self._parsed.get(None, default)
 
@@ -102,8 +107,9 @@ class Args:
         return self._unparsed or default
 
     @staticmethod
-    def parse(args: List[str], args_specs: List[ArgSpec],
-              continue_parsing_hook: Optional[Callable[[str, int, 'Args'], bool]]) -> Optional['Args']:
+    def parse(args: List[str],
+              args_specs: List[ArgSpec],
+              continue_parsing_hook: Optional[Callable[[str, int, 'Args'], bool]] = None) -> Optional['Args']:
 
         parsed = {}
         unparsed = []
