@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Any, Optional, Union, Tuple
+from typing import List, Any, Optional, Union, Tuple, Callable, Dict
 
 from easyshare import logging
 from easyshare.logging import get_logger
@@ -20,6 +20,18 @@ class ArgParamsParser(ABC):
         pass
 
 
+class CustomArgParamsParser(ArgParamsParser):
+    def __init__(self, params_count: int, params_parser: Callable[[Optional[List]], Any]):
+        self._params_count = params_count
+        self._params_parser = params_parser
+
+    def required_parameters_count(self) -> int:
+        return self._params_count
+
+    def parse_parameters(self, params: Optional[List[str]]) -> Any:
+        return self._params_parser(params)
+
+
 class IntArgParamsParser(ArgParamsParser):
     def required_parameters_count(self) -> int:
         return 1
@@ -36,6 +48,7 @@ class PresenceIntArgParamsParser(ArgParamsParser):
         return True
 
 
+
 class ArgSpec:
     def __init__(self,
                  aliases: Union[str, List[str]],
@@ -46,11 +59,15 @@ class ArgSpec:
 
 
 class Args:
-    def __init__(self, cfg: dict):
-        self.cfg = cfg
+    def __init__(self, parsed: Dict, unparsed: List[Any] = None):
+        self._parsed = parsed
+        self._unparsed = unparsed
 
     def __str__(self):
-        return json_to_pretty_str(self.cfg)
+        return json_to_pretty_str({
+            "parsed": self._parsed,
+            "unparsed": self._unparsed
+        })
 
     def __contains__(self, item):
         return self.has_kwarg(item)
@@ -60,33 +77,41 @@ class Args:
     def has_vargs(self) -> bool:
         return True if self.get_vargs() is not None else False
 
-    def get_vargs(self, default=None) -> List[Any]:
-        return self.cfg.get(None, default)
+    def get_vargs(self, default=None) -> Optional[List[Any]]:
+        return self._parsed.get(None, default)
 
     # Keyword arguments
 
     def has_kwarg(self, aliases: Union[str, List[str]]) -> bool:
         return True if self.get_kwarg_params(aliases) is not None else None
 
-    def get_kwarg_param(self, aliases: Union[str, List[str]], default=None) -> List[Any]:
+    def get_kwarg_param(self, aliases: Union[str, List[str]], default=None) -> Optional[Any]:
         params = self.get_kwarg_params(aliases)
         if params:
             return params[0]
         return default
 
-    def get_kwarg_params(self, aliases: Union[str, List[str]], default=None) -> List[Any]:
+    def get_kwarg_params(self, aliases: Union[str, List[str]], default=None) -> Optional[List[Any]]:
         for alias in list_wrap(aliases):
-            if alias in self.cfg:
-                return self.cfg.get(alias)
+            if alias in self._parsed:
+                return self._parsed.get(alias)
 
         return default
 
+    def get_unparsed_args(self, default=None) -> Optional[List[str]]:
+        return self._unparsed or default
+
     @staticmethod
-    def parse(args: List[str], args_specs: List[ArgSpec]) -> Optional['Args']:
-        cfg = {}
+    def parse(args: List[str], args_specs: List[ArgSpec],
+              continue_parsing_hook: Optional[Callable[[str, int, 'Args'], bool]]) -> Optional['Args']:
+
+        parsed = {}
+        unparsed = []
+
+        ret = Args(parsed, unparsed)
 
         def get_bucket(arg_name: str) -> Tuple[Optional[List], Optional[ArgSpec]]:
-            nonlocal cfg
+            nonlocal parsed
 
             log.d("get_bucket (%s)", arg_name)
 
@@ -101,14 +126,14 @@ class Args:
                     # Check for every alias
                     bck = None
                     for a_arg_alias in arg_spec.aliases:
-                        if a_arg_alias in cfg:
-                            bck = cfg.get(a_arg_alias)
+                        if a_arg_alias in parsed:
+                            bck = parsed.get(a_arg_alias)
                             break
 
                     # If bucket is still None, then we have to allocate it
                     if not bck:
                         bck = []
-                        cfg[arg_name] = bck
+                        parsed[arg_name] = bck
 
                     log.d("Returning bucket for %s", arg_name)
 
@@ -118,15 +143,28 @@ class Args:
 
         log.i("Parsing arguments: %s", args)
 
-
         try:
-            cfg = {}
-
             i = 0
             while i < len(args):
                 arg = args[i]
 
                 log.d("Inspecting argument %s", arg)
+
+                # Check whether we can go further
+
+                if continue_parsing_hook:
+                    cont = continue_parsing_hook(arg, i, ret)
+                    log.d("continue: %d", cont)
+
+                    if not cont:
+                        log.i("Parsed stopped by the continue hook")
+                        # Add the remaining args as positional arguments
+                        unparsed += args[i:]
+                        log.d("Unparsed args: %s", unparsed)
+
+                        return ret
+
+                # We can continue
 
                 if arg.startswith("--") and len(arg) > 2:
                     # Long format
@@ -198,7 +236,7 @@ class Args:
 
                 else:
                     log.d("Adding '%s' as positional parameter", arg)
-                    bucket = cfg.setdefault(None, [])
+                    bucket = parsed.setdefault(None, [])
                     bucket.append(arg)
 
                 i += 1
@@ -206,7 +244,7 @@ class Args:
             log.e("Exception occurred while parsing: %s", ex)
             return None
 
-        return Args(cfg)
+        return ret
 
 
 PARAM_INT = IntArgParamsParser()

@@ -40,9 +40,9 @@ from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values, items, keys
 from easyshare.utils.str import rightof
-from easyshare.utils.types import to_int, bool_to_str, is_bool, toint
+from easyshare.utils.types import to_int, bool_to_str, is_bool
 from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden
-
+from easyshare.args import Args as Args2, ArgSpec, PARAM_INT, PARAM_PRESENCE, CustomArgParamsParser
 
 log = get_logger(__name__)
 log.set_verbosity(logging.VERBOSITY_NONE)
@@ -93,11 +93,15 @@ scan    [timeout]   |   scan the network for sharings"""
 
 
 class EsArgs:
-    PORT =      ["-p", "--port"]
-    TRACE =     ["-t", "--trace"]
-    VERBOSE =   ["-v", "--verbose"]
     HELP =      ["-h", "--help"]
     VERSION =   ["-V", "--version"]
+
+    PORT =      ["-p", "--port"]
+    WAIT =      ["-w", "--wait"]
+
+    VERBOSE =   ["-v", "--verbose"]
+    TRACE =     ["-t", "--trace"]
+
     NO_COLOR =  ["--no-color"]
 
 
@@ -2283,75 +2287,95 @@ class Shell:
     def _exit(self, _: Args):
         pass
 
-
-def parse_es_arguments(args: List[str]) -> Optional[EsCfg]:
-    cfg = EsCfg()
-
-    i = 0
-    try:
-        while i < len(args):
-            arg = args[i]
-
-            # Help or version?
-            if arg in EsArgs.HELP:
-                terminate("help")
-            if arg in EsArgs.VERSION:
-                terminate("version")
-
-            if not cfg.command:
-                # Global arguments
-                if arg in EsArgs.PORT:
-                    i += 1
-                    cfg.port = toint(args[i], raise_exceptions=True)
-                elif arg in EsArgs.VERBOSE:
-                    i += 1
-                    cfg.verbosity = rangify(
-                        # Allow out of range verbosity, but rangify it
-                        toint(args[i], raise_exceptions=True),
-                        logging.VERBOSITY_MIN, logging.VERBOSITY_MAX
-                    )
-                elif arg in EsArgs.TRACE:
-                    cfg.tracing = True
-                elif arg in EsArgs.NO_COLOR:
-                    cfg.no_color = True
-                else:
-                    # Everything will be considered command args from now
-                    cfg.command = arg
-            else:
-                # Command arg
-                cfg.command_args.append(arg)
-
-            i += 1
-    except Exception as ex:
-        log.e("Parsing error %s", ex)
-        return None
-
-    return cfg
+#
+# def parse_es_arguments(args: List[str]) -> Optional[EsCfg]:
+#     cfg = EsCfg()
+#
+#     i = 0
+#     try:
+#         while i < len(args):
+#             arg = args[i]
+#
+#             # Help or version?
+#             if arg in EsArgs.HELP:
+#                 terminate("help")
+#             if arg in EsArgs.VERSION:
+#                 terminate("version")
+#
+#             if not cfg.command:
+#                 # Global arguments
+#                 if arg in EsArgs.PORT:
+#                     i += 1
+#                     cfg.port = toint(args[i], raise_exceptions=True)
+#                 elif arg in EsArgs.VERBOSE:
+#                     i += 1
+#                     cfg.verbosity = rangify(
+#                         # Allow out of range verbosity, but rangify it
+#                         toint(args[i], raise_exceptions=True),
+#                         logging.VERBOSITY_MIN, logging.VERBOSITY_MAX
+#                     )
+#                 elif arg in EsArgs.TRACE:
+#                     cfg.tracing = True
+#                 elif arg in EsArgs.NO_COLOR:
+#                     cfg.no_color = True
+#                 else:
+#                     # Everything will be considered command args from now
+#                     cfg.command = arg
+#             else:
+#                 # Command arg
+#                 cfg.command_args.append(arg)
+#
+#             i += 1
+#     except Exception as ex:
+#         log.e("Parsing error %s", ex)
+#         return None
+#
+#     return cfg
 
 
 def main():
     # Uncomment for enable for debug arguments parsing
-    # log.set_verbosity(logging.VERBOSITY_MAX)
+    log.set_verbosity(logging.VERBOSITY_MAX)
+
+    # def continue_parsing_hook(arg: str, idx: int, parsed_args: Args2):
+    #     return not parsed_args.has_vargs()
 
     # Parse arguments
-    cfg = parse_es_arguments(sys.argv[1:])
-    if not cfg:
+    args = Args2.parse(
+        args=sys.argv[1:],
+        args_specs=[
+            ArgSpec(aliases=EsArgs.HELP,
+                    params_parser=CustomArgParamsParser(0, lambda _: terminate("help"))),
+            ArgSpec(aliases=EsArgs.VERSION,
+                    params_parser=CustomArgParamsParser(0, lambda _: terminate("version"))),
+            ArgSpec(aliases=EsArgs.PORT, params_parser=PARAM_INT),
+            ArgSpec(aliases=EsArgs.WAIT, params_parser=PARAM_INT),
+            ArgSpec(aliases=EsArgs.VERBOSE, params_parser=PARAM_INT),
+            ArgSpec(aliases=EsArgs.TRACE, params_parser=PARAM_PRESENCE),
+            ArgSpec(aliases=EsArgs.NO_COLOR, params_parser=PARAM_PRESENCE),
+        ],
+        # Stop to parse when a positional argument is found (probably a command)
+        continue_parsing_hook=lambda arg, idx, parsedargs: not parsedargs.has_vargs()
+    )
+
+    # cfg = parse_es_arguments()
+    if not args:
         abort("Error occurred while parsing arguments")
 
     # Verbosity
-    log.set_verbosity(cfg.verbosity)
+    log.set_verbosity(EsArgs.VERBOSE in args)
 
     log.i(APP_INFO)
-    log.i("Starting with arguments\n%s", cfg)
+    log.i("Starting with arguments\n%s", args)
 
     # Colors
-    enable_colors(not cfg.no_color)
+    enable_colors(EsArgs.NO_COLOR not in args)
 
     # Packet tracing
-    enable_tracing(cfg.tracing)
+    enable_tracing(EsArgs.TRACE in args)
 
     # Initialize client
-    client = Client(discover_port=cfg.discover_port)
+    client = Client(discover_port=args.get_kwarg_param(EsArgs.PORT, DEFAULT_DISCOVER_PORT))
 
     # Check whether
     # 1. Run a command directly from the cli
@@ -2360,16 +2384,19 @@ def main():
     start_shell = True
 
     # 1. Run a command directly from the cli ?
-    if cfg.command:
-        if cfg.command in CLI_COMMANDS:
-            log.i("Found a valid CLI command '%s'", cfg.command)
-            client.execute_command(cfg.command, cfg.command_args)
+    vargs = args.get_vargs()
+    command = vargs[0] if vargs else None
+    if command:
+        if command in CLI_COMMANDS:
+            log.i("Found a valid CLI command '%s'", command)
+            command_args = args.get_unparsed_args([])
+            client.execute_command(command, command_args)
 
             # Keep the shell opened only if we performed an 'open'
             # Otherwise close it after the action
-            start_shell = (cfg.command == Commands.OPEN)
+            start_shell = (command == Commands.OPEN)
         else:
-            log.w("Invalid CLI command '%s'; ignoring it and starting shell", cfg.command)
+            log.w("Invalid CLI command '%s'; ignoring it and starting shell", command)
             log.w("Allowed CLI commands are: %s", ", ".join(CLI_COMMANDS))
 
     # 2. Start an interactive session ?
