@@ -11,15 +11,20 @@ log = get_logger(__name__)
 
 class ArgParamsParser(ABC):
     @abstractmethod
-    def required_parameters_count(self) -> int:
-        pass
-
-    @abstractmethod
     def parse_parameters(self, params: Optional[List[str]]) -> Any:
         pass
 
 
-class CustomArgParamsParser(ArgParamsParser):
+class KwArgParamsParser(ArgParamsParser, ABC):
+    @abstractmethod
+    def required_parameters_count(self) -> int:
+        pass
+
+
+# Kwarg parsers
+
+
+class CustomKwArgParamsParser(KwArgParamsParser):
     def __init__(self, params_count: int, params_parser: Callable[[Optional[List]], Any]):
         self._params_count = params_count
         self._params_parser = params_parser
@@ -31,7 +36,7 @@ class CustomArgParamsParser(ArgParamsParser):
         return self._params_parser(params)
 
 
-class IntArgParamsParser(ArgParamsParser):
+class IntKwArgParamsParser(KwArgParamsParser):
     def required_parameters_count(self) -> int:
         return 1
 
@@ -39,7 +44,7 @@ class IntArgParamsParser(ArgParamsParser):
         return to_int(params[0], raise_exceptions=True)
 
 
-class PresenceIntArgParamsParser(ArgParamsParser):
+class PresenceKwArgParamsParser(KwArgParamsParser):
     def required_parameters_count(self) -> int:
         return 0
 
@@ -47,14 +52,25 @@ class PresenceIntArgParamsParser(ArgParamsParser):
         return True
 
 
+# Vargs parsers
 
-class ArgSpec:
+class NoopArgParamsParser(ArgParamsParser):
+    def parse_parameters(self, params: Optional[List[str]]) -> Any:
+        return params
+
+
+class IntArgParamsParser(ArgParamsParser):
+    def parse_parameters(self, params: Optional[List[str]]) -> Any:
+        return [to_int(p, raise_exceptions=True) for p in params]
+
+
+class KwArgSpec:
     def __init__(self,
                  aliases: Union[str, List[str]],
-                 params_parser: ArgParamsParser):
+                 params_parser: KwArgParamsParser):
 
         self.aliases: List[str] = list_wrap(aliases)
-        self.params_parser: ArgParamsParser = params_parser
+        self.params_parser: KwArgParamsParser = params_parser
 
 
 class Args:
@@ -107,21 +123,23 @@ class Args:
         return self._unparsed or default
 
     @staticmethod
-    def parse(args: List[str],
-              args_specs: List[ArgSpec],
+    def parse(args: List[str], *,
+              kwargs_specs: List[KwArgSpec] = None,
+              vargs_parser: ArgParamsParser = NoopArgParamsParser(),
               continue_parsing_hook: Optional[Callable[[str, int, 'Args'], bool]] = None) -> Optional['Args']:
 
+        kwargs_specs = kwargs_specs or []
         parsed = {}
         unparsed = []
 
         ret = Args(parsed, unparsed)
 
-        def get_bucket(arg_name: str) -> Tuple[Optional[List], Optional[ArgSpec]]:
+        def get_bucket(arg_name: str) -> Tuple[Optional[List], Optional[KwArgSpec]]:
             nonlocal parsed
 
             log.d("get_bucket (%s)", arg_name)
 
-            for arg_spec in args_specs:
+            for arg_spec in kwargs_specs:
                 if arg_name in arg_spec.aliases:
 
                     # Found an alias that matches the argument name
@@ -170,10 +188,13 @@ class Args:
 
                         return ret
 
-                # We can continue
+                # The hook didn't block us, go on
+
+                # Check whether this is a kwarg or varg
 
                 if arg.startswith("--") and len(arg) > 2:
-                    # Long format
+                    # Long format kwarg
+
                     arg_name = arg
 
                     # Check whether this is a known argument
@@ -202,7 +223,9 @@ class Args:
                         log.w("Unknown argument: '%s'", arg_name)
 
                 elif arg.startswith("-") and len(arg) > 1:
-                    # Short format: allow concatenation of arguments (as letters)
+                    # Show format kwarg
+
+                    # Allow concatenation of arguments (as letters)
 
                     args_chain = unprefix(arg, "-")
                     chain_idx = 0
@@ -241,11 +264,21 @@ class Args:
                         chain_idx += 1
 
                 else:
-                    log.d("Adding '%s' as positional parameter", arg)
+                    # Positional varg
+                    log.d("Considering '%s' as positional parameter", arg)
+                    # Add as it is (non parsed) for now, will parse all the vargs
+                    # at the end
                     bucket = parsed.setdefault(None, [])
                     bucket.append(arg)
 
                 i += 1
+
+            # Parse the vargs using the provided parser (or the no-op if not provided)
+            vargs = parsed.get(None, [])
+            log.d("Parsing positional parameters %s", vargs)
+            parsed[None] = vargs_parser.parse_parameters(vargs)
+            log.d("Parsed positional parameters %s", parsed[None])
+
         except Exception as ex:
             log.e("Exception occurred while parsing: %s", ex)
             return None
@@ -253,8 +286,8 @@ class Args:
         return ret
 
 
-PARAM_INT = IntArgParamsParser()
-PARAM_PRESENCE = PresenceIntArgParamsParser()
+PARAM_INT = IntKwArgParamsParser()
+PARAM_PRESENCE = PresenceKwArgParamsParser()
 
 
 if __name__ == "__main__":
@@ -262,12 +295,12 @@ if __name__ == "__main__":
         args = Args.parse(
             args=["-v", "5", "randomstring", "--trace", "-p", "6666"],
             args_specs=[
-                ArgSpec(aliases=["-v", "--verbose"], params_parser=PARAM_INT),
-                ArgSpec(aliases=["-t", "--trace"], params_parser=PARAM_PRESENCE),
-                ArgSpec(aliases=["-r", "--reverse"], params_parser=PARAM_PRESENCE),
-                ArgSpec(aliases=["-g", "--group"], params_parser=PARAM_PRESENCE),
-                ArgSpec(aliases=["-l", "--long"], params_parser=PARAM_PRESENCE),
-                ArgSpec(aliases=["-p", "--port"], params_parser=PARAM_INT)
+                KwArgSpec(aliases=["-v", "--verbose"], params_parser=PARAM_INT),
+                KwArgSpec(aliases=["-t", "--trace"], params_parser=PARAM_PRESENCE),
+                KwArgSpec(aliases=["-r", "--reverse"], params_parser=PARAM_PRESENCE),
+                KwArgSpec(aliases=["-g", "--group"], params_parser=PARAM_PRESENCE),
+                KwArgSpec(aliases=["-l", "--long"], params_parser=PARAM_PRESENCE),
+                KwArgSpec(aliases=["-p", "--port"], params_parser=PARAM_INT)
             ]
         )
 

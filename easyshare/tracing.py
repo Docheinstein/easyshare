@@ -6,7 +6,7 @@ _tracing = False
 
 def enable_tracing(enabled: bool = True):
     global _tracing
-    tracing = enabled
+    _tracing = enabled
 
 
 def is_tracing_enabled() -> bool:

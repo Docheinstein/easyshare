@@ -34,6 +34,10 @@ logging.addLevelName(LEVEL_DEBUG,   styled("[DEBUG]", fg=Color.MAGENTA))
 
 
 class Logger(logging.Logger):
+    @property
+    def verbosity(self):
+        return 0
+
     def e(self, msg, *args, **kwargs):
         pass
 
@@ -62,6 +66,7 @@ def _set_verbosity(self, verbosity: int):
         verbosity = rangify(verbosity, VERBOSITY_MIN, VERBOSITY_MAX)
 
     self.setLevel(VERBOSITY_TO_LEVEL[verbosity])
+    self.verbosity = verbosity
 
 
 logging.Logger.e = logging.Logger.error

@@ -3,7 +3,7 @@ import os
 import random
 import shlex
 import sys
-import readline
+import readline as rl
 import time
 from abc import ABC, abstractmethod
 from getpass import getpass
@@ -13,13 +13,13 @@ from typing import Optional, Callable, List, Dict, Type, Union, Tuple
 
 from Pyro4.errors import PyroError
 
-from easyshare import logging, conf
+from easyshare import logging, conf, tracing
 from easyshare.client.connection import Connection
 from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
-from easyshare.protocol.fileinfo import FileInfo
+from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
@@ -30,11 +30,11 @@ from easyshare.shared.conf import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VE
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.progress import FileProgressor
 from easyshare.ssl import get_ssl_context
-from easyshare.tracing import enable_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
+from easyshare.tracing import enable_tracing, is_tracing_enabled
 from easyshare.tree.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.utils.app import eprint, terminate, abort
-from easyshare.utils.colors import enable_colors, fg
+from easyshare.utils.colors import enable_colors, fg, Color, styled, Attribute
 from easyshare.utils.env import terminal_size
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.math import rangify
@@ -42,7 +42,8 @@ from easyshare.utils.obj import values, items, keys
 from easyshare.utils.str import rightof
 from easyshare.utils.types import to_int, bool_to_str, is_bool
 from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden
-from easyshare.args import Args as Args2, ArgSpec, PARAM_INT, PARAM_PRESENCE, CustomArgParamsParser
+from easyshare.args import Args as Args2, KwArgSpec, PARAM_INT, PARAM_PRESENCE, CustomKwArgParamsParser, \
+    IntArgParamsParser
 
 log = get_logger()
 
@@ -120,7 +121,7 @@ class SuggestionsIntent:
         return "".join([str(s) for s in self.suggestions])
 
 
-class CommandArg:
+class CommandArgInfo:
     def __init__(self, arg_aliases: List[str], arg_help: str):
         self.aliases = arg_aliases
         self.help = arg_help
@@ -143,7 +144,7 @@ class CommandInfo:
         pass
 
     @classmethod
-    def args(cls) -> List[CommandArg]:
+    def args(cls) -> List[CommandArgInfo]:
         return []
 
     @classmethod
@@ -151,38 +152,53 @@ class CommandInfo:
         return None
 
 
-class ArgsCommandInfo(CommandInfo):
+class CommandArgsInfo(CommandInfo):
 
     @classmethod
-    def args(cls) -> List[CommandArg]:
+    def args(cls) -> List[CommandArgInfo]:
         if not hasattr(cls, "ARGS"):
-            setattr(cls, "ARGS", [attr for attr in values(cls) if isinstance(attr, CommandArg)])
+            # Retrieve the CommandArgInfo of this class
+            ARGS = []
+
+            for attrname in dir(cls):
+                if attrname.startswith("_"):
+                    continue
+                command_arg_info = getattr(cls, attrname)
+                if isinstance(command_arg_info, CommandArgInfo):
+                    ARGS.append(command_arg_info)
+
+            setattr(cls, "ARGS", ARGS)
         return getattr(cls, "ARGS")
 
     @classmethod
     def suggestions(cls, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
         log.i("Token: %s", token)
         if not token.startswith("-"):
+            # This class handles only the kwargs ('-', '--')
+            # The sub classes can provide something else
             return None
 
-        log.d("Computing args suggestions")
+        classargs = cls.args()
+
+        log.d("Computing (%d) args suggestions for", len(classargs))
 
         longest_args_names = 0
 
-        for comm_args in cls.args():
+        for comm_args in classargs:
             longest_args_names = max(
                 longest_args_names,
                 len(comm_args.args_str())
             )
 
-        suggestions = [StyledString(comm_args.args_help_str(justify=longest_args_names)) for comm_args in cls.args()]
+        suggestions = [StyledString(comm_args.args_help_str(justify=longest_args_names))
+                       for comm_args in classargs]
 
         return SuggestionsIntent(suggestions,
                                  completion=False,
                                  max_columns=1)
 
 
-class ListCommandInfo(ArgsCommandInfo, ABC):
+class ListCommandArgsInfo(CommandArgsInfo, ABC):
     @classmethod
     @abstractmethod
     def display_path_filter(cls, finfo: FileInfo) -> bool:
@@ -195,6 +211,8 @@ class ListCommandInfo(ArgsCommandInfo, ABC):
 
     @classmethod
     def suggestions(cls, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
+
+        log.d("Providing files listing suggestions")
 
         suggestions_intent = super().suggestions(token, line, client)
         if suggestions_intent:
@@ -246,7 +264,7 @@ class ListCommandInfo(ArgsCommandInfo, ABC):
                                  space_after_completion=False)
 
 
-class ListLocalCommandInfo(ListCommandInfo, ABC):
+class ListLocalCommandInfo(ListCommandArgsInfo, ABC):
     @classmethod
     def list(cls, token: str, line: str, client: 'Client') -> List[FileInfo]:
         log.i("List on token = '%s', line = '%s'", token, line)
@@ -256,7 +274,7 @@ class ListLocalCommandInfo(ListCommandInfo, ABC):
         return ls(path_dir)
 
 
-class ListRemoteCommandInfo(ListCommandInfo, ABC):
+class ListRemoteCommandInfo(ListCommandArgsInfo, ABC):
     @classmethod
     def list(cls, token: str, line: str, client: 'Client') -> List[FileInfo]:
         if not client or not client.is_connected():
@@ -277,19 +295,19 @@ class ListRemoteCommandInfo(ListCommandInfo, ABC):
         return resp.get("data")
 
 
-class ListAllFilter(ListCommandInfo, ABC):
+class ListAllFilter(ListCommandArgsInfo, ABC):
     @classmethod
     def display_path_filter(cls, finfo: FileInfo) -> bool:
         return True
 
 
-class ListDirsFilter(ListCommandInfo, ABC):
+class ListDirsFilter(ListCommandArgsInfo, ABC):
     @classmethod
     def display_path_filter(cls, finfo: FileInfo) -> bool:
         return finfo.get("ftype") == FTYPE_DIR
 
 
-class ListFilesFilter(ListCommandInfo, ABC):
+class ListFilesFilter(ListCommandArgsInfo, ABC):
     @classmethod
     def display_path_filter(cls, finfo: FileInfo) -> bool:
         return finfo.get("ftype") == FTYPE_FILE
@@ -319,13 +337,12 @@ class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter):
     pass
 
 
-
 class VerboseCommandInfo(CommandInfo):
-    V0 = CommandArg(["0"], "error")
-    V1 = CommandArg(["1"], "error / warning")
-    V2 = CommandArg(["2"], "error / warning / info")
-    V3 = CommandArg(["3"], "error / warning / info / verbose")
-    V4 = CommandArg(["4"], "error / warning / info / verbose / debug")
+    V0 = CommandArgInfo(["0"], "error")
+    V1 = CommandArgInfo(["1"], "error / warning")
+    V2 = CommandArgInfo(["2"], "error / warning / info")
+    V3 = CommandArgInfo(["3"], "error / warning / info / verbose")
+    V4 = CommandArgInfo(["4"], "error / warning / info / verbose / debug")
 
     @classmethod
     def suggestions(cls, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
@@ -343,8 +360,8 @@ class VerboseCommandInfo(CommandInfo):
 
 
 class TraceCommandInfo(CommandInfo):
-    T0 = CommandArg(["0"], "enable packet tracing")
-    T1 = CommandArg(["1"], "disable packet tracing")
+    T0 = CommandArgInfo(["0"], "enable packet tracing")
+    T1 = CommandArgInfo(["1"], "disable packet tracing")
 
     @classmethod
     def suggestions(cls, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
@@ -358,15 +375,19 @@ class TraceCommandInfo(CommandInfo):
         )
 
 
-class BaseLsCommandInfo(ArgsCommandInfo):
-    SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
-    REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
-    GROUP = CommandArg(["-g", "--group"], "Group by file type")
-    SIZE = CommandArg(["-S"], "Show file size")
-    DETAILS = CommandArg(["-l"], "Show all the details")
+class BaseLsCommandInfo(CommandArgsInfo):
+    SORT_BY_SIZE = CommandArgInfo(["-s", "--sort-size"], "Sort by size")
+    REVERSE = CommandArgInfo(["-r", "--reverse"], "Reverse sort order")
+    GROUP = CommandArgInfo(["-g", "--group"], "Group by file type")
+    SIZE = CommandArgInfo(["-S"], "Show file size")
+    DETAILS = CommandArgInfo(["-l"], "Show all the details")
 
 
 class LsCommandInfo(BaseLsCommandInfo, ListLocalAllCommandInfo):
+    pass
+
+
+class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
     pass
 
 
@@ -374,13 +395,13 @@ class RlsCommandInfo(BaseLsCommandInfo, ListRemoteAllCommandInfo):
     pass
 
 
-class BaseTreeCommandInfo(ArgsCommandInfo):
-    SORT_BY_SIZE = CommandArg(["-s", "--sort-size"], "Sort by size")
-    REVERSE = CommandArg(["-r", "--reverse"], "Reverse sort order")
-    GROUP = CommandArg(["-g", "--group"], "Group by file type")
-    MAX_DEPTH = CommandArg(["-d", "--depth"], "Maximum depth")
-    SIZE = CommandArg(["-S"], "Show file size")
-    DETAILS = CommandArg(["-l"], "Show all the details")
+class BaseTreeCommandInfo(CommandArgsInfo):
+    SORT_BY_SIZE = CommandArgInfo(["-s", "--sort-size"], "Sort by size")
+    REVERSE = CommandArgInfo(["-r", "--reverse"], "Reverse sort order")
+    GROUP = CommandArgInfo(["-g", "--group"], "Group by file type")
+    MAX_DEPTH = CommandArgInfo(["-d", "--depth"], "Maximum depth")
+    SIZE = CommandArgInfo(["-S"], "Show file size")
+    DETAILS = CommandArgInfo(["-l"], "Show all the details")
 
 
 class TreeCommandInfo(BaseTreeCommandInfo, ListLocalAllCommandInfo):
@@ -391,18 +412,18 @@ class RtreeCommandInfo(BaseTreeCommandInfo, ListRemoteAllCommandInfo):
     pass
 
 
-class GetCommandInfo(ArgsCommandInfo):
-    YES_TO_ALL = CommandArg(["-Y", "--yes"], "Always overwrite existing files")
-    NO_TO_ALL = CommandArg(["-N", "--no"], "Never overwrite existing files")
+class GetCommandInfo(CommandArgsInfo):
+    YES_TO_ALL = CommandArgInfo(["-Y", "--yes"], "Always overwrite existing files")
+    NO_TO_ALL = CommandArgInfo(["-N", "--no"], "Never overwrite existing files")
 
 
-class PutCommandInfo(ArgsCommandInfo):
-    YES_TO_ALL = CommandArg(["-Y", "--yes"], "Always overwrite existing files")
-    NO_TO_ALL = CommandArg(["-N", "--no"], "Never overwrite existing files")
+class PutCommandInfo(CommandArgsInfo):
+    YES_TO_ALL = CommandArgInfo(["-Y", "--yes"], "Always overwrite existing files")
+    NO_TO_ALL = CommandArgInfo(["-N", "--no"], "Never overwrite existing files")
 
 
-class ScanCommandInfo(ArgsCommandInfo):
-    DETAILS = CommandArg(["-l"], "Show all the details")
+class ScanCommandInfo(CommandArgsInfo):
+    DETAILS = CommandArgInfo(["-l"], "Show all the details")
 
 
 class Commands:
@@ -417,6 +438,7 @@ class Commands:
 
     LOCAL_CURRENT_DIRECTORY = "pwd"
     LOCAL_LIST_DIRECTORY = "ls"
+    LOCAL_LIST_DIRECTORY_ENHANCED = "l"
     LOCAL_TREE_DIRECTORY = "tree"
     LOCAL_CHANGE_DIRECTORY = "cd"
     LOCAL_CREATE_DIRECTORY = "mkdir"
@@ -457,6 +479,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
 
     Commands.LOCAL_CURRENT_DIRECTORY: CommandInfo,
     Commands.LOCAL_LIST_DIRECTORY: LsCommandInfo,
+    Commands.LOCAL_LIST_DIRECTORY_ENHANCED: LsEnhancedCommandInfo,
     Commands.LOCAL_TREE_DIRECTORY: TreeCommandInfo,
     Commands.LOCAL_CHANGE_DIRECTORY: ListLocalDirsCommandInfo,
     Commands.LOCAL_CREATE_DIRECTORY: ListLocalDirsCommandInfo,
@@ -489,12 +512,24 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
 SHELL_COMMANDS = values(Commands)
 
 NON_CLI_COMMANDS = [
+    Commands.TRACE,
+    Commands.TRACE_SHORT,
+    Commands.VERBOSE,
+    Commands.VERBOSE_SHORT,
     Commands.LOCAL_CHANGE_DIRECTORY,    # cd
     Commands.REMOTE_CHANGE_DIRECTORY,   # rcd
     Commands.CLOSE                      # close
 ]
 
 CLI_COMMANDS = [k for k in values(Commands) if k not in NON_CLI_COMMANDS]
+
+VERBOSITY_EXPLANATION_MAP = {
+    logging.VERBOSITY_NONE: " (disabled)",
+    logging.VERBOSITY_ERROR: " (error)",
+    logging.VERBOSITY_WARNING: " (error / warn)",
+    logging.VERBOSITY_INFO: " (error / warn / info)",
+    logging.VERBOSITY_DEBUG: " (error / warn / info / debug)",
+}
 
 # === COMMANDS ARGUMENTS ===
 
@@ -522,16 +557,16 @@ class EsArgs(ArgsParser):
     def parse(cls, args: List[str]) -> Optional[Args2]:
         return Args2.parse(
             args=args,
-            args_specs=[
-                ArgSpec(EsArgs.HELP,
-                        CustomArgParamsParser(0, lambda _: terminate("help"))),
-                ArgSpec(EsArgs.VERSION,
-                        CustomArgParamsParser(0, lambda _: terminate("version"))),
-                ArgSpec(EsArgs.PORT, PARAM_INT),
-                ArgSpec(EsArgs.WAIT, PARAM_INT),
-                ArgSpec(EsArgs.VERBOSE, PARAM_INT),
-                ArgSpec(EsArgs.TRACE, PARAM_PRESENCE),
-                ArgSpec(EsArgs.NO_COLOR, PARAM_PRESENCE),
+            kwargs_specs=[
+                KwArgSpec(EsArgs.HELP,
+                          CustomKwArgParamsParser(0, lambda _: terminate("help"))),
+                KwArgSpec(EsArgs.VERSION,
+                          CustomKwArgParamsParser(0, lambda _: terminate("version"))),
+                KwArgSpec(EsArgs.PORT, PARAM_INT),
+                KwArgSpec(EsArgs.WAIT, PARAM_INT),
+                KwArgSpec(EsArgs.VERBOSE, PARAM_INT),
+                KwArgSpec(EsArgs.TRACE, PARAM_PRESENCE),
+                KwArgSpec(EsArgs.NO_COLOR, PARAM_PRESENCE),
             ],
             # Stop to parse when a positional argument is found (probably a command)
             continue_parsing_hook=lambda arg, idx, parsedargs: not parsedargs.has_vargs()
@@ -543,31 +578,68 @@ class LsArgs(ArgsParser):
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
 
-    ALL = ["-a", "--all"]
-    DETAILS = ["-l"]
-    SIZE = ["-S"]
+    SHOW_ALL = ["-a", "--all"]
+    SHOW_DETAILS = ["-l"]
+    SHOW_SIZE = ["-S"]
 
     @classmethod
     def parse(cls, args: List[str]) -> Optional[Args2]:
         return Args2.parse(
             args=args,
-            args_specs=[
-                ArgSpec(LsArgs.SORT_BY_SIZE, PARAM_PRESENCE),
-                ArgSpec(LsArgs.REVERSE, PARAM_PRESENCE),
-                ArgSpec(LsArgs.GROUP, PARAM_PRESENCE),
-                ArgSpec(LsArgs.ALL, PARAM_PRESENCE),
-                ArgSpec(LsArgs.DETAILS, PARAM_PRESENCE),
-                ArgSpec(LsArgs.SIZE, PARAM_PRESENCE),
+            kwargs_specs=[
+                KwArgSpec(LsArgs.SORT_BY_SIZE, PARAM_PRESENCE),
+                KwArgSpec(LsArgs.REVERSE, PARAM_PRESENCE),
+                KwArgSpec(LsArgs.GROUP, PARAM_PRESENCE),
+                KwArgSpec(LsArgs.SHOW_ALL, PARAM_PRESENCE),
+                KwArgSpec(LsArgs.SHOW_DETAILS, PARAM_PRESENCE),
+                KwArgSpec(LsArgs.SHOW_SIZE, PARAM_PRESENCE),
             ]
         )
 
 
-class TreeArguments:
+class TreeArgs(ArgsParser):
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
+
+    SHOW_ALL = ["-a", "--all"]
+    SHOW_DETAILS = ["-l"]
+    SHOW_SIZE = ["-S"]
+
     MAX_DEPTH = ["-d", "--depth"]
-    SIZE = ["-S"]
+
+    @classmethod
+    def parse(cls, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            kwargs_specs=[
+                KwArgSpec(TreeArgs.SORT_BY_SIZE, PARAM_PRESENCE),
+                KwArgSpec(TreeArgs.REVERSE, PARAM_PRESENCE),
+                KwArgSpec(TreeArgs.GROUP, PARAM_PRESENCE),
+                KwArgSpec(TreeArgs.SHOW_ALL, PARAM_PRESENCE),
+                KwArgSpec(TreeArgs.SHOW_DETAILS, PARAM_PRESENCE),
+                KwArgSpec(TreeArgs.SHOW_SIZE, PARAM_PRESENCE),
+                KwArgSpec(TreeArgs.MAX_DEPTH, PARAM_INT),
+            ]
+        )
+
+
+class BasicArgs(ArgsParser):
+    @classmethod
+    def parse(cls, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            kwargs_specs=[]
+        )
+
+
+class IntArgs(ArgsParser):
+    @classmethod
+    def parse(cls, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            vargs_parser=IntArgParamsParser()
+        )
 
 
 class OpenArguments:
@@ -748,6 +820,26 @@ def print_files_info_list(infos: List[FileInfo],
     else:
         print_tabulated(sstrings)
 
+
+def print_files_info_tree(root: TreeNodeDict,
+                          max_depth: int = None,
+                          show_size: bool = False,
+                          show_hidden: bool = False):
+    for prefix, node, depth in TreeRenderPostOrder(root, depth=max_depth):
+        name = node.get("name")
+
+        if not show_hidden and is_hidden(name):
+            log.i("Not showing hidden file: %s", name)
+            continue
+
+        ftype = node.get("ftype")
+        size = node.get("size")
+
+        print("{}{}{}".format(
+            prefix,
+            "[{}]  ".format(size_str(size).rjust(4)) if show_size else "",
+            fg(name, color=DIR_COLOR if ftype == FTYPE_DIR else FILE_COLOR),
+        ))
 # ==================================================================
 
 
@@ -758,16 +850,12 @@ class Client:
         self._discover_port = discover_port
 
         self._command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args2], None]]] = {
-            Commands.TRACE: self.trace,
-            Commands.TRACE_SHORT: self.trace,
-            Commands.VERBOSE: self.verbose,
-            Commands.VERBOSE_SHORT: self.verbose,
-
-            Commands.LOCAL_CHANGE_DIRECTORY: self.cd,
+            Commands.LOCAL_CHANGE_DIRECTORY: (BasicArgs, self.cd),
             Commands.LOCAL_LIST_DIRECTORY: (LsArgs, self.ls),
-            Commands.LOCAL_TREE_DIRECTORY: self.tree,
-            Commands.LOCAL_CREATE_DIRECTORY: self.mkdir,
-            Commands.LOCAL_CURRENT_DIRECTORY: self.pwd,
+            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (BasicArgs, self.l),
+            Commands.LOCAL_TREE_DIRECTORY: (TreeArgs, self.tree),
+            Commands.LOCAL_CREATE_DIRECTORY: (BasicArgs, self.mkdir),
+            Commands.LOCAL_CURRENT_DIRECTORY: (BasicArgs, self.pwd),
             Commands.LOCAL_REMOVE: self.rm,
             Commands.LOCAL_MOVE: self.mv,
             Commands.LOCAL_COPY: self.cp,
@@ -795,12 +883,17 @@ class Client:
     def execute_command(self, command: str, command_args: List[str]) -> bool:
         if command not in self._command_dispatcher:
             return False
+
         log.i("Executing %s(%s)", command, command_args)
 
         parser, executor = self._command_dispatcher[command]
 
         # Parse args using the parsed bound to the command
         args = parser.parse(command_args)
+
+        if not args:
+            log.e("Command's arguments parse failed")
+            return False
 
         log.i("Parsed command arguments\n%s", args)
 
@@ -813,53 +906,8 @@ class Client:
 
     # === LOCAL COMMANDS ===
 
-    def trace(self, args: Args):
-        enable = to_int(args.get_param())
-
-        if enable is None:
-            # Toggle tracing if no parameter is provided
-            enable = not is_tracing_enabled()
-
-        log.i(">> TRACE (%d)", enable)
-
-        enable_tracing(enable)
-
-        print("Tracing = {:d}{}".format(
-            enable,
-            " (enabled)" if enable else " (disabled)"
-        ))
-
-    def verbose(self, args: Args):
-        verbosity = to_int(args.get_param())
-
-        if verbosity is None:
-            # Increase verbosity (or disable if is already max)
-            verbosity = (get_verbosity() + 1) % (VERBOSITY_MAX + 1)
-
-        log.i(">> VERBOSE (%d)", verbosity)
-
-        init_logging(verbosity)
-
-
-        VERBOSITY_EXPLANATION_MAP = {
-            VERBOSITY_NONE: " (disabled)",
-            VERBOSITY_ERROR: " (error)",
-            VERBOSITY_WARNING: " (error / warn)",
-            VERBOSITY_INFO: " (error / warn / info)",
-            VERBOSITY_VERBOSE: " (error / warn / info / verbose)",
-            VERBOSITY_DEBUG: " (error / warn / info / verbose / debug)",
-        }
-
-        if verbosity not in VERBOSITY_EXPLANATION_MAP:
-            verbosity = max(min(verbosity, VERBOSITY_DEBUG), VERBOSITY_NONE)
-
-        print("Verbosity = {:d}{}".format(
-            verbosity,
-            VERBOSITY_EXPLANATION_MAP.get(verbosity, "")
-        ))
-
-    def cd(self, args: Args):
-        directory = args.get_param(default="/")
+    def cd(self, args: Args2):
+        directory = os.path.expanduser(args.get_varg(default="~"))
 
         log.i(">> CD %s", directory)
 
@@ -872,16 +920,29 @@ class Client:
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
+
+    def l(self, args: Args2):
+        # Just call ls -la
+        # Reuse the parsed args for keep the (optional) path
+        args._parsed[LsArgs.SHOW_ALL[0]] = True
+        args._parsed[LsArgs.SHOW_DETAILS[0]] = True
+        self.ls(args)
+
+
     def ls(self, args: Args2):
+        # (Optional) path
         path = args.get_varg(default=os.getcwd())
 
+        # Sorting
         sort_by = ["name"]
-        reverse = LsCommandInfo.REVERSE.aliases in args
 
         if LsArgs.SORT_BY_SIZE in args:
             sort_by.append("size")
         if LsArgs.GROUP in args:
             sort_by.append("ftype")
+
+        # Reverse
+        reverse = LsArgs.REVERSE in args
 
         log.i(">> LS %s (sort by %s%s)", path, sort_by, " | reverse" if reverse else "")
 
@@ -891,34 +952,43 @@ class Client:
 
         print_files_info_list(
             ls_result,
-            show_size=LsArgs.SIZE in args or LsArgs.DETAILS in args,
-            show_file_type=LsArgs.DETAILS in args,
-            show_hidden=LsArgs.ALL in args,
-            compact=LsArgs.DETAILS not in args
+            show_file_type=LsArgs.SHOW_DETAILS in args,
+            show_hidden=LsArgs.SHOW_ALL in args,
+            show_size=LsArgs.SHOW_SIZE in args or LsArgs.SHOW_DETAILS in args,
+            compact=LsArgs.SHOW_DETAILS not in args
         )
 
-    def tree(self, args: Args):
-        sort_by = ["name"]
-        reverse = TreeArguments.REVERSE in args
+    def tree(self, args: Args2):
+        # (Optional) path
+        path = args.get_varg(default=os.getcwd())
 
-        if TreeArguments.SORT_BY_SIZE in args:
+        # Sorting
+        sort_by = ["name"]
+
+        if TreeArgs.SORT_BY_SIZE in args:
             sort_by.append("size")
-        if TreeArguments.GROUP in args:
+        if TreeArgs.GROUP in args:
             sort_by.append("ftype")
 
-        # FIXME: max_depth = 0
-        max_depth = to_int(args.get_param(TreeArguments.MAX_DEPTH))
+        # Reverse
+        reverse = TreeArgs.REVERSE in args
 
-        log.i(">> TREE (sort by %s%s)", sort_by, " | reverse" if reverse else "")
+        # Max depth
+        max_depth = args.get_kwarg_param(TreeArgs.MAX_DEPTH, default=None)
 
-        tree_root = tree(os.getcwd(), sort_by=sort_by, reverse=reverse, max_depth=max_depth)
+        log.i(">> TREE %s (sort by %s%s)", path, sort_by, " | reverse" if reverse else "")
 
-        if tree_root is None:
+        tree_result: FileInfoTreeNode = tree(
+            os.getcwd(), sort_by=sort_by, reverse=reverse, max_depth=max_depth
+        )
+
+        if tree_result is None:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-        Client._print_tree_files_info(tree_root,
-                                      max_depth=max_depth,
-                                      show_size=TreeArguments.SIZE in args)
+        print_files_info_tree(tree_result,
+                              max_depth=max_depth,
+                              show_hidden=TreeArgs.SHOW_ALL in args,
+                              show_size=TreeArgs.SHOW_SIZE in args)
 
     def mkdir(self, args: Args):
         directory = args.get_param()
@@ -1100,10 +1170,10 @@ class Client:
 
         Client._print_list_files_info(
             resp.get("data"),
-            show_size=LsArgs.SIZE in args or LsArgs.DETAILS in args,
-            show_file_type=LsArgs.DETAILS in args,
-            show_hidden=LsArgs.ALL in args,
-            compact=LsArgs.DETAILS not in args
+            show_size=LsArgs.SHOW_SIZE in args or LsArgs.SHOW_DETAILS in args,
+            show_file_type=LsArgs.SHOW_DETAILS in args,
+            show_hidden=LsArgs.SHOW_ALL in args,
+            compact=LsArgs.SHOW_DETAILS not in args
         )
 
 
@@ -2179,129 +2249,41 @@ class Client:
 class Shell:
 
     def __init__(self, client: Client):
-        self.prompt = None
-        self.line_buffer = None
+        self._prompt: str = ""
+        self._current_line: str = ""
 
-        self.client = client
+        self._client: Client = client
 
         self._suggestions_intent: Optional[SuggestionsIntent] = None
 
-        self._shell_command_dispatcher: Dict[str, Callable[[Args], None]] = {
-            Commands.HELP: self._help,
-            Commands.EXIT: self._exit,
+        self._shell_command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args2], None]]] = {
+            Commands.TRACE: (IntArgs, self._trace),
+            Commands.TRACE_SHORT: (IntArgs, self._trace),
+            Commands.VERBOSE: (IntArgs, self._verbose),
+            Commands.VERBOSE_SHORT: (IntArgs, self._verbose),
+
+            Commands.HELP: (BasicArgs, self._help),
+            Commands.EXIT: (BasicArgs, self._exit),
         }
 
-        readline.parse_and_bind("tab: complete")
-        # readline.parse_and_bind("set output-meta on")
-        # readline.parse_and_bind("set vi-cmd-mode-string none")
-        # readline.parse_and_bind("set visible-stats on")
-        # readline.parse_and_bind("set colored-stats on")
-        # readline.parse_and_bind("set mark-directories on")
-        readline.parse_and_bind("set completion-query-items 40")
+        rl.parse_and_bind("tab: complete")
+        rl.parse_and_bind("set completion-query-items 50")
 
         # Remove '-' from the delimiters for handle suggestions
         # starting with '-' properly
         # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
-        readline.set_completer_delims(readline.get_completer_delims()
-                                      .replace("-", "")
-                                      # .replace(os.path.sep, "")
-                                      )
+        rl.set_completer_delims(rl.get_completer_delims().replace("-", ""))
 
-        readline.set_completion_display_matches_hook(self.display_suggestions)
+        rl.set_completion_display_matches_hook(self._display_suggestions)
 
-        readline.set_completer(self.next_suggestion)
-
-    def display_suggestions(self, substitution, matches, longest_match_length):
-        # Simulate the default behaviour of readline, but:
-        # 1. Separate the concept of suggestion/rendered suggestion: in this
-        #    way we can render a colored suggestion while using the readline
-        #    core for treat it as a simple screent
-        # 2. Internally handles the max_columns constraints
-        print("")
-        print_tabulated(self._suggestions_intent.suggestions,
-                        max_columns=self._suggestions_intent.max_columns)
-        print(self.prompt + self.line_buffer, end="", flush=True)
-
-    def next_suggestion(self, token: str, count: int):
-        self.line_buffer = readline.get_line_buffer()
-        # log.i("[%d] next_suggestion\n text = %s\n line_buffer = %s", state, text, raw_line_buffer)
-        # log.i("get_completer_delims %s", readline.get_completer_delims())
-        # log.i("get_completion_type %d", readline.get_completion_type())
-
-        line_buffer = self.line_buffer.lstrip()
-
-        if count == 0:
-            self._suggestions_intent = SuggestionsIntent([])
-            # self._suggestions
-            # columns_count = -1
-            # enable_completion = True
-            # space_after_completion = True
-
-            for comm_name, comm_info in COMMANDS_INFO.items():
-                if line_buffer.startswith(comm_name + " "):
-                    # Typing a COMPLETE command
-                    # e.g. 'ls '
-
-                    log.i("Fetching suggestions intent for command '%s'", comm_name)
-                    self._suggestions_intent = comm_info.suggestions(token, line_buffer, self.client)
-                    log.d("Fetched intent")
-                    #
-                    # if suggestions_intent:
-                    #     self._suggestions = suggestions_intent.suggestions
-                    #     columns_count = suggestions_intent.columns
-                    #     enable_completion = suggestions_intent.completion
-                    #     space_after_completion = suggestions_intent.space_after_completion
-
-                    break
-
-                if comm_name.startswith(line_buffer):
-                    # Typing an INCOMPLETE command
-                    # e.g. 'clos '
-
-                    # Case 1: complete command
-                    self._suggestions_intent.suggestions.append(StyledString(comm_name))
-
-            # If there is only a command that begins with
-            # this name, complete the command (and eventually insert a space)
-            if self._suggestions_intent.completion and \
-                    self._suggestions_intent.space_after_completion and \
-                    len(self._suggestions_intent.suggestions) == 1:
-
-                if is_bool(self._suggestions_intent.space_after_completion):
-                    append_space = self._suggestions_intent.space_after_completion
-                else:
-                    append_space = self._suggestions_intent.space_after_completion(
-                        self._suggestions_intent.suggestions[0]
-                    )
-
-                if append_space:
-                    self._suggestions_intent.suggestions[0].string += " "
-
-            # d("Configuring readline with cols = %d, autocomplete = %d",
-            #   columns_count, enable_completion)
-            #
-            # readline.parse_and_bind("set completion-display-width {}".format(
-            #     columns_count
-            # ))
-            # readline.parse_and_bind("tab: {}".format(
-            #     "complete" if enable_completion else "possible-completions"
-            # ))
-
-            self._suggestions_intent.suggestions = \
-                sorted(self._suggestions_intent.suggestions, key=lambda sugg: sugg.string.lower())
-
-        if count < len(self._suggestions_intent.suggestions):
-            log.i("Returning suggestion %d", count)
-            return self._suggestions_intent.suggestions[count].string
-
-        return None
+        rl.set_completer(self._next_suggestion)
 
     def input_loop(self):
-        command = None
-        while command != Commands.EXIT:
+        while True:
             try:
-                self.prompt = self._build_prompt_string()
-                command_line = input(self.prompt)
+                self._prompt = self._build_prompt_string()
+                # print(self._prompt, end="", flush=True)
+                command_line = input(self._prompt)
 
                 if not command_line:
                     log.w("Empty command line")
@@ -2319,110 +2301,193 @@ class Shell:
                     continue
 
                 command = command_line_parts[0]
-                command_args = Args(command_line_parts[1:])
+                command_args = command_line_parts[1:]
 
                 outcome = \
                     self._execute_shell_command(command, command_args) or \
-                    self.client.execute_command(command, command_args)
+                    self._client.execute_command(command, command_args)
 
                 if not outcome:
                     print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
+
             except PyroError as pyroerr:
-                log.i("Pyro error occurred %s", pyroerr)
+                log.e("Pyro error occurred %s", pyroerr)
                 print_error(ClientErrors.CONNECTION_ERROR)
                 # Close client connection anyway
                 try:
-                    if self.client.is_connected():
+                    if self._client.is_connected():
                         log.d("Trying to close connection gracefully")
-                        self.client.close()
+                        self._client.close()
                 except PyroError:
                     log.d("Cannot communicate with remote: invalidating connection")
-                    self.client.connection = None
+                    self._client.connection = None
             except KeyboardInterrupt:
                 log.i("CTRL+C detected")
                 print()
             except EOFError:
                 log.i("CTRL+D detected: exiting")
-                if self.client.is_connected():
-                    self.client.close()
+                if self._client.is_connected():
+                    self._client.close()
                 break
 
+    def _display_suggestions(self, substitution, matches, longest_match_length):
+        # Simulate the default behaviour of readline, but:
+        # 1. Separate the concept of suggestion/rendered suggestion: in this
+        #    way we can render a colored suggestion while using the readline
+        #    core for treat it as a simple string
+        # 2. Internally handles the max_columns constraints
+        print("")
+        print_tabulated(self._suggestions_intent.suggestions,
+                        max_columns=self._suggestions_intent.max_columns)
+        print(self._prompt + self._current_line, end="", flush=True)
+
+    def _next_suggestion(self, token: str, count: int):
+        self._current_line = rl.get_line_buffer()
+
+        stripped_current_line = self._current_line.lstrip()
+
+        if count == 0:
+            self._suggestions_intent = SuggestionsIntent([])
+
+            for comm_name, comm_info in COMMANDS_INFO.items():
+                if stripped_current_line.startswith(comm_name + " "):
+                    # Typing a COMPLETE command
+                    # e.g. 'ls '
+                    log.d("Fetching suggestions intent for command '%s'", comm_name)
+
+                    self._suggestions_intent = comm_info.suggestions(
+                        token, stripped_current_line, self._client)
+
+                    log.d("Fetched (%d) suggestions intent for command '%s'",
+                          len(self._suggestions_intent.suggestions),
+                          comm_name
+                      )
+
+                    break
+
+                if comm_name.startswith(stripped_current_line):
+                    # Typing an INCOMPLETE command
+                    # e.g. 'clos '
+
+                    # Case 1: complete command
+                    self._suggestions_intent.suggestions.append(StyledString(comm_name))
+
+            # If there is only a command that begins with
+            # this name, complete the command (and eventually insert a space)
+            if self._suggestions_intent.completion and \
+                    self._suggestions_intent.space_after_completion and \
+                    len(self._suggestions_intent.suggestions) == 1:
+
+                if is_bool(self._suggestions_intent.space_after_completion):
+                    append_space = self._suggestions_intent.space_after_completion
+                else:
+                    # Hook
+                    append_space = self._suggestions_intent.space_after_completion(
+                        self._suggestions_intent.suggestions[0]
+                    )
+
+                if append_space:
+                    self._suggestions_intent.suggestions[0].string += " "
+
+            self._suggestions_intent.suggestions = \
+                sorted(self._suggestions_intent.suggestions,
+                       key=lambda sugg: sugg.string.lower())
+
+        if count < len(self._suggestions_intent.suggestions):
+            log.d("Returning suggestion %d", count)
+            return self._suggestions_intent.suggestions[count].string
+
+        return None
+
     def _build_prompt_string(self):
-        if self.client.is_connected():
-            prompt_base = "{}:/{}  ##  ".format(
-                self.client.connection.sharing_name(),
-                self.client.connection.rpwd()
+        remote = ""
+
+        if self._client.is_connected():
+            remote = "{}:/{}".format(
+                self._client.connection.sharing_name(),
+                self._client.connection.rpwd()
             )
-        else:
-            prompt_base = ""
+            remote = fg(remote, color=Color.MAGENTA)
 
-        return prompt_base + os.getcwd() + "> "
+        # remote = "test:/path"
+        # remote = fg(remote, color=Color.CYAN)
 
-    def _execute_shell_command(self, command: str, args: Args) -> bool:
+        local = os.getcwd()
+        local = fg(local, color=Color.CYAN)
+
+        sep = "  ##  " if remote else ""
+
+        prompt = remote + sep + local + "> "
+
+        return styled(prompt, attrs=Attribute.BOLD)
+
+    def _execute_shell_command(self, command: str, command_args: List[str]) -> bool:
         if command not in self._shell_command_dispatcher:
             return False
 
-        log.i("Handling shell command %s (%s)", command, args)
-        self._shell_command_dispatcher[command](args)
+        log.i("Handling shell command %s (%s)", command, command_args)
+
+        parser, executor = self._shell_command_dispatcher[command]
+
+        # Parse args using the parsed bound to the command
+        args = parser.parse(command_args)
+
+        if not args:
+            log.e("Command's arguments parse failed")
+            return False
+
+        log.i("Parsed command arguments\n%s", args)
+
+        executor(args)
+
         return True
 
-    def _help(self, _: Args):
+    @classmethod
+    def _help(cls, _: Args2):
         print(HELP_COMMANDS)
 
-    def _exit(self, _: Args):
-        pass
+    @classmethod
+    def _exit(cls, _: Args2):
+        exit(0)
 
-#
-# def parse_es_arguments(args: List[str]) -> Optional[EsCfg]:
-#     cfg = EsCfg()
-#
-#     i = 0
-#     try:
-#         while i < len(args):
-#             arg = args[i]
-#
-#             # Help or version?
-#             if arg in EsArgs.HELP:
-#                 terminate("help")
-#             if arg in EsArgs.VERSION:
-#                 terminate("version")
-#
-#             if not cfg.command:
-#                 # Global arguments
-#                 if arg in EsArgs.PORT:
-#                     i += 1
-#                     cfg.port = toint(args[i], raise_exceptions=True)
-#                 elif arg in EsArgs.VERBOSE:
-#                     i += 1
-#                     cfg.verbosity = rangify(
-#                         # Allow out of range verbosity, but rangify it
-#                         toint(args[i], raise_exceptions=True),
-#                         logging.VERBOSITY_MIN, logging.VERBOSITY_MAX
-#                     )
-#                 elif arg in EsArgs.TRACE:
-#                     cfg.tracing = True
-#                 elif arg in EsArgs.NO_COLOR:
-#                     cfg.no_color = True
-#                 else:
-#                     # Everything will be considered command args from now
-#                     cfg.command = arg
-#             else:
-#                 # Command arg
-#                 cfg.command_args.append(arg)
-#
-#             i += 1
-#     except Exception as ex:
-#         log.e("Parsing error %s", ex)
-#         return None
-#
-#     return cfg
+    @classmethod
+    def _trace(cls, args: Args2):
+        # Toggle tracing if no parameter is provided
+        enable = args.get_varg(default=not is_tracing_enabled())
+
+        log.i(">> TRACE (%d)", enable)
+
+        enable_tracing(enable)
+
+        print("Tracing = {:d}{}".format(
+            enable,
+            " (enabled)" if enable else " (disabled)"
+        ))
+
+    @classmethod
+    def _verbose(cls, args: Args2):
+        # Increase verbosity (or disable if is already max)
+        verbosity = args.get_varg(
+            default=(log.verbosity + 1) % (logging.VERBOSITY_MAX + 1)
+        )
+
+        verbosity = rangify(verbosity, logging.VERBOSITY_MIN, logging.VERBOSITY_MAX)
+
+        log.i(">> VERBOSE (%d)", verbosity)
+
+        log.set_verbosity(verbosity)
+
+        print("Verbosity = {:d}{}".format(
+            verbosity,
+            VERBOSITY_EXPLANATION_MAP.get(verbosity, "")
+        ))
 
 
 def main():
-    # Uncomment for enable for debug arguments parsing
-    # log.set_verbosity(logging.VERBOSITY_MAX)
-
     log.set_verbosity(logging.VERBOSITY_NONE)
+
+    # Uncomment for debug arguments parsing
+    # log.set_verbosity(logging.VERBOSITY_MAX)
 
     # Parse arguments
     args = EsArgs.parse(sys.argv[1:])
@@ -2458,7 +2523,10 @@ def main():
         if command in CLI_COMMANDS:
             log.i("Found a valid CLI command '%s'", command)
             command_args = args.get_unparsed_args([])
-            client.execute_command(command, command_args)
+            executed = client.execute_command(command, command_args)
+
+            if not executed:
+                abort("Error occurred while parsing command arguments")
 
             # Keep the shell opened only if we performed an 'open'
             # Otherwise close it after the action
