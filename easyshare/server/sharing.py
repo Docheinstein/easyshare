@@ -4,8 +4,6 @@ from typing import Optional
 from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.filetype import FileType, FTYPE_DIR, FTYPE_FILE
 from easyshare.protocol.sharinginfo import SharingInfo
-from easyshare.shared.log import w
-from easyshare.utils.obj import items
 
 
 class Sharing:
@@ -26,7 +24,7 @@ class Sharing:
     def create(name: str, path: str, read_only: bool = False, auth: Auth = AuthNone()) -> Optional['Sharing']:
         # Ensure path existence
         if not path:
-            w("Sharing creation failed; path not provided")
+            log.w("Sharing creation failed; path not provided")
             return None
 
         path = os.path.expanduser(path)
@@ -36,7 +34,7 @@ class Sharing:
         elif os.path.isfile(path):
             ftype = FTYPE_FILE
         else:
-            w("Sharing creation failed; invalid path")
+            log.w("Sharing creation failed; invalid path")
             return None
 
         if not name:

@@ -11,8 +11,6 @@ from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response, create_error_response, is_success_response
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.serverinfo import ServerInfo
-from easyshare.shared.log import d, v
-from easyshare.utils.json import json_to_pretty_str
 
 
 # def batchable(func):
@@ -21,7 +19,7 @@ from easyshare.utils.json import json_to_pretty_str
 #             # Non batch
 #             return func
 #
-#         v("Called method while in batch mode")
+#         log.i("Called method while in batch mode")
 #         # Get the pyro wrapper for the method and call it
 #         getattr(connection._batch, func.__name, *vargs, **kwargs)()
 #
@@ -35,7 +33,7 @@ class Connection:
     RESPONSE_HANDLER_FUNC_NAME_PATTERN = "_handle_{}_response"
 
     def __init__(self, server_info: ServerInfo):
-        d("Initializing new Connection")
+        log.d("Initializing new Connection")
         self.server_info: ServerInfo = server_info
         self._connected = False
         self._sharing_name = None

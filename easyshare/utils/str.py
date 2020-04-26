@@ -31,7 +31,7 @@ def satisfy(s: str, allowed: str) -> bool:
 def unprefix(s: str, prefix: str) -> str:
     if not s.startswith(prefix):
         return s
-    return s.split(prefix)[1]
+    return s[len(prefix):]
 
 
 def rightof(s: str, sep: str, from_end=False) -> str:

@@ -7,7 +7,6 @@ from typing import Optional, List, Union, Tuple, Any, Callable
 
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
-from easyshare.shared.log import v, w, e
 from easyshare.tree.tree import TreeRenderPostOrder
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.types import is_str, is_list
@@ -99,7 +98,7 @@ def tree(path: str,
                 try:
                     cursor["children_unseen_info"] = _ls(cur_path, sort_by_fields, reverse)
                 except OSError:
-                    w("Cannot descend %s", cur_path)
+                    log.w("Cannot descend %s", cur_path)
                     pass
 
             if not cursor.get("children_unseen_info"):
@@ -148,7 +147,7 @@ def tree(path: str,
             depth += 1
 
     except Exception as ex:
-        e("LS execution exception %s", ex)
+        log.e("LS execution exception %s", ex)
         return None
 
     return root
@@ -162,12 +161,12 @@ def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Opt
         return None
 
     sort_by_fields = list(filter(lambda sort_field: sort_field in ["name", "size", "ftype"], sort_by))
-    v("LS sorting by %s%s", sort_by, " (reverse)" if reverse else "")
+    log.i("LS sorting by %s%s", sort_by, " (reverse)" if reverse else "")
 
     try:
         return _ls(path, sort_by_fields, reverse)
     except Exception as ex:
-        e("LS execution exception %s", ex)
+        log.e("LS execution exception %s", ex)
         return None
 
 
@@ -185,7 +184,7 @@ def _ls(path: str, sort_by_fields: List[str], reverse=False) -> Optional[List[Fi
 
     if not os.path.isdir(path):
 
-        e("Cannot perform ls; invalid path")
+        log.e("Cannot perform ls; invalid path")
         return None
 
     # Take the other info (size, filetype, ...)
@@ -231,7 +230,7 @@ def rm(path: str, error_callback: Callable[[Exception], None] = None) -> bool:
             shutil.rmtree(path, ignore_errors=ignore_errors, onerror=handle_rmtree_error)
             return True
 
-        e("Cannot delete; not file nor dir '%s'", path)
+        log.e("Cannot delete; not file nor dir '%s'", path)
 
         # Manually notify a file not found exception
         if error_callback:
@@ -241,7 +240,7 @@ def rm(path: str, error_callback: Callable[[Exception], None] = None) -> bool:
         return False
     except Exception as ex:
         # Notify the exception of a valid action (could be permission denied, ...)
-        e("RM execution exception %s", ex)
+        log.e("RM execution exception %s", ex)
         if error_callback:
             error_callback(ex)
         return False
@@ -252,7 +251,7 @@ def mv(src: str, dest: str) -> bool:
         shutil.move(src, dest)
         return True
     except Exception as ex:
-        e("MV exception %s", ex)
+        log.e("MV exception %s", ex)
         raise ex
 
 
@@ -261,7 +260,7 @@ def cp(src: str, dest: str) -> bool:
         shutil.copy2(src, dest, follow_symlinks=False)
         return True
     except Exception as ex:
-        e("CP exception %s", ex)
+        log.e("CP exception %s", ex)
         raise ex
 
 

@@ -7,8 +7,7 @@ from typing import List, Optional, Callable
 
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.server.client import ClientContext
-from easyshare.shared.log import e, d, i, v
-from easyshare.shared.ssl import get_ssl_context
+from easyshare.ssl import get_ssl_context
 from easyshare.socket.tcp import SocketTcpAcceptor
 from easyshare.utils.str import randstring
 
@@ -49,27 +48,27 @@ class GetTransactionHandler(threading.Thread):
 
     def run(self) -> None:
         if not self._sock:
-            e("Invalid socket")
+            log.e("Invalid socket")
             return
 
-        d("Starting GetTransactionHandler")
+        log.d("Starting GetTransactionHandler")
         client_sock, endpoint = self._sock.accept()
-        i("Connection established with %s", endpoint)
+        log.i("Connection established with %s", endpoint)
 
         go_ahead = True
 
         while go_ahead:
-            d("blocking wait on next_servings")
+            log.d("blocking wait on next_servings")
 
             # Send files until the servings buffer is empty
             # Wait on the blocking queue for the next file to send
             next_serving = self._servings.get()
 
             if not next_serving:
-                v("No more files: END")
+                log.i("No more files: END")
                 break
 
-            d("Next serving: %s", next_serving)
+            log.i("Next serving: %s", next_serving)
 
             f = open(next_serving, "rb")
             cur_pos = 0
@@ -81,28 +80,28 @@ class GetTransactionHandler(threading.Thread):
                 time.sleep(0.001 + r)
                 chunk = f.read(GetTransactionHandler.BUFFER_SIZE)
                 if not chunk:
-                    d("Finished %s", next_serving)
+                    log.i("Finished %s", next_serving)
                     break
 
-                d("Read chunk of %dB", len(chunk))
+                log.i("Read chunk of %dB", len(chunk))
                 cur_pos += len(chunk)
 
                 try:
-                    d("sending chunk...")
+                    log.d("sending chunk...")
                     client_sock.send(chunk)
-                    d("sending chunk DONE")
+                    log.d("sending chunk DONE")
                 except Exception as ex:
-                    e("send error %s", ex)
+                    log.e("send error %s", ex)
                     # Abort transaction
                     go_ahead = False
                     break
 
-                d("%d/%d (%.2f%%)", cur_pos, file_len, cur_pos / file_len * 100)
+                log.i("%d/%d (%.2f%%)", cur_pos, file_len, cur_pos / file_len * 100)
 
-            d("Closing file %s", next_serving)
+            log.i("Closing file %s", next_serving)
             f.close()
 
-        v("Transaction handler job finished")
+        log.i("Transaction handler job finished")
 
         client_sock.close()
         self._sock.close()
@@ -112,17 +111,17 @@ class GetTransactionHandler(threading.Thread):
             self._on_end(self)
 
     def push_file(self, path: str):
-        d("Pushing file to handler %s", path)
+        log.i("Pushing file to handler %s", path)
         self._servings.put(path)
 
     def abort(self):
-        v("aborting transaction")
+        log.i("aborting transaction")
         with self._servings.mutex:
             self._servings.queue.clear()
         self._servings.put(None)
 
     def done(self):
-        v("end(): no more files")
+        log.i("end(): no more files")
         self._servings.put(None)
 
 
@@ -156,29 +155,29 @@ class PutTransactionHandler(threading.Thread):
 
     def run(self) -> None:
         if not self._sock:
-            e("Invalid socket")
+            log.e("Invalid socket")
             return
 
-        d("Starting PutTransactionHandler")
+        log.d("Starting PutTransactionHandler")
         client_sock, endpoint = self._sock.accept()
-        i("Connection established with %s", endpoint)
+        log.i("Connection established with %s", endpoint)
 
         go_ahead = True
 
         while go_ahead:
-            d("blocking wait on next_servings")
+            log.d("blocking wait on next_servings")
 
             # Recv files until the servings buffer is empty
             # Wait on the blocking queue for the next file to recv
             next_incoming = self._incomings.get()
 
             if not next:
-                v("No more files: END")
+                log.i("No more files: END")
                 break
 
             next_path, next_size = next_incoming
 
-            d("Next incoming: %s", next_incoming)
+            log.i("Next incoming: %s", next_incoming)
 
             f = open(next_path, "wb")
             cur_pos = 0
@@ -194,31 +193,31 @@ class PutTransactionHandler(threading.Thread):
                 # chunk = f.read(PutTransactionHandler.BUFFER_SIZE)
 
                 if not chunk:
-                    d("Finished %s", next_path)
+                    log.i("Finished %s", next_path)
                     break
 
-                d("Read chunk of %dB", len(chunk))
+                log.i("Read chunk of %dB", len(chunk))
                 cur_pos += len(chunk)
 
                 f.write(chunk)
 
                 #
                 # try:
-                #     d("sending chunk...")
+                #     log.d("sending chunk...")
                 #     client_sock.send(chunk)
-                #     d("sending chunk DONE")
+                #     log.d("sending chunk DONE")
                 # except Exception as ex:
-                #     e("send error %s", ex)
+                #     log.e("send error %s", ex)
                 #     # Abort transaction
                 #     go_ahead = False
                 #     break
 
-                d("%d/%d (%.2f%%)", cur_pos, next_size, cur_pos / next_size * 100)
+                log.i("%d/%d (%.2f%%)", cur_pos, next_size, cur_pos / next_size * 100)
 
-            d("Closing file %s", next_path)
+            log.i("Closing file %s", next_path)
             f.close()
 
-        v("Transaction handler job finished")
+        log.i("Transaction handler job finished")
 
         client_sock.close()
         self._sock.close()
@@ -228,16 +227,16 @@ class PutTransactionHandler(threading.Thread):
             self._on_end(self)
 
     def push_file(self, path: str, size: int):
-        d("Pushing file info to handler %s (%d)", path, size)
+        log.i("Pushing file info to handler %s (%d)", path, size)
         self._incomings.put((path, size))
 
     def abort(self):
-        v("aborting transaction")
+        log.i("aborting transaction")
         with self._incomings.mutex:
             self._incomings.queue.clear()
         self._incomings.put(None)
 
     def done(self):
-        v("end(): no more files")
+        log.i("end(): no more files")
         self._incomings.put(None)
 

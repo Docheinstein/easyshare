@@ -1,6 +1,16 @@
 from easyshare.utils.colors import magenta, cyan
 
-tracing = False
+
+_tracing = False
+
+
+def enable_tracing(enabled: bool = True):
+    global _tracing
+    tracing = enabled
+
+
+def is_tracing_enabled() -> bool:
+    return _tracing
 
 
 def trace_out(message: str, ip: str, port: int, alias: str = None):
@@ -30,14 +40,6 @@ def trace_in(message: str, ip: str, port: int, alias: str = None):
 
 
 def _trace(msg, *args, **kwargs):
-    if tracing:
+    if _tracing:
         print(msg, *args, **kwargs)
 
-
-def init_tracing(enabled: bool = True):
-    global tracing
-    tracing = enabled
-
-
-def is_tracing_enabled() -> bool:
-    return tracing

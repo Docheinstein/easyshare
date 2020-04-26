@@ -6,7 +6,8 @@ import termcolor
 
 from easyshare.utils.types import is_list
 
-colorful = False
+
+_colorful = True
 
 
 class Color(Enum):
@@ -29,9 +30,9 @@ class Attribute(Enum):
     CONCEALED = "concealed"
 
 
-def init_colors(enabled: bool = True):
-    global colorful
-    colorful = enabled
+def enable_colors(enabled: bool = True):
+    global _colorful
+    _colorful = enabled
 
     if enabled:
         colorama.init()
@@ -42,7 +43,7 @@ def styled(s: str, fg: Color = None, bg: Color = None, attrs: Union[Attribute, L
     return termcolor.colored(s,
                              color=fg.value if fg else None,
                              on_color="on_" + bg.value if bg else None,
-                             attrs=[a.value for a in list(attrs)] if attrs else None) if colorful else s
+                             attrs=[a.value for a in list(attrs)] if attrs else None) if _colorful else s
 
 
 def fg(s: str, color: Color, attrs: Union[Attribute, List[Attribute]] = None) -> str:

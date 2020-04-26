@@ -1,11 +1,10 @@
 import threading
 from typing import Callable
 
-from easyshare.shared.log import d, v
 from easyshare.shared.endpoint import Endpoint
-from easyshare.shared.trace import trace_out, trace_in
+from easyshare.tracing import trace_in
 from easyshare.socket.udp import SocketUdpIn
-from easyshare.utils.types import int_to_bytes, bytes_to_int
+from easyshare.utils.types import bytes_to_int
 
 
 class DiscoverDeamon(threading.Thread):
@@ -16,7 +15,7 @@ class DiscoverDeamon(threading.Thread):
         self.callback = callback
 
     def run(self) -> None:
-        v("Starting DISCOVER deamon")
+        log.i("Starting DISCOVER deamon")
 
         sock = SocketUdpIn(port=self.port)
 
@@ -29,5 +28,5 @@ class DiscoverDeamon(threading.Thread):
                 port=client_endpoint[1]
             )
 
-            d("Received DISCOVER request from: %s", client_endpoint)
+            log.i("Received DISCOVER request from: %s", client_endpoint)
             self.callback(client_endpoint, data)

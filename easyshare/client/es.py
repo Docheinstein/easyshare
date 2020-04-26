@@ -2,7 +2,6 @@ import enum
 import os
 import random
 import shlex
-import ssl
 import sys
 import readline
 import time
@@ -12,17 +11,16 @@ from math import ceil
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Type, Union, Tuple
 
-import Pyro4
-from Pyro4 import socketutil
-from Pyro4.errors import ConnectionClosedError, PyroError
+from Pyro4.errors import PyroError
 
+from easyshare import logging, conf
 from easyshare.client.connection import Connection
 from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors
+from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
-from easyshare.protocol.iserver import IServer
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
@@ -30,21 +28,24 @@ from easyshare.shared.args import Args
 from easyshare.shared.conf import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VERSION, DEFAULT_DISCOVER_PORT, DIR_COLOR, \
     FILE_COLOR, PROGRESS_COLOR, DONE_COLOR
 from easyshare.shared.endpoint import Endpoint
-from easyshare.shared.log import i, d, w, init_logging, v, VERBOSITY_VERBOSE, get_verbosity, VERBOSITY_MAX, \
-    VERBOSITY_NONE, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG, e
 from easyshare.shared.progress import FileProgressor
-from easyshare.shared.ssl import get_ssl_context
-from easyshare.shared.trace import init_tracing, is_tracing_enabled
+from easyshare.ssl import get_ssl_context
+from easyshare.tracing import enable_tracing, is_tracing_enabled
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.tree.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.utils.app import eprint, terminate, abort
-from easyshare.utils.colors import init_colors, Color, red, fg, styled
+from easyshare.utils.colors import enable_colors, fg
 from easyshare.utils.env import terminal_size
 from easyshare.utils.json import json_to_pretty_str
-from easyshare.utils.obj import values, items
-from easyshare.utils.str import unprefix, satisfy, leftof, rightof
-from easyshare.utils.types import to_int, to_bool, str_to_bool, bool_to_str, is_bool
+from easyshare.utils.math import rangify
+from easyshare.utils.obj import values, items, keys
+from easyshare.utils.str import rightof
+from easyshare.utils.types import to_int, bool_to_str, is_bool, toint
 from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden
+
+
+log = get_logger(__name__)
+log.set_verbosity(logging.VERBOSITY_NONE)
 
 # ==================================================================
 
@@ -91,14 +92,26 @@ scan    [timeout]   |   scan the network for sharings"""
 # === ARGUMENTS ===
 
 
-class ClientArguments:
+class EsArgs:
+    PORT =      ["-p", "--port"]
     TRACE =     ["-t", "--trace"]
     VERBOSE =   ["-v", "--verbose"]
-    PORT =      ["-p", "--port"]
     HELP =      ["-h", "--help"]
     VERSION =   ["-V", "--version"]
     NO_COLOR =  ["--no-color"]
 
+
+class EsCfg:
+    def __init__(self):
+        self.discover_port = conf.DEFAULT_DISCOVER_PORT
+        self.tracing = False
+        self.verbosity = logging.VERBOSITY_NONE
+        self.no_color = False
+        self.command = None
+        self.command_args: List[str] = []
+
+    def __str__(self):
+        return json_to_pretty_str(items(self))
 
 # === COMMANDS ===
 
@@ -170,11 +183,11 @@ class ArgsCommandInfo(CommandInfo):
 
     @classmethod
     def suggestions(cls, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
-        d("Token: %s", token)
+        log.i("Token: %s", token)
         if not token.startswith("-"):
             return None
 
-        d("Computing args suggestions")
+        log.d("Computing args suggestions")
 
         longest_args_names = 0
 
@@ -212,18 +225,18 @@ class ListCommandInfo(ArgsCommandInfo, ABC):
         # pattern = rightof(line, " ", from_end=True)
         # path_dir, path_trail = os.path.split(os.path.join(os.getcwd(), pattern))
 
-        # d("pattern: %s", pattern)
-        # d("path_dir: %s", path_dir)
-        # d("path_trail: %s", path_trail)
+        # log.i("pattern: %s", pattern)
+        # log.i("path_dir: %s", path_dir)
+        # log.i("path_trail: %s", path_trail)
 
         suggestions = []
         for finfo in cls.list(token, line, client):
-            d("finfo: %s", finfo)
+            log.i("finfo: %s", finfo)
 
             fname = finfo.get("name")
 
             if not cls.display_path_filter(finfo):
-                d("%s doesn't pass the filter", fname)
+                log.i("%s doesn't pass the filter", fname)
                 continue
 
             _, fname_tail = os.path.split(fname)
@@ -233,7 +246,7 @@ class ListCommandInfo(ArgsCommandInfo, ABC):
 
             # f_full = os.path.join(path_dir, f)
 
-            # d("f_full: %s", f_full)
+            # log.i("f_full: %s", f_full)
 
             if finfo.get("ftype") == FTYPE_DIR:
                 # Append a dir, with a trailing / so that the next
@@ -258,10 +271,10 @@ class ListCommandInfo(ArgsCommandInfo, ABC):
 class ListLocalCommandInfo(ListCommandInfo, ABC):
     @classmethod
     def list(cls, token: str, line: str, client: 'Client') -> List[FileInfo]:
-        d("List on token = '%s', line = '%s'", token, line)
+        log.i("List on token = '%s', line = '%s'", token, line)
         pattern = rightof(line, " ", from_end=True)
         path_dir, path_trail = os.path.split(os.path.join(os.getcwd(), pattern))
-        d("ls-ing on %s", path_dir)
+        log.i("ls-ing on %s", path_dir)
         return ls(path_dir)
 
 
@@ -269,18 +282,18 @@ class ListRemoteCommandInfo(ListCommandInfo, ABC):
     @classmethod
     def list(cls, token: str, line: str, client: 'Client') -> List[FileInfo]:
         if not client or not client.is_connected():
-            w("Cannot list() on a non connected client")
+            log.w("Cannot list() on a non connected client")
             return []
 
-        d("List remotely on token = '%s', line = '%s'", token, line)
+        log.i("List remotely on token = '%s', line = '%s'", token, line)
         pattern = rightof(line, " ", from_end=True)
         path_dir, path_trail = os.path.split(pattern)
 
-        d("rls-ing on %s", pattern)
+        log.i("rls-ing on %s", pattern)
         resp = client.connection.rls(sort_by=["name"], path=path_dir)
 
         if not is_data_response(resp):
-            w("Unable to retrieve a valid response for rls")
+            log.w("Unable to retrieve a valid response for rls")
             return []
 
         return resp.get("data")
@@ -465,8 +478,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
 
 
     Commands.LOCAL_CURRENT_DIRECTORY: CommandInfo,
-    Commands.LOCAL_LIST_DIRECTORY: LsCommandInfo,   # listlocal
-    Commands.LOCAL_TREE_DIRECTORY: TreeCommandInfo, # listlocale
+    Commands.LOCAL_LIST_DIRECTORY: LsCommandInfo,
+    Commands.LOCAL_TREE_DIRECTORY: TreeCommandInfo,
     Commands.LOCAL_CHANGE_DIRECTORY: ListLocalDirsCommandInfo,
     Commands.LOCAL_CREATE_DIRECTORY: ListLocalDirsCommandInfo,
     Commands.LOCAL_COPY: ListLocalAllCommandInfo,
@@ -497,12 +510,13 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
 
 SHELL_COMMANDS = values(Commands)
 
-CLI_COMMANDS = [
-    Commands.SCAN,
-    Commands.OPEN,
-    Commands.GET,
-    Commands.INFO,
+NON_CLI_COMMANDS = [
+    Commands.LOCAL_CHANGE_DIRECTORY,    # cd
+    Commands.REMOTE_CHANGE_DIRECTORY,   # rcd
+    Commands.CLOSE                      # close
 ]
+
+CLI_COMMANDS = [k for k in values(Commands) if k not in NON_CLI_COMMANDS]
 
 # === COMMANDS ARGUMENTS ===
 
@@ -626,14 +640,14 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None):
     display_cols = min(max_allowed_cols, max_fillable_cols)
     display_rows = ceil(len(strings) / display_cols)
 
-    d("term_cols %d", term_cols)
-    d("longest_match_length %d", longest_string_length)
-    d("min_col_width %d", min_col_width)
-    d("max_allowed_cols %d", max_allowed_cols)
-    d("max_fillable_cols %d", max_fillable_cols)
-    d("len_strings %d", len(strings))
-    d("display_rows %d", display_rows)
-    d("display_cols %d", display_cols)
+    log.i("term_cols %d", term_cols)
+    log.i("longest_match_length %d", longest_string_length)
+    log.i("min_col_width %d", min_col_width)
+    log.i("max_allowed_cols %d", max_allowed_cols)
+    log.i("max_fillable_cols %d", max_fillable_cols)
+    log.i("len_strings %d", len(strings))
+    log.i("display_rows %d", display_rows)
+    log.i("display_cols %d", display_cols)
 
     for r in range(0, display_rows):
         print_row = ""
@@ -655,10 +669,10 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None):
 
 
 class Client:
-    def __init__(self, server_discover_port: int):
+    def __init__(self, discover_port: int):
         self.connection: Optional[Connection] = None
 
-        self._server_discover_port = server_discover_port
+        self._discover_port = discover_port
 
         self._command_dispatcher: Dict[str, Callable[[Args], None]] = {
             Commands.TRACE: self.trace,
@@ -692,15 +706,14 @@ class Client:
             Commands.PUT: self.put,
 
             Commands.INFO: self.info,
-
             Commands.PING: self.ping,
         }
 
-    def execute_command(self, command: str, args: Args) -> bool:
+    def execute_command(self, command: str, args: List[str]) -> bool:
         if command not in self._command_dispatcher:
             return False
 
-        d("Client: handling command %s (%s)", command, args)
+        log.i("Executing %s(%s)", command, args)
         self._command_dispatcher[command](args)
         return True
 
@@ -716,9 +729,9 @@ class Client:
             # Toggle tracing if no parameter is provided
             enable = not is_tracing_enabled()
 
-        i(">> TRACE (%d)", enable)
+        log.i(">> TRACE (%d)", enable)
 
-        init_tracing(enable)
+        enable_tracing(enable)
 
         print("Tracing = {:d}{}".format(
             enable,
@@ -732,7 +745,7 @@ class Client:
             # Increase verbosity (or disable if is already max)
             verbosity = (get_verbosity() + 1) % (VERBOSITY_MAX + 1)
 
-        i(">> VERBOSE (%d)", verbosity)
+        log.i(">> VERBOSE (%d)", verbosity)
 
         init_logging(verbosity)
 
@@ -757,7 +770,7 @@ class Client:
     def cd(self, args: Args):
         directory = args.get_param(default="/")
 
-        i(">> CD %s", directory)
+        log.i(">> CD %s", directory)
 
         if not os.path.isdir(os.path.join(os.getcwd(), directory)):
             print_error(ClientErrors.INVALID_PATH)
@@ -768,7 +781,7 @@ class Client:
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-    def ls(self, args: Args):
+    def ls(self, args: List[str]):
         path = args.get_param()
         if not path:
             path = os.getcwd()
@@ -781,7 +794,7 @@ class Client:
         if LsArguments.GROUP in args:
             sort_by.append("ftype")
 
-        i(">> LS (sort by %s%s)", sort_by, " | reverse" if reverse else "")
+        log.i(">> LS (sort by %s%s)", sort_by, " | reverse" if reverse else "")
 
         ls_result = ls(path, sort_by=sort_by, reverse=reverse)
         if ls_result is None:
@@ -807,7 +820,7 @@ class Client:
         # FIXME: max_depth = 0
         max_depth = to_int(args.get_param(TreeArguments.MAX_DEPTH))
 
-        i(">> TREE (sort by %s%s)", sort_by, " | reverse" if reverse else "")
+        log.i(">> TREE (sort by %s%s)", sort_by, " | reverse" if reverse else "")
 
         tree_root = tree(os.getcwd(), sort_by=sort_by, reverse=reverse, max_depth=max_depth)
 
@@ -825,7 +838,7 @@ class Client:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return
 
-        i(">> MKDIR " + directory)
+        log.i(">> MKDIR " + directory)
 
         try:
             os.mkdir(directory)
@@ -833,7 +846,7 @@ class Client:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
     def pwd(self, _: Args):
-        i(">> PWD")
+        log.i(">> PWD")
 
         try:
             print(os.getcwd())
@@ -847,7 +860,7 @@ class Client:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return
 
-        i(">> RM %s", paths)
+        log.i(">> RM %s", paths)
 
         def handle_rm_error(err):
             eprint(err)
@@ -898,14 +911,14 @@ class Client:
         errors = []
 
         for src in mv_args:
-            v(">> MV <%s> <%s>", src, dest)
+            log.i(">> MV <%s> <%s>", src, dest)
             try:
                 mv(src, dest)
             except Exception as ex:
                 errors.append(str(ex))
 
         if errors:
-            e("%d errors occurred", len(errors))
+            log.e("%d errors occurred", len(errors))
 
         for err in errors:
             eprint(err)
@@ -935,14 +948,14 @@ class Client:
         errors = []
 
         for src in cp_args:
-            v(">> CP <%s> <%s>", src, dest)
+            log.i(">> CP <%s> <%s>", src, dest)
             try:
                 cp(src, dest)
             except Exception as ex:
                 errors.append(str(ex))
 
         if errors:
-            e("%d errors occurred", len(errors))
+            log.e("%d errors occurred", len(errors))
 
         for err in errors:
             eprint(err)
@@ -956,7 +969,7 @@ class Client:
             print_error(ClientErrors.NOT_CONNECTED)
             return
 
-        i(">> RPWD")
+        log.i(">> RPWD")
         print(self.connection.rpwd())
 
     def rcd(self, args: Args):
@@ -966,11 +979,11 @@ class Client:
 
         directory = args.get_param(default="/")
 
-        i(">> RCD %s", directory)
+        log.i(">> RCD %s", directory)
 
         resp = self.connection.rcd(directory)
         if is_success_response(resp):
-            v("Successfully RCDed")
+            log.i("Successfully RCDed")
         else:
             self._handle_error_response(resp)
 
@@ -988,7 +1001,7 @@ class Client:
         if LsArguments.GROUP in args:
             sort_by.append("ftype")
 
-        i(">> RLS (sort by %s%s)", sort_by, " | reverse" if reverse else "")
+        log.i(">> RLS (sort by %s%s)", sort_by, " | reverse" if reverse else "")
 
         resp = self.connection.rls(sort_by, reverse=reverse, path=path)
 
@@ -1021,7 +1034,7 @@ class Client:
         # FIXME: max_depth = 0
         max_depth = to_int(args.get_param(TreeArguments.MAX_DEPTH))
 
-        i(">> RTREE (sort by %s%s)", sort_by, " | reverse" if reverse else "")
+        log.i(">> RTREE (sort by %s%s)", sort_by, " | reverse" if reverse else "")
 
         resp = self.connection.rtree(sort_by, reverse=reverse, depth=max_depth)
 
@@ -1044,11 +1057,11 @@ class Client:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return
 
-        i(">> RMKDIR " + directory)
+        log.i(">> RMKDIR " + directory)
 
         resp = self.connection.rmkdir(directory)
         if is_success_response(resp):
-            v("Successfully RMKDIRed")
+            log.i("Successfully RMKDIRed")
             pass
         else:
             self._handle_error_response(resp)
@@ -1064,15 +1077,15 @@ class Client:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return
 
-        i(">> RRM %s ", paths)
+        log.i(">> RRM %s ", paths)
 
         resp = self.connection.rrm(paths)
         if is_success_response(resp):
-            v("Successfully RRMed")
+            log.i("Successfully RRMed")
             if is_data_response(resp):
                 errors = resp.get("data").get("errors")
                 if errors:
-                    e("%d errors occurred while doing rrm", len(errors))
+                    log.e("%d errors occurred while doing rrm", len(errors))
                     for err in errors:
                         eprint(err)
         else:
@@ -1095,16 +1108,16 @@ class Client:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return
 
-        i(">> RCP %s -> %s", str(paths), dest)
+        log.i(">> RCP %s -> %s", str(paths), dest)
 
         resp = self.connection.rcp(paths, dest)
         if is_success_response(resp):
-            v("Successfully RCPed")
+            log.i("Successfully RCPed")
 
             if is_data_response(resp):
                 errors = resp.get("data").get("errors")
                 if errors:
-                    e("%d errors occurred while doing rcp", len(errors))
+                    log.e("%d errors occurred while doing rcp", len(errors))
                     for err in errors:
                         eprint(err)
 
@@ -1128,16 +1141,16 @@ class Client:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return
 
-        i(">> RMV %s -> %s", str(paths), dest)
+        log.i(">> RMV %s -> %s", str(paths), dest)
 
         resp = self.connection.rmv(paths, dest)
         if is_success_response(resp):
-            v("Successfully RMVed")
+            log.i("Successfully RMVed")
 
             if is_data_response(resp):
                 errors = resp.get("data").get("errors")
                 if errors:
-                    e("%d errors occurred while doing rmv", len(errors))
+                    log.e("%d errors occurred while doing rmv", len(errors))
                     for err in errors:
                         eprint(err)
 
@@ -1166,7 +1179,7 @@ class Client:
 
         sharing_name, _, sharing_location = sharing_specifier.partition("@")
 
-        i(">> OPEN %s%s (timeout = %d)",
+        log.i(">> OPEN %s%s (timeout = %d)",
           sharing_name,
           "@{}".format(sharing_location) if sharing_location else "",
           timeout)
@@ -1183,16 +1196,16 @@ class Client:
             return False
 
         if not self.connection:
-            d("Creating new connection with %s", server_info.get("uri"))
+            log.d("Creating new connection with %s", server_info.get("uri"))
             self.connection = Connection(server_info)
         else:
-            d("Reusing existing connection with %s", server_info.get("uri"))
+            log.d("Reusing existing connection with %s", server_info.get("uri"))
 
         passwd = None
 
         # Ask the password if the sharing is protected by auth
         if sharing_info.get("auth"):
-            v("Sharing '%s' is protected by password", sharing_name)
+            log.i("Sharing '%s' is protected by password", sharing_name)
             passwd = getpass()
 
         # Actually send OPEN
@@ -1212,7 +1225,7 @@ class Client:
             print_error(ClientErrors.NOT_CONNECTED)
             return
 
-        i(">> CLOSE")
+        log.i(">> CLOSE")
 
         self.connection.close()  # async call
         self.connection = None   # Invalidate connection
@@ -1227,7 +1240,7 @@ class Client:
             print_error(ClientErrors.INVALID_PARAMETER_VALUE)
             return False
 
-        i(">> SCAN (timeout = %d)", timeout)
+        log.i(">> SCAN (timeout = %d)", timeout)
 
         servers_found = 0
 
@@ -1235,11 +1248,11 @@ class Client:
                              server_info: ServerInfo) -> bool:
             nonlocal servers_found
 
-            d("Handling DISCOVER response from %s\n%s", str(client), str(server_info))
+            log.i("Handling DISCOVER response from %s\n%s", str(client), str(server_info))
             # Print as soon as they come
 
             if not servers_found:
-                i("======================")
+                log.i("======================")
             else:
                 print("")
 
@@ -1256,9 +1269,9 @@ class Client:
 
             return True     # Go ahead
 
-        Discoverer(self._server_discover_port, response_handler).discover(timeout)
+        Discoverer(self._discover_port, response_handler).discover(timeout)
 
-        i("======================")
+        log.i("======================")
 
     def info(self, args: Args):
         # Can be done either
@@ -1288,18 +1301,18 @@ class Client:
 
         if self.is_connected():
             # Connected, print current server info
-            d("Info while connected, printing current server info")
+            log.d("Info while connected, printing current server info")
             print_server_info(self.connection.server_info)
         else:
             # Not connected, we need a parameter that specifies the server
             server_specifier = args.get_param()
 
             if not server_specifier:
-                e("Server specifier not found")
+                log.e("Server specifier not found")
                 print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
                 return
 
-            i(">> INFO %s", server_specifier)
+            log.i(">> INFO %s", server_specifier)
 
             server_info: ServerInfo = self._discover_server(
                 location=server_specifier
@@ -1332,7 +1345,7 @@ class Client:
 
         files = args.get_params(default=[])
 
-        i(">> PUT [files] %s", files)
+        log.i(">> PUT [files] %s", files)
         self._do_put(self.connection, files, args)
 
 
@@ -1376,27 +1389,27 @@ class Client:
             print_error(ClientErrors.SHARING_NOT_FOUND)
             return False
 
-        d("Creating new temporary connection with %s", server_info.get("uri"))
+        log.d("Creating new temporary connection with %s", server_info.get("uri"))
         connection = Connection(server_info)
 
         # FIXME: refactor - introduce password in the method
 
         # Open a temporary connection
 
-        v("Opening temporary connection")
+        log.i("Opening temporary connection")
         open_response = connection.open(sharing_name)
 
         if not is_success_response(open_response):
-            w("Cannot open connection; aborting")
+            log.w("Cannot open connection; aborting")
             print_response_error(open_response)
             return
 
         files = ["."] if not params else params
-        i(">> PUT [sharing] %s %s", sharing_name)
+        log.i(">> PUT [sharing] %s %s", sharing_name)
         self._do_put(connection, files, args)
 
         # Close connection
-        d("Closing temporary connection")
+        log.d("Closing temporary connection")
         connection.close()
 
     def get_files(self, args: Args):
@@ -1406,7 +1419,7 @@ class Client:
 
         files = args.get_params(default=[])
 
-        i(">> GET [files] %s", files)
+        log.i(">> GET [files] %s", files)
         self._do_get(self.connection, files, args)
 
     def get_sharing(self, args: Args):
@@ -1449,25 +1462,25 @@ class Client:
             print_error(ClientErrors.SHARING_NOT_FOUND)
             return False
 
-        d("Creating new temporary connection with %s", server_info.get("uri"))
+        log.d("Creating new temporary connection with %s", server_info.get("uri"))
         connection = Connection(server_info)
 
         # Open connection
 
-        v("Opening temporary connection")
+        log.i("Opening temporary connection")
         open_response = connection.open(sharing_name)
 
         if not is_success_response(open_response):
-            w("Cannot open connection; aborting")
+            log.w("Cannot open connection; aborting")
             print_response_error(open_response)
             return
 
         files = ["."] if not params else params
-        i(">> GET [sharing] %s %s", sharing_name)
+        log.i(">> GET [sharing] %s %s", sharing_name)
         self._do_get(connection, files, args)
 
         # Close connection
-        d("Closing temporary connection")
+        log.d("Closing temporary connection")
         connection.close()
 
     def _do_put(self,
@@ -1475,7 +1488,7 @@ class Client:
                 files: List[str],
                 args: Args):
         if not connection.is_connected():
-            e("Connection must be opened for do GET")
+            log.e("Connection must be opened for do GET")
             return
 
         if len(files) == 0:
@@ -1488,7 +1501,7 @@ class Client:
         if PutArguments.NO_TO_ALL in args:
             overwrite_all = False
 
-        v("Overwrite all mode: %s", bool_to_str(overwrite_all))
+        log.i("Overwrite all mode: %s", bool_to_str(overwrite_all))
 
         put_response = connection.put()
 
@@ -1507,7 +1520,7 @@ class Client:
             print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
             return
 
-        v("Successfully PUTed")
+        log.i("Successfully PUTed")
         transfer_socket = SocketTcpOut(
             connection.server_info.get("ip"), port,
             ssl_context=get_ssl_context(),
@@ -1519,12 +1532,12 @@ class Client:
 
         for f in files:
             _, trail = os.path.split(f)
-            d("-> trail: %s", trail)
+            log.i("-> trail: %s", trail)
             sendfile = {
                 "local": f,
                 "remote": trail
             }
-            d("Adding sendfile %s", json_to_pretty_str(sendfile))
+            log.i("Adding sendfile %s", json_to_pretty_str(sendfile))
             sendfiles.append(sendfile)
 
 
@@ -1539,7 +1552,7 @@ class Client:
             elif S_ISREG(fstat.st_mode):
                 ftype = FTYPE_FILE
             else:
-                w("Unknown file type")
+                log.w("Unknown file type")
                 return
 
             finfo = {
@@ -1548,9 +1561,9 @@ class Client:
                 "size": fsize
             }
 
-            d("send_file finfo: %s", json_to_pretty_str(finfo))
+            log.i("send_file finfo: %s", json_to_pretty_str(finfo))
 
-            d("doing a put_next_info")
+            log.d("doing a put_next_info")
 
             resp = connection.put_next_info(transaction_id, finfo)
 
@@ -1582,13 +1595,13 @@ class Client:
                     elif overwrite_answer == "nn":
                         current_overwrite_decision = overwrite_all = False
                     else:
-                        w("Invalid answer, asking again")
+                        log.w("Invalid answer, asking again")
 
                 if current_overwrite_decision is False:
-                    d("Skipping " + remote_path)
+                    log.i("Skipping " + remote_path)
                     return
                 else:
-                    d("Will overwrite file")
+                    log.d("Will overwrite file")
 
             progressor = FileProgressor(
                 fsize,
@@ -1598,11 +1611,11 @@ class Client:
             )
 
             if ftype == FTYPE_DIR:
-                d("Sent a DIR, nothing else to do")
+                log.d("Sent a DIR, nothing else to do")
                 progressor.done()
                 return
 
-            d("Actually sending the file")
+            log.d("Actually sending the file")
 
             BUFFER_SIZE = 4096
 
@@ -1615,10 +1628,10 @@ class Client:
                 time.sleep(0.001 + r)
 
                 chunk = f.read(BUFFER_SIZE)
-                d("Read chunk of %dB", len(chunk))
+                log.i("Read chunk of %dB", len(chunk))
 
                 if not chunk:
-                    d("Finished %s", local_path)
+                    log.i("Finished %s", local_path)
                     # FIXME: sending something?
                     break
 
@@ -1627,14 +1640,14 @@ class Client:
                 cur_pos += len(chunk)
                 progressor.update(cur_pos)
 
-            d("DONE %s", local_path)
+            log.i("DONE %s", local_path)
             f.close()
 
             progressor.done()
 
 
         while sendfiles:
-            v("Putting another file info")
+            log.i("Putting another file info")
             next_file = sendfiles.pop()
 
             # Check what is this
@@ -1647,20 +1660,20 @@ class Client:
 
             if os.path.isfile(next_file_local):
                 # Send it directly
-                d("-> is a FILE")
+                log.d("-> is a FILE")
                 send_file(next_file_local, next_file_remote)
 
             elif os.path.isdir(next_file_local):
                 # Send it recursively
 
-                d("-> is a DIR")
+                log.d("-> is a DIR")
 
                 # Directory found
                 dir_files = sorted(os.listdir(next_file_local), reverse=True)
 
                 if dir_files:
 
-                    v("Found a filled directory: adding all inner files to remaining_files")
+                    log.i("Found a filled directory: adding all inner files to remaining_files")
                     for f in dir_files:
                         f_path_local = os.path.join(next_file_local, f)
                         f_path_remote = os.path.join(next_file_remote, f)
@@ -1673,24 +1686,24 @@ class Client:
                             "local": f_path_local,
                             "remote": f_path_remote
                         }
-                        d("Adding sendfile %s", json_to_pretty_str(sendfile))
+                        log.i("Adding sendfile %s", json_to_pretty_str(sendfile))
 
                         sendfiles.append(sendfile)
                 else:
-                    v("Found an empty directory")
-                    d("Pushing an info for the empty directory")
+                    log.i("Found an empty directory")
+                    log.d("Pushing an info for the empty directory")
 
                     send_file(next_file_local, next_file_remote)
             else:
                 eprint("Failed to send '{}'".format(next_file_local))
-                w("Unknown file type, doing nothing")
+                log.w("Unknown file type, doing nothing")
 
     def _do_get(self,
                 connection: Connection,
                 files: List[str],
                 args: Args):
         if not connection.is_connected():
-            e("Connection must be opened for do GET")
+            log.e("Connection must be opened for do GET")
             return
 
         get_response = connection.get(files)
@@ -1710,7 +1723,7 @@ class Client:
             print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
             return
 
-        v("Successfully GETed")
+        log.i("Successfully GETed")
 
         transfer_socket = SocketTcpOut(
             connection.server_info.get("ip"), port,
@@ -1725,13 +1738,13 @@ class Client:
         if GetArguments.NO_TO_ALL in args:
             overwrite_all = False
 
-        v("Overwrite all mode: %s", bool_to_str(overwrite_all))
+        log.i("Overwrite all mode: %s", bool_to_str(overwrite_all))
 
         while True:
-            v("Fetching another file info")
+            log.i("Fetching another file info")
             get_next_resp = connection.get_next_info(transaction_id)
 
-            d("get_next_info()\n%s", get_next_resp)
+            log.i("get_next_info()\n%s", get_next_resp)
 
             if not is_success_response(get_next_resp):
                 print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
@@ -1740,14 +1753,14 @@ class Client:
             next_file: FileInfo = get_next_resp.get("data")
 
             if not next_file:
-                v("Nothing more to GET")
+                log.i("Nothing more to GET")
                 break
 
             fname = next_file.get("name")
             fsize = next_file.get("size")
             ftype = next_file.get("ftype")
 
-            d("NEXT: %s of type %s", fname, ftype)
+            log.i("NEXT: %s of type %s", fname, ftype)
 
             progressor = FileProgressor(
                 fsize,
@@ -1758,24 +1771,24 @@ class Client:
 
             # Case: DIR
             if ftype == FTYPE_DIR:
-                v("Creating dirs %s", fname)
+                log.i("Creating dirs %s", fname)
                 os.makedirs(fname, exist_ok=True)
                 progressor.done()
                 continue
 
             if ftype != FTYPE_FILE:
-                w("Cannot handle this ftype")
+                log.w("Cannot handle this ftype")
                 continue
 
             # Case: FILE
             parent_dirs, _ = os.path.split(fname)
             if parent_dirs:
-                v("Creating parent dirs %s", parent_dirs)
+                log.i("Creating parent dirs %s", parent_dirs)
                 os.makedirs(parent_dirs, exist_ok=True)
 
             # Check wheter it already exists
             if os.path.isfile(fname):
-                w("File already exists, asking whether overwrite it (if needed)")
+                log.w("File already exists, asking whether overwrite it (if needed)")
 
                 # Ask whether overwrite just once or forever
                 current_overwrite_decision = overwrite_all
@@ -1797,15 +1810,15 @@ class Client:
                     elif overwrite_answer == "nn":
                         current_overwrite_decision = overwrite_all = False
                     else:
-                        w("Invalid answer, asking again")
+                        log.w("Invalid answer, asking again")
 
                 if current_overwrite_decision is False:
-                    d("Skipping " + fname)
+                    log.i("Skipping " + fname)
                     continue
                 else:
-                    d("Will overwrite file")
+                    log.d("Will overwrite file")
 
-            v("Opening file '{}' locally".format(fname))
+            log.i("Opening file '{}' locally".format(fname))
             file = open(fname, "wb")
 
             # Really get it
@@ -1819,34 +1832,34 @@ class Client:
                 chunk = transfer_socket.recv(recv_size)
 
                 if not chunk:
-                    v("END")
+                    log.i("END")
                     break
 
                 chunk_len = len(chunk)
 
-                d("Read chunk of %dB", chunk_len)
+                log.i("Read chunk of %dB", chunk_len)
 
                 written_chunk_len = file.write(chunk)
 
                 if chunk_len != written_chunk_len:
-                    w("Written less bytes than expected: something will go wrong")
+                    log.w("Written less bytes than expected: something will go wrong")
                     exit(-1)
 
                 read += written_chunk_len
-                d("%d/%d (%.2f%%)", read, fsize, read / fsize * 100)
+                log.i("%d/%d (%.2f%%)", read, fsize, read / fsize * 100)
                 progressor.update(read)
 
             progressor.done()
-            d("DONE %s", fname)
+            log.i("DONE %s", fname)
             file.close()
 
             if os.path.getsize(fname) == fsize:
-                d("File OK (length match)")
+                log.d("File OK (length match)")
             else:
                 e("File length mismatch. %d != %d",
                   os.path.getsize(fname), fsize)
 
-        v("GET transaction %s finished, closing socket", transaction_id)
+        log.i("GET transaction %s finished, closing socket", transaction_id)
         transfer_socket.close()
 
     def get(self, args: Args):
@@ -1857,24 +1870,24 @@ class Client:
         #   2.2 get all the content of directory sharing (ftype = 'dir')
 
         if self.is_connected():
-            d("GET => get_files")
+            log.d("GET => get_files")
             self.get_files(args)
         else:
-            d("GET => get_sharing")
+            log.d("GET => get_sharing")
             self.get_sharing(args)
 
     def put(self, args: Args):
         if self.is_connected():
-            d("PUT => put_files")
+            log.d("PUT => put_files")
             self.put_files(args)
         else:
-            d("PUT => put_sharing")
+            log.d("PUT => put_sharing")
             self.put_sharing(args)
 
     def _discover_server(self, location: str) -> Optional[ServerInfo]:
 
         if not location:
-            e("Server location must be specified")
+            log.e("Server location must be specified")
             return None
 
         server_info: Optional[ServerInfo] = None
@@ -1895,7 +1908,7 @@ class Client:
 
             return True  # Continue DISCOVER
 
-        Discoverer(self._server_discover_port, response_handler).discover()
+        Discoverer(self._discover_port, response_handler).discover()
         return server_info
 
 
@@ -1928,19 +1941,19 @@ class Client:
                     location != a_server_info.get("ip") and \
                     location != "{}:{}".format(a_server_info.get("ip"),
                                                a_server_info.get("port")):
-                d("Discarding server info which does not match the location filter '%s'", location)
+                log.i("Discarding server info which does not match the location filter '%s'", location)
                 return True  # Continue DISCOVER
 
             for a_sharing_info in a_server_info.get("sharings"):
 
                 # Check if 'name' matches (if specified)
                 if name and a_sharing_info.get("name") != name:
-                    d("Ignoring sharing which does not match the name filter '%s'", name)
+                    log.i("Ignoring sharing which does not match the name filter '%s'", name)
                     continue
 
                 if ftype and a_sharing_info.get("ftype") != ftype:
-                    d("Ignoring sharing which does not match the ftype filter '%s'", ftype)
-                    w("Found a sharing with the right name but wrong ftype, wrong command maybe?")
+                    log.i("Ignoring sharing which does not match the ftype filter '%s'", ftype)
+                    log.w("Found a sharing with the right name but wrong ftype, wrong command maybe?")
                     continue
 
                 # FOUND
@@ -1956,7 +1969,7 @@ class Client:
 
             return True             # Continue DISCOVER
 
-        Discoverer(self._server_discover_port, response_handler).discover(timeout)
+        Discoverer(self._discover_port, response_handler).discover(timeout)
         return sharing_info, server_info
 
 
@@ -2018,12 +2031,12 @@ class Client:
         sstrings: List[StyledString] = []
 
         for info in infos:
-            d("f_info: %s", info)
+            log.i("f_info: %s", info)
 
             fname = info.get("name")
 
             if not show_hidden and is_hidden(fname):
-                d("Not showing hidden files: %s", fname)
+                log.i("Not showing hidden files: %s", fname)
                 continue
 
             size = info.get("size")
@@ -2066,7 +2079,7 @@ class Client:
     @staticmethod
     def _handle_connection_error_response(connection: Connection, resp: Response):
         if is_error_response(ServerErrors.NOT_CONNECTED):
-            v("Received a NOT_CONNECTED response: destroying connection")
+            log.i("Received a NOT_CONNECTED response: destroying connection")
             connection.close()
         print_response_error(resp)
 
@@ -2122,9 +2135,9 @@ class Shell:
 
     def next_suggestion(self, token: str, count: int):
         self.line_buffer = readline.get_line_buffer()
-        # d("[%d] next_suggestion\n text = %s\n line_buffer = %s", state, text, raw_line_buffer)
-        # d("get_completer_delims %s", readline.get_completer_delims())
-        # d("get_completion_type %d", readline.get_completion_type())
+        # log.i("[%d] next_suggestion\n text = %s\n line_buffer = %s", state, text, raw_line_buffer)
+        # log.i("get_completer_delims %s", readline.get_completer_delims())
+        # log.i("get_completion_type %d", readline.get_completion_type())
 
         line_buffer = self.line_buffer.lstrip()
 
@@ -2140,9 +2153,9 @@ class Shell:
                     # Typing a COMPLETE command
                     # e.g. 'ls '
 
-                    d("Fetching suggestions intent for command '%s'", comm_name)
+                    log.i("Fetching suggestions intent for command '%s'", comm_name)
                     self._suggestions_intent = comm_info.suggestions(token, line_buffer, self.client)
-                    d("Fetched intent")
+                    log.d("Fetched intent")
                     #
                     # if suggestions_intent:
                     #     self._suggestions = suggestions_intent.suggestions
@@ -2189,7 +2202,7 @@ class Shell:
                 sorted(self._suggestions_intent.suggestions, key=lambda sugg: sugg.string.lower())
 
         if count < len(self._suggestions_intent.suggestions):
-            d("Returning suggestion %d", count)
+            log.i("Returning suggestion %d", count)
             return self._suggestions_intent.suggestions[count].string
 
         return None
@@ -2202,13 +2215,13 @@ class Shell:
                 command_line = input(self.prompt)
 
                 if not command_line:
-                    w("Empty command line")
+                    log.w("Empty command line")
                     continue
 
                 try:
                     command_line_parts = shlex.split(command_line)
                 except ValueError:
-                    w("Invalid command line")
+                    log.w("Invalid command line")
                     print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
                     continue
 
@@ -2226,21 +2239,21 @@ class Shell:
                 if not outcome:
                     print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
             except PyroError as pyroerr:
-                v("Pyro error occurred %s", pyroerr)
+                log.i("Pyro error occurred %s", pyroerr)
                 print_error(ClientErrors.CONNECTION_ERROR)
                 # Close client connection anyway
                 try:
                     if self.client.is_connected():
-                        d("Trying to close connection gracefully")
+                        log.d("Trying to close connection gracefully")
                         self.client.close()
                 except PyroError:
-                    d("Cannot communicate with remote: invalidating connection")
+                    log.d("Cannot communicate with remote: invalidating connection")
                     self.client.connection = None
             except KeyboardInterrupt:
-                v("CTRL+C detected")
+                log.i("CTRL+C detected")
                 print()
             except EOFError:
-                v("CTRL+D detected: exiting")
+                log.i("CTRL+D detected: exiting")
                 if self.client.is_connected():
                     self.client.close()
                 break
@@ -2260,7 +2273,7 @@ class Shell:
         if command not in self._shell_command_dispatcher:
             return False
 
-        d("Handling shell command %s (%s)", command, args)
+        log.i("Handling shell command %s (%s)", command, args)
         self._shell_command_dispatcher[command](args)
         return True
 
@@ -2271,71 +2284,98 @@ class Shell:
         pass
 
 
+def parse_es_arguments(args: List[str]) -> Optional[EsCfg]:
+    cfg = EsCfg()
+
+    i = 0
+    try:
+        while i < len(args):
+            arg = args[i]
+
+            # Help or version?
+            if arg in EsArgs.HELP:
+                terminate("help")
+            if arg in EsArgs.VERSION:
+                terminate("version")
+
+            if not cfg.command:
+                # Global arguments
+                if arg in EsArgs.PORT:
+                    i += 1
+                    cfg.port = toint(args[i], raise_exceptions=True)
+                elif arg in EsArgs.VERBOSE:
+                    i += 1
+                    cfg.verbosity = rangify(
+                        # Allow out of range verbosity, but rangify it
+                        toint(args[i], raise_exceptions=True),
+                        logging.VERBOSITY_MIN, logging.VERBOSITY_MAX
+                    )
+                elif arg in EsArgs.TRACE:
+                    cfg.tracing = True
+                elif arg in EsArgs.NO_COLOR:
+                    cfg.no_color = True
+                else:
+                    # Everything will be considered command args from now
+                    cfg.command = arg
+            else:
+                # Command arg
+                cfg.command_args.append(arg)
+
+            i += 1
+    except Exception as ex:
+        log.e("Parsing error %s", ex)
+        return None
+
+    return cfg
+
+
 def main():
-    args = Args(sys.argv[1:])
+    # Uncomment for enable for debug arguments parsing
+    # log.set_verbosity(logging.VERBOSITY_MAX)
 
-    init_colors(ClientArguments.NO_COLOR not in args)
+    # Parse arguments
+    cfg = parse_es_arguments(sys.argv[1:])
+    if not cfg:
+        abort("Error occurred while parsing arguments")
 
-    verbosity = 0
-    tracing = 0
+    # Verbosity
+    log.set_verbosity(cfg.verbosity)
 
-    if ClientArguments.VERBOSE in args:
-        verbosity = to_int(args.get_param(ClientArguments.VERBOSE, default=VERBOSITY_VERBOSE))
-        if verbosity is None:
-            abort("Invalid --verbose parameter value")
+    log.i(APP_INFO)
+    log.i("Starting with arguments\n%s", cfg)
 
-    if ClientArguments.TRACE in args:
-        tracing = to_int(args.get_param(ClientArguments.TRACE, default=1))
-        if tracing is None:
-            abort("Invalid --trace parameter value")
+    # Colors
+    enable_colors(not cfg.no_color)
 
-    init_logging(verbosity)
-    init_tracing(True if tracing else False)
+    # Packet tracing
+    enable_tracing(cfg.tracing)
 
-    i(APP_INFO)
-    d(args)
+    # Initialize client
+    client = Client(discover_port=cfg.discover_port)
 
-    if ClientArguments.HELP in args:
-        terminate(HELP_APP)
+    # Check whether
+    # 1. Run a command directly from the cli
+    # 2. Start an interactive session
 
-    if ClientArguments.VERSION in args:
-        terminate(APP_INFO)
+    start_shell = True
 
+    # 1. Run a command directly from the cli ?
+    if cfg.command:
+        if cfg.command in CLI_COMMANDS:
+            log.i("Found a valid CLI command '%s'", cfg.command)
+            client.execute_command(cfg.command, cfg.command_args)
 
-    server_discover_port = DEFAULT_DISCOVER_PORT
+            # Keep the shell opened only if we performed an 'open'
+            # Otherwise close it after the action
+            start_shell = (cfg.command == Commands.OPEN)
+        else:
+            log.w("Invalid CLI command '%s'; ignoring it and starting shell", cfg.command)
+            log.w("Allowed CLI commands are: %s", ", ".join(CLI_COMMANDS))
 
-    if ClientArguments.PORT in args:
-        server_discover_port = to_int(args.get_param(ClientArguments.PORT))
-
-    # Start in interactive mode
-    client = Client(server_discover_port)
-
-    # Allow some commands directly from command line
-    # GET, SCAN
-    cli_command_line = args.get_params()
-
-    start_shell = True if not cli_command_line else False
-
-    if not start_shell:
-        command = cli_command_line.pop(0)
-
-        if command not in CLI_COMMANDS:
-            abort("Unknown command: {}".format(command))
-
-        start_shell = (command == Commands.OPEN)
-
-        # Execute directly
-        # Take out the first token as "command" and leave
-        # everything else as it is
-        d("Executing command directly from command line: %s (%s)", command, args)
-        client.execute_command(command, args)
-
-    # Start the shell
-    # 1. If a command was not specified
-    # 2. We are connected (due to open from a direct command)
+    # 2. Start an interactive session ?
     if start_shell:
         # Start the shell
-        v("Executing shell")
+        log.i("Starting interactive shell")
         shell = Shell(client)
         shell.input_loop()
 

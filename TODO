@@ -1,11 +1,4 @@
-- read only protection
-    - how to handle with -s?
-- authentication
-- next suggestions based on what's currently written
-    - commands
-    - commands options
-    - file list
-    - (remote file list => ls)
+
 - rename, mv, rm
 - rrename, rmv, rrm
 - benchmark GET, for decide buffer size, ...
@@ -33,4 +26,3 @@
 - transaction handler is probably to split in two
 - support any command globally?
 - ls/tree param?
-- ls no hidden files

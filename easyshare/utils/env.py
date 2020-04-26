@@ -2,14 +2,13 @@ import shutil
 import sys
 from typing import Tuple
 
-from easyshare.shared.log import w
 
 
 def terminal_size(fallback=(80, 24)) -> Tuple[int, int]:
     try:
         columns, rows = shutil.get_terminal_size(fallback=fallback)
     except:
-        w("Failed to retrieved terminal size, using fallback")
+        log.w("Failed to retrieved terminal size, using fallback")
         return fallback
     return columns, rows
 

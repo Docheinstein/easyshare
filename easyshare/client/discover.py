@@ -3,12 +3,11 @@ from datetime import datetime
 from typing import Callable
 
 from easyshare.protocol.response import Response, is_data_response
-from easyshare.shared.log import d, w, v
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.serverinfo import ServerInfo
-from easyshare.shared.trace import trace_out, trace_in
+from easyshare.tracing import trace_out, trace_in
 from easyshare.socket.udp import SocketUdpIn, SocketUdpOut
-from easyshare.utils.json import bytes_to_json, json_to_str, json_to_pretty_str
+from easyshare.utils.json import bytes_to_json, json_to_pretty_str
 from easyshare.utils.types import int_to_bytes
 
 
@@ -27,14 +26,14 @@ class Discoverer:
         # Listening socket
         in_sock = SocketUdpIn()
 
-        d("Client discover port: %d", in_sock.port())
+        log.i("Client discover port: %d", in_sock.port())
 
         # Send discover
         discover_message_raw = in_sock.port()
         discover_message = int_to_bytes(discover_message_raw, 2)
         out_sock = SocketUdpOut(broadcast=True)
 
-        d("Broadcasting DISCOVER on port %d", self.server_discover_port)
+        log.i("Broadcasting DISCOVER on port %d", self.server_discover_port)
 
         trace_out(
             "DISCOVER {} ({})".format(str(discover_message), discover_message_raw),
@@ -55,10 +54,10 @@ class Discoverer:
 
             if remaining_seconds < 0:
                 # No more time to wait
-                d("DISCOVER timeout elapsed (%.3f)", timeout)
+                log.i("DISCOVER timeout elapsed (%.3f)", timeout)
                 break
 
-            d("Waiting for %.3f seconds...", remaining_seconds)
+            log.i("Waiting for %.3f seconds...", remaining_seconds)
 
             # Wait for message with select()
             read_fds, write_fds, error_fds = select.select([in_sock.sock], [], [], remaining_seconds)
@@ -67,10 +66,10 @@ class Discoverer:
                 continue
 
             # Ready for recv
-            d("DISCOVER socket ready for recv")
+            log.d("DISCOVER socket ready for recv")
             raw_resp, endpoint = in_sock.recv()
 
-            d("Received DISCOVER response from: %s", endpoint)
+            log.i("Received DISCOVER response from: %s", endpoint)
             resp: Response = bytes_to_json(raw_resp)
 
             trace_in(
@@ -80,17 +79,17 @@ class Discoverer:
             )
 
             if not is_data_response(resp):
-                w("Invalid DISCOVER response")
+                log.w("Invalid DISCOVER response")
                 continue
 
             # Dispatch the response and check whether go on on listening
             go_ahead = self.response_handler(endpoint, resp.get("data"))
 
             if not go_ahead:
-                d("Stopping DISCOVER since handle_discover_response_callback returned false")
+                log.d("Stopping DISCOVER since handle_discover_response_callback returned false")
                 break
 
-        v("Stopping DISCOVER listener")
+        log.i("Stopping DISCOVER listener")
 
         # Close sockets
         in_sock.close()

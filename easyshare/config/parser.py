@@ -2,7 +2,6 @@ import os
 import re
 from typing import Dict, Optional
 
-from easyshare.shared.log import w, i, d, v
 
 
 def parse_config(config_path: str, *,
@@ -10,10 +9,10 @@ def parse_config(config_path: str, *,
                  comment_prefix='#') -> Optional[Dict]:
 
     if not config_path or not os.path.isfile(config_path):
-        w("Invalid config file path %s", config_path)
+        log.w("Invalid config file path %s", config_path)
         return None
 
-    i("Parsing config file %s", config_path)
+    log.i("Parsing config file %s", config_path)
 
     section_re = re.compile(section_regex_filter)
     data = {}
@@ -32,14 +31,14 @@ def parse_config(config_path: str, *,
             continue
 
         line = line.strip()
-        v("%s", line)
+        log.i("%s", line)
 
         section_match = section_re.match(line)
 
         # New section?
         if section_match:
             current_section = section_match.groups()[0]
-            d("Found valid section name [%s]", current_section)
+            log.i("Found valid section name [%s]", current_section)
             data[current_section] = {}
             continue
 
@@ -47,15 +46,15 @@ def parse_config(config_path: str, *,
 
         if before == line:
             # No = found
-            v("Skipping line; no relevant content")
+            log.i("Skipping line; no relevant content")
             continue
 
         # Found a line with <key>=<value>
-        v("Found a key=val assignment")
+        log.i("Found a key=val assignment")
 
         key = before.strip()
         val = after.strip()
-        d("%s=%s", key, val)
+        log.i("%s=%s", key, val)
 
         # Push the key val to the right section dictionary
         if not current_section:
@@ -67,7 +66,7 @@ def parse_config(config_path: str, *,
             # Push to the right section
             data[current_section][key] = val
 
-    i("Parsing finished")
+    log.i("Parsing finished")
 
     cfg.close()
 

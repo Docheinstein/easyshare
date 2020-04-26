@@ -5,8 +5,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Tuple
 
-from easyshare.shared.log import w
-from easyshare.utils.colors import fg, Color, init_colors
+from easyshare.utils.colors import fg, Color, enable_colors
 from easyshare.utils.env import is_unicode_supported, terminal_size
 from easyshare.utils.os import M, size_str
 from easyshare.utils.time import duration_str
@@ -192,7 +191,7 @@ class FileProgressor:
         partial = partial if partial else 0
 
         if partial < self.partial:
-            w("Progress cannot go backward")
+            log.w("Progress cannot go backward")
             return
 
         t = time.monotonic_ns()
@@ -324,7 +323,7 @@ class FileProgressor:
 
 
 if __name__ == "__main__":
-    init_colors()
+    enable_colors()
 
     def simulate_file_progression(name: str, tot: int,
                                   fps=2, sfps=2,

@@ -5,7 +5,6 @@ from abc import ABC
 from typing import Optional, Union
 
 from easyshare.shared.endpoint import Endpoint
-from easyshare.shared.log import w
 
 
 DEFAULT_SOCKET_BUFSIZE = 4096
@@ -45,4 +44,4 @@ class Socket(ABC):
             elif wr:
                 self.sock.shutdown(socket.SHUT_WR)
             else:
-                w("Nothing to close for this socket, invalid params?")
+                log.w("Nothing to close for this socket, invalid params?")

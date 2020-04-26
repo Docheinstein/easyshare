@@ -27,5 +27,5 @@ def abort(message, exit_code=-1) -> NoReturn:
     :param message: the message to print to stderr before exit
     :param exit_code: the exit code
     """
-    eprint(message)
+    print(message)
     exit(exit_code)

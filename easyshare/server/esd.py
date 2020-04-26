@@ -1,18 +1,12 @@
-import inspect
 import os
-import queue
 import ssl
 import sys
 import socket
-import threading
 import time
 
 import Pyro4
-from Pyro4 import socketutil
 
 from typing import Dict, Optional, List, Any, Callable, TypeVar
-
-import colorama
 
 from easyshare.passwd.auth import AuthFactory
 from easyshare.protocol.fileinfo import FileInfo
@@ -24,21 +18,20 @@ from easyshare.shared.args import Args
 from easyshare.shared.conf import APP_VERSION, APP_NAME_SERVER_SHORT, \
     APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET
 from easyshare.config.parser import parse_config
-from easyshare.shared.log import e, w, i, d, init_logging, v, VERBOSITY_VERBOSE
 from easyshare.server.client import ClientContext
 from easyshare.server.discover import DiscoverDeamon
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.errors import ServerErrors
-from easyshare.shared.ssl import set_ssl_context, get_ssl_context
-from easyshare.shared.trace import init_tracing, trace_in, trace_out
+from easyshare.ssl import set_ssl_context, get_ssl_context
+from easyshare.tracing import enable_tracing, trace_in, trace_out
 from easyshare.socket.udp import SocketUdpOut
 from easyshare.utils.app import terminate, abort
-from easyshare.utils.colors import init_colors
-from easyshare.utils.json import json_to_str, json_to_bytes, json_to_pretty_str
+from easyshare.utils.colors import enable_colors
+from easyshare.utils.json import json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port, create_server_ssl_context
 from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv
-from easyshare.utils.str import randstring, satisfy, unprefix
+from easyshare.utils.str import satisfy, unprefix
 from easyshare.utils.trace import args_to_str
 from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list
 
@@ -124,7 +117,7 @@ def trace_api(api: API) -> API:
 #     def wrapped_api(server: 'Server', *vargs, **kwargs) -> Optional[Response]:
 #         client = server._current_request_client()
 #         if not client:
-#             e("Connection is required for '%s'", api.__name__)
+#             log.e("Connection is required for '%s'", api.__name__)
 #             return create_error_response(ServerErrors.NOT_CONNECTED)
 #         return api(*vargs, **kwargs)
 #     setattr(wrapped_api, "__name__", api.__name__)
@@ -146,24 +139,24 @@ class Server(IServer):
 
         self.discover_deamon = DiscoverDeamon(discover_port, self.handle_discover_request)
 
-        d("Server's name: %s", name)
-        d("Server's discover port: %d", discover_port)
-        d("Primary interface IP: %s", self.ip)
+        log.i("Server's name: %s", name)
+        log.i("Server's discover port: %d", discover_port)
+        log.i("Primary interface IP: %s", self.ip)
 
         set_ssl_context(ssl_context)
         self.ssl_context = get_ssl_context()
 
         self.pyro_deamon = Pyro4.Daemon(host=self.ip)
         self.uri = self.pyro_deamon.register(self).asString()
-        d("Server registered at URI: %s", self.uri)
+        log.i("Server registered at URI: %s", self.uri)
 
     def add_sharing(self, sharing: Sharing):
-        i("+ SHARING %s", sharing)
+        log.i("+ SHARING %s", sharing)
         self.sharings[sharing.name] = sharing
 
     def handle_discover_request(self, client_endpoint: Endpoint, data: bytes):
-        i("<< DISCOVER %s", client_endpoint)
-        d("Handling discover %s", str(data))
+        log.i("<< DISCOVER %s", client_endpoint)
+        log.i("Handling discover %s", str(data))
 
         server_endpoint = self._endpoint()
 
@@ -181,10 +174,10 @@ class Server(IServer):
         client_discover_response_port = bytes_to_int(data)
 
         if not is_valid_port(client_discover_response_port):
-            w("Invalid DISCOVER message received, ignoring it")
+            log.w("Invalid DISCOVER message received, ignoring it")
             return
 
-        d("Client response port is %d", client_discover_response_port)
+        log.i("Client response port is %d", client_discover_response_port)
 
         # Respond to the port the client says in the paylod
         # (not necessary the one from which the request come)
@@ -203,10 +196,10 @@ class Server(IServer):
         sock.send(json_to_bytes(response), client_endpoint[0], client_discover_response_port)
 
     def start(self):
-        i("Starting DISCOVER deamon")
+        log.i("Starting DISCOVER deamon")
         self.discover_deamon.start()
 
-        i("Starting PYRO request loop")
+        log.i("Starting PYRO request loop")
         self.pyro_deamon.requestLoop()
 
 
@@ -225,17 +218,17 @@ class Server(IServer):
             return create_error_response(ServerErrors.INTERNAL_SERVER_ERROR)
 
         # Authentication
-        v("Authentication check - type: %s", sharing.auth.algo_name())
+        log.i("Authentication check - type: %s", sharing.auth.algo_name())
         # Just ask the auth whether it matches or not
         # (The password can either be none/plain/hash, the auth handles them all)
         if not sharing.auth.authenticate(password):
-            e("Auth FAILED")
+            log.e("Auth FAILED")
             return create_error_response(ServerErrors.AUTHENTICATION_FAILED)
 
-        i("Auth OK")
+        log.i("Auth OK")
 
         client_endpoint = self._current_request_endpoint()
-        i("<< OPEN %s %s", sharing_name, str(client_endpoint))
+        log.i("<< OPEN %s %s", sharing_name, str(client_endpoint))
 
         client = self._current_request_client()
         if not client:
@@ -244,12 +237,12 @@ class Server(IServer):
             client.endpoint = client_endpoint
             client.sharing_name = sharing_name
             self.clients[client_endpoint] = client
-            i("New client connected (%s) to sharing %s",
+            log.i("New client connected (%s) to sharing %s",
               str(client), client.sharing_name)
         else:
             client.sharing_name = sharing_name
             client.rpwd = ""
-            i("Already connected client (%s) changed sharing to %s",
+            log.i("Already connected client (%s) changed sharing to %s",
               str(client), client.sharing_name)
 
         return create_success_response()
@@ -259,36 +252,36 @@ class Server(IServer):
     @trace_api
     def close(self):
         client_endpoint = self._current_request_endpoint()
-        i("<< CLOSE %s", str(client_endpoint))
+        log.i("<< CLOSE %s", str(client_endpoint))
         client = self._current_request_client()
 
         if not client:
-            w("Received a close request from an unknown client")
+            log.w("Received a close request from an unknown client")
             return
 
-        v("Deallocating client resources...")
+        log.i("Deallocating client resources...")
 
         # Remove any pending transaction
         for get_trans_id in client.gets:
             # self._end_get_transaction(get_trans_id, client, abort=True)
             if get_trans_id in self.gets:
-                v("Removing GET transaction = %s", get_trans_id)
+                log.i("Removing GET transaction = %s", get_trans_id)
                 self.gets.pop(get_trans_id).abort()
 
         # Remove from clients
-        d("Removing %s from clients", client)
+        log.i("Removing %s from clients", client)
 
         del self.clients[client_endpoint]
-        v("Client connection closed gracefully")
+        log.i("Client connection closed gracefully")
 
-        d("# clients = %d", len(self.clients))
-        d("# gets = %d", len(self.gets))
+        log.i("# clients = %d", len(self.clients))
+        log.i("# gets = %d", len(self.gets))
 
     @Pyro4.expose
     @trace_api
     def rpwd(self) -> Response:
         # NOT NEEDED
-        i("<< RPWD %s", str(self._current_request_endpoint()))
+        log.i("<< RPWD %s", str(self._current_request_endpoint()))
 
         client = self._current_request_client()
         if not client:
@@ -306,24 +299,24 @@ class Server(IServer):
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< RCD %s (%s)", path, str(client))
+        log.i("<< RCD %s (%s)", path, str(client))
 
         new_path = self._path_for_client(client, path)
 
-        d("Sharing path: %s", new_path)
+        log.i("Sharing path: %s", new_path)
 
         if not self._is_path_allowed_for_client(client, new_path):
-            e("Path is invalid (out of sharing domain)")
+            log.e("Path is invalid (out of sharing domain)")
             return create_error_response(ServerErrors.INVALID_PATH)
 
         if not os.path.isdir(new_path):
-            e("Path does not exists")
+            log.e("Path does not exists")
             return create_error_response(ServerErrors.INVALID_PATH)
 
-        v("Path exists, success")
+        log.i("Path exists, success")
 
         client.rpwd = self._trailing_path_for_client_from_root(client, new_path)
-        d("New rpwd: %s", client.rpwd)
+        log.i("New rpwd: %s", client.rpwd)
 
         return create_success_response(client.rpwd)
 
@@ -332,17 +325,17 @@ class Server(IServer):
     def rls(self, sort_by: List[str], reverse: bool = False, path: str = None) -> Response:
         client = self._current_request_client()
         if not client:
-            w("Client not connected: %s", self._current_request_endpoint())
+            log.w("Client not connected: %s", self._current_request_endpoint())
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< RLS %s%s (%s)", sort_by, " | reverse " if reverse else "", str(client))
+        log.i("<< RLS %s%s (%s)", sort_by, " | reverse " if reverse else "", str(client))
 
         try:
             if not path:
                 path = "."
 
             ls_path = self._path_for_client(client, path)
-            d("Going to ls on %s", ls_path)
+            log.i("Going to ls on %s", ls_path)
 
             # Check path legality (it should be valid, if he rcd into it...)
             if not self._is_path_allowed_for_client(client, ls_path):
@@ -352,11 +345,11 @@ class Server(IServer):
             if ls_result is None:
                 return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
-            d("RLS response %s", str(ls_result))
+            log.i("RLS response %s", str(ls_result))
 
             return create_success_response(ls_result)
         except Exception as ex:
-            e("RLS error: %s", str(ex))
+            log.e("RLS error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
 
@@ -365,15 +358,15 @@ class Server(IServer):
     def rtree(self, sort_by: List[str], reverse: bool = False, depth: int = None) -> Response:
         client = self._current_request_client()
         if not client:
-            w("Client not connected: %s", self._current_request_endpoint())
+            log.w("Client not connected: %s", self._current_request_endpoint())
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< RTREE %s%s (%s)", sort_by, " | reverse " if reverse else "", str(client))
+        log.i("<< RTREE %s%s (%s)", sort_by, " | reverse " if reverse else "", str(client))
 
         try:
             client_path = self._current_client_path(client)
 
-            d("Going to rtree on %s", client_path)
+            log.i("Going to rtree on %s", client_path)
 
             # Check path legality (it should be valid, if he rcd into it...)
             if not self._is_path_allowed_for_client(client, client_path):
@@ -383,11 +376,11 @@ class Server(IServer):
             if tree_root is None:
                 return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
-            d("RTREE response %s", json_to_pretty_str(tree_root))
+            log.i("RTREE response %s", json_to_pretty_str(tree_root))
 
             return create_success_response(tree_root)
         except Exception as ex:
-            e("RTREE error: %s", str(ex))
+            log.e("RTREE error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
 
@@ -404,14 +397,14 @@ class Server(IServer):
         if sharing.read_only:
             return create_error_response(ServerErrors.NOT_WRITABLE)
 
-        i("<< RMKDIR %s (%s)", directory, str(client))
+        log.i("<< RMKDIR %s (%s)", directory, str(client))
 
         try:
             # full_path = os.path.join(self._current_client_path(client), directory)
             # TODO: test
             full_path = self._path_for_client(client, directory)
 
-            d("Going to mkdir on %s", full_path)
+            log.i("Going to mkdir on %s", full_path)
 
             if not self._is_path_allowed_for_client(client, full_path):
                 return create_error_response(ServerErrors.INVALID_PATH)
@@ -419,7 +412,7 @@ class Server(IServer):
             os.mkdir(full_path)
             return create_success_response()
         except Exception as ex:
-            e("RMKDIR error: %s", str(ex))
+            log.e("RMKDIR error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
@@ -432,29 +425,29 @@ class Server(IServer):
 
         sharing = self._current_client_sharing(client)
 
-        i("<< RRM %s (%s)", paths, str(client))
+        log.i("<< RRM %s (%s)", paths, str(client))
 
         try:
             errors = []
 
             def handle_rm_error(err):
-                v("RM error: adding error to notify to remote:\n%s", err)
+                log.i("RM error: adding error to notify to remote:\n%s", err)
                 errors.append(str(err))
 
             for path in paths:
 
                 rm_path = self._path_for_client(client, path)
 
-                d("RM on path: %s", rm_path)
+                log.i("RM on path: %s", rm_path)
 
                 if not self._is_path_allowed_for_client(client, rm_path):
-                    e("Path is invalid (out of sharing domain)")
+                    log.e("Path is invalid (out of sharing domain)")
                     return create_error_response(ServerErrors.INVALID_PATH)
 
                 # Do not allow to remove the entire sharing
                 try:
                     if os.path.samefile(sharing.path, rm_path):
-                        e("Cannot delete the sharing's root directory; aborting")
+                        log.e("Cannot delete the sharing's root directory; aborting")
                         return create_error_response(ServerErrors.INVALID_PATH)
                     # Ok..
                 except Exception:
@@ -469,13 +462,13 @@ class Server(IServer):
             response_data = None
 
             if errors:
-                w("Reporting %d errors to the client", len(errors))
+                log.w("Reporting %d errors to the client", len(errors))
                 response_data = {"errors": errors}
 
             return create_success_response(response_data)
 
         except Exception as ex:
-            e("RRM error: %s", str(ex))
+            log.e("RRM error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
@@ -492,7 +485,7 @@ class Server(IServer):
         dest_full_path = self._path_for_client(client, destination)
 
         if not self._is_path_allowed_for_client(client, dest_full_path):
-            e("Path is invalid (out of sharing domain)")
+            log.e("Path is invalid (out of sharing domain)")
             return create_error_response(ServerErrors.INVALID_PATH)
 
         # C1/C2 check: with 3+ arguments
@@ -501,10 +494,10 @@ class Server(IServer):
             # C2  If <dest> doesn't exist => ERROR
             # => must be a valid dir
             if not os.path.isdir(dest_full_path):
-                e("'%s' must be an existing directory", dest_full_path)
+                log.e("'%s' must be an existing directory", dest_full_path)
                 return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
-        i("<< RMV %s -> %s (%s)", sources, destination, str(client))
+        log.i("<< RMV %s -> %s (%s)", sources, destination, str(client))
 
         try:
             errors = []
@@ -521,25 +514,25 @@ class Server(IServer):
                     continue
 
                 try:
-                    d("MV %s -> %s", src_full_path, dest_full_path)
+                    log.i("MV %s -> %s", src_full_path, dest_full_path)
 
                     mv(src_full_path, dest_full_path)
                 except Exception as ex:
                     errors.append(str(ex))
 
                 if errors:
-                    e("%d errors occurred", len(errors))
+                    log.e("%d errors occurred", len(errors))
 
             response_data = None
 
             if errors:
-                w("Reporting %d errors to the client", len(errors))
+                log.w("Reporting %d errors to the client", len(errors))
                 response_data = {"errors": errors}
 
             return create_success_response(response_data)
 
         except Exception as ex:
-            e("RMV error: %s", str(ex))
+            log.e("RMV error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
@@ -557,7 +550,7 @@ class Server(IServer):
         dest_full_path = self._path_for_client(client, destination)
 
         if not self._is_path_allowed_for_client(client, dest_full_path):
-            e("Path is invalid (out of sharing domain)")
+            log.e("Path is invalid (out of sharing domain)")
             return create_error_response(ServerErrors.INVALID_PATH)
 
         # C1/C2 check: with 3+ arguments
@@ -566,10 +559,10 @@ class Server(IServer):
             # C2  If <dest> doesn't exist => ERROR
             # => must be a valid dir
             if not os.path.isdir(dest_full_path):
-                e("'%s' must be an existing directory", dest_full_path)
+                log.e("'%s' must be an existing directory", dest_full_path)
                 return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
-        i("<< RCP %s -> %s (%s)", sources, destination, str(client))
+        log.i("<< RCP %s -> %s (%s)", sources, destination, str(client))
 
         try:
             errors = []
@@ -586,34 +579,34 @@ class Server(IServer):
                     continue
 
                 try:
-                    d("CP %s -> %s", src_full_path, dest_full_path)
+                    log.i("CP %s -> %s", src_full_path, dest_full_path)
 
                     cp(src_full_path, dest_full_path)
                 except Exception as ex:
                     errors.append(str(ex))
 
                 if errors:
-                    e("%d errors occurred", len(errors))
+                    log.e("%d errors occurred", len(errors))
 
             response_data = None
 
             if errors:
-                w("Reporting %d errors to the client", len(errors))
+                log.w("Reporting %d errors to the client", len(errors))
                 response_data = {"errors": errors}
 
             return create_success_response(response_data)
 
         except Exception as ex:
-            e("RCP error: %s", str(ex))
+            log.e("RCP error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
     @trace_api
     def ping(self):
         for x in range(0, 10):
-            d("[%d] Sleeping", x)
+            log.i("[%d] Sleeping", x)
             time.sleep(1)
-        d("Creating 'pong' response")
+        log.d("Creating 'pong' response")
         return create_success_response("pong")
 
 
@@ -624,7 +617,7 @@ class Server(IServer):
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< PUT [files] (%s)",  str(client))
+        log.i("<< PUT [files] (%s)",  str(client))
 
         # if len(files) == 0:
         #     files = ["."]
@@ -634,7 +627,7 @@ class Server(IServer):
         # for f in files:
         #     normalized_files.append(self._path_for_client(client, f))
 
-        # d("Normalized files:\n%s", normalized_files)
+        # log.i("Normalized files:\n%s", normalized_files)
 
         transaction_handler = self._add_put_transaction(
             client=client,
@@ -654,7 +647,7 @@ class Server(IServer):
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< GET [files] %s (%s)", str(files), str(client))
+        log.i("<< GET [files] %s (%s)", str(files), str(client))
 
         if len(files) == 0:
             files = ["."]
@@ -665,7 +658,7 @@ class Server(IServer):
             normalized_files.append(self._path_for_client(client, f))
 
         normalized_files = sorted(normalized_files, reverse=True)
-        d("Normalized files:\n%s", normalized_files)
+        log.i("Normalized files:\n%s", normalized_files)
 
         transaction_handler = self._add_get_transaction(
             normalized_files,
@@ -686,7 +679,7 @@ class Server(IServer):
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< PUT_NEXT_INFO %s %s", transaction_id, str(client))
+        log.i("<< PUT_NEXT_INFO %s %s", transaction_id, str(client))
 
         if transaction_id not in self.puts:
             return create_error_response(ServerErrors.INVALID_TRANSACTION)
@@ -695,7 +688,7 @@ class Server(IServer):
 
         sharing = self.sharings.get(transaction_handler.sharing_name())
         if not sharing:
-            e("Sharing '%s' not found", transaction_handler.sharing_name())
+            log.e("Sharing '%s' not found", transaction_handler.sharing_name())
             return create_error_response(ServerErrors.SHARING_NOT_FOUND)
 
         if not finfo:
@@ -703,7 +696,7 @@ class Server(IServer):
 
         if sharing.ftype == FTYPE_FILE:
             # Cannot put within a file
-            e("Cannot put within a file sharing")
+            log.e("Cannot put within a file sharing")
             return create_error_response(ServerErrors.NOT_ALLOWED)
 
         # Check whether is a dir or a file
@@ -714,21 +707,21 @@ class Server(IServer):
         full_path = self._path_for_client(client, fname)
 
         if ftype == FTYPE_DIR:
-            v("Creating dirs %s", full_path)
+            log.i("Creating dirs %s", full_path)
             os.makedirs(full_path, exist_ok=True)
             return create_success_response()
 
         if ftype == FTYPE_FILE:
             parent_dirs, _ = os.path.split(full_path)
             if parent_dirs:
-                v("Creating parent dirs %s", parent_dirs)
+                log.i("Creating parent dirs %s", parent_dirs)
                 os.makedirs(parent_dirs, exist_ok=True)
         else:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         # Check wheter it already exists
         if os.path.isfile(full_path):
-            w("File already exists, (should) asking whether overwrite it (if needed)")
+            log.w("File already exists, (should) asking whether overwrite it (if needed)")
             return create_success_response("ask_overwrite")
 
         transaction_handler.push_file(full_path, fsize)
@@ -744,7 +737,7 @@ class Server(IServer):
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        i("<< GET_NEXT_INFO %s %s", transaction_id, str(client))
+        log.i("<< GET_NEXT_INFO %s %s", transaction_id, str(client))
 
         if transaction_id not in self.gets:
             return create_error_response(ServerErrors.INVALID_TRANSACTION)
@@ -753,7 +746,7 @@ class Server(IServer):
 
         sharing = self.sharings.get(transaction_handler.sharing_name())
         if not sharing:
-            e("Sharing '%s' not found", transaction_handler.sharing_name())
+            log.e("Sharing '%s' not found", transaction_handler.sharing_name())
             return create_error_response(ServerErrors.SHARING_NOT_FOUND)
 
         remaining_files = transaction_handler.next_files()
@@ -763,30 +756,30 @@ class Server(IServer):
             # Get next file (or dir)
             next_file_path = remaining_files.pop()
 
-            d("Next file path: %s", next_file_path)
+            log.i("Next file path: %s", next_file_path)
 
             # Check domain validity
             # (if client is null the domain is valid for sure since it should
             # be the sharing path we added ourself)
             if client and not self._is_path_allowed_for_client(client, next_file_path):
-                w("Invalid file found: skipping %s", next_file_path)
+                log.w("Invalid file found: skipping %s", next_file_path)
                 continue
 
             if sharing.path == next_file_path:
                 # Getting (file) sharing
                 sharing_path_head, _ = os.path.split(sharing.path)
-                d("sharing_path_head: %s", sharing_path_head)
+                log.i("sharing_path_head: %s", sharing_path_head)
                 trail = self._trailing_path(sharing_path_head, next_file_path)
             else:
                 trail = self._trailing_path_for_client_from_rpwd(client, next_file_path)
 
-            d("Trail: %s", trail)
+            log.i("Trail: %s", trail)
 
             # Case: FILE
             if os.path.isfile(next_file_path):
 
                 # We are handling a valid file, report the metadata to the client
-                d("NEXT FILE: %s", next_file_path)
+                log.i("NEXT FILE: %s", next_file_path)
 
                 # Push the file the transaction handler (make it available
                 # for the download)
@@ -805,14 +798,14 @@ class Server(IServer):
 
                 if dir_files:
 
-                    v("Found a filled directory: adding all inner files to remaining_files")
+                    log.i("Found a filled directory: adding all inner files to remaining_files")
                     for f in dir_files:
                         f_path = os.path.join(next_file_path, f)
-                        d("Adding %s", f_path)
+                        log.i("Adding %s", f_path)
                         remaining_files.append(f_path)
                 else:
-                    v("Found an empty directory")
-                    d("Returning an info for the empty directory")
+                    log.i("Found an empty directory")
+                    log.d("Returning an info for the empty directory")
 
                     return create_success_response({
                         "name": trail,
@@ -820,9 +813,9 @@ class Server(IServer):
                     })
             # Case: UNKNOWN (non-existing/link/special files/...)
             else:
-                w("Not file nor dir? skipping %s", next_file_path)
+                log.w("Not file nor dir? skipping %s", next_file_path)
 
-        v("No remaining files")
+        log.i("No remaining files")
         transaction_handler.done()
 
         # Notify the client about it
@@ -832,7 +825,7 @@ class Server(IServer):
                              sharing_name: str,
                              client: Optional[ClientContext] = None) -> PutTransactionHandler:
 
-        d("_add_put_transaction files")
+        log.d("_add_put_transaction files")
         # Create a transaction handler
         transaction_handler = PutTransactionHandler(
             sharing_name,
@@ -840,7 +833,7 @@ class Server(IServer):
             owner=client)
 
         transaction_id = transaction_handler.transaction_id()
-        v("Transaction ID: %s", transaction_id)
+        log.i("Transaction ID: %s", transaction_id)
 
         transaction_handler.start()
 
@@ -856,7 +849,7 @@ class Server(IServer):
                              sharing_name: str,
                              client: Optional[ClientContext] = None) -> GetTransactionHandler:
 
-        d("_add_get_transaction files: %s", files)
+        log.i("_add_get_transaction files: %s", files)
         # Create a transaction handler
         transaction_handler = GetTransactionHandler(
             files,
@@ -865,7 +858,7 @@ class Server(IServer):
             owner=client)
 
         transaction_id = transaction_handler.transaction_id()
-        v("Transaction ID: %s", transaction_id)
+        log.i("Transaction ID: %s", transaction_id)
 
         transaction_handler.start()
 
@@ -879,29 +872,29 @@ class Server(IServer):
     def _on_get_transaction_end(self, finished_transaction: GetTransactionHandler):
         trans_id = finished_transaction.transaction_id()
 
-        v("Finished transaction %s", trans_id)
+        log.i("Finished transaction %s", trans_id)
 
         if trans_id in self.gets:
-            d("Removing transaction from gets")
+            log.d("Removing transaction from gets")
             del self.gets[trans_id]
 
         owner = finished_transaction.owner()
 
         if owner:
-            d("Removing transaction from '%s' gets", owner)
+            log.i("Removing transaction from '%s' gets", owner)
             owner.gets.remove(trans_id)
 
     # def _end_get_transaction(self, transaction_id: str,
     #                          client: Optional[ClientContext], *,
     #                          abort: bool = False):
     #     if transaction_id not in self.gets:
-    #         w("Transaction with id %s not found", transaction_id)
+    #         log.w("Transaction with id %s not found", transaction_id)
     #         return
     #
     #     transaction_handler = self.gets.pop(transaction_id)
     #
     #     if abort:
-    #         d("_end_get_transaction: aborting transaction")
+    #         log.d("_end_get_transaction: aborting transaction")
     #         transaction_handler.abort()
     #
     #     if client:
@@ -1088,7 +1081,7 @@ class Server(IServer):
         sharing = self._current_client_sharing(client)
 
         if not sharing:
-            w("Sharing not found %s", client.sharing_name)
+            log.w("Sharing not found %s", client.sharing_name)
             return False
 
         normalized_path = os.path.normpath(path)
@@ -1116,7 +1109,7 @@ def main():
 
     args = Args(sys.argv[1:])
 
-    init_colors(ServerArguments.NO_COLOR not in args)
+    enable_colors(ServerArguments.NO_COLOR not in args)
 
     if ServerArguments.HELP in args:
         terminate(HELP_APP)
@@ -1138,9 +1131,9 @@ def main():
             abort("Invalid --trace parameter value")
 
     init_logging(verbosity)
-    init_tracing(True if tracing else False)
+    enable_tracing(True if tracing else False)
 
-    i(APP_INFO)
+    log.i(APP_INFO)
 
     # Init stuff with default values
     sharings = {}
@@ -1160,7 +1153,7 @@ def main():
 
         cfg = parse_config(config_path)
         if cfg:
-            i("Parsed config file\n%s", str(cfg))
+            log.i("Parsed config file\n%s", str(cfg))
 
             # Globals
             global_section = cfg.pop(None)
@@ -1175,22 +1168,22 @@ def main():
                     password = strip_quotes(global_section.get(ServerConfigKeys.PASSWORD, name))
 
                     if password:
-                        d("Global password found")
+                        log.d("Global password found")
 
                 if ServerConfigKeys.SSL in global_section:
                     # to_bool
                     ssl_enabled = to_bool(global_section.get(ServerConfigKeys.SSL, ssl_enabled))
 
                     if ssl_enabled:
-                        v("SSL required on")
+                        log.i("SSL required on")
                         ssl_cert = strip_quotes(global_section.get(ServerConfigKeys.SSL_CERT, ssl_cert))
                         ssl_privkey = strip_quotes(global_section.get(ServerConfigKeys.SSL_PRIVKEY, ssl_privkey))
 
                         if not ssl_cert:
-                            w("SSL required on, but ssl_cert has not been specified")
+                            log.w("SSL required on, but ssl_cert has not been specified")
 
                         if not ssl_privkey:
-                            w("SSL required on, but ssl_cert has not been specified")
+                            log.w("SSL required on, but ssl_cert has not been specified")
 
             # Sharings
             for sharing_name, sharing_settings in cfg.items():
@@ -1198,7 +1191,7 @@ def main():
                 sharing_password = strip_quotes(sharing_settings.get(ServerConfigKeys.PASSWORD))
 
                 if sharing_password:
-                    d("Sharing %s is protected by password", sharing_name)
+                    log.i("Sharing %s is protected by password", sharing_name)
 
                 sharing = Sharing.create(
                     name=strip_quotes(sharing_name),
@@ -1208,14 +1201,14 @@ def main():
                 )
 
                 if not sharing:
-                    w("Invalid or incomplete sharing config; skipping '%s'", str(sharing))
+                    log.w("Invalid or incomplete sharing config; skipping '%s'", str(sharing))
                     continue
 
-                d("Adding valid sharing %s", sharing_name)
+                log.i("Adding valid sharing %s", sharing_name)
 
                 sharings[sharing_name] = sharing
         else:
-            w("Parsing error; ignoring config file")
+            log.w("Parsing error; ignoring config file")
 
     # Read arguments from command line (overwrite config)
 
@@ -1234,7 +1227,7 @@ def main():
         abort(ErrorsStrings.INVALID_PORT)
 
     if not satisfy(name, SERVER_NAME_ALPHABET):
-        e("Invalid server name %s", name)
+        log.e("Invalid server name %s", name)
         abort(ErrorsStrings.INVALID_SERVER_NAME)
 
     # Add sharings from command line
@@ -1262,8 +1255,8 @@ def main():
         # Add sharings to server
         for sharing_params in sharings_params:
             if not is_valid_list(sharing_params):
-                w("Skipping invalid sharing")
-                d("Invalid sharing params: %s", sharing_params)
+                log.w("Skipping invalid sharing")
+                log.i("Invalid sharing params: %s", sharing_params)
                 continue
 
             sharing = Sharing.create(
@@ -1273,10 +1266,10 @@ def main():
             )
 
             if not sharing:
-                w("Invalid or incomplete sharing config; skipping sharing '%s'", str(sharing))
+                log.w("Invalid or incomplete sharing config; skipping sharing '%s'", str(sharing))
                 continue
 
-            d("Adding valid sharing [%s]", sharing)
+            log.i("Adding valid sharing [%s]", sharing)
 
             sharings[sharing.name] = sharing
 
@@ -1284,16 +1277,16 @@ def main():
 
     ssl_context = None
     if ssl_enabled and ssl_cert and ssl_privkey:
-        v("Creating SSL context")
-        v("SSL cert: %s", ssl_cert)
-        v("SSL privkey: %s", ssl_privkey)
+        log.i("Creating SSL context")
+        log.i("SSL cert: %s", ssl_cert)
+        log.i("SSL privkey: %s", ssl_privkey)
         ssl_context = create_server_ssl_context(cert=ssl_cert, privkey=ssl_privkey)
 
     # Configure pyro server
     server = Server(port, name, ssl_context)
 
     if not sharings:
-        w("No sharings found, it will be an empty server")
+        log.w("No sharings found, it will be an empty server")
 
     # Add every sharing to the server
     for sharing in sharings.values():

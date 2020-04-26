@@ -1,7 +1,7 @@
-from easyshare.utils.colors import red, init_colors, styled, Color, Attribute
+from easyshare.utils.colors import red, enable_colors, styled, Color, Attribute
 
 if __name__ == "__main__":
-    init_colors()
+    enable_colors()
     s0 = "ciao"
     s1 = red(s0)
     s2 = styled(s0, fg=Color.RED, attrs=Attribute.BOLD)

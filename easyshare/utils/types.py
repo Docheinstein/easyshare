@@ -1,5 +1,5 @@
 # CHECKERS
-from typing import Union, Any, Optional
+from typing import Union, Any, Optional, List
 
 
 def is_int(o: object) -> bool:
@@ -32,11 +32,11 @@ def is_valid_list(o: object) -> bool:
 
 # CONVERTERS
 
-def to_int(o: Any, default=None) -> Optional[int]:
-    try:
-        return int(o)
-    except Exception:
-        return default
+# def to_int(o: Any, default=None) -> Optional[int]:
+#     try:
+#         return int(o)
+#     except Exception:
+#         return default
 
 
 def to_bool(o: Any, default=None) -> Optional[bool]:
@@ -93,5 +93,20 @@ def int_to_bytes(i: int, length,  byteorder="big"):
     return i.to_bytes(length, byteorder)
 
 
+#
+
+def to_int(o: Any, raise_exceptions=False, default=None) -> Optional[int]:
+    try:
+        return int(o)
+    except Exception as ex:
+        if raise_exceptions:
+            raise ex
+        return default
 
 
+def list_wrap(o: Any) -> List[Any]:
+    if not o:
+        return []
+    if is_list(o):
+        return o
+    return [o]
