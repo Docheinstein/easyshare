@@ -2,6 +2,7 @@ import enum
 import os
 import random
 import shlex
+import subprocess
 import sys
 import readline as rl
 import time
@@ -40,7 +41,7 @@ from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values, items, keys
 from easyshare.utils.str import rightof
-from easyshare.utils.types import to_int, bool_to_str, is_bool
+from easyshare.utils.types import to_int, bool_to_str, is_bool, bytes_to_str
 from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden
 from easyshare.args import Args as Args2, KwArgSpec, PARAM_INT, PARAM_PRESENCE, CustomKwArgParamsParser, \
     IntArgParamsParser
@@ -445,6 +446,7 @@ class Commands:
     LOCAL_COPY = "cp"
     LOCAL_MOVE = "mv"
     LOCAL_REMOVE = "rm"
+    LOCAL_EXEC = ":"
 
     REMOTE_CURRENT_DIRECTORY = "rpwd"
     REMOTE_LIST_DIRECTORY = "rls"
@@ -454,6 +456,7 @@ class Commands:
     REMOTE_COPY = "rcp"
     REMOTE_MOVE = "rmv"
     REMOTE_REMOVE = "rrm"
+    REMOTE_EXEC = "::"
 
     SCAN = "scan"
     OPEN = "open"
@@ -464,6 +467,7 @@ class Commands:
 
     INFO = "info"
     PING = "ping"
+
 
 
 COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
@@ -486,6 +490,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_COPY: ListLocalAllCommandInfo,
     Commands.LOCAL_MOVE: ListLocalAllCommandInfo,
     Commands.LOCAL_REMOVE: ListLocalAllCommandInfo,
+    Commands.LOCAL_EXEC: ListLocalAllCommandInfo,
 
 
     Commands.REMOTE_CURRENT_DIRECTORY: CommandInfo,
@@ -496,6 +501,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_COPY: ListRemoteAllCommandInfo,
     Commands.REMOTE_MOVE: ListRemoteAllCommandInfo,
     Commands.REMOTE_REMOVE: ListRemoteAllCommandInfo,
+    Commands.REMOTE_EXEC: ListRemoteAllCommandInfo,
 
 
     Commands.SCAN: ScanCommandInfo,
@@ -639,6 +645,15 @@ class IntArgs(ArgsParser):
         return Args2.parse(
             args=args,
             vargs_parser=IntArgParamsParser()
+        )
+
+
+class NoArgs(ArgsParser):
+    @classmethod
+    def parse(cls, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            continue_parsing_hook=lambda arg, idx, parsedargs: False
         )
 
 
@@ -859,6 +874,7 @@ class Client:
             Commands.LOCAL_REMOVE: self.rm,
             Commands.LOCAL_MOVE: self.mv,
             Commands.LOCAL_COPY: self.cp,
+            Commands.LOCAL_EXEC: (NoArgs, self.exec),
 
             Commands.REMOTE_CHANGE_DIRECTORY: self.rcd,
             Commands.REMOTE_LIST_DIRECTORY: self.rls,
@@ -868,6 +884,7 @@ class Client:
             Commands.REMOTE_REMOVE: self.rrm,
             Commands.REMOTE_MOVE: self.rmv,
             Commands.REMOTE_COPY: self.rcp,
+            Commands.REMOTE_EXEC: (NoArgs, self.rexec),
 
             Commands.SCAN: self.scan,
             Commands.OPEN: self.open,
@@ -1119,6 +1136,23 @@ class Client:
         for err in errors:
             eprint(err)
 
+    def exec(self, args: Args2):
+        popen_args = args.get_unparsed_args()
+        popen_fullarg = " ".join(popen_args)
+        log.i(">> EXEC %s", popen_fullarg)
+
+        try:
+            proc: subprocess.Popen = \
+                subprocess.Popen(["/bin/sh", "-c", popen_fullarg],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+
+            ret_str = bytes_to_str(proc.stdout.read())
+            print(ret_str, end="")
+        except Exception:
+            print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
+
+
     # === REMOTE COMMANDS ===
 
     # RPWD
@@ -1282,6 +1316,9 @@ class Client:
 
         else:
             self._handle_error_response(resp)
+
+    def rexec(self, args: Args):
+        pass
 
     def rmv(self, args: Args):
         if not self.is_connected():
@@ -2300,8 +2337,17 @@ class Shell:
                     print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
                     continue
 
-                command = command_line_parts[0]
-                command_args = command_line_parts[1:]
+                command: str = command_line_parts[0]
+                command_args: List[str] = command_line_parts[1:]
+
+                # exec
+                command_parts = command.rsplit(":", maxsplit=1)
+                if len(command_parts) > 1:
+                    command = command_parts[0] + ":"
+                    if command_parts[1]:
+                        command_args.insert(0, command_parts[1])
+
+                log.d("Detected command '%s'", command)
 
                 outcome = \
                     self._execute_shell_command(command, command_args) or \
