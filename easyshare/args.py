@@ -4,74 +4,43 @@ from typing import List, Any, Optional, Union, Tuple, Callable, Dict
 from easyshare.logging import get_logger
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.str import unprefix
-from easyshare.utils.types import to_int, list_wrap
+from easyshare.utils.types import to_int, list_wrap, is_int
 
 log = get_logger(__name__)
 
 
-class ArgParamsParser(ABC):
+class ParamsSpec(ABC):
     VARIADIC_PARAMETERS_COUNT = -1
 
-    @abstractmethod
-    def required_parameters_count(self) -> int:
-        pass
+    def __init__(self,
+                 mandatory_count: int,
+                 optional_count: int,
+                 parser: Callable[[List[str]], Any]):
+        self.mandatory_count = mandatory_count
+        self.optional_count = optional_count
+        self.parser = parser
 
-    @abstractmethod
-    def parse_parameters(self, params: Optional[List[str]]) -> Any:
-        pass
-
-
-class CustomArgParamsParser(ArgParamsParser):
-    def __init__(self, params_count: int, params_parser: Callable[[Optional[List]], Any]):
-        self._params_count = params_count
-        self._params_parser = params_parser
-
-    def required_parameters_count(self) -> int:
-        return self._params_count
-
-    def parse_parameters(self, params: Optional[List[str]]) -> Any:
-        return self._params_parser(params)
-
-
-class IntArgParamsParser(ArgParamsParser):
-    def required_parameters_count(self) -> int:
-        return 1
-
-    def parse_parameters(self, params: Optional[str]) -> Any:
-        return to_int(params[0], raise_exceptions=True)
-
-
-class PresenceArgParamsParser(ArgParamsParser):
-    def required_parameters_count(self) -> int:
-        return 0
-
-    def parse_parameters(self, _: Optional[List[str]]) -> Any:
-        return True
-
-
-class NoopArgParamsParser(ArgParamsParser):
-    def required_parameters_count(self) -> int:
-        return ArgParamsParser.VARIADIC_PARAMETERS_COUNT
-
-    def parse_parameters(self, params: Optional[List[str]]) -> Any:
-        return params
-
-#
-# class IntArgParamsParser(ArgParamsParser):
-#     def required_parameters_count(self) -> int:
-#         return 0
-#
-#     def parse_parameters(self, params: Optional[List[str]]) -> Any:
-#         return [to_int(p, raise_exceptions=True) for p in params]
+    def __str__(self):
+        return "{} : {} mandatory, {} optional".format(
+            self.__class__.__name__,
+            self.mandatory_count,
+            "*" if self.optional_count == ParamsSpec.VARIADIC_PARAMETERS_COUNT else self.optional_count
+        )
 
 
 class KwArgSpec:
     def __init__(self,
                  aliases: Union[str, List[str]],
-                 params_parser: ArgParamsParser):
+                 params_spec: ParamsSpec):
 
         self.aliases: List[str] = list_wrap(aliases)
-        self.params_parser: ArgParamsParser = params_parser
+        self.params_spec: ParamsSpec = params_spec
+
+
+INT_PARAM = ParamsSpec(1, 0, lambda ps: [to_int(p, raise_exceptions=True) for p in ps])
+OPT_INT_PARAM = ParamsSpec(0, 1, lambda ps: [to_int(p, raise_exceptions=True) for p in ps])
+PRESENCE_PARAM = ParamsSpec(0, 0, lambda ps: True)
+VARIADIC_PARAMS = ParamsSpec(0, ParamsSpec.VARIADIC_PARAMETERS_COUNT, lambda ps: ps)
 
 
 class Args:
@@ -126,7 +95,7 @@ class Args:
     @staticmethod
     def parse(args: List[str], *,
               kwargs_specs: List[KwArgSpec] = None,
-              vargs_parser: ArgParamsParser = NoopArgParamsParser(),
+              vargs_spec: ParamsSpec = VARIADIC_PARAMS,
               continue_parsing_hook: Optional[Callable[[str, int, 'Args'], bool]] = None) -> Optional['Args']:
 
         kwargs_specs = kwargs_specs or []
@@ -135,7 +104,6 @@ class Args:
         positionals = []
 
         ret = Args(parsed, unparsed)
-        cursor = 0
 
         def get_bucket(kw_arg_name: str) -> Tuple[Optional[List], Optional[KwArgSpec]]:
             nonlocal parsed
@@ -168,54 +136,6 @@ class Args:
 
             return None, None
 
-        def append_to_bucket(bucket: List[str],
-                             params_parser: ArgParamsParser,
-                             param_ok_hook: Callable[[str], bool] = lambda: True):
-            nonlocal cursor
-            nonlocal args
-
-            # Ensure that we have enough params to provide
-            # to the params parser of this argument
-            required_params_count = params_parser.required_parameters_count()
-            log.d("Arg '%s' requires %d params", args[cursor], required_params_count)
-
-            if required_params_count == ArgParamsParser.VARIADIC_PARAMETERS_COUNT:
-                raise Exception("Variadic arguments for kwarg not implemented")
-
-            if cursor + required_params_count >= len(args):
-                log.e("Not enough parameters to feed argument '%s'", args[cursor])
-                raise IndexError("not enough parameters to feed argument")
-
-            # Ensure that the params are allowed
-            # (the check could be performed even by the params_parser; this
-            # is just an helper, for example for filter kwarg/varg)
-
-            param_offset = 0
-
-            while param_offset < required_params_count:
-                param = args[cursor + 1 + param_offset]
-                log.d("Checking validity: param_ok_hook('%s')", param)
-                if not param_ok_hook(param):
-                    log.e("Invalid parameter for feed '%s'", args[cursor])
-                    raise ValueError("not enough parameters to feed argument")
-
-                param_offset += 1
-
-            log.d("Parsing and appending to bucket")
-
-            # Provide the params to the parser, and add
-            # the parsed value to the bucket
-            val = params_parser.parse_parameters(
-                args[(cursor + 1):(cursor + 1 + required_params_count)]
-            )
-
-            log.i("> %s", "{}".format(val))
-            bucket += list_wrap(val)
-
-            cursor += required_params_count
-
-        log.i("Parsing arguments: %s", args)
-
         try:
             cursor = 0
             while cursor < len(args):
@@ -235,7 +155,7 @@ class Args:
                         unparsed += args[cursor:]
                         log.d("Unparsed args: %s", unparsed)
 
-                        return ret
+                        break
 
                 # The hook didn't block us, go on
 
@@ -244,19 +164,19 @@ class Args:
                 if _is_long_kwarg(arg):
                     # Long format kwarg
 
-                    arg_name = arg
-
-                    # Check whether this is a known argument
-                    bucket, argpec = get_bucket(arg_name)
+                    bucket, argpec = get_bucket(arg)
 
                     if bucket is not None:
-                        append_to_bucket(bucket,
-                                         params_parser=argpec.params_parser,
-                                         param_ok_hook=lambda p: not _is_kwarg)
+                        cursor += _append_to_bucket(
+                            bucket,
+                            params=args,
+                            params_offset=cursor + 1,
+                            params_spec=argpec.params_spec,
+                            param_ok_hook=lambda p: not _is_kwarg)
                     else:
-                        log.w("Unknown argument: '%s'", arg_name)
+                        log.w("Unknown argument: '%s'", arg)
 
-                elif arg.startswith("-") and len(arg) > 1:
+                elif _is_kwarg(arg):
                     # Short format kwarg
                     # e.g. "-v"
                     # e.g. "-lsh"
@@ -278,9 +198,12 @@ class Args:
                             # We can feed the parser only if we are on the
                             # last param of the chain, otherwise params_count
                             # must be 0
-                            append_to_bucket(bucket,
-                                             params_parser=argpec.params_parser,
-                                             param_ok_hook=lambda s: not _is_kwarg(s) and is_last_of_chain)
+                            cursor += _append_to_bucket(
+                                bucket,
+                                params=args,
+                                params_offset=cursor + 1,
+                                params_spec=argpec.params_spec,
+                                param_ok_hook=lambda s: not _is_kwarg(s) and is_last_of_chain)
                         else:
                             log.w("Unknown argument in chain: '%s'", c_arg_name)
 
@@ -295,32 +218,22 @@ class Args:
 
                 cursor += 1
 
-            bucket = parsed.setdefault(None, [])
+            # Parse positionals
+            log.d("%d positional arguments", len(positionals))
 
-            pos_params_count = vargs_parser.required_parameters_count()
-            if pos_params_count != ArgParamsParser.VARIADIC_PARAMETERS_COUNT:
-                # We need a constant number of parameters, check if we have enough
-                if len(positionals) < pos_params_count:
-                    log.e("Found %d out of %d positional parameters",
-                          len(positionals), pos_params_count)
-                    raise Exception("Not enough positional parameters")
+            positionals_bucket = parsed.setdefault(None, [])
+            positionals_count = _append_to_bucket(
+                positionals_bucket,
+                params=positionals,
+                params_spec=vargs_spec,
+            )
 
-                # Parse a subset of positionals and add the remaining to unparsed
-                log.d("Parsing (%d) positional parameters: %s",
-                      pos_params_count,
-                      positionals)
-                bucket += list_wrap(vargs_parser.parse_parameters(
-                    positionals[:pos_params_count])
-                )
-                unparsed += positionals[pos_params_count:]
-            else:
-                # Parse all positionals
-                log.d("Parsing (%d*) positional parameters: %s",
-                      len(positionals),
-                      positionals)
-                bucket += list_wrap(vargs_parser.parse_parameters(
-                    positionals)
-                )
+            if positionals_count != len(positionals):
+                log.w("There will be %d unparsed positionals arguments",
+                      len(positionals) - positionals_count)
+
+            # Eventually add the remaining to the unparsed
+            unparsed += positionals[positionals_count:]
 
         except Exception as ex:
             log.e("Exception occurred while parsing: %s", ex)
@@ -341,30 +254,95 @@ def _is_varg(s: str):
     return not _is_kwarg(s)
 
 
-PARAM_INT = IntArgParamsParser()
-PARAM_PRESENCE = PresenceArgParamsParser()
+def _append_to_bucket(bucket: List[str],
+                      params: List[str],
+                      params_spec: ParamsSpec,
+                      params_offset: int = 0,
+                      param_ok_hook: Callable[[str], bool] = lambda p: True):
 
+    log.d("_append_to_bucket\n%s\nparams = %s\noffset = %d",
+          str(params_spec), params, params_offset)
 
-if __name__ == "__main__":
-    def main():
-        args = Args.parse(
-            args=["-v", "5", "randomstring", "--trace", "-p", "6666"],
-            args_specs=[
-                KwArgSpec(aliases=["-v", "--verbose"], params_parser=PARAM_INT),
-                KwArgSpec(aliases=["-t", "--trace"], params_parser=PARAM_PRESENCE),
-                KwArgSpec(aliases=["-r", "--reverse"], params_parser=PARAM_PRESENCE),
-                KwArgSpec(aliases=["-g", "--group"], params_parser=PARAM_PRESENCE),
-                KwArgSpec(aliases=["-l", "--long"], params_parser=PARAM_PRESENCE),
-                KwArgSpec(aliases=["-p", "--port"], params_parser=PARAM_INT)
-            ]
-        )
+    param_cursor = 0
 
-        if args:
-            print(args)
+    # MANDATORY
 
-            print(args.get_kwarg_param("-v"))
-            print(args.get_kwarg_param(["-t", "--trace"]))
-            print(args.has_vargs())
-            print(args.get_vargs())
+    # Ensure that we have enough params to provide
+    # to the params parser of this argument
 
-    main()
+    if params_offset + params_spec.mandatory_count > len(params):
+        log.e("Not enough parameters to feed argument")
+        raise IndexError("not enough parameters to feed argument")
+
+    # Ensure that the params are allowed
+    # (the check could be performed even by the params_parser; this
+    # is just an helper, for example for filter kwarg/varg)
+
+    while param_cursor < params_spec.mandatory_count:
+        param = params[params_offset + param_cursor]
+        log.d("[%d] Mandatory: checking validity: param_ok_hook('%s')", param_cursor, param)
+
+        if not param_ok_hook(param):
+            log.e("Invalid parameter for feed '%s'", param)
+            raise ValueError("not enough parameters to feed argument")
+
+        param_cursor += 1
+
+    # OPTIONALS
+
+    while params_spec.optional_count == ParamsSpec.VARIADIC_PARAMETERS_COUNT \
+            or param_cursor < params_spec.optional_count:
+
+        # Check if it is there
+        if params_offset + param_cursor < len(params):
+            # There is this optional param, check if is valid
+            param = params[params_offset + param_cursor]
+            log.d("[%d] Optional: checking validity: param_ok_hook('%s')", param_cursor, param)
+
+            if not param_ok_hook(param):
+                log.e("Invalid parameter for feed '%s'", param)
+                raise ValueError("not enough parameters to feed argument")
+        else:
+            log.d("No more params, stopping optionals fetching")
+            break
+
+        param_cursor += 1
+
+    log.d("Parsing and appending to bucket (taking %d:%d)",
+          params_offset, params_offset + param_cursor)
+
+    # Provide the params to the parser, and add
+    # the parsed value to the bucket
+    val = params_spec.parser(
+        params[params_offset:params_offset + param_cursor]
+    )
+
+    log.i("> %s", "{}".format(val))
+    bucket += list_wrap(val)
+
+    return param_cursor
+
+#
+# if __name__ == "__main__":
+#     def main():
+#         args = Args.parse(
+#             args=["-v", "5", "randomstring", "--trace", "-p", "6666"],
+#             args_specs=[
+#                 KwArgSpec(aliases=["-v", "--verbose"], params_parser=PARAM_INT),
+#                 KwArgSpec(aliases=["-t", "--trace"], params_parser=PARAM_PRESENCE),
+#                 KwArgSpec(aliases=["-r", "--reverse"], params_parser=PARAM_PRESENCE),
+#                 KwArgSpec(aliases=["-g", "--group"], params_parser=PARAM_PRESENCE),
+#                 KwArgSpec(aliases=["-l", "--long"], params_parser=PARAM_PRESENCE),
+#                 KwArgSpec(aliases=["-p", "--port"], params_parser=PARAM_INT)
+#             ]
+#         )
+#
+#         if args:
+#             print(args)
+#
+#             print(args.get_kwarg_param("-v"))
+#             print(args.get_kwarg_param(["-t", "--trace"]))
+#             print(args.has_vargs())
+#             print(args.get_vargs())
+#
+#     main()

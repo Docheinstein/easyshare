@@ -43,8 +43,7 @@ from easyshare.utils.obj import values, items, keys
 from easyshare.utils.str import rightof
 from easyshare.utils.types import to_int, bool_to_str, is_bool, bytes_to_str
 from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden
-from easyshare.args import Args as Args2, KwArgSpec, PARAM_INT, PARAM_PRESENCE, CustomArgParamsParser, \
-    IntArgParamsParser
+from easyshare.args import Args as Args2, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, OPT_INT_PARAM
 
 log = get_logger()
 
@@ -550,14 +549,14 @@ class EsArgs(ArgsParser):
             args=args,
             kwargs_specs=[
                 KwArgSpec(EsArgs.HELP,
-                          CustomArgParamsParser(0, lambda _: terminate("help"))),
+                          ParamsSpec(0, 0, lambda _: terminate("help"))),
                 KwArgSpec(EsArgs.VERSION,
-                          CustomArgParamsParser(0, lambda _: terminate("version"))),
-                KwArgSpec(EsArgs.PORT, PARAM_INT),
-                KwArgSpec(EsArgs.WAIT, PARAM_INT),
-                KwArgSpec(EsArgs.VERBOSE, PARAM_INT),
-                KwArgSpec(EsArgs.TRACE, PARAM_PRESENCE),
-                KwArgSpec(EsArgs.NO_COLOR, PARAM_PRESENCE),
+                          ParamsSpec(0, 0, lambda _: terminate("version"))),
+                KwArgSpec(EsArgs.PORT, INT_PARAM),
+                KwArgSpec(EsArgs.WAIT, INT_PARAM),
+                KwArgSpec(EsArgs.VERBOSE, INT_PARAM),
+                KwArgSpec(EsArgs.TRACE, PRESENCE_PARAM),
+                KwArgSpec(EsArgs.NO_COLOR, PRESENCE_PARAM),
             ],
             # Stop to parse when a positional argument is found (probably a command)
             continue_parsing_hook=lambda arg, idx, parsedargs: not parsedargs.has_vargs()
@@ -578,12 +577,12 @@ class LsArgs(ArgsParser):
         return Args2.parse(
             args=args,
             kwargs_specs=[
-                KwArgSpec(LsArgs.SORT_BY_SIZE, PARAM_PRESENCE),
-                KwArgSpec(LsArgs.REVERSE, PARAM_PRESENCE),
-                KwArgSpec(LsArgs.GROUP, PARAM_PRESENCE),
-                KwArgSpec(LsArgs.SHOW_ALL, PARAM_PRESENCE),
-                KwArgSpec(LsArgs.SHOW_DETAILS, PARAM_PRESENCE),
-                KwArgSpec(LsArgs.SHOW_SIZE, PARAM_PRESENCE),
+                KwArgSpec(LsArgs.SORT_BY_SIZE, PRESENCE_PARAM),
+                KwArgSpec(LsArgs.REVERSE, PRESENCE_PARAM),
+                KwArgSpec(LsArgs.GROUP, PRESENCE_PARAM),
+                KwArgSpec(LsArgs.SHOW_ALL, PRESENCE_PARAM),
+                KwArgSpec(LsArgs.SHOW_DETAILS, PRESENCE_PARAM),
+                KwArgSpec(LsArgs.SHOW_SIZE, PRESENCE_PARAM),
             ]
         )
 
@@ -604,13 +603,13 @@ class TreeArgs(ArgsParser):
         return Args2.parse(
             args=args,
             kwargs_specs=[
-                KwArgSpec(TreeArgs.SORT_BY_SIZE, PARAM_PRESENCE),
-                KwArgSpec(TreeArgs.REVERSE, PARAM_PRESENCE),
-                KwArgSpec(TreeArgs.GROUP, PARAM_PRESENCE),
-                KwArgSpec(TreeArgs.SHOW_ALL, PARAM_PRESENCE),
-                KwArgSpec(TreeArgs.SHOW_DETAILS, PARAM_PRESENCE),
-                KwArgSpec(TreeArgs.SHOW_SIZE, PARAM_PRESENCE),
-                KwArgSpec(TreeArgs.MAX_DEPTH, PARAM_INT),
+                KwArgSpec(TreeArgs.SORT_BY_SIZE, PRESENCE_PARAM),
+                KwArgSpec(TreeArgs.REVERSE, PRESENCE_PARAM),
+                KwArgSpec(TreeArgs.GROUP, PRESENCE_PARAM),
+                KwArgSpec(TreeArgs.SHOW_ALL, PRESENCE_PARAM),
+                KwArgSpec(TreeArgs.SHOW_DETAILS, PRESENCE_PARAM),
+                KwArgSpec(TreeArgs.SHOW_SIZE, PRESENCE_PARAM),
+                KwArgSpec(TreeArgs.MAX_DEPTH, INT_PARAM),
             ]
         )
 
@@ -623,12 +622,21 @@ class PositionalArgs(ArgsParser):
         )
 
 
-class IntArgs(ArgsParser):
+class IntArg(ArgsParser):
     @classmethod
     def parse(cls, args: List[str]) -> Optional[Args2]:
         return Args2.parse(
             args=args,
-            vargs_parser=IntArgParamsParser()
+            vargs_spec=INT_PARAM
+        )
+
+
+class OptIntArg(ArgsParser):
+    @classmethod
+    def parse(cls, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            vargs_spec=OPT_INT_PARAM
         )
 
 
@@ -1199,15 +1207,15 @@ class Client:
             return
 
         sort_by = ["name"]
-        reverse = TreeArguments.REVERSE in args
+        reverse = TreeArgs.REVERSE in args
 
-        if TreeArguments.SORT_BY_SIZE in args:
+        if TreeArgs.SORT_BY_SIZE in args:
             sort_by.append("size")
-        if TreeArguments.GROUP in args:
+        if TreeArgs.GROUP in args:
             sort_by.append("ftype")
 
         # FIXME: max_depth = 0
-        max_depth = to_int(args.get_param(TreeArguments.MAX_DEPTH))
+        max_depth = to_int(args.get_param(TreeArgs.MAX_DEPTH))
 
         log.i(">> RTREE (sort by %s%s)", sort_by, " | reverse" if reverse else "")
 
@@ -1219,7 +1227,7 @@ class Client:
 
         Client._print_tree_files_info(resp.get("data"),
                                       max_depth=max_depth,
-                                      show_size=TreeArguments.SIZE in args)
+                                      show_size=TreeArgs.SIZE in args)
 
     def rmkdir(self, args: Args):
         if not self.is_connected():
@@ -2060,7 +2068,7 @@ class Client:
             if os.path.getsize(fname) == fsize:
                 log.d("File OK (length match)")
             else:
-                e("File length mismatch. %d != %d",
+                log.e("File length mismatch. %d != %d",
                   os.path.getsize(fname), fsize)
 
         log.i("GET transaction %s finished, closing socket", transaction_id)
@@ -2161,7 +2169,7 @@ class Client:
                     continue
 
                 # FOUND
-                d("Sharing [%s] found at %s:%d",
+                log.d("Sharing [%s] found at %s:%d",
                   a_sharing_info.get("name"),
                   a_server_info.get("ip"),
                   a_server_info.get("port"),
@@ -2302,10 +2310,10 @@ class Shell:
         self._suggestions_intent: Optional[SuggestionsIntent] = None
 
         self._shell_command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args2], None]]] = {
-            Commands.TRACE: (IntArgs, self._trace),
-            Commands.TRACE_SHORT: (IntArgs, self._trace),
-            Commands.VERBOSE: (IntArgs, self._verbose),
-            Commands.VERBOSE_SHORT: (IntArgs, self._verbose),
+            Commands.TRACE: (OptIntArg, self._trace),
+            Commands.TRACE_SHORT: (OptIntArg, self._trace),
+            Commands.VERBOSE: (OptIntArg, self._verbose),
+            Commands.VERBOSE_SHORT: (OptIntArg, self._verbose),
 
             Commands.HELP: (PositionalArgs, self._help),
             Commands.EXIT: (PositionalArgs, self._exit),
@@ -2542,6 +2550,7 @@ def main():
     starting_verbosity = to_int(starting_verbosity,
                                 raise_exceptions=False, default=logging.VERBOSITY_NONE)
     log.set_verbosity(starting_verbosity)
+    log.d("Starting with verbosity = %d", starting_verbosity)
 
     # Uncomment for debug arguments parsing
     # log.set_verbosity(logging.VERBOSITY_MAX)
@@ -2553,7 +2562,7 @@ def main():
         abort("Error occurred while parsing arguments")
 
     # Verbosity
-    log.set_verbosity(args.get_kwarg_param(EsArgs.VERBOSE, logging.VERBOSITY_NONE))
+    log.set_verbosity(args.get_kwarg_param(EsArgs.VERBOSE, starting_verbosity))
 
     log.i(APP_INFO)
     log.i("Starting with arguments\n%s", args)
