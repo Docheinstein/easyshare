@@ -122,6 +122,12 @@ class Connection:
 
         return self.server.ping()
 
+    def rexec(self, cmd: str) -> Response:
+        if not self.is_connected():
+            return create_error_response(ClientErrors.NOT_CONNECTED)
+
+        return self.server.rexec(cmd)
+
     def put(self) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)

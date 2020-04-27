@@ -1,5 +1,6 @@
 import os
 import ssl
+import subprocess
 import sys
 import socket
 import time
@@ -8,6 +9,7 @@ import Pyro4
 
 from typing import Dict, Optional, List, Any, Callable, TypeVar
 
+from easyshare.logging import get_logger
 from easyshare.passwd.auth import AuthFactory
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
@@ -33,10 +35,11 @@ from easyshare.utils.net import get_primary_ip, is_valid_port, create_server_ssl
 from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv
 from easyshare.utils.str import satisfy, unprefix
 from easyshare.utils.trace import args_to_str
-from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list
+from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list, bytes_to_str
 
 # ==================================================================
 
+log = get_logger()
 
 APP_INFO = APP_NAME_SERVER + " (" + APP_NAME_SERVER_SHORT + ") v. " + APP_VERSION
 
@@ -183,7 +186,7 @@ class Server(IServer):
         # (not necessary the one from which the request come)
         sock = SocketUdpOut()
 
-        d("Sending DISCOVER response back to %s:%d\n%s",
+        log.d("Sending DISCOVER response back to %s:%d\n%s",
           client_endpoint[0], client_discover_response_port,
           json_to_pretty_str(response))
 
@@ -821,6 +824,21 @@ class Server(IServer):
         # Notify the client about it
         return create_success_response()
 
+    def rexec(self, cmd: str) -> Response:
+        log.i(">> REXEC %s", cmd)
+
+        try:
+            proc: subprocess.Popen = \
+                subprocess.Popen(["/bin/sh", "-c", cmd],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+
+            ret_str = bytes_to_str(proc.stdout.read())
+            return create_success_response(ret_str)
+
+        except Exception:
+            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+
     def _add_put_transaction(self,
                              sharing_name: str,
                              client: Optional[ClientContext] = None) -> PutTransactionHandler:
@@ -1120,18 +1138,19 @@ def main():
     verbosity = 0
     tracing = 0
 
-    if ServerArguments.VERBOSE in args:
-        verbosity = to_int(args.get_param(ServerArguments.VERBOSE, default=VERBOSITY_VERBOSE))
-        if verbosity is None:
-            abort("Invalid --verbose parameter value")
-
-    if ServerArguments.TRACE in args:
-        tracing = to_int(args.get_param(ServerArguments.TRACE, default=1))
-        if tracing is None:
-            abort("Invalid --trace parameter value")
-
-    init_logging(verbosity)
-    enable_tracing(True if tracing else False)
+    # if ServerArguments.VERBOSE in args:
+    #     verbosity = to_int(args.get_param(ServerArguments.VERBOSE, default=VERBOSITY_VERBOSE))
+    #     if verbosity is None:
+    #         abort("Invalid --verbose parameter value")
+    #
+    # if ServerArguments.TRACE in args:
+    #     tracing = to_int(args.get_param(ServerArguments.TRACE, default=1))
+    #     if tracing is None:
+    #         abort("Invalid --trace parameter value")
+    #
+    # init_logging(verbosity)
+    # enable_tracing(True if tracing else False)
+    enable_tracing(True)
 
     log.i(APP_INFO)
 

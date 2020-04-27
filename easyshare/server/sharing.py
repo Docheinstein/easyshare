@@ -1,10 +1,12 @@
 import os
 from typing import Optional
 
+from easyshare.logging import get_logger
 from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.filetype import FileType, FTYPE_DIR, FTYPE_FILE
 from easyshare.protocol.sharinginfo import SharingInfo
 
+log = get_logger()
 
 class Sharing:
     def __init__(self, name: str, ftype: FileType, path: str,

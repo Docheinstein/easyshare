@@ -2,6 +2,9 @@ import os
 import re
 from typing import Dict, Optional
 
+from easyshare.logging import get_logger
+
+log = get_logger()
 
 
 def parse_config(config_path: str, *,

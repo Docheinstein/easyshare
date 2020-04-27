@@ -2,6 +2,7 @@ import select
 from datetime import datetime
 from typing import Callable
 
+from easyshare.logging import get_logger
 from easyshare.protocol.response import Response, is_data_response
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.serverinfo import ServerInfo
@@ -10,6 +11,7 @@ from easyshare.socket.udp import SocketUdpIn, SocketUdpOut
 from easyshare.utils.json import bytes_to_json, json_to_pretty_str
 from easyshare.utils.types import int_to_bytes
 
+log = get_logger(__name__)
 
 class Discoverer:
 

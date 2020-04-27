@@ -43,7 +43,7 @@ from easyshare.utils.obj import values, items, keys
 from easyshare.utils.str import rightof
 from easyshare.utils.types import to_int, bool_to_str, is_bool, bytes_to_str
 from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden
-from easyshare.args import Args as Args2, KwArgSpec, PARAM_INT, PARAM_PRESENCE, CustomKwArgParamsParser, \
+from easyshare.args import Args as Args2, KwArgSpec, PARAM_INT, PARAM_PRESENCE, CustomArgParamsParser, \
     IntArgParamsParser
 
 log = get_logger()
@@ -219,31 +219,20 @@ class ListCommandArgsInfo(CommandArgsInfo, ABC):
         if suggestions_intent:
             return suggestions_intent
 
-        # pattern = rightof(line, " ", from_end=True)
-        # path_dir, path_trail = os.path.split(os.path.join(os.getcwd(), pattern))
-
-        # log.i("pattern: %s", pattern)
-        # log.i("path_dir: %s", path_dir)
-        # log.i("path_trail: %s", path_trail)
-
         suggestions = []
         for finfo in cls.list(token, line, client):
-            log.i("finfo: %s", finfo)
+            log.d("Suggestion finfo: %s", finfo)
 
             fname = finfo.get("name")
 
             if not cls.display_path_filter(finfo):
-                log.i("%s doesn't pass the filter", fname)
+                log.d("%s doesn't pass the filter", fname)
                 continue
 
             _, fname_tail = os.path.split(fname)
 
-            if not fname_tail.startswith(token):
+            if not fname_tail.lower().startswith(token.lower()):
                 continue
-
-            # f_full = os.path.join(path_dir, f)
-
-            # log.i("f_full: %s", f_full)
 
             if finfo.get("ftype") == FTYPE_DIR:
                 # Append a dir, with a trailing / so that the next
@@ -256,10 +245,6 @@ class ListCommandArgsInfo(CommandArgsInfo, ABC):
                 ff = fname_tail + " "
                 suggestions.append(StyledString(ff, fg(ff, color=FILE_COLOR)))
 
-        # def space_after_completion(suggestion: str) -> bool:
-        #     return not suggestion.endswith(os.path.sep)
-
-        # print("suggestions: ", [str(s) for s in suggestions])
         return SuggestionsIntent(suggestions,
                                  completion=True,
                                  space_after_completion=False)
@@ -565,9 +550,9 @@ class EsArgs(ArgsParser):
             args=args,
             kwargs_specs=[
                 KwArgSpec(EsArgs.HELP,
-                          CustomKwArgParamsParser(0, lambda _: terminate("help"))),
+                          CustomArgParamsParser(0, lambda _: terminate("help"))),
                 KwArgSpec(EsArgs.VERSION,
-                          CustomKwArgParamsParser(0, lambda _: terminate("version"))),
+                          CustomArgParamsParser(0, lambda _: terminate("version"))),
                 KwArgSpec(EsArgs.PORT, PARAM_INT),
                 KwArgSpec(EsArgs.WAIT, PARAM_INT),
                 KwArgSpec(EsArgs.VERBOSE, PARAM_INT),
@@ -630,12 +615,11 @@ class TreeArgs(ArgsParser):
         )
 
 
-class BasicArgs(ArgsParser):
+class PositionalArgs(ArgsParser):
     @classmethod
     def parse(cls, args: List[str]) -> Optional[Args2]:
         return Args2.parse(
             args=args,
-            kwargs_specs=[]
         )
 
 
@@ -865,15 +849,15 @@ class Client:
         self._discover_port = discover_port
 
         self._command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args2], None]]] = {
-            Commands.LOCAL_CHANGE_DIRECTORY: (BasicArgs, self.cd),
+            Commands.LOCAL_CHANGE_DIRECTORY: (PositionalArgs, self.cd),
             Commands.LOCAL_LIST_DIRECTORY: (LsArgs, self.ls),
-            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (BasicArgs, self.l),
+            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (PositionalArgs, self.l),
             Commands.LOCAL_TREE_DIRECTORY: (TreeArgs, self.tree),
-            Commands.LOCAL_CREATE_DIRECTORY: (BasicArgs, self.mkdir),
-            Commands.LOCAL_CURRENT_DIRECTORY: (BasicArgs, self.pwd),
-            Commands.LOCAL_REMOVE: self.rm,
-            Commands.LOCAL_MOVE: self.mv,
-            Commands.LOCAL_COPY: self.cp,
+            Commands.LOCAL_CREATE_DIRECTORY: (PositionalArgs, self.mkdir),
+            Commands.LOCAL_CURRENT_DIRECTORY: (PositionalArgs, self.pwd),
+            Commands.LOCAL_REMOVE: (PositionalArgs, self.rm),
+            Commands.LOCAL_MOVE: (PositionalArgs, self.mv),
+            Commands.LOCAL_COPY: (PositionalArgs, self.cp),
             Commands.LOCAL_EXEC: (NoArgs, self.exec),
 
             Commands.REMOTE_CHANGE_DIRECTORY: self.rcd,
@@ -887,7 +871,7 @@ class Client:
             Commands.REMOTE_EXEC: (NoArgs, self.rexec),
 
             Commands.SCAN: self.scan,
-            Commands.OPEN: self.open,
+            Commands.OPEN: (PositionalArgs, self.open),
             Commands.CLOSE: self.close,
 
             Commands.GET: self.get,
@@ -937,15 +921,6 @@ class Client:
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-
-    def l(self, args: Args2):
-        # Just call ls -la
-        # Reuse the parsed args for keep the (optional) path
-        args._parsed[LsArgs.SHOW_ALL[0]] = True
-        args._parsed[LsArgs.SHOW_DETAILS[0]] = True
-        self.ls(args)
-
-
     def ls(self, args: Args2):
         # (Optional) path
         path = args.get_varg(default=os.getcwd())
@@ -974,6 +949,13 @@ class Client:
             show_size=LsArgs.SHOW_SIZE in args or LsArgs.SHOW_DETAILS in args,
             compact=LsArgs.SHOW_DETAILS not in args
         )
+
+    def l(self, args: Args2):
+        # Just call ls -la
+        # Reuse the parsed args for keep the (optional) path
+        args._parsed[LsArgs.SHOW_ALL[0]] = True
+        args._parsed[LsArgs.SHOW_DETAILS[0]] = True
+        self.ls(args)
 
     def tree(self, args: Args2):
         # (Optional) path
@@ -1029,8 +1011,8 @@ class Client:
         except Exception:
             print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 
-    def rm(self, args: Args):
-        paths = args.get_params()
+    def rm(self, args: Args2):
+        paths = args.get_vargs()
 
         if not paths:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -1044,7 +1026,7 @@ class Client:
         for path in paths:
             rm(path, error_callback=handle_rm_error)
 
-    def mv(self, args: Args):
+    def mv(self, args: Args2):
         """
         mv <src>... <dest>
 
@@ -1065,7 +1047,8 @@ class Client:
         C2  If <dest> doesn't exist => ERROR
 
         """
-        mv_args = args.get_params()
+        mv_args = args.get_vargs()
+
         args_count = len(mv_args)
 
         if not mv_args or args_count < 2:
@@ -1100,9 +1083,8 @@ class Client:
             eprint(err)
 
 
-    def cp(self, args: Args):
-
-        cp_args = args.get_params()
+    def cp(self, args: Args2):
+        cp_args = args.get_vargs()
         args_count = len(cp_args)
 
         if not cp_args or args_count < 2:
@@ -1317,9 +1299,36 @@ class Client:
         else:
             self._handle_error_response(resp)
 
-    def rexec(self, args: Args):
-        pass
+    def rexec(self, args: Args2):
+        popen_args = args.get_unparsed_args()
+        popen_fullarg = " ".join(popen_args)
+        log.i(">> REXEC %s", popen_fullarg)
 
+        if self.is_connected():
+            resp = self.connection.rexec(popen_fullarg)
+            if is_data_response(resp):
+                print(resp.get("data"))
+        else:
+            log.w("NOT IMPLEMENTED")
+            # Not connected, we need a parameter that specifies the server
+            # server_specifier = args.get_varg()
+            #
+            # if not server_specifier:
+            #     log.e("Server specifier not found")
+            #     print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
+            #     return
+            #
+            # server_info: ServerInfo = self._discover_server(
+            #     location=server_specifier
+            # )
+            #
+            # if not server_info:
+            #     print_error(ClientErrors.SERVER_NOT_FOUND)
+            #     return False
+            #
+            # # Server info retrieved successfully
+            # print_server_info(server_info)
+            #
     def rmv(self, args: Args):
         if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
@@ -1354,37 +1363,36 @@ class Client:
             self._handle_error_response(resp)
 
 
-    def open(self, args: Args) -> bool:
+    def open(self, args: Args2) -> bool:
         #                    |------sharing_location-----|
         # open <sharing_name>[@<hostname> | @<ip>[:<port>]]
         #      |_________________________________________|
         #               sharing specifier
 
-        sharing_specifier = args.get_param()
+        sharing_specifier = args.get_varg()
 
         if not sharing_specifier:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return False
 
-        timeout = to_int(args.get_param(OpenArguments.TIMEOUT,
-                                        default=Discoverer.DEFAULT_TIMEOUT))
+        # timeout = to_int(args.get_varg(OpenArguments.TIMEOUT,
+        #                                 default=Discoverer.DEFAULT_TIMEOUT))
 
-        if not timeout:
-            print_error(ClientErrors.INVALID_PARAMETER_VALUE)
-            return False
+        # if not timeout:
+        #     print_error(ClientErrors.INVALID_PARAMETER_VALUE)
+        #     return False
 
         sharing_name, _, sharing_location = sharing_specifier.partition("@")
 
-        log.i(">> OPEN %s%s (timeout = %d)",
+        log.i(">> OPEN %s%s",
           sharing_name,
-          "@{}".format(sharing_location) if sharing_location else "",
-          timeout)
+          "@{}".format(sharing_location) if sharing_location else "")
 
         sharing_info, server_info = self._discover_sharing(
             name=sharing_name,
             location=sharing_location,
             ftype=FTYPE_DIR,
-            timeout=timeout
+            timeout=2
         )
 
         if not server_info:
@@ -1408,7 +1416,7 @@ class Client:
 
         resp = self.connection.open(sharing_name, passwd)
         if is_success_response(resp):
-            v("Successfully connected to %s:%d",
+            log.i("Successfully connected to %s:%d",
               server_info.get("ip"), server_info.get("port"))
             return True
         else:
@@ -2299,8 +2307,8 @@ class Shell:
             Commands.VERBOSE: (IntArgs, self._verbose),
             Commands.VERBOSE_SHORT: (IntArgs, self._verbose),
 
-            Commands.HELP: (BasicArgs, self._help),
-            Commands.EXIT: (BasicArgs, self._exit),
+            Commands.HELP: (PositionalArgs, self._help),
+            Commands.EXIT: (PositionalArgs, self._exit),
         }
 
         rl.parse_and_bind("tab: complete")
@@ -2530,7 +2538,10 @@ class Shell:
 
 
 def main():
-    log.set_verbosity(logging.VERBOSITY_NONE)
+    starting_verbosity = os.environ.get("EASYSHARE_VERBOSITY")
+    starting_verbosity = to_int(starting_verbosity,
+                                raise_exceptions=False, default=logging.VERBOSITY_NONE)
+    log.set_verbosity(starting_verbosity)
 
     # Uncomment for debug arguments parsing
     # log.set_verbosity(logging.VERBOSITY_MAX)

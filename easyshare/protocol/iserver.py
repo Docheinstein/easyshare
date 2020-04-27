@@ -65,3 +65,7 @@ class IServer(ABC):
     @abstractmethod
     def ping(self) -> Response:
         pass
+
+    @abstractmethod
+    def rexec(self, cmd: str) -> Response:
+        pass
