@@ -14,10 +14,11 @@ from typing import Optional, Callable, List, Dict, Type, Union, Tuple
 
 from Pyro4.errors import PyroError
 
-from easyshare import logging, conf, tracing
+from easyshare import logging
 from easyshare.client.connection import Connection
 from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors
+from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
@@ -26,8 +27,9 @@ from easyshare.protocol.response import Response, is_error_response, is_success_
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.args import Args
-from easyshare.shared.conf import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VERSION, DEFAULT_DISCOVER_PORT, DIR_COLOR, \
-    FILE_COLOR, PROGRESS_COLOR, DONE_COLOR
+from easyshare.shared.common import APP_NAME_CLIENT, APP_NAME_CLIENT_SHORT, APP_VERSION, DEFAULT_DISCOVER_PORT, \
+    DIR_COLOR, \
+    FILE_COLOR, PROGRESS_COLOR, DONE_COLOR, is_sharing_name, is_server_name
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.progress import FileProgressor
 from easyshare.ssl import get_ssl_context
@@ -39,11 +41,13 @@ from easyshare.utils.colors import enable_colors, fg, Color, styled, Attribute
 from easyshare.utils.env import terminal_size
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.math import rangify
-from easyshare.utils.obj import values, items, keys
+from easyshare.utils.net import is_valid_ip, is_valid_port
+from easyshare.utils.obj import values
 from easyshare.utils.str import rightof
 from easyshare.utils.types import to_int, bool_to_str, is_bool, bytes_to_str
 from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden
-from easyshare.args import Args as Args2, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, OPT_INT_PARAM
+from easyshare.args import Args as Args2, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, OPT_INT_PARAM, \
+    NoopParamsSpec
 
 log = get_logger()
 
@@ -525,10 +529,57 @@ VERBOSITY_EXPLANATION_MAP = {
 
 
 class ArgsParser(ABC):
-    @classmethod
     @abstractmethod
-    def parse(cls, args: List[str]) -> Optional[Args2]:
+    def parse(self, args: List[str]) -> Optional[Args2]:
         pass
+
+
+
+class VariadicArgs(ArgsParser):
+    def __init__(self, mandatory: int = 0):
+        self.mandatory = mandatory
+
+    def parse(self, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            vargs_spec=NoopParamsSpec(self.mandatory, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
+        )
+
+
+class PositionalArgs(ArgsParser):
+    def __init__(self, mandatory: int, optional: int = 0):
+        self.mandatory = mandatory
+        self.optional = optional
+
+    def parse(self, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            vargs_spec=NoopParamsSpec(self.mandatory, self.optional)
+        )
+
+
+class IntArg(ArgsParser):
+    def parse(self, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            vargs_spec=INT_PARAM
+        )
+
+
+class OptIntArg(ArgsParser):
+    def parse(self, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            vargs_spec=OPT_INT_PARAM
+        )
+
+
+class NoParseArgs(ArgsParser):
+    def parse(self, args: List[str]) -> Optional[Args2]:
+        return Args2.parse(
+            args=args,
+            continue_parsing_hook=lambda arg, idx, parsedargs, positionals: False
+        )
 
 
 class EsArgs(ArgsParser):
@@ -543,10 +594,10 @@ class EsArgs(ArgsParser):
 
     NO_COLOR =  ["--no-color"]
 
-    @classmethod
-    def parse(cls, args: List[str]) -> Optional[Args2]:
+    def parse(self, args: List[str]) -> Optional[Args2]:
         return Args2.parse(
             args=args,
+            # vargs_spec=NoopParamsSpec(0, 1),
             kwargs_specs=[
                 KwArgSpec(EsArgs.HELP,
                           ParamsSpec(0, 0, lambda _: terminate("help"))),
@@ -559,7 +610,7 @@ class EsArgs(ArgsParser):
                 KwArgSpec(EsArgs.NO_COLOR, PRESENCE_PARAM),
             ],
             # Stop to parse when a positional argument is found (probably a command)
-            continue_parsing_hook=lambda arg, idx, parsedargs: not parsedargs.has_vargs()
+            continue_parsing_hook=lambda argname, idx, args, positionals: not positionals
         )
 
 
@@ -572,10 +623,10 @@ class LsArgs(ArgsParser):
     SHOW_DETAILS = ["-l"]
     SHOW_SIZE = ["-S"]
 
-    @classmethod
-    def parse(cls, args: List[str]) -> Optional[Args2]:
+    def parse(self, args: List[str]) -> Optional[Args2]:
         return Args2.parse(
             args=args,
+            vargs_spec=NoopParamsSpec(0, 1),
             kwargs_specs=[
                 KwArgSpec(LsArgs.SORT_BY_SIZE, PRESENCE_PARAM),
                 KwArgSpec(LsArgs.REVERSE, PRESENCE_PARAM),
@@ -583,7 +634,7 @@ class LsArgs(ArgsParser):
                 KwArgSpec(LsArgs.SHOW_ALL, PRESENCE_PARAM),
                 KwArgSpec(LsArgs.SHOW_DETAILS, PRESENCE_PARAM),
                 KwArgSpec(LsArgs.SHOW_SIZE, PRESENCE_PARAM),
-            ]
+            ],
         )
 
 
@@ -598,10 +649,10 @@ class TreeArgs(ArgsParser):
 
     MAX_DEPTH = ["-d", "--depth"]
 
-    @classmethod
-    def parse(cls, args: List[str]) -> Optional[Args2]:
+    def parse(self, args: List[str]) -> Optional[Args2]:
         return Args2.parse(
             args=args,
+            vargs_spec=NoopParamsSpec(0, 1),
             kwargs_specs=[
                 KwArgSpec(TreeArgs.SORT_BY_SIZE, PRESENCE_PARAM),
                 KwArgSpec(TreeArgs.REVERSE, PRESENCE_PARAM),
@@ -613,40 +664,6 @@ class TreeArgs(ArgsParser):
             ]
         )
 
-
-class PositionalArgs(ArgsParser):
-    @classmethod
-    def parse(cls, args: List[str]) -> Optional[Args2]:
-        return Args2.parse(
-            args=args,
-        )
-
-
-class IntArg(ArgsParser):
-    @classmethod
-    def parse(cls, args: List[str]) -> Optional[Args2]:
-        return Args2.parse(
-            args=args,
-            vargs_spec=INT_PARAM
-        )
-
-
-class OptIntArg(ArgsParser):
-    @classmethod
-    def parse(cls, args: List[str]) -> Optional[Args2]:
-        return Args2.parse(
-            args=args,
-            vargs_spec=OPT_INT_PARAM
-        )
-
-
-class NoArgs(ArgsParser):
-    @classmethod
-    def parse(cls, args: List[str]) -> Optional[Args2]:
-        return Args2.parse(
-            args=args,
-            continue_parsing_hook=lambda arg, idx, parsedargs: False
-        )
 
 
 class OpenArguments:
@@ -847,7 +864,76 @@ def print_files_info_tree(root: TreeNodeDict,
             "[{}]  ".format(size_str(size).rjust(4)) if show_size else "",
             fg(name, color=DIR_COLOR if ftype == FTYPE_DIR else FILE_COLOR),
         ))
+
+
+def is_special_command(c: str):
+    return c.startswith(":")
+
 # ==================================================================
+
+
+class SharingSpecifier:
+    def __init__(self,
+                 sharing_name: str,
+                 server_name: str = None,
+                 server_ip: str = None,
+                 server_port: int = None):
+        self.sharing_name = sharing_name
+        self.server_name = server_name
+        self.server_ip = server_ip
+        self.server_port = server_port
+
+
+
+    def __str__(self):
+        s = self.sharing_name
+
+        if self.server_name or self.server_ip:
+            if self.server_name:
+                s += "@" + self.server_name
+            elif self.server_ip:
+                s += "@" + self.server_ip
+            if self.server_port:
+                s += ":" + str(self.server_port)
+
+        return s
+
+    @staticmethod
+    def parse(spec: str) -> Optional['SharingSpecifier']:
+        # |----name-----|----------location----------|
+        # <sharing_name>[@<server_name>|<ip>[:<port>]]
+        # |---------------specifier------------------|
+
+        if not spec:
+            return None
+
+        sharing_name, _, location = spec.partition("@")
+        server_name_or_ip, _, server_port = location.partition(":")
+
+        if not is_sharing_name(sharing_name):
+            log.w("Invalid sharing name: '%s'", sharing_name)
+            return None
+
+        server_ip = None
+        server_name = None
+
+        if server_name_or_ip:
+            if is_valid_ip(server_name_or_ip):
+                server_ip = server_name_or_ip
+            elif is_server_name(server_name_or_ip):
+                server_name = server_name_or_ip
+
+        server_port = to_int(server_port)
+
+        if not is_valid_port(server_port):
+            server_port = None
+
+        return SharingSpecifier(
+            sharing_name=sharing_name,
+            server_name=server_name,
+            server_ip=server_ip,
+            server_port=server_port
+        )
 
 
 class Client:
@@ -857,16 +943,16 @@ class Client:
         self._discover_port = discover_port
 
         self._command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args2], None]]] = {
-            Commands.LOCAL_CHANGE_DIRECTORY: (PositionalArgs, self.cd),
-            Commands.LOCAL_LIST_DIRECTORY: (LsArgs, self.ls),
-            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (PositionalArgs, self.l),
-            Commands.LOCAL_TREE_DIRECTORY: (TreeArgs, self.tree),
-            Commands.LOCAL_CREATE_DIRECTORY: (PositionalArgs, self.mkdir),
-            Commands.LOCAL_CURRENT_DIRECTORY: (PositionalArgs, self.pwd),
-            Commands.LOCAL_REMOVE: (PositionalArgs, self.rm),
-            Commands.LOCAL_MOVE: (PositionalArgs, self.mv),
-            Commands.LOCAL_COPY: (PositionalArgs, self.cp),
-            Commands.LOCAL_EXEC: (NoArgs, self.exec),
+            Commands.LOCAL_CHANGE_DIRECTORY: (PositionalArgs(1), self.cd),
+            Commands.LOCAL_LIST_DIRECTORY: (LsArgs(), self.ls),
+            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (PositionalArgs(1), self.l),
+            Commands.LOCAL_TREE_DIRECTORY: (TreeArgs(), self.tree),
+            Commands.LOCAL_CREATE_DIRECTORY: (PositionalArgs(1), self.mkdir),
+            Commands.LOCAL_CURRENT_DIRECTORY: (NoParseArgs(), self.pwd),
+            Commands.LOCAL_REMOVE: (VariadicArgs(1), self.rm),
+            Commands.LOCAL_MOVE: (VariadicArgs(2), self.mv),
+            Commands.LOCAL_COPY: (VariadicArgs(2), self.cp),
+            Commands.LOCAL_EXEC: (NoParseArgs(), self.exec),
 
             Commands.REMOTE_CHANGE_DIRECTORY: self.rcd,
             Commands.REMOTE_LIST_DIRECTORY: self.rls,
@@ -876,10 +962,10 @@ class Client:
             Commands.REMOTE_REMOVE: self.rrm,
             Commands.REMOTE_MOVE: self.rmv,
             Commands.REMOTE_COPY: self.rcp,
-            Commands.REMOTE_EXEC: (NoArgs, self.rexec),
+            Commands.REMOTE_EXEC: (NoParseArgs(), self.rexec),
 
             Commands.SCAN: self.scan,
-            Commands.OPEN: (PositionalArgs, self.open),
+            Commands.OPEN: (PositionalArgs(1), self.open),
             Commands.CLOSE: self.close,
 
             Commands.GET: self.get,
@@ -889,19 +975,35 @@ class Client:
             Commands.PING: self.ping,
         }
 
+    def has_command(self, command: str) -> bool:
+        return command in self._command_dispatcher
+
     def execute_command(self, command: str, command_args: List[str]) -> bool:
+        command_args_normalized = command_args.copy()
+
+        # Handle special commands (':')
+        command_parts = command.rsplit(":", maxsplit=1)
+        if len(command_parts) > 1:
+            command = command_parts[0] + ":"
+            log.d("Found special command: '%s'", command)
+            if command_parts[1]:
+                command_args_normalized.insert(0, command_parts[1])
+
+        # Check whether it is a known command
         if command not in self._command_dispatcher:
+            print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
             return False
 
-        log.i("Executing %s(%s)", command, command_args)
+        log.i("Executing %s(%s)", command, command_args_normalized)
 
         parser, executor = self._command_dispatcher[command]
 
         # Parse args using the parsed bound to the command
-        args = parser.parse(command_args)
+        args = parser.parse(command_args_normalized)
 
         if not args:
             log.e("Command's arguments parse failed")
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return False
 
         log.i("Parsed command arguments\n%s", args)
@@ -1373,59 +1475,51 @@ class Client:
 
     def open(self, args: Args2) -> bool:
         #                    |------sharing_location-----|
-        # open <sharing_name>[@<hostname> | @<ip>[:<port>]]
+        # open <sharing_name>[@<server_name>|<ip>[:<port>]]
         #      |_________________________________________|
         #               sharing specifier
+        #
+        # e.g.  shared
+        #       shared@john-desktop
+        #       shared@john-desktop:54794
+        #       shared@192.168.1.105
+        #       shared@192.168.1.105:47294
 
-        sharing_specifier = args.get_varg()
+        sharing_spec = SharingSpecifier.parse(args.get_varg())
 
-        if not sharing_specifier:
+        if not sharing_spec:
             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return False
 
-        # timeout = to_int(args.get_varg(OpenArguments.TIMEOUT,
-        #                                 default=Discoverer.DEFAULT_TIMEOUT))
-
-        # if not timeout:
-        #     print_error(ClientErrors.INVALID_PARAMETER_VALUE)
-        #     return False
-
-        sharing_name, _, sharing_location = sharing_specifier.partition("@")
-
-        log.i(">> OPEN %s%s",
-          sharing_name,
-          "@{}".format(sharing_location) if sharing_location else "")
+        log.i(">> OPEN %s", sharing_spec)
 
         sharing_info, server_info = self._discover_sharing(
-            name=sharing_name,
-            location=sharing_location,
-            ftype=FTYPE_DIR,
-            timeout=2
+            specifier=sharing_spec,
+            ftype=FTYPE_DIR
         )
 
-        if not server_info:
+        if not sharing_info or not server_info:
             print_error(ClientErrors.SHARING_NOT_FOUND)
             return False
 
         if not self.connection:
-            log.d("Creating new connection with %s", server_info.get("uri"))
+            log.i("Creating new connection with %s", server_info.get("uri"))
             self.connection = Connection(server_info)
         else:
-            log.d("Reusing existing connection with %s", server_info.get("uri"))
+            log.i("Reusing existing connection with %s", server_info.get("uri"))
 
         passwd = None
 
         # Ask the password if the sharing is protected by auth
         if sharing_info.get("auth"):
-            log.i("Sharing '%s' is protected by password", sharing_name)
+            log.i("Sharing '%s' is protected by password", sharing_spec.sharing_name)
             passwd = getpass()
 
         # Actually send OPEN
-
-        resp = self.connection.open(sharing_name, passwd)
+        resp = self.connection.open(sharing_spec.sharing_name, passwd)
         if is_success_response(resp):
             log.i("Successfully connected to %s:%d",
-              server_info.get("ip"), server_info.get("port"))
+                  server_info.get("ip"), server_info.get("port"))
             return True
         else:
             self._handle_error_response(resp)
@@ -2107,7 +2201,7 @@ class Client:
         def response_handler(client_endpoint: Endpoint,
                              a_server_info: ServerInfo) -> bool:
             nonlocal server_info
-            d("Handling DISCOVER response from %s\n%s",
+            log.d("Handling DISCOVER response from %s\n%s",
               str(client_endpoint), str(a_server_info))
 
             # Check if 'location' matches (if specified)
@@ -2125,15 +2219,9 @@ class Client:
 
 
     def _discover_sharing(self,
-                          name: str = None,
-                          location: str = None,
+                          specifier: SharingSpecifier,
                           ftype: FileType = None,
                           timeout: int = Discoverer.DEFAULT_TIMEOUT) -> Tuple[Optional[SharingInfo], Optional[ServerInfo]]:
-        """
-        Performs a discovery for find whose server the sharing with the given
-        'name' belongs to.
-
-        """
 
         sharing_info: Optional[SharingInfo] = None
         server_info: Optional[ServerInfo] = None
@@ -2144,44 +2232,59 @@ class Client:
             nonlocal sharing_info
             nonlocal server_info
 
-            d("Handling DISCOVER response from %s\n%s",
-              str(client_endpoint), str(a_server_info))
+            log.d("Handling DISCOVER response from %s\n%s",
+                  str(client_endpoint), str(a_server_info))
 
-            # Check if 'location' matches (if specified)
-            if location and \
-                    location != a_server_info.get("name") and \
-                    location != a_server_info.get("ip") and \
-                    location != "{}:{}".format(a_server_info.get("ip"),
-                                               a_server_info.get("port")):
-                log.i("Discarding server info which does not match the location filter '%s'", location)
+            # Check against the location filters
+
+            # Server name check (optional)
+            if specifier.server_name and a_server_info.get("name") != specifier.server_name:
+                log.d("Discarding server info which does not match the server name filter '%s'",
+                      specifier.server_name)
+                return True  # Continue DISCOVER
+
+            # Server ip check (optional)
+            if specifier.server_ip and a_server_info.get("ip") != specifier.server_ip:
+                log.d("Discarding server info which does not match the ip filter '%s'",
+                      specifier.server_name)
+                return True  # Continue DISCOVER
+
+            # Server port check (optional)
+            if specifier.server_port and a_server_info.get("port") != specifier.server_port:
+                log.d("Discarding server info which does not match the port filter '%d'",
+                      specifier.server_port)
                 return True  # Continue DISCOVER
 
             for a_sharing_info in a_server_info.get("sharings"):
 
-                # Check if 'name' matches (if specified)
-                if name and a_sharing_info.get("name") != name:
-                    log.i("Ignoring sharing which does not match the name filter '%s'", name)
+                # Sharing name check (mandatory)
+                if specifier.sharing_name and a_sharing_info.get("name") != specifier.sharing_name :
+                    log.d("Ignoring sharing which does not match the sharing name filter '%s'",
+                          specifier.sharing_name )
                     continue
 
+                # Ftype check (optional)
                 if ftype and a_sharing_info.get("ftype") != ftype:
-                    log.i("Ignoring sharing which does not match the ftype filter '%s'", ftype)
+                    log.d("Ignoring sharing which does not match the ftype filter '%s'", ftype)
                     log.w("Found a sharing with the right name but wrong ftype, wrong command maybe?")
                     continue
 
                 # FOUND
-                log.d("Sharing [%s] found at %s:%d",
-                  a_sharing_info.get("name"),
-                  a_server_info.get("ip"),
-                  a_server_info.get("port"),
-              )
+                log.i("Sharing [%s] found at %s:%d",
+                      a_sharing_info.get("name"),
+                      a_server_info.get("ip"),
+                      a_server_info.get("port"))
 
                 server_info = a_server_info
                 sharing_info = a_sharing_info
-                return False    # Stop DISCOVER
+                return False        # Stop DISCOVER
 
             return True             # Continue DISCOVER
 
-        Discoverer(self._discover_port, response_handler).discover(timeout)
+        Discoverer(
+            server_discover_port=self._discover_port,
+            server_discover_addr=specifier.server_ip or ADDR_BROADCAST,
+            response_handler=response_handler).discover(timeout)
         return sharing_info, server_info
 
 
@@ -2310,13 +2413,13 @@ class Shell:
         self._suggestions_intent: Optional[SuggestionsIntent] = None
 
         self._shell_command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args2], None]]] = {
-            Commands.TRACE: (OptIntArg, self._trace),
-            Commands.TRACE_SHORT: (OptIntArg, self._trace),
-            Commands.VERBOSE: (OptIntArg, self._verbose),
-            Commands.VERBOSE_SHORT: (OptIntArg, self._verbose),
+            Commands.TRACE: (OptIntArg(), self._trace),
+            Commands.TRACE_SHORT: (OptIntArg(), self._trace),
+            Commands.VERBOSE: (OptIntArg(), self._verbose),
+            Commands.VERBOSE_SHORT: (OptIntArg(), self._verbose),
 
-            Commands.HELP: (PositionalArgs, self._help),
-            Commands.EXIT: (PositionalArgs, self._exit),
+            Commands.HELP: (VariadicArgs(), self._help),
+            Commands.EXIT: (VariadicArgs(), self._exit),
         }
 
         rl.parse_and_bind("tab: complete")
@@ -2356,21 +2459,14 @@ class Shell:
                 command: str = command_line_parts[0]
                 command_args: List[str] = command_line_parts[1:]
 
-                # exec
-                command_parts = command.rsplit(":", maxsplit=1)
-                if len(command_parts) > 1:
-                    command = command_parts[0] + ":"
-                    if command_parts[1]:
-                        command_args.insert(0, command_parts[1])
-
                 log.d("Detected command '%s'", command)
 
                 outcome = \
                     self._execute_shell_command(command, command_args) or \
                     self._client.execute_command(command, command_args)
 
-                if not outcome:
-                    print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
+                if outcome:
+                    log.d("Command execution: OK")
 
             except PyroError as pyroerr:
                 log.e("Pyro error occurred %s", pyroerr)
@@ -2469,13 +2565,10 @@ class Shell:
                 self._client.connection.sharing_name(),
                 self._client.connection.rpwd()
             )
-            remote = fg(remote, color=Color.MAGENTA)
-
-        # remote = "test:/path"
-        # remote = fg(remote, color=Color.CYAN)
+            # remote = fg(remote, color=Color.MAGENTA)
 
         local = os.getcwd()
-        local = fg(local, color=Color.CYAN)
+        # local = fg(local, color=Color.CYAN)
 
         sep = "  ##  " if remote else ""
 
@@ -2485,6 +2578,7 @@ class Shell:
 
     def _execute_shell_command(self, command: str, command_args: List[str]) -> bool:
         if command not in self._shell_command_dispatcher:
+            print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
             return False
 
         log.i("Handling shell command %s (%s)", command, command_args)
@@ -2496,6 +2590,7 @@ class Shell:
 
         if not args:
             log.e("Command's arguments parse failed")
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return False
 
         log.i("Parsed command arguments\n%s", args)
@@ -2556,7 +2651,7 @@ def main():
     # log.set_verbosity(logging.VERBOSITY_MAX)
 
     # Parse arguments
-    args = EsArgs.parse(sys.argv[1:])
+    args = EsArgs().parse(sys.argv[1:])
 
     if not args:
         abort("Error occurred while parsing arguments")
@@ -2586,20 +2681,19 @@ def main():
     vargs = args.get_vargs()
     command = vargs[0] if vargs else None
     if command:
-        if command in CLI_COMMANDS:
+        if command in CLI_COMMANDS or is_special_command(command):
             log.i("Found a valid CLI command '%s'", command)
             command_args = args.get_unparsed_args([])
             executed = client.execute_command(command, command_args)
 
-            if not executed:
-                abort("Error occurred while parsing command arguments")
-
             # Keep the shell opened only if we performed an 'open'
             # Otherwise close it after the action
-            start_shell = (command == Commands.OPEN)
+            start_shell = (executed and command == Commands.OPEN)
         else:
             log.w("Invalid CLI command '%s'; ignoring it and starting shell", command)
             log.w("Allowed CLI commands are: %s", ", ".join(CLI_COMMANDS))
+
+            start_shell = False
 
     # 2. Start an interactive session ?
     if start_shell:
@@ -2611,3 +2705,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

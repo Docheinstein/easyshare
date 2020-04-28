@@ -1,32 +1,15 @@
-import ssl
-from typing import List, Union, Optional
+from typing import List, Union
 
-import Pyro4
-from Pyro4 import socketutil
-from Pyro4.core import _BatchProxyAdapter
 
 from easyshare.client.errors import ClientErrors
 from easyshare.client.server import ServerProxy
+from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response, create_error_response, is_success_response
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.serverinfo import ServerInfo
 
-
-# def batchable(func):
-#     def batchable_func(connection: 'Connection', *vargs, **kwargs) -> Response:
-#         if connection._batch is None:
-#             # Non batch
-#             return func
-#
-#         log.i("Called method while in batch mode")
-#         # Get the pyro wrapper for the method and call it
-#         getattr(connection._batch, func.__name, *vargs, **kwargs)()
-#
-#     return batchable_func
-#
-from easyshare.utils.net import create_client_ssl_context
-
+log = get_logger(__name__)
 
 class Connection:
 

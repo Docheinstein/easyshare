@@ -17,7 +17,7 @@ from easyshare.protocol.response import create_success_response, create_error_re
 from easyshare.server.sharing import Sharing
 from easyshare.server.transactions import GetTransactionHandler, PutTransactionHandler
 from easyshare.shared.args import Args
-from easyshare.shared.conf import APP_VERSION, APP_NAME_SERVER_SHORT, \
+from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, \
     APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET
 from easyshare.config.parser import parse_config
 from easyshare.server.client import ClientContext

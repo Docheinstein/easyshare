@@ -2,10 +2,18 @@ import enum
 import os
 import socket
 import ssl
+import re
+
 from typing import Optional
 
 from easyshare.consts.net import ADDR_ANY, PORT_ANY
+from easyshare.logging import get_logger
 from easyshare.utils.types import is_int
+
+
+log = get_logger(__name__)
+
+IP_REGEX = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 
 
 class SocketMode(enum.Enum):
@@ -31,8 +39,12 @@ def get_primary_ip():
     return IP
 
 
-def is_valid_port(o: int) -> bool:
-    return is_int(o) and 0 < o < 65535
+def is_valid_ip(ip: str) -> bool:
+    return True if IP_REGEX.match(ip) else False
+
+
+def is_valid_port(p: int) -> bool:
+    return is_int(p) and 0 < p < 65535
 
 
 def socket_udp_in(address: str = ADDR_ANY, port: int = PORT_ANY, *,

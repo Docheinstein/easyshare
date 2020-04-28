@@ -37,11 +37,26 @@ class KwArgSpec:
         self.params_spec: ParamsSpec = params_spec
 
 
-INT_PARAM = ParamsSpec(1, 0, lambda ps: [to_int(p, raise_exceptions=True) for p in ps])
-OPT_INT_PARAM = ParamsSpec(0, 1, lambda ps: [to_int(p, raise_exceptions=True) for p in ps])
-PRESENCE_PARAM = ParamsSpec(0, 0, lambda ps: True)
-VARIADIC_PARAMS = ParamsSpec(0, ParamsSpec.VARIADIC_PARAMETERS_COUNT, lambda ps: ps)
+# -- helpers --
 
+class IntParamsSpec(ParamsSpec):
+    def __init__(self, mandatory_count: int, optional_count: int = 0):
+        super().__init__(mandatory_count, optional_count,
+                         lambda ps: [to_int(p, raise_exceptions=True) for p in ps])
+
+
+class NoopParamsSpec(ParamsSpec):
+    def __init__(self, mandatory_count: int, optional_count: int = 0):
+        super().__init__(mandatory_count, optional_count,
+                         lambda ps: ps)
+
+
+INT_PARAM = IntParamsSpec(1, 0)
+OPT_INT_PARAM = IntParamsSpec(0, 1)
+PRESENCE_PARAM = ParamsSpec(0, 0, lambda ps: True)
+VARIADIC_PARAMS = NoopParamsSpec(0, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
+
+# ---
 
 class Args:
     def __init__(self, parsed: Dict, unparsed: List[Any] = None):
@@ -96,8 +111,8 @@ class Args:
     def parse(args: List[str], *,
               kwargs_specs: List[KwArgSpec] = None,
               vargs_spec: ParamsSpec = VARIADIC_PARAMS,
-              continue_parsing_hook: Optional[Callable[[str, int, 'Args'], bool]] = None) -> Optional['Args']:
-
+              continue_parsing_hook: Optional[Callable[[str, int, 'Args', List[str]], bool]] = None) -> Optional['Args']:
+        # continue_parsing_hook: argname, idx, args, positionals
         kwargs_specs = kwargs_specs or []
         parsed = {}
         unparsed = []
@@ -146,7 +161,7 @@ class Args:
                 # Check whether we can go further
 
                 if continue_parsing_hook:
-                    cont = continue_parsing_hook(arg, cursor, ret)
+                    cont = continue_parsing_hook(arg, cursor, ret, positionals)
                     log.d("continue: %d", cont)
 
                     if not cont:

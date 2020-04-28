@@ -2,6 +2,7 @@ import select
 from datetime import datetime
 from typing import Callable
 
+from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.response import Response, is_data_response
 from easyshare.shared.endpoint import Endpoint
@@ -13,14 +14,18 @@ from easyshare.utils.types import int_to_bytes
 
 log = get_logger(__name__)
 
+
 class Discoverer:
 
     DEFAULT_TIMEOUT = 2
 
     def __init__(
-            self,
+            self, *,
             server_discover_port: int,
-            response_handler: Callable[[Endpoint, ServerInfo], bool]):
+            response_handler: Callable[[Endpoint, ServerInfo], bool],
+            server_discover_addr: str = ADDR_BROADCAST):
+
+        self.server_discover_addr = server_discover_addr
         self.server_discover_port = server_discover_port
         self.response_handler = response_handler
 
@@ -33,18 +38,19 @@ class Discoverer:
         # Send discover
         discover_message_raw = in_sock.port()
         discover_message = int_to_bytes(discover_message_raw, 2)
-        out_sock = SocketUdpOut(broadcast=True)
+        out_sock = SocketUdpOut(broadcast=self.server_discover_addr == ADDR_BROADCAST)
 
-        log.i("Broadcasting DISCOVER on port %d", self.server_discover_port)
+        log.i("Sending DISCOVER to %s:%d",
+              self.server_discover_addr,
+              self.server_discover_port)
 
         trace_out(
             "DISCOVER {} ({})".format(str(discover_message), discover_message_raw),
-            ip="",
-            port=self.server_discover_port,
-            alias="broadcast"
+            ip=self.server_discover_addr,
+            port=self.server_discover_port
         )
 
-        out_sock.broadcast(discover_message, self.server_discover_port)
+        out_sock.send(discover_message, self.server_discover_addr, self.server_discover_port)
 
         # Listen
         discover_start_time = datetime.now()
