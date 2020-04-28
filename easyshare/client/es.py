@@ -960,19 +960,19 @@ class Client:
         self._discover_port = discover_port
 
         self._command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args2], int]]] = {
-            Commands.LOCAL_CHANGE_DIRECTORY: (PositionalArgs(1), self.cd),
-            Commands.LOCAL_LIST_DIRECTORY: (LsArgs(), self.ls),
-            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (PositionalArgs(1), self.l),
-            Commands.LOCAL_TREE_DIRECTORY: (TreeArgs(), self.tree),
-            Commands.LOCAL_CREATE_DIRECTORY: (PositionalArgs(1), self.mkdir),
-            Commands.LOCAL_CURRENT_DIRECTORY: (NoParseArgs(), self.pwd),
-            Commands.LOCAL_REMOVE: (VariadicArgs(1), self.rm),
-            Commands.LOCAL_MOVE: (VariadicArgs(2), self.mv),
-            Commands.LOCAL_COPY: (VariadicArgs(2), self.cp),
-            Commands.LOCAL_EXEC: (NoParseArgs(), self.exec),
+            Commands.LOCAL_CHANGE_DIRECTORY: (PositionalArgs(1), Client.cd),
+            Commands.LOCAL_LIST_DIRECTORY: (LsArgs(), Client.ls),
+            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (PositionalArgs(0, 1), Client.l),
+            Commands.LOCAL_TREE_DIRECTORY: (TreeArgs(), Client.tree),
+            Commands.LOCAL_CREATE_DIRECTORY: (PositionalArgs(1), Client.mkdir),
+            Commands.LOCAL_CURRENT_DIRECTORY: (NoParseArgs(), Client.pwd),
+            Commands.LOCAL_REMOVE: (VariadicArgs(1), Client.rm),
+            Commands.LOCAL_MOVE: (VariadicArgs(2), Client.mv),
+            Commands.LOCAL_COPY: (VariadicArgs(2), Client.cp),
+            Commands.LOCAL_EXEC: (NoParseArgs(), Client.exec),
 
             Commands.REMOTE_CHANGE_DIRECTORY: self.rcd,
-            Commands.REMOTE_LIST_DIRECTORY: self.rls,
+            Commands.REMOTE_LIST_DIRECTORY: (LsArgs(), self.rls),
             Commands.REMOTE_TREE_DIRECTORY: self.rtree,
             Commands.REMOTE_CREATE_DIRECTORY: self.rmkdir,
             Commands.REMOTE_CURRENT_DIRECTORY: self.rpwd,
@@ -1037,7 +1037,8 @@ class Client:
 
     # === LOCAL COMMANDS ===
 
-    def cd(self, args: Args2) -> int:
+    @staticmethod
+    def cd(args: Args2) -> int:
         directory = path(args.get_varg(default="~"))
 
         log.i(">> CD %s", directory)
@@ -1049,7 +1050,8 @@ class Client:
 
         return 0
 
-    def ls(self, args: Args2) -> int:
+    @staticmethod
+    def ls(args: Args2) -> int:
         # (Optional) path
         f = path(args.get_varg(default=os.getcwd()))
 
@@ -1080,16 +1082,18 @@ class Client:
 
         return 0
 
-    def l(self, args: Args2) -> int:
+    @staticmethod
+    def l(args: Args2) -> int:
         # Just call ls -la
         # Reuse the parsed args for keep the (optional) path
         args._parsed[LsArgs.SHOW_ALL[0]] = True
         args._parsed[LsArgs.SHOW_DETAILS[0]] = True
-        self.ls(args)
+        Client.ls(args)
 
         return 0
 
-    def tree(self, args: Args2):
+    @staticmethod
+    def tree(args: Args2):
         # (Optional) path
         f = args.get_varg(default=os.getcwd())
 
@@ -1123,8 +1127,9 @@ class Client:
 
         return 0
 
-    def mkdir(self, args: Args) -> int:
-        directory = path(args.get_param())
+    @staticmethod
+    def mkdir(args: Args2) -> int:
+        directory = path(args.get_varg())
 
         if not directory:
             return ClientErrors.INVALID_COMMAND_SYNTAX
@@ -1135,15 +1140,17 @@ class Client:
 
         return 0
 
-    def pwd(self, _: Args) -> int:
+    @staticmethod
+    def pwd(_: Args2) -> int:
         log.i(">> PWD")
 
         print(os.getcwd())
 
         return 0
 
-    def rm(self, args: Args2) -> int:
-        paths = args.get_vargs()
+    @staticmethod
+    def rm(args: Args2) -> int:
+        paths = [path(p) for p in args.get_vargs()]
 
         if not paths:
             return ClientErrors.INVALID_COMMAND_SYNTAX
@@ -1155,50 +1162,53 @@ class Client:
 
         return 0
 
-    def mv(self, args: Args2) -> int:
+    @staticmethod
+    def mvcp(args: Args2,
+             mvcp_primitive=Callable[[str, str], bool],
+             mvcp_primitive_name: str = "MV/CP") -> int:
         """
-        mv <src>... <dest>
+                mv <src>... <dest>
 
-        A1  At least two parameters
-        A2  If a <src> doesn't exist => IGNORES it
+                A1  At least two parameters
+                A2  If a <src> doesn't exist => IGNORES it
 
-        2 args:
-        B1  If <dest> exists
-            B1.1    If type of <dest> is DIR => put <src> into <dest> anyway
+                2 args:
+                B1  If <dest> exists
+                    B1.1    If type of <dest> is DIR => put <src> into <dest> anyway
 
-            B1.2    If type of <dest> is FILE
-                B1.2.1  If type of <src> is DIR => ERROR
-                B1.2.2  If type of <src> is FILE => OVERWRITE
-        B2  If <dest> doesn't exist => preserve type of <src>
+                    B1.2    If type of <dest> is FILE
+                        B1.2.1  If type of <src> is DIR => ERROR
+                        B1.2.2  If type of <src> is FILE => OVERWRITE
+                B2  If <dest> doesn't exist => preserve type of <src>
 
-        3 args:
-        C1  if <dest> exists => must be a dir
-        C2  If <dest> doesn't exist => ERROR
+                3 args:
+                C1  if <dest> exists => must be a dir
+                C2  If <dest> doesn't exist => ERROR
 
-        """
-        mv_args = [path(f) for f in args.get_vargs()]
+                """
+        mvcp_args = [path(f) for f in args.get_vargs()]
 
-        if not mv_args or len(mv_args) < 2:
+        if not mvcp_args or len(mvcp_args) < 2:
             return ClientErrors.INVALID_COMMAND_SYNTAX
 
-        dest = mv_args.pop()
+        dest = mvcp_args.pop()
 
         # C1/C2 check: with 3+ arguments
-        if len(mv_args) >= 3:
+        if len(mvcp_args) >= 3:
             # C1  if <dest> exists => must be a dir
             # C2  If <dest> doesn't exist => ERROR
             # => must be a valid dir
             if not os.path.isdir(dest):
-                eprint("'%s' must be an existing directory", dest)
-                return
+                log.e("'%s' must be an existing directory", dest)
+                return ClientErrors.INVALID_PATH
 
         # Every other constraint is well handled by shutil.move()
         errors = []
 
-        for src in mv_args:
-            log.i(">> MV <%s> <%s>", src, dest)
+        for src in mvcp_args:
+            log.i(">> %s <%s> <%s>", mvcp_primitive_name, src, dest)
             try:
-                mv(src, dest)
+                mvcp_primitive(src, dest)
             except Exception as ex:
                 errors.append(str(ex))
 
@@ -1208,47 +1218,24 @@ class Client:
         for err in errors:
             eprint(err)
 
+        return 0
 
-    def cp(self, args: Args2):
-        cp_args = args.get_vargs()
-        args_count = len(cp_args)
+    @staticmethod
+    def mv(args: Args2) -> int:
+        return Client.mvcp(args, mv, "MV")
 
-        if not cp_args or args_count < 2:
-            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
+    @staticmethod
+    def cp(args: Args2) -> int:
+        return Client.mvcp(args, cp, "CP")
 
-        dest = cp_args.pop()
-
-        # C1/C2 check: with 3+ arguments
-        if args_count >= 3:
-            # C1  if <dest> exists => must be a dir
-            # C2  If <dest> doesn't exist => ERROR
-            # => must be a valid dir
-            if not os.path.isdir(dest):
-                eprint("'%s' must be an existing directory", dest)
-                return
-
-        # Every other constraint is well handled by shutil.move()
-        errors = []
-
-        for src in cp_args:
-            log.i(">> CP <%s> <%s>", src, dest)
-            try:
-                cp(src, dest)
-            except Exception as ex:
-                errors.append(str(ex))
-
-        if errors:
-            log.e("%d errors occurred", len(errors))
-
-        for err in errors:
-            eprint(err)
-
-    def exec(self, args: Args2):
+    @staticmethod
+    def exec(args: Args2) -> int:
         exec_args = args.get_unparsed_args()
         exec_fullarg = " ".join(exec_args)
         log.i(">> EXEC %s", exec_fullarg)
-        return run(exec_fullarg, output_hook=lambda line: print(line, end="")) == 0
+        retcode = run(exec_fullarg, output_hook=lambda line: print(line, end=""))
+        log.i("Command return code: %d", retcode)
+        return retcode
 
     # === REMOTE COMMANDS ===
 
@@ -1277,7 +1264,39 @@ class Client:
         else:
             self._handle_error_response(resp)
 
+
     def rls(self, args: Args):
+        # (Optional) path
+        # f = path(args.get_varg(default=os.getcwd()))
+        #
+        # # Sorting
+        # sort_by = ["name"]
+        #
+        # if LsArgs.SORT_BY_SIZE in args:
+        #     sort_by.append("size")
+        # if LsArgs.GROUP in args:
+        #     sort_by.append("ftype")
+        #
+        # # Reverse
+        # reverse = LsArgs.REVERSE in args
+        #
+        # log.i(">> LS %s (sort by %s%s)", path, sort_by, " | reverse" if reverse else "")
+        #
+        # ls_result = ls(f, sort_by=sort_by, reverse=reverse)
+        # if ls_result is None:
+        #     return ClientErrors.COMMAND_EXECUTION_FAILED
+        #
+        # print_files_info_list(
+        #     ls_result,
+        #     show_file_type=LsArgs.SHOW_DETAILS in args,
+        #     show_hidden=LsArgs.SHOW_ALL in args,
+        #     show_size=LsArgs.SHOW_SIZE in args or LsArgs.SHOW_DETAILS in args,
+        #     compact=LsArgs.SHOW_DETAILS not in args
+        # )
+        #
+        # return 0
+
+
         if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
             return
@@ -1517,11 +1536,11 @@ class Client:
 
         # Ask the password if the sharing is protected by auth
         if sharing_info.get("auth"):
-            log.i("Sharing '%s' is protected by password", sharing_spec.sharing_name)
+            log.i("Sharing '%s' is protected by password", sharing_spec.name)
             passwd = getpass()
 
         # Actually send OPEN
-        resp = self.connection.open(sharing_spec.sharing_name, passwd)
+        resp = self.connection.open(sharing_spec.name, passwd)
         if is_success_response(resp):
             log.i("Successfully connected to %s:%d",
                   server_info.get("ip"), server_info.get("port"))

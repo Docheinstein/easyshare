@@ -279,12 +279,15 @@ def run(cmd: str,
     with subprocess.Popen(cmd, shell=True,
                           stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT) as proc:
-        while True:
+        while proc.poll() is None:
             stdout_line = proc.stdout.readline()
             if not stdout_line:
-                break
+                log.d("run: EOF")
+                continue
             if output_hook:
                 output_hook(bytes_to_str(stdout_line))
+
+        log.d("run: END")
 
         return proc.returncode
 
