@@ -2,7 +2,6 @@ import enum
 import os
 import random
 import shlex
-import subprocess
 import sys
 import readline as rl
 import time
@@ -45,7 +44,7 @@ from easyshare.utils.net import is_valid_ip, is_valid_port
 from easyshare.utils.obj import values
 from easyshare.utils.str import rightof
 from easyshare.utils.types import to_int, bool_to_str, is_bool, bytes_to_str
-from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden
+from easyshare.utils.os import ls, size_str, rm, tree, mv, cp, is_hidden, path, run
 from easyshare.args import Args as Args2, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, OPT_INT_PARAM, \
     NoopParamsSpec
 
@@ -872,47 +871,36 @@ def is_special_command(c: str):
 # ==================================================================
 
 
-class SharingSpecifier:
+class ServerSpecifier:
     def __init__(self,
-                 sharing_name: str,
-                 server_name: str = None,
-                 server_ip: str = None,
-                 server_port: int = None):
-        self.sharing_name = sharing_name
-        self.server_name = server_name
-        self.server_ip = server_ip
-        self.server_port = server_port
-
-
+                 name: str = None,
+                 ip: str = None,
+                 port: int = None):
+        self.name = name
+        self.ip = ip
+        self.port = port
 
     def __str__(self):
-        s = self.sharing_name
-
-        if self.server_name or self.server_ip:
-            if self.server_name:
-                s += "@" + self.server_name
-            elif self.server_ip:
-                s += "@" + self.server_ip
-            if self.server_port:
-                s += ":" + str(self.server_port)
+        s = ""
+        if self.name or self.ip:
+            if self.name:
+                s += "@" + self.name
+            elif self.ip:
+                s += "@" + self.ip
+            if self.port:
+                s += ":" + str(self.port)
 
         return s
 
     @staticmethod
-    def parse(spec: str) -> Optional['SharingSpecifier']:
-        # |----name-----|----------location----------|
-        # <sharing_name>[@<server_name>|<ip>[:<port>]]
-        # |---------------specifier------------------|
+    def parse(spec: str) -> Optional['ServerSpecifier']:
+        # |-----server specifier-------|
+        # [@<server_name>|<ip>[:<port>]]
 
         if not spec:
             return None
 
-        sharing_name, _, location = spec.partition("@")
-        server_name_or_ip, _, server_port = location.partition(":")
-
-        if not is_sharing_name(sharing_name):
-            log.w("Invalid sharing name: '%s'", sharing_name)
-            return None
+        server_name_or_ip, _, server_port = spec.partition(":")
 
         server_ip = None
         server_name = None
@@ -928,11 +916,40 @@ class SharingSpecifier:
         if not is_valid_port(server_port):
             server_port = None
 
+        return ServerSpecifier(
+            name=server_name,
+            ip=server_ip,
+            port=server_port
+        )
+
+
+class SharingSpecifier:
+    def __init__(self,
+                 sharing_name: str,
+                 server_spec: ServerSpecifier = ServerSpecifier()):
+        self.name = sharing_name
+        self.server = server_spec
+
+    def __str__(self):
+        s = self.name
+        server_s = str(self.server)
+        return "{}{}".format(s, ("@" + server_s) if server_s else "")
+
+    @staticmethod
+    def parse(spec: str) -> Optional['SharingSpecifier']:
+        # |----name-----|-----server specifier-------|
+        # <sharing_name>[@<server_name>|<ip>[:<port>]]
+        # |-------------sharing specifier------------|
+
+        if not spec:
+            return None
+
+        sharing_name, _, server_specifier = spec.partition("@")
+        server_spec = ServerSpecifier.parse(server_specifier)
+
         return SharingSpecifier(
             sharing_name=sharing_name,
-            server_name=server_name,
-            server_ip=server_ip,
-            server_port=server_port
+            server_spec=server_spec
         )
 
 
@@ -942,7 +959,7 @@ class Client:
 
         self._discover_port = discover_port
 
-        self._command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args2], None]]] = {
+        self._command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args2], int]]] = {
             Commands.LOCAL_CHANGE_DIRECTORY: (PositionalArgs(1), self.cd),
             Commands.LOCAL_LIST_DIRECTORY: (LsArgs(), self.ls),
             Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (PositionalArgs(1), self.l),
@@ -966,7 +983,7 @@ class Client:
 
             Commands.SCAN: self.scan,
             Commands.OPEN: (PositionalArgs(1), self.open),
-            Commands.CLOSE: self.close,
+            Commands.CLOSE: (NoParseArgs(), self.close),
 
             Commands.GET: self.get,
             Commands.PUT: self.put,
@@ -976,9 +993,12 @@ class Client:
         }
 
     def has_command(self, command: str) -> bool:
-        return command in self._command_dispatcher
+        return command in self._command_dispatcher or is_special_command(command)
 
-    def execute_command(self, command: str, command_args: List[str]) -> bool:
+    def execute_command(self, command: str, command_args: List[str]) -> int:
+        if not self.has_command(command):
+            return ClientErrors.COMMAND_NOT_RECOGNIZED
+
         command_args_normalized = command_args.copy()
 
         # Handle special commands (':')
@@ -989,11 +1009,6 @@ class Client:
             if command_parts[1]:
                 command_args_normalized.insert(0, command_parts[1])
 
-        # Check whether it is a known command
-        if command not in self._command_dispatcher:
-            print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
-            return False
-
         log.i("Executing %s(%s)", command, command_args_normalized)
 
         parser, executor = self._command_dispatcher[command]
@@ -1003,37 +1018,40 @@ class Client:
 
         if not args:
             log.e("Command's arguments parse failed")
-            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return False
+            return ClientErrors.INVALID_COMMAND_SYNTAX
 
         log.i("Parsed command arguments\n%s", args)
 
-        executor(args)
+        try:
+            errcode = executor(args)
+            if errcode > 0:
+                print_error(errcode)
+        except Exception as ex:
+            log.e("Exception caught while executing command\n%s", ex)
+            return ClientErrors.COMMAND_EXECUTION_FAILED
 
-        return True
+        return 0
 
-    def is_connected(self):
+    def is_connected(self) -> bool:
         return self.connection and self.connection.is_connected()
 
     # === LOCAL COMMANDS ===
 
-    def cd(self, args: Args2):
-        directory = os.path.expanduser(args.get_varg(default="~"))
+    def cd(self, args: Args2) -> int:
+        directory = path(args.get_varg(default="~"))
 
         log.i(">> CD %s", directory)
 
         if not os.path.isdir(os.path.join(os.getcwd(), directory)):
-            print_error(ClientErrors.INVALID_PATH)
-            return
+            return ClientErrors.INVALID_PATH
 
-        try:
-            os.chdir(directory)
-        except Exception:
-            print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
+        os.chdir(directory)
 
-    def ls(self, args: Args2):
+        return 0
+
+    def ls(self, args: Args2) -> int:
         # (Optional) path
-        path = args.get_varg(default=os.getcwd())
+        f = path(args.get_varg(default=os.getcwd()))
 
         # Sorting
         sort_by = ["name"]
@@ -1048,9 +1066,9 @@ class Client:
 
         log.i(">> LS %s (sort by %s%s)", path, sort_by, " | reverse" if reverse else "")
 
-        ls_result = ls(path, sort_by=sort_by, reverse=reverse)
+        ls_result = ls(f, sort_by=sort_by, reverse=reverse)
         if ls_result is None:
-            print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
+            return ClientErrors.COMMAND_EXECUTION_FAILED
 
         print_files_info_list(
             ls_result,
@@ -1060,16 +1078,20 @@ class Client:
             compact=LsArgs.SHOW_DETAILS not in args
         )
 
-    def l(self, args: Args2):
+        return 0
+
+    def l(self, args: Args2) -> int:
         # Just call ls -la
         # Reuse the parsed args for keep the (optional) path
         args._parsed[LsArgs.SHOW_ALL[0]] = True
         args._parsed[LsArgs.SHOW_DETAILS[0]] = True
         self.ls(args)
 
+        return 0
+
     def tree(self, args: Args2):
         # (Optional) path
-        path = args.get_varg(default=os.getcwd())
+        f = args.get_varg(default=os.getcwd())
 
         # Sorting
         sort_by = ["name"]
@@ -1088,55 +1110,52 @@ class Client:
         log.i(">> TREE %s (sort by %s%s)", path, sort_by, " | reverse" if reverse else "")
 
         tree_result: FileInfoTreeNode = tree(
-            os.getcwd(), sort_by=sort_by, reverse=reverse, max_depth=max_depth
+            f, sort_by=sort_by, reverse=reverse, max_depth=max_depth
         )
 
         if tree_result is None:
-            print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
+            return ClientErrors.COMMAND_EXECUTION_FAILED
 
         print_files_info_tree(tree_result,
                               max_depth=max_depth,
                               show_hidden=TreeArgs.SHOW_ALL in args,
                               show_size=TreeArgs.SHOW_SIZE in args)
 
-    def mkdir(self, args: Args):
-        directory = args.get_param()
+        return 0
+
+    def mkdir(self, args: Args) -> int:
+        directory = path(args.get_param())
 
         if not directory:
-            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
+            return ClientErrors.INVALID_COMMAND_SYNTAX
 
-        log.i(">> MKDIR " + directory)
+        log.i(">> MKDIR %s", directory)
 
-        try:
-            os.mkdir(directory)
-        except Exception:
-            print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
+        os.mkdir(directory)
 
-    def pwd(self, _: Args):
+        return 0
+
+    def pwd(self, _: Args) -> int:
         log.i(">> PWD")
 
-        try:
-            print(os.getcwd())
-        except Exception:
-            print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
+        print(os.getcwd())
 
-    def rm(self, args: Args2):
+        return 0
+
+    def rm(self, args: Args2) -> int:
         paths = args.get_vargs()
 
         if not paths:
-            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
+            return ClientErrors.INVALID_COMMAND_SYNTAX
 
         log.i(">> RM %s", paths)
 
-        def handle_rm_error(err):
-            eprint(err)
+        for p in paths:
+            rm(p, error_callback=lambda err: eprint(err))
 
-        for path in paths:
-            rm(path, error_callback=handle_rm_error)
+        return 0
 
-    def mv(self, args: Args2):
+    def mv(self, args: Args2) -> int:
         """
         mv <src>... <dest>
 
@@ -1157,18 +1176,15 @@ class Client:
         C2  If <dest> doesn't exist => ERROR
 
         """
-        mv_args = args.get_vargs()
+        mv_args = [path(f) for f in args.get_vargs()]
 
-        args_count = len(mv_args)
-
-        if not mv_args or args_count < 2:
-            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
+        if not mv_args or len(mv_args) < 2:
+            return ClientErrors.INVALID_COMMAND_SYNTAX
 
         dest = mv_args.pop()
 
         # C1/C2 check: with 3+ arguments
-        if args_count >= 3:
+        if len(mv_args) >= 3:
             # C1  if <dest> exists => must be a dir
             # C2  If <dest> doesn't exist => ERROR
             # => must be a valid dir
@@ -1229,21 +1245,10 @@ class Client:
             eprint(err)
 
     def exec(self, args: Args2):
-        popen_args = args.get_unparsed_args()
-        popen_fullarg = " ".join(popen_args)
-        log.i(">> EXEC %s", popen_fullarg)
-
-        try:
-            proc: subprocess.Popen = \
-                subprocess.Popen(["/bin/sh", "-c", popen_fullarg],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
-
-            ret_str = bytes_to_str(proc.stdout.read())
-            print(ret_str, end="")
-        except Exception:
-            print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
-
+        exec_args = args.get_unparsed_args()
+        exec_fullarg = " ".join(exec_args)
+        log.i(">> EXEC %s", exec_fullarg)
+        return run(exec_fullarg, output_hook=lambda line: print(line, end="")) == 0
 
     # === REMOTE COMMANDS ===
 
@@ -1494,7 +1499,7 @@ class Client:
         log.i(">> OPEN %s", sharing_spec)
 
         sharing_info, server_info = self._discover_sharing(
-            specifier=sharing_spec,
+            sharing_spec=sharing_spec,
             ftype=FTYPE_DIR
         )
 
@@ -2190,38 +2195,49 @@ class Client:
             log.d("PUT => put_sharing")
             self.put_sharing(args)
 
-    def _discover_server(self, location: str) -> Optional[ServerInfo]:
-
-        if not location:
-            log.e("Server location must be specified")
-            return None
-
+    def _discover_server(self, server_spec: ServerSpecifier) -> Optional[ServerInfo]:
         server_info: Optional[ServerInfo] = None
 
         def response_handler(client_endpoint: Endpoint,
                              a_server_info: ServerInfo) -> bool:
             nonlocal server_info
             log.d("Handling DISCOVER response from %s\n%s",
-              str(client_endpoint), str(a_server_info))
+                  str(client_endpoint), str(a_server_info))
 
-            # Check if 'location' matches (if specified)
-            if location == a_server_info.get("name") or \
-                location == a_server_info.get("ip") or \
-                location == "{}:{}".format(a_server_info.get("ip"),
-                                           a_server_info.get("port")):
-                server_info = a_server_info
-                return False    # Stop DISCOVER
+            # Check against the location filters
 
-            return True  # Continue DISCOVER
+            # Server name check (optional)
+            if server_spec.name and a_server_info.get("name") != server_spec.name:
+                log.d("Discarding server info which does not match the server name filter '%s'",
+                      server_spec.name)
+                return True  # Continue DISCOVER
 
-        Discoverer(self._discover_port, response_handler).discover()
+            # Server ip check (optional)
+            if server_spec.ip and a_server_info.get("ip") != server_spec.ip:
+                log.d("Discarding server info which does not match the ip filter '%s'",
+                      server_spec.ip)
+                return True  # Continue DISCOVER
+
+            # Server port check (optional)
+            if server_spec.port and a_server_info.get("port") != server_spec.port:
+                log.d("Discarding server info which does not match the port filter '%d'",
+                      server_spec.port)
+                return True  # Continue DISCOVER
+
+            server_info = a_server_info
+            return False  # Stop DISCOVER
+
+        Discoverer(
+            server_discover_port=self._discover_port,
+            server_discover_addr=server_spec.ip or ADDR_BROADCAST,
+            response_handler=response_handler).discover()
+
         return server_info
 
 
     def _discover_sharing(self,
-                          specifier: SharingSpecifier,
-                          ftype: FileType = None,
-                          timeout: int = Discoverer.DEFAULT_TIMEOUT) -> Tuple[Optional[SharingInfo], Optional[ServerInfo]]:
+                          sharing_spec: SharingSpecifier,
+                          ftype: FileType = None) -> Tuple[Optional[SharingInfo], Optional[ServerInfo]]:
 
         sharing_info: Optional[SharingInfo] = None
         server_info: Optional[ServerInfo] = None
@@ -2238,29 +2254,28 @@ class Client:
             # Check against the location filters
 
             # Server name check (optional)
-            if specifier.server_name and a_server_info.get("name") != specifier.server_name:
+            if sharing_spec.server.name and a_server_info.get("name") != sharing_spec.server.name:
                 log.d("Discarding server info which does not match the server name filter '%s'",
-                      specifier.server_name)
+                      sharing_spec.server.name)
                 return True  # Continue DISCOVER
 
             # Server ip check (optional)
-            if specifier.server_ip and a_server_info.get("ip") != specifier.server_ip:
+            if sharing_spec.server.ip and a_server_info.get("ip") != sharing_spec.server.ip:
                 log.d("Discarding server info which does not match the ip filter '%s'",
-                      specifier.server_name)
+                      sharing_spec.server.ip)
                 return True  # Continue DISCOVER
 
             # Server port check (optional)
-            if specifier.server_port and a_server_info.get("port") != specifier.server_port:
+            if sharing_spec.server.port and a_server_info.get("port") != sharing_spec.server.port:
                 log.d("Discarding server info which does not match the port filter '%d'",
-                      specifier.server_port)
+                      sharing_spec.server.port)
                 return True  # Continue DISCOVER
 
             for a_sharing_info in a_server_info.get("sharings"):
-
                 # Sharing name check (mandatory)
-                if specifier.sharing_name and a_sharing_info.get("name") != specifier.sharing_name :
+                if sharing_spec.name and a_sharing_info.get("name") != sharing_spec.name:
                     log.d("Ignoring sharing which does not match the sharing name filter '%s'",
-                          specifier.sharing_name )
+                          sharing_spec.name)
                     continue
 
                 # Ftype check (optional)
@@ -2283,10 +2298,10 @@ class Client:
 
         Discoverer(
             server_discover_port=self._discover_port,
-            server_discover_addr=specifier.server_ip or ADDR_BROADCAST,
-            response_handler=response_handler).discover(timeout)
-        return sharing_info, server_info
+            server_discover_addr=sharing_spec.server.ip or ADDR_BROADCAST,
+            response_handler=response_handler).discover()
 
+        return sharing_info, server_info
 
     @staticmethod
     def _sharings_string(sharings: List[SharingInfo], details: bool = False) -> str:
@@ -2461,11 +2476,16 @@ class Shell:
 
                 log.d("Detected command '%s'", command)
 
-                outcome = \
-                    self._execute_shell_command(command, command_args) or \
-                    self._client.execute_command(command, command_args)
+                exec_error_code = ClientErrors.COMMAND_NOT_RECOGNIZED
 
-                if outcome:
+                if self._has_command(command):
+                    exec_error_code = self._execute_shell_command(command, command_args)
+                elif self._client.has_command(command):
+                    exec_error_code = self._client.execute_command(command, command_args)
+
+                if exec_error_code > 0:
+                    print_error(exec_error_code)
+                else:
                     log.d("Command execution: OK")
 
             except PyroError as pyroerr:
@@ -2508,7 +2528,8 @@ class Shell:
             self._suggestions_intent = SuggestionsIntent([])
 
             for comm_name, comm_info in COMMANDS_INFO.items():
-                if stripped_current_line.startswith(comm_name + " "):
+                if stripped_current_line.startswith(comm_name + " ") or \
+                        is_special_command(comm_name):
                     # Typing a COMPLETE command
                     # e.g. 'ls '
                     log.d("Fetching suggestions intent for command '%s'", comm_name)
@@ -2553,7 +2574,10 @@ class Shell:
 
         if count < len(self._suggestions_intent.suggestions):
             log.d("Returning suggestion %d", count)
-            return self._suggestions_intent.suggestions[count].string
+            sugg = self._suggestions_intent.suggestions[count].string
+
+            # Escape whitespaces
+            return sugg.replace(" ", "\\ ")
 
         return None
 
@@ -2576,10 +2600,12 @@ class Shell:
 
         return styled(prompt, attrs=Attribute.BOLD)
 
-    def _execute_shell_command(self, command: str, command_args: List[str]) -> bool:
-        if command not in self._shell_command_dispatcher:
-            print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
-            return False
+    def _has_command(self, command: str) -> bool:
+        return command in self._shell_command_dispatcher
+
+    def _execute_shell_command(self, command: str, command_args: List[str]) -> int:
+        if not self._has_command(command):
+            return ClientErrors.COMMAND_NOT_RECOGNIZED
 
         log.i("Handling shell command %s (%s)", command, command_args)
 
@@ -2590,14 +2616,17 @@ class Shell:
 
         if not args:
             log.e("Command's arguments parse failed")
-            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return False
+            return ClientErrors.INVALID_COMMAND_SYNTAX
 
         log.i("Parsed command arguments\n%s", args)
 
-        executor(args)
+        try:
+            executor(args)
+        except Exception as ex:
+            log.e("Exception caught while executing command\n%s", ex)
+            return ClientErrors.COMMAND_EXECUTION_FAILED
 
-        return True
+        return 0
 
     @classmethod
     def _help(cls, _: Args2):
@@ -2684,11 +2713,14 @@ def main():
         if command in CLI_COMMANDS or is_special_command(command):
             log.i("Found a valid CLI command '%s'", command)
             command_args = args.get_unparsed_args([])
-            executed = client.execute_command(command, command_args)
+            exec_error_code = client.execute_command(command, command_args)
+
+            if exec_error_code > 0:
+                abort(error_string(exec_error_code))
 
             # Keep the shell opened only if we performed an 'open'
             # Otherwise close it after the action
-            start_shell = (executed and command == Commands.OPEN)
+            start_shell = (command == Commands.OPEN)
         else:
             log.w("Invalid CLI command '%s'; ignoring it and starting shell", command)
             log.w("Allowed CLI commands are: %s", ", ".join(CLI_COMMANDS))

@@ -1,6 +1,7 @@
 import errno
 import os
 import shutil
+import subprocess
 from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
@@ -9,7 +10,7 @@ from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.tree.tree import TreeRenderPostOrder
 from easyshare.utils.json import json_to_pretty_str
-from easyshare.utils.types import is_str, is_list
+from easyshare.utils.types import is_str, is_list, bytes_to_str
 
 log = get_logger(__name__)
 
@@ -33,19 +34,27 @@ def is_hidden(s: str):
 
 
 def is_relpath(s: str) -> bool:
+    s = path(s)
     return not s.startswith(os.sep)
 
 
 def is_abspath(s: str) -> bool:
+    s = path(s)
     return s.startswith(os.sep)
 
 
 def relpath(s: str) -> str:
+    s = path(s)
     return s.lstrip(os.sep)
 
 
 def abspath(s: str) -> str:
+    s = path(s)
     return s if is_abspath(s) else (os.sep + s)
+
+
+def path(s: str) -> str:
+    return os.path.expanduser(s)
 
 
 def size_str(size: float,
@@ -263,6 +272,21 @@ def cp(src: str, dest: str) -> bool:
     except Exception as ex:
         log.e("CP exception %s", ex)
         raise ex
+
+
+def run(cmd: str,
+        output_hook: Callable[[str], None]) -> int:
+    with subprocess.Popen(cmd, shell=True,
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT) as proc:
+        while True:
+            stdout_line = proc.stdout.readline()
+            if not stdout_line:
+                break
+            if output_hook:
+                output_hook(bytes_to_str(stdout_line))
+
+        return proc.returncode
 
 
 if __name__ == "__main__":
