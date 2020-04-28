@@ -981,7 +981,7 @@ class Client:
             Commands.REMOTE_COPY: self.rcp,
             Commands.REMOTE_EXEC: (NoParseArgs(), self.rexec),
 
-            Commands.SCAN: self.scan,
+            Commands.SCAN: (NoParseArgs(), self.scan),
             Commands.OPEN: (PositionalArgs(1), self.open),
             Commands.CLOSE: (NoParseArgs(), self.close),
 
@@ -1541,17 +1541,10 @@ class Client:
         self.connection.close()  # async call
         self.connection = None   # Invalidate connection
 
-    def scan(self, args: Args):
-        timeout = to_int(args.get_param(ScanArguments.TIMEOUT,
-                                        default=Discoverer.DEFAULT_TIMEOUT))
-
+    def scan(self, args: Args2):
         show_details = ScanArguments.DETAILS in args
 
-        if not timeout:
-            print_error(ClientErrors.INVALID_PARAMETER_VALUE)
-            return False
-
-        log.i(">> SCAN (timeout = %d)", timeout)
+        log.i(">> SCAN")
 
         servers_found = 0
 
@@ -1572,15 +1565,16 @@ class Client:
                 server_info.get("ip"),
                 server_info.get("port")))
 
-
             print(Client._sharings_string(server_info.get("sharings"),
                                           details=show_details))
 
             servers_found += 1
 
-            return True     # Go ahead
+            return True     # Continue DISCOVER
 
-        Discoverer(self._discover_port, response_handler).discover(timeout)
+        Discoverer(
+            server_discover_port=self._discover_port,
+            response_handler=response_handler).discover()
 
         log.i("======================")
 
