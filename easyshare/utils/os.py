@@ -229,7 +229,7 @@ def rm(path: str, error_callback: Callable[[Exception], None] = None) -> bool:
 
                 excinfo_class, excinfo_error, excinfo_traceback = error_excinfo
 
-                e("RM error occurred on path '%s': %s",
+                log.e("RM error occurred on path '%s': %s",
                   error_path,
                   excinfo_error)
 
@@ -279,15 +279,20 @@ def run(cmd: str,
     with subprocess.Popen(cmd, shell=True,
                           stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT) as proc:
-        while proc.poll() is None:
+        while True:
             stdout_line = proc.stdout.readline()
-            if not stdout_line:
+            if stdout_line:
+                if output_hook:
+                    output_hook(bytes_to_str(stdout_line))
+            else:
                 log.d("run: EOF")
-                continue
-            if output_hook:
-                output_hook(bytes_to_str(stdout_line))
 
-        log.d("run: END")
+                if proc.poll() is None:
+                    continue
+                else:
+                    break
+
+        log.d("run: END (%d)", proc.returncode)
 
         return proc.returncode
 

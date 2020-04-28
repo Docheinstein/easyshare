@@ -26,3 +26,5 @@
 - transaction handler is probably to split in two
 - support any command globally?
 - ls/tree param?
+- remote interrupt
+- return string instead of int for response errors
