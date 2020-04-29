@@ -286,7 +286,6 @@ def _append_to_bucket(bucket: List[str],
     # to the params parser of this argument
 
     if params_offset + params_spec.mandatory_count > len(params):
-        log.e("Not enough parameters to feed argument")
         raise IndexError("not enough parameters to feed argument")
 
     # Ensure that the params are allowed
@@ -298,8 +297,7 @@ def _append_to_bucket(bucket: List[str],
         log.d("[%d] Mandatory: checking validity: param_ok_hook('%s')", param_cursor, param)
 
         if not param_ok_hook(param):
-            log.e("Invalid parameter for feed '%s'", param)
-            raise ValueError("not enough parameters to feed argument")
+            raise ValueError("invalid parameter for feed argument '%s'".format(param))
 
         param_cursor += 1
 
@@ -315,8 +313,7 @@ def _append_to_bucket(bucket: List[str],
             log.d("[%d] Optional: checking validity: param_ok_hook('%s')", param_cursor, param)
 
             if not param_ok_hook(param):
-                log.e("Invalid parameter for feed '%s'", param)
-                raise ValueError("not enough parameters to feed argument")
+                raise ValueError("invalid parameter for feed argument '%s'".format(param))
         else:
             log.d("No more params, stopping optionals fetching")
             break

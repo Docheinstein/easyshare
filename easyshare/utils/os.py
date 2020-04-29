@@ -34,26 +34,26 @@ def is_hidden(s: str):
 
 
 def is_relpath(s: str) -> bool:
-    s = path(s)
+    s = pathify(s)
     return not s.startswith(os.sep)
 
 
 def is_abspath(s: str) -> bool:
-    s = path(s)
+    s = pathify(s)
     return s.startswith(os.sep)
 
 
 def relpath(s: str) -> str:
-    s = path(s)
+    s = pathify(s)
     return s.lstrip(os.sep)
 
 
 def abspath(s: str) -> str:
-    s = path(s)
+    s = pathify(s)
     return s if is_abspath(s) else (os.sep + s)
 
 
-def path(s: str) -> str:
+def pathify(s: str) -> str:
     return os.path.expanduser(s)
 
 

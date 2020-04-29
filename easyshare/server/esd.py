@@ -9,6 +9,7 @@ import Pyro4
 
 from typing import Dict, Optional, List, Any, Callable, TypeVar
 
+from easyshare import logging
 from easyshare.logging import get_logger
 from easyshare.passwd.auth import AuthFactory
 from easyshare.protocol.fileinfo import FileInfo
@@ -18,7 +19,7 @@ from easyshare.server.sharing import Sharing
 from easyshare.server.transactions import GetTransactionHandler, PutTransactionHandler
 from easyshare.shared.args import Args
 from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, \
-    APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET
+    APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET, ENV_EASYSHARE_VERBOSITY
 from easyshare.config.parser import parse_config
 from easyshare.server.client import ClientContext
 from easyshare.server.discover import DiscoverDeamon
@@ -1106,8 +1107,8 @@ class Server(IServer):
 
         try:
             common_path = os.path.commonpath([normalized_path, sharing.path])
-            d("Common path between '%s' and '%s' = '%s'",
-              normalized_path, sharing.path, common_path)
+            log.d("Common path between '%s' and '%s' = '%s'",
+                  normalized_path, sharing.path, common_path)
 
             return sharing.path == common_path
         except:
@@ -1122,6 +1123,13 @@ class Server(IServer):
 
 
 def main():
+    starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
+    starting_verbosity = to_int(starting_verbosity,
+                                raise_exceptions=False,
+                                default=logging.VERBOSITY_NONE)
+    log.set_verbosity(starting_verbosity)
+    log.d("Starting with verbosity = %d", starting_verbosity)
+
     if len(sys.argv) <= 1:
         terminate(HELP_APP)
 

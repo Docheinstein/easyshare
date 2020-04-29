@@ -73,7 +73,7 @@ def print_files_info_list(infos: List[FileInfo],
         fname = info.get("name")
 
         if not show_hidden and is_hidden(fname):
-            log.i("Not showing hidden files: %s", fname)
+            log.d("Not showing hidden files: %s", fname)
             continue
 
         size = info.get("size")

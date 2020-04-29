@@ -4,16 +4,39 @@ from typing import List, Union
 from easyshare.client.errors import ClientErrors
 from easyshare.client.server import ServerProxy
 from easyshare.logging import get_logger
+from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
-from easyshare.protocol.response import Response, create_error_response, is_success_response
+from easyshare.protocol.response import Response, create_error_response, is_success_response, is_data_response, \
+    is_error_response
 from easyshare.protocol.iserver import IServer
 from easyshare.protocol.serverinfo import ServerInfo
 
+
 log = get_logger(__name__)
 
-class Connection:
 
-    RESPONSE_HANDLER_FUNC_NAME_PATTERN = "_handle_{}_response"
+def require_connection(api):
+    def require_connection_api_wrapper(conn: 'Connection', *vargs, **kwargs) -> Response:
+        log.d("Checking connection before invoking %s", api.__name__)
+        if not conn.is_connected():
+            return create_error_response(ClientErrors.NOT_CONNECTED)
+        log.d("Connection OK, invoking %s", api.__name__)
+        return api(conn, *vargs, **kwargs)
+    return require_connection_api_wrapper
+
+
+def handle_response(api):
+    def handle_response_api_wrapper(conn: 'Connection', *vargs, **kwargs) -> Response:
+        log.d("Invoking %s and handling response", api.__name__)
+        resp = api(conn, *vargs, **kwargs)
+        log.d("Handling %s response", api.__name__)
+        conn._handle_response(resp)
+        return resp
+
+    return handle_response_api_wrapper
+
+
+class Connection:
 
     def __init__(self, server_info: ServerInfo):
         log.d("Initializing new Connection")
@@ -24,7 +47,6 @@ class Connection:
 
         # Create the proxy for the remote server
         self.server: Union[IServer, ServerProxy] = ServerProxy(server_info)
-
 
     def is_connected(self) -> bool:
         return self._connected
@@ -45,17 +67,12 @@ class Connection:
         return resp
 
     def close(self):
-        self.server.close() # async
+        self.server.close()     # async
+        self._destroy_connection()
 
-        # noinspection PyProtectedMember
-        self.server._pyroRelease()
-
-        self._connected = False
-
+    @handle_response
+    @require_connection
     def rcd(self, path) -> Response:
-        if not self.is_connected():
-            return create_error_response(ClientErrors.NOT_CONNECTED)
-
         resp = self.server.rcd(path)
 
         if is_success_response(resp):
@@ -63,10 +80,9 @@ class Connection:
 
         return resp
 
-    def rls(self, sort_by: List[str], reverse=False, path: str = None) -> Response:
-        if not self.is_connected():
-            return create_error_response(ClientErrors.NOT_CONNECTED)
-
+    @handle_response
+    @require_connection
+    def rls(self, sort_by: List[str], reverse: bool = False, path: str = None) -> Response:
         return self.server.rls(sort_by, reverse=reverse, path=path)
 
     def rtree(self, sort_by: List[str], reverse=False, depth: int = int, path: str = None) -> Response:
@@ -134,3 +150,14 @@ class Connection:
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
         return self.server.get_next_info(transaction_id)
+
+    def _handle_response(self, resp: Response):
+        if is_error_response(resp, ServerErrors.NOT_CONNECTED):
+            self._destroy_connection()
+
+    def _destroy_connection(self):
+        log.d("Destroy connection (releasing pyro resources)")
+        self._connected = False
+        self.server._pyroRelease()
+        self.server = None
+

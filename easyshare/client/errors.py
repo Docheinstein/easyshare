@@ -65,9 +65,9 @@ ERRORS_STRINGS_MAP = {
 }
 
 
-def error_string(error_code: int) -> str:
+def errcode_string(error_code: int) -> str:
     return ERRORS_STRINGS_MAP.get(error_code, ErrorsStrings.ERROR)
 
 
-def print_error(error_code: int):
-    eprint(error_string(error_code))
+def print_errcode(error_code: int):
+    eprint(errcode_string(error_code))

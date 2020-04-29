@@ -69,8 +69,30 @@ def my_api():
     print("THIS IS THE API",)
 
 
+def class_method_decorator(api):
+    def wrapper(fooclass_instance, *vargs, **kwargs):
+        print("Wrapper of ", api)
+        print(type(fooclass_instance))
+        print(*vargs)
+        print(**kwargs)
+        api(fooclass_instance, *vargs, **kwargs)
+        FooClass._say_buuuh(fooclass_instance)
+        print("END wrapper")
+
+    return wrapper
+
+
+class FooClass:
+    @class_method_decorator
+    def myapi(self, dummy: str):
+        print(dummy)
+
+    def _say_buuuh(self):
+        print("Buuuh")
+
 if __name__ == "__main__":
     # foo("ciao")
     # Command().name
     # Command()
-    my_api()
+    # my_api()
+    FooClass().myapi("Hello World!")

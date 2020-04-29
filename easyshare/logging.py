@@ -16,20 +16,32 @@ VERBOSITY_MIN = VERBOSITY_NONE
 VERBOSITY_MAX = VERBOSITY_DEBUG
 VERBOSITY_DEFAULT = VERBOSITY_INFO
 
+LEVEL_FATAL = logging.FATAL
 LEVEL_ERROR = logging.ERROR
 LEVEL_WARNING = logging.WARNING
 LEVEL_INFO = logging.INFO
 LEVEL_DEBUG = logging.DEBUG
 
 VERBOSITY_TO_LEVEL = {
-    VERBOSITY_NONE: logging.FATAL,
+    VERBOSITY_NONE: LEVEL_FATAL,
     VERBOSITY_ERROR: LEVEL_ERROR,
     VERBOSITY_WARNING: LEVEL_WARNING,
     VERBOSITY_INFO: LEVEL_INFO,
     VERBOSITY_DEBUG: LEVEL_DEBUG,
 }
 
+
+LEVEL_TO_VERBOSITY = {
+    LEVEL_FATAL: VERBOSITY_NONE,
+    LEVEL_ERROR: VERBOSITY_ERROR,
+    LEVEL_WARNING: VERBOSITY_WARNING,
+    LEVEL_INFO: VERBOSITY_INFO,
+    LEVEL_DEBUG: VERBOSITY_DEBUG,
+}
+
+
 # Aliases
+
 
 class Logger(logging.Logger):
     @property
@@ -77,12 +89,12 @@ class LoggerFormatter(logging.Formatter):
                "%(message)s"
 
 
-def _set_verbosity(self, verbosity: int):
+def _set_verbosity(logger: logging.Logger, verbosity: int):
     if verbosity not in VERBOSITY_TO_LEVEL:
         verbosity = rangify(verbosity, VERBOSITY_MIN, VERBOSITY_MAX)
 
-    self.setLevel(VERBOSITY_TO_LEVEL[verbosity])
-    self.verbosity = verbosity
+    logger.setLevel(VERBOSITY_TO_LEVEL[verbosity])
+    logger.verbosity = verbosity
 
 
 logging.addLevelName(LEVEL_ERROR,   styled("[ERROR]", fg=Color.RED))
@@ -102,9 +114,10 @@ logging_handler.setFormatter(LoggerFormatter())
 
 
 def get_logger(name: str = ROOT_LOGGER_NAME) -> Logger:
-    logger: Logger = logging.getLogger(name)
+    logger: logging.Logger = logging.getLogger(name)
     if name == ROOT_LOGGER_NAME:
         logger.addHandler(logging_handler)
+    logger.verbosity = LEVEL_TO_VERBOSITY[logger.getEffectiveLevel()]
     return logger
 
 

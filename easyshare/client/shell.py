@@ -12,14 +12,15 @@ from easyshare.client.args import OptIntArg, ArgsParser, VariadicArgs
 from easyshare.client.client import Client
 from easyshare.client.commands import Commands, is_special_command
 from easyshare.client.common import print_tabulated, StyledString
-from easyshare.client.errors import print_error, ClientErrors
+from easyshare.client.errors import print_errcode, ClientErrors
 from easyshare.client.help import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.tracing import is_tracing_enabled, enable_tracing
+from easyshare.utils.app import eprint
 from easyshare.utils.colors import styled, Attribute
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
-from easyshare.utils.types import is_bool
+from easyshare.utils.types import is_bool, is_int, is_str
 
 log = get_logger(__name__)
 
@@ -88,11 +89,11 @@ class Shell:
                     command_line_parts = shlex.split(command_line)
                 except ValueError:
                     log.w("Invalid command line")
-                    print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
+                    print_errcode(ClientErrors.COMMAND_NOT_RECOGNIZED)
                     continue
 
                 if len(command_line_parts) < 1:
-                    print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
+                    print_errcode(ClientErrors.COMMAND_NOT_RECOGNIZED)
                     continue
 
                 command: str = command_line_parts[0]
@@ -100,21 +101,23 @@ class Shell:
 
                 log.d("Detected command '%s'", command)
 
-                exec_error_code = ClientErrors.COMMAND_NOT_RECOGNIZED
+                outcome = ClientErrors.COMMAND_NOT_RECOGNIZED
 
                 if self.has_command(command):
-                    exec_error_code = self.execute_shell_command(command, command_args)
+                    outcome = self.execute_shell_command(command, command_args)
                 elif self._client.has_command(command):
-                    exec_error_code = self._client.execute_command(command, command_args)
+                    outcome = self._client.execute_command(command, command_args)
 
-                if exec_error_code > 0:
-                    print_error(exec_error_code)
+                if is_int(outcome) and outcome > 0:
+                    print_errcode(outcome)
+                elif is_str(outcome):
+                    eprint(outcome)
                 else:
                     log.d("Command execution: OK")
 
             except PyroError as pyroerr:
                 log.e("Pyro error occurred %s", pyroerr)
-                print_error(ClientErrors.CONNECTION_ERROR)
+                print_errcode(ClientErrors.CONNECTION_ERROR)
                 # Close client connection anyway
                 try:
                     if self._client.is_connected():
@@ -155,7 +158,7 @@ class Shell:
         try:
             executor(args)
         except Exception as ex:
-            log.e("Exception caught while executing command\n%s", ex)
+            log.exception("Exception caught while executing command\n%s", ex)
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
         return 0
@@ -280,15 +283,17 @@ class Shell:
     @classmethod
     def _verbose(cls, args: Args) -> Union[int, str]:
         # Increase verbosity (or disable if is already max)
+        root_log = get_logger()
+
         verbosity = args.get_varg(
-            default=(log.verbosity + 1) % (logging.VERBOSITY_MAX + 1)
+            default=(root_log.verbosity + 1) % (logging.VERBOSITY_MAX + 1)
         )
 
         verbosity = rangify(verbosity, logging.VERBOSITY_MIN, logging.VERBOSITY_MAX)
 
         log.i(">> VERBOSE (%d)", verbosity)
 
-        log.set_verbosity(verbosity)
+        root_log.set_verbosity(verbosity)
 
         print("Verbosity = {:d}{}".format(
             verbosity,

@@ -26,4 +26,4 @@ def set_ssl_context(ssl_context: Optional[ssl.SSLContext]):
     Pyro4.config.SSL = True if ssl_context else False
     socketutil.getSSLcontext = get_ssl_context
 
-    log.d("set_ssl_context (%s)", "enabled" if _ssl_context else "disabled")
+    log.i("SSL: %s", "enabled" if _ssl_context else "disabled")

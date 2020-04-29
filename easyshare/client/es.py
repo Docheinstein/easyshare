@@ -7,11 +7,11 @@ from easyshare import logging
 from easyshare.client.args import ArgsParser
 from easyshare.client.client import Client
 from easyshare.client.commands import Commands, is_special_command
-from easyshare.client.errors import error_string
+from easyshare.client.errors import errcode_string
 from easyshare.client.shell import Shell
 from easyshare.logging import get_logger
 from easyshare.shared.args import Args
-from easyshare.shared.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION
+from easyshare.shared.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, ENV_EASYSHARE_VERBOSITY
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import enable_colors
@@ -69,9 +69,10 @@ class EsArgs(ArgsParser):
 
 
 def main():
-    starting_verbosity = os.environ.get("EASYSHARE_VERBOSITY")
+    starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
     starting_verbosity = to_int(starting_verbosity,
-                                raise_exceptions=False, default=logging.VERBOSITY_NONE)
+                                raise_exceptions=False,
+                                default=logging.VERBOSITY_NONE)
     log.set_verbosity(starting_verbosity)
     log.d("Starting with verbosity = %d", starting_verbosity)
 
@@ -115,7 +116,7 @@ def main():
             outcome = client.execute_command(command, command_args)
 
             if is_int(outcome) and outcome > 0:
-                abort(error_string(outcome))
+                abort(errcode_string(outcome))
             elif is_str(outcome):
                 abort(str)
 

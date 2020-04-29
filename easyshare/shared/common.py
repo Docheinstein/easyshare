@@ -24,6 +24,7 @@ FILE_COLOR = None
 PROGRESS_COLOR = Color.BLUE
 DONE_COLOR = Color.GREEN
 
+ENV_EASYSHARE_VERBOSITY = "EASYSHARE_VERBOSITY"
 
 def is_sharing_name(s: str):
     return satisfy(s, SHARING_NAME_ALPHABET)
@@ -31,3 +32,4 @@ def is_sharing_name(s: str):
 
 def is_server_name(s: str):
     return satisfy(s, SERVER_NAME_ALPHABET)
+
