@@ -326,18 +326,20 @@ class Server(IServer):
 
     @Pyro4.expose
     @trace_api
-    def rls(self, sort_by: List[str], reverse: bool = False, path: str = None) -> Response:
+    def rls(self, *, path: str = None, sort_by: List[str] = None,
+            reverse: bool = False, hidden: bool = False, ) -> Response:
         client = self._current_request_client()
         if not client:
             log.w("Client not connected: %s", self._current_request_endpoint())
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        log.i("<< RLS %s%s (%s)", sort_by, " | reverse " if reverse else "", str(client))
+        path = path or "."
+        sort_by = sort_by or ["name"]
+
+        log.i("<< RLS %s %s%s (%s)",
+              path, sort_by, " | reverse " if reverse else "", str(client))
 
         try:
-            if not path:
-                path = "."
-
             ls_path = self._path_for_client(client, path)
             log.i("Going to ls on %s", ls_path)
 
@@ -359,24 +361,29 @@ class Server(IServer):
 
     @Pyro4.expose
     @trace_api
-    def rtree(self, sort_by: List[str], reverse: bool = False, depth: int = None) -> Response:
+    def rtree(self, *,  path: str = None, sort_by: List[str] = None,
+              reverse: bool = False, hidden: bool = False,
+              max_depth: int = None,) -> Response:
         client = self._current_request_client()
         if not client:
             log.w("Client not connected: %s", self._current_request_endpoint())
             return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        log.i("<< RTREE %s%s (%s)", sort_by, " | reverse " if reverse else "", str(client))
+        path = path or "."
+        sort_by = sort_by or ["name"]
+
+        log.i("<< RTREE %s %s%s (%s)",
+              path, sort_by, " | reverse " if reverse else "", str(client))
 
         try:
-            client_path = self._current_client_path(client)
-
-            log.i("Going to rtree on %s", client_path)
+            tree_path = self._path_for_client(client, path)
+            log.i("Going to tree on %s", tree_path)
 
             # Check path legality (it should be valid, if he rcd into it...)
-            if not self._is_path_allowed_for_client(client, client_path):
+            if not self._is_path_allowed_for_client(client, tree_path):
                 return create_error_response(ServerErrors.INVALID_PATH)
 
-            tree_root = tree(client_path, sort_by=sort_by, reverse=reverse, max_depth=depth)
+            tree_root = tree(tree_path, sort_by=sort_by, reverse=reverse, max_depth=max_depth)
             if tree_root is None:
                 return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 

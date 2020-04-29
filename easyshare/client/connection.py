@@ -54,9 +54,6 @@ class Connection:
     def sharing_name(self) -> str:
         return self._sharing_name
 
-    def rpwd(self) -> str:
-        return self._rpwd
-
     def open(self, sharing_name: str, password: str = None) -> Response:
         resp = self.server.open(sharing_name, password)
 
@@ -70,6 +67,9 @@ class Connection:
         self.server.close()     # async
         self._destroy_connection()
 
+    def rpwd(self) -> str:
+        return self._rpwd
+
     @handle_response
     @require_connection
     def rcd(self, path) -> Response:
@@ -82,14 +82,20 @@ class Connection:
 
     @handle_response
     @require_connection
-    def rls(self, sort_by: List[str], reverse: bool = False, path: str = None) -> Response:
-        return self.server.rls(sort_by, reverse=reverse, path=path)
+    def rls(self, sort_by: List[str], reverse: bool = False,
+            hidden: bool = False,  path: str = None) -> Response:
+        return self.server.rls(path=path, sort_by=sort_by,
+                               reverse=reverse, hidden=hidden)
 
-    def rtree(self, sort_by: List[str], reverse=False, depth: int = int, path: str = None) -> Response:
+    @handle_response
+    @require_connection
+    def rtree(self, sort_by: List[str], reverse=False, hidden: bool = False,
+              max_depth: int = int, path: str = None) -> Response:
         if not self.is_connected():
             return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        return self.server.rtree(sort_by, reverse=reverse, depth=depth, path=path)
+        return self.server.rtree(path=path, sort_by=sort_by, reverse=reverse,
+                                 hidden=hidden, max_depth=max_depth)
 
     def rmkdir(self, directory) -> Response:
         if not self.is_connected():

@@ -70,7 +70,7 @@ class LsArgs(LocalAndRemoteArgsParser):
         )
 
 
-class TreeArgs(ArgsParser):
+class TreeArgs(LocalAndRemoteArgsParser):
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
@@ -84,7 +84,7 @@ class TreeArgs(ArgsParser):
     def parse(self, args: List[str]) -> Optional[Args]:
         return Args.parse(
             args=args,
-            vargs_spec=NoopParamsSpec(0, 1),
+            vargs_spec=NoopParamsSpec(self.leading_mandatory_count, 1),
             kwargs_specs=[
                 KwArgSpec(TreeArgs.SORT_BY_SIZE, PRESENCE_PARAM),
                 KwArgSpec(TreeArgs.REVERSE, PRESENCE_PARAM),
@@ -300,7 +300,7 @@ class Client:
 
             Commands.REMOTE_CHANGE_DIRECTORY: (PositionalArgs(0, 1), PositionalArgs(1, 1), self.rcd),
             Commands.REMOTE_LIST_DIRECTORY: (LsArgs(), LsArgs(1), self.rls),
-            Commands.REMOTE_TREE_DIRECTORY: self.rtree,
+            Commands.REMOTE_TREE_DIRECTORY: (TreeArgs(), TreeArgs(1), self.rtree),
             Commands.REMOTE_CREATE_DIRECTORY: self.rmkdir,
             Commands.REMOTE_CURRENT_DIRECTORY: (PositionalArgs(0), PositionalArgs(1), self.rpwd),
             Commands.REMOTE_REMOVE: self.rrm,
@@ -408,38 +408,12 @@ class Client:
 
     @staticmethod
     def tree(args: Args) -> Union[int, str]:
-        # (Optional) path
-        f = args.get_varg(default=os.getcwd())
 
-        # Sorting
-        sort_by = ["name"]
+        def tree_provider(path, **kwargs):
+            path = pathify(path or os.getcwd())
+            return tree(path, **kwargs)
 
-        if TreeArgs.SORT_BY_SIZE in args:
-            sort_by.append("size")
-        if TreeArgs.GROUP in args:
-            sort_by.append("ftype")
-
-        # Reverse
-        reverse = TreeArgs.REVERSE in args
-
-        # Max depth
-        max_depth = args.get_kwarg_param(TreeArgs.MAX_DEPTH, default=None)
-
-        log.i(">> TREE %s (sort by %s%s)", pathify, sort_by, " | reverse" if reverse else "")
-
-        tree_result: FileInfoTreeNode = tree(
-            f, sort_by=sort_by, reverse=reverse, max_depth=max_depth
-        )
-
-        if tree_result is None:
-            return ClientErrors.COMMAND_EXECUTION_FAILED
-
-        print_files_info_tree(tree_result,
-                              max_depth=max_depth,
-                              show_hidden=TreeArgs.SHOW_ALL in args,
-                              show_size=TreeArgs.SHOW_SIZE in args)
-
-        return 0
+        return Client._tree(args, provider=tree_provider, provider_name="TREE")
 
     @staticmethod
     def mkdir(args: Args) -> Union[int, str]:
@@ -534,33 +508,18 @@ class Client:
 
         return Client._ls(args, provider=rls_provider, provider_name="RLS")
 
-    def rtree(self, args: Args):
-        if not self.is_connected():
-            print_errcode(ClientErrors.NOT_CONNECTED)
-            return
+    @provide_connection
+    def rtree(self, args: Args, connection: Connection = None) -> Union[int, str]:
+        if not connection or not connection.is_connected():
+            return ClientErrors.NOT_CONNECTED
 
-        sort_by = ["name"]
-        reverse = TreeArgs.REVERSE in args
+        def rtree_provider(f, **kwargs):
+            resp = connection.rtree(**kwargs, path=f)
+            if is_error_response(resp):
+                raise ResponseException(resp)
+            return resp.get("data")
 
-        if TreeArgs.SORT_BY_SIZE in args:
-            sort_by.append("size")
-        if TreeArgs.GROUP in args:
-            sort_by.append("ftype")
-
-        # FIXME: max_depth = 0
-        max_depth = to_int(args.get_param(TreeArgs.MAX_DEPTH))
-
-        log.i(">> RTREE (sort by %s%s)", sort_by, " | reverse" if reverse else "")
-
-        resp = self.connection.rtree(sort_by, reverse=reverse, depth=max_depth)
-
-        if not is_data_response(resp):
-            self._handle_error_response(resp)
-            return
-
-        Client._print_tree_files_info(resp.get("data"),
-                                      max_depth=max_depth,
-                                      show_size=TreeArgs.SIZE in args)
+        return Client._tree(args, provider=rtree_provider, provider_name="RTREE")
 
     def rmkdir(self, args: Args):
         if not self.is_connected():
@@ -1450,9 +1409,52 @@ class Client:
         return 0
 
     @staticmethod
+    def _tree(args: Args,
+              provider: Callable[..., Optional[FileInfoTreeNode]],
+              provider_name: str = "TREE") -> Union[int, str]:
+
+        # (Optional) path
+        path = args.get_varg()
+
+        # Sorting
+        sort_by = ["name"]
+
+        if TreeArgs.SORT_BY_SIZE in args:
+            sort_by.append("size")
+        if TreeArgs.GROUP in args:
+            sort_by.append("ftype")
+
+        # Reverse
+        reverse = TreeArgs.REVERSE in args
+
+        show_hidden = TreeArgs.SHOW_ALL in args
+
+        # Max depth
+        max_depth = args.get_kwarg_param(TreeArgs.MAX_DEPTH, default=None)
+
+        log.i(">> %s %s (sort by %s%s)",
+              provider_name, path or "*", sort_by, " | reverse" if reverse else "")
+
+        tree_result: FileInfoTreeNode = provider(
+            path,
+            sort_by=sort_by, reverse=reverse,
+            hidden=show_hidden, max_depth=max_depth
+        )
+
+        if tree_result is None:
+            return ClientErrors.COMMAND_EXECUTION_FAILED
+
+        print_files_info_tree(tree_result,
+                              max_depth=max_depth,
+                              show_hidden=show_hidden,
+                              show_size=TreeArgs.SHOW_SIZE in args or TreeArgs.SHOW_DETAILS in args)
+
+        return 0
+
+    @staticmethod
     def _mvcp(args: Args,
-             primitive: Callable[[str, str], bool],
-             primitive_name: str = "MV/CP") -> Union[int, str]:
+              primitive: Callable[[str, str], bool],
+              primitive_name: str = "MV/CP") -> Union[int, str]:
         """
                 mv <src>... <dest>
 
