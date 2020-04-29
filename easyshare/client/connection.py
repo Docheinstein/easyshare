@@ -91,35 +91,28 @@ class Connection:
     @require_connection
     def rtree(self, sort_by: List[str], reverse=False, hidden: bool = False,
               max_depth: int = int, path: str = None) -> Response:
-        if not self.is_connected():
-            return create_error_response(ClientErrors.NOT_CONNECTED)
-
         return self.server.rtree(path=path, sort_by=sort_by, reverse=reverse,
                                  hidden=hidden, max_depth=max_depth)
 
+    @handle_response
+    @require_connection
     def rmkdir(self, directory) -> Response:
-        if not self.is_connected():
-            return create_error_response(ClientErrors.NOT_CONNECTED)
-
         return self.server.rmkdir(directory)
 
+    @handle_response
+    @require_connection
     def rrm(self, paths: List[str]) -> Response:
-        if not self.is_connected():
-            return create_error_response(ClientErrors.NOT_CONNECTED)
-
         return self.server.rrm(paths)
 
-    def rcp(self, sources: List[str], destination: str) -> Response:
-        if not self.is_connected():
-            return create_error_response(ClientErrors.NOT_CONNECTED)
-
-        return self.server.rcp(sources, destination)
-
+    @handle_response
+    @require_connection
     def rmv(self, sources: List[str], destination: str) -> Response:
-        if not self.is_connected():
-            return create_error_response(ClientErrors.NOT_CONNECTED)
-
         return self.server.rmv(sources, destination)
+
+    @handle_response
+    @require_connection
+    def rcp(self, sources: List[str], destination: str) -> Response:
+        return self.server.rcp(sources, destination)
 
     def ping(self) -> Response:
         if not self.is_connected():

@@ -228,16 +228,6 @@ def response_error_string(resp: Response) -> str:
     return errcode_string(resp.get("error"))
 
 
-class CommandException(Exception):
-    pass
-
-
-class ResponseException(CommandException):
-    def __init__(self, resp: Response):
-        super(Exception, self).__init__(response_error_string(resp))
-
-# ==================================================================
-
 
 API = TypeVar('API', bound=Callable[..., Union[int, str]])
 
@@ -253,7 +243,7 @@ def provide_connection(api: API) -> API:
         conn = client._get_current_or_create_connection(args)
 
         if not conn or not conn.is_connected():
-            raise CommandException(errcode_string(ClientErrors.NOT_CONNECTED))
+            raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         log.d("Connection OK, invoking %s", api.__name__)
         outcome = api(client, args, conn)
@@ -269,9 +259,14 @@ def provide_connection(api: API) -> API:
 
 # ==================================================================
 
+class BadOutcome(Exception):
+    pass
+
+# ==================================================================
 
 
 class Client:
+
     def __init__(self, discover_port: int):
         self.connection: Optional[Connection] = None
 
@@ -301,11 +296,11 @@ class Client:
             Commands.REMOTE_CHANGE_DIRECTORY: (PositionalArgs(0, 1), PositionalArgs(1, 1), self.rcd),
             Commands.REMOTE_LIST_DIRECTORY: (LsArgs(), LsArgs(1), self.rls),
             Commands.REMOTE_TREE_DIRECTORY: (TreeArgs(), TreeArgs(1), self.rtree),
-            Commands.REMOTE_CREATE_DIRECTORY: self.rmkdir,
+            Commands.REMOTE_CREATE_DIRECTORY: (PositionalArgs(1), PositionalArgs(2), self.rmkdir),
             Commands.REMOTE_CURRENT_DIRECTORY: (PositionalArgs(0), PositionalArgs(1), self.rpwd),
-            Commands.REMOTE_REMOVE: self.rrm,
-            Commands.REMOTE_MOVE: self.rmv,
-            Commands.REMOTE_COPY: self.rcp,
+            Commands.REMOTE_REMOVE: (VariadicArgs(1), VariadicArgs(2), self.rrm),
+            Commands.REMOTE_MOVE: (VariadicArgs(2), VariadicArgs(3), self.rmv),
+            Commands.REMOTE_COPY: (VariadicArgs(2), VariadicArgs(3), self.rcp),
             Commands.REMOTE_EXEC: (NoParseArgs(), self.rexec),
 
             Commands.SCAN: (PositionalArgs(0), self.scan),
@@ -364,9 +359,9 @@ class Client:
         try:
             outcome = executor(args)
             return outcome
-        except CommandException as esex:
-            log.e("Internal command exception, throwing it up")
-            return str(esex)
+        except BadOutcome as ex:
+            log.e("Internal trouble, throwing it up")
+            return ex.args[0]
         except Exception as ex:
             log.exception("Exception caught while executing command\n%s", ex)
             return ClientErrors.COMMAND_EXECUTION_FAILED
@@ -396,7 +391,7 @@ class Client:
             path = pathify(path or os.getcwd())
             return ls(path, **kwargs)
 
-        return Client._ls(args, provider=ls_provider, provider_name="LS")
+        return Client._ls(args, data_provider=ls_provider, data_provider_name="LS")
 
     @staticmethod
     def l(args: Args) -> Union[int, str]:
@@ -413,7 +408,7 @@ class Client:
             path = pathify(path or os.getcwd())
             return tree(path, **kwargs)
 
-        return Client._tree(args, provider=tree_provider, provider_name="TREE")
+        return Client._tree(args, data_provider=tree_provider, data_provider_name="TREE")
 
     @staticmethod
     def mkdir(args: Args) -> Union[int, str]:
@@ -490,8 +485,9 @@ class Client:
         log.i(">> RCD %s", directory)
 
         resp = connection.rcd(directory)
+
         if is_error_response(resp):
-            return response_error_string(resp)
+            return resp.get("error")
 
         return 0
 
@@ -503,10 +499,10 @@ class Client:
         def rls_provider(f, **kwargs):
             resp = connection.rls(**kwargs, path=f)
             if is_error_response(resp):
-                raise ResponseException(resp)
+                raise BadOutcome(resp.get("error"))
             return resp.get("data")
 
-        return Client._ls(args, provider=rls_provider, provider_name="RLS")
+        return Client._ls(args, data_provider=rls_provider, data_provider_name="RLS")
 
     @provide_connection
     def rtree(self, args: Args, connection: Connection = None) -> Union[int, str]:
@@ -516,88 +512,69 @@ class Client:
         def rtree_provider(f, **kwargs):
             resp = connection.rtree(**kwargs, path=f)
             if is_error_response(resp):
-                raise ResponseException(resp)
+                raise BadOutcome(resp.get("error"))
             return resp.get("data")
 
-        return Client._tree(args, provider=rtree_provider, provider_name="RTREE")
+        return Client._tree(args, data_provider=rtree_provider, data_provider_name="RTREE")
 
-    def rmkdir(self, args: Args):
-        if not self.is_connected():
-            print_errcode(ClientErrors.NOT_CONNECTED)
-            return
+    @provide_connection
+    def rmkdir(self, args: Args, connection: Connection = None) -> Union[int, str]:
+        if not connection or not connection.is_connected():
+            return ClientErrors.NOT_CONNECTED
 
-        directory = args.get_param()
+        directory = args.get_varg()
 
         if not directory:
-            print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
+            return ClientErrors.INVALID_COMMAND_SYNTAX
 
-        log.i(">> RMKDIR " + directory)
+        log.i(">> RMKDIR %s", directory)
 
-        resp = self.connection.rmkdir(directory)
-        if is_success_response(resp):
-            log.i("Successfully RMKDIRed")
-            pass
-        else:
-            self._handle_error_response(resp)
+        resp = connection.rmkdir(directory)
 
-    def rrm(self, args: Args):
-        if not self.is_connected():
-            print_errcode(ClientErrors.NOT_CONNECTED)
-            return
+        if is_error_response(resp):
+            return resp.get("error")
 
-        paths = args.get_params()
+        return 0
+
+    @provide_connection
+    def rrm(self, args: Args, connection: Connection = None) -> Union[int, str]:
+        if not connection or not connection.is_connected():
+            return ClientErrors.NOT_CONNECTED
+
+        paths = args.get_vargs()
 
         if not paths:
-            print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
+            return ClientErrors.INVALID_COMMAND_SYNTAX
 
         log.i(">> RRM %s ", paths)
 
-        resp = self.connection.rrm(paths)
-        if is_success_response(resp):
-            log.i("Successfully RRMed")
-            if is_data_response(resp):
-                errors = resp.get("data").get("errors")
-                if errors:
-                    log.e("%d errors occurred while doing rrm", len(errors))
-                    for err in errors:
-                        eprint(err)
-        else:
-            self._handle_error_response(resp)
+        resp = connection.rrm(paths)
 
-    def rcp(self, args: Args):
-        if not self.is_connected():
-            print_errcode(ClientErrors.NOT_CONNECTED)
-            return
+        if is_error_response(resp):
+            return resp.get("error")
 
-        paths = args.get_params()
+        if is_data_response(resp, "errors"):
+            errors = resp.get("data").get("errors")
+            log.e("%d errors occurred while doing rrm", len(errors))
+            for err in errors:
+                eprint(err)
 
-        if not paths:
-            print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
+        return 0
 
-        dest = paths.pop()
+    @provide_connection
+    def rmv(self, args: Args, connection: Connection = None) -> Union[int, str]:
+        if not connection or not connection.is_connected():
+            return ClientErrors.NOT_CONNECTED
 
-        if not dest or not paths:
-            print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
+        return Client._rmvcp(args, api=connection.rmv, api_name="RMV")
 
-        log.i(">> RCP %s -> %s", str(paths), dest)
+    @provide_connection
+    def rcp(self, args: Args, connection: Connection = None) -> Union[int, str]:
+        if not connection or not connection.is_connected():
+            return ClientErrors.NOT_CONNECTED
 
-        resp = self.connection.rcp(paths, dest)
-        if is_success_response(resp):
-            log.i("Successfully RCPed")
+        return Client._rmvcp(args, api=connection.rcp, api_name="RCP")
 
-            if is_data_response(resp):
-                errors = resp.get("data").get("errors")
-                if errors:
-                    log.e("%d errors occurred while doing rcp", len(errors))
-                    for err in errors:
-                        eprint(err)
-
-        else:
-            self._handle_error_response(resp)
 
     def rexec(self, args: Args):
         popen_args = args.get_unparsed_args()
@@ -629,38 +606,6 @@ class Client:
             # # Server info retrieved successfully
             # print_server_info(server_info)
             #
-    def rmv(self, args: Args):
-        if not self.is_connected():
-            print_errcode(ClientErrors.NOT_CONNECTED)
-            return
-
-        paths = args.get_params()
-
-        if not paths:
-            print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
-
-        dest = paths.pop()
-
-        if not dest or not paths:
-            print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
-            return
-
-        log.i(">> RMV %s -> %s", str(paths), dest)
-
-        resp = self.connection.rmv(paths, dest)
-        if is_success_response(resp):
-            log.i("Successfully RMVed")
-
-            if is_data_response(resp):
-                errors = resp.get("data").get("errors")
-                if errors:
-                    log.e("%d errors occurred while doing rmv", len(errors))
-                    for err in errors:
-                        eprint(err)
-
-        else:
-            self._handle_error_response(resp)
 
     def open(self, args: Args) -> Union[int, str]:
         #                    |------sharing_location-----|
@@ -1373,11 +1318,12 @@ class Client:
 
     @staticmethod
     def _ls(args: Args,
-            provider: Callable[..., Optional[List[FileInfo]]],
-            provider_name: str = "LS") -> Union[int, str]:
+            data_provider: Callable[..., Optional[List[FileInfo]]],
+            data_provider_name: str = "LS") -> Union[int, str]:
 
-        # (Optional) path
         path = args.get_varg()
+        reverse = LsArgs.REVERSE in args
+        show_hidden = LsArgs.SHOW_ALL in args
 
         # Sorting
         sort_by = ["name"]
@@ -1387,13 +1333,10 @@ class Client:
         if LsArgs.GROUP in args:
             sort_by.append("ftype")
 
-        # Reverse
-        reverse = LsArgs.REVERSE in args
-
         log.i(">> %s %s (sort by %s%s)",
-              provider_name, path or "*", sort_by, " | reverse" if reverse else "")
+              data_provider_name, path or "*", sort_by, " | reverse" if reverse else "")
 
-        ls_result = provider(path, sort_by=sort_by, reverse=reverse)
+        ls_result = data_provider(path, sort_by=sort_by, reverse=reverse)
 
         if ls_result is None:
             return ClientErrors.COMMAND_EXECUTION_FAILED
@@ -1410,13 +1353,14 @@ class Client:
 
     @staticmethod
     def _tree(args: Args,
-              provider: Callable[..., Optional[FileInfoTreeNode]],
-              provider_name: str = "TREE") -> Union[int, str]:
+              data_provider: Callable[..., Optional[FileInfoTreeNode]],
+              data_provider_name: str = "TREE") -> Union[int, str]:
 
-        # (Optional) path
         path = args.get_varg()
+        reverse = TreeArgs.REVERSE in args
+        show_hidden = TreeArgs.SHOW_ALL in args
+        max_depth = args.get_kwarg_param(TreeArgs.MAX_DEPTH, default=None)
 
-        # Sorting
         sort_by = ["name"]
 
         if TreeArgs.SORT_BY_SIZE in args:
@@ -1424,18 +1368,10 @@ class Client:
         if TreeArgs.GROUP in args:
             sort_by.append("ftype")
 
-        # Reverse
-        reverse = TreeArgs.REVERSE in args
-
-        show_hidden = TreeArgs.SHOW_ALL in args
-
-        # Max depth
-        max_depth = args.get_kwarg_param(TreeArgs.MAX_DEPTH, default=None)
-
         log.i(">> %s %s (sort by %s%s)",
-              provider_name, path or "*", sort_by, " | reverse" if reverse else "")
+              data_provider_name, path or "*", sort_by, " | reverse" if reverse else "")
 
-        tree_result: FileInfoTreeNode = provider(
+        tree_result: FileInfoTreeNode = data_provider(
             path,
             sort_by=sort_by, reverse=reverse,
             hidden=show_hidden, max_depth=max_depth
@@ -1509,7 +1445,36 @@ class Client:
 
         return 0
 
-    def _get_current_or_create_connection(self, args: Args) -> Optional[Connection]:
+    @staticmethod
+    def _rmvcp(args: Args,
+               api: Callable[[List[str], str], Response],
+               api_name: str = "RMV/RCP") -> Union[int, str]:
+        paths = args.get_vargs()
+
+        if not paths:
+            return ClientErrors.INVALID_COMMAND_SYNTAX
+
+        dest = paths.pop()
+
+        if not dest or not paths:
+            return ClientErrors.INVALID_COMMAND_SYNTAX
+
+        log.i(">> %s %s -> %s", api_name, str(paths), dest)
+
+        resp = api(paths, dest)
+
+        if is_error_response(resp):
+            return resp.get("error")
+
+        if is_data_response(resp, "errors"):
+            errors = resp.get("data").get("errors")
+            log.e("%d errors occurred while doing %s", len(errors), api_name)
+            for err in errors:
+                eprint(err)
+
+        return 0
+
+    def _get_current_or_create_connection(self, args: Args) -> Connection:
         if self.is_connected():
             log.i("Executing on the already established connection")
             return self.connection
@@ -1523,14 +1488,12 @@ class Client:
         vargs = args.get_vargs()
 
         if not vargs:
-            log.e(errcode_string(ClientErrors.INVALID_COMMAND_SYNTAX))
-            return None
+            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         sharing_spec = SharingSpecifier.parse(vargs.pop(0))
 
         if not sharing_spec:
-            log.e(errcode_string(ClientErrors.INVALID_COMMAND_SYNTAX))
-            return None
+            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         log.d("Sharing specifier: %s", sharing_spec)
 
@@ -1538,8 +1501,7 @@ class Client:
         sharing_info, server_info = self._discover_sharing(sharing_spec)
 
         if not sharing_info or not server_info:
-            log.e(errcode_string(ClientErrors.SHARING_NOT_FOUND))
-            return None
+            raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
 
         log.i("Creating new connection with %s", server_info.get("uri"))
         conn = Connection(server_info)
@@ -1558,7 +1520,7 @@ class Client:
         # Actually send open()
         resp = conn.open(sharing_spec.name, password=passwd)
         if is_error_response(resp):
-            raise ResponseException(resp)
+            raise BadOutcome(resp.get("error"))
 
         log.i("Successfully connected to %s:%d", server_info.get("ip"), server_info.get("port"))
         return conn

@@ -30,7 +30,7 @@ class ErrorsStrings:
     NOT_ALLOWED = "Not allowed"
     AUTHENTICATION_FAILED = "Authentication failed"
     INTERNAL_SERVER_ERROR = "Internal server error"
-    NOT_WRITABLE = "Cannot perform the action on a readonly sharing"
+    NOT_WRITABLE = "Forbidden: sharing is readonly"
 
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
     UNEXPECTED_SERVER_RESPONSE = "Unexpected server response"
@@ -50,6 +50,7 @@ ERRORS_STRINGS_MAP = {
     ServerErrors.NOT_ALLOWED: ErrorsStrings.NOT_ALLOWED,
     ServerErrors.AUTHENTICATION_FAILED: ErrorsStrings.AUTHENTICATION_FAILED,
     ServerErrors.INTERNAL_SERVER_ERROR: ErrorsStrings.INTERNAL_SERVER_ERROR,
+    ServerErrors.NOT_WRITABLE: ErrorsStrings.NOT_WRITABLE,
 
     ClientErrors.COMMAND_NOT_RECOGNIZED: ErrorsStrings.COMMAND_NOT_RECOGNIZED,
     ClientErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,

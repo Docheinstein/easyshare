@@ -33,8 +33,12 @@ def is_success_response(resp: Response) -> bool:
     return is_dict(resp) and resp.get("success", False) is True
 
 
-def is_data_response(resp: Response) -> bool:
-    return is_dict(resp) and is_success_response(resp) and resp.get("data") is not None
+def is_data_response(resp: Response, data_field: str = None) -> bool:
+    return \
+        is_dict(resp) and \
+        is_success_response(resp) and \
+        resp.get("data") is not None and \
+        (not data_field or data_field in resp.get("data"))
 
 
 def is_error_response(resp: Response, error_code=None) -> bool:
