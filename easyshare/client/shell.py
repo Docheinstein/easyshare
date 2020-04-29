@@ -138,7 +138,7 @@ class Shell:
     def has_command(self, command: str) -> bool:
         return command in self._shell_command_dispatcher
 
-    def execute_shell_command(self, command: str, command_args: List[str]) -> int:
+    def execute_shell_command(self, command: str, command_args: List[str]) -> Union[int, str]:
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 

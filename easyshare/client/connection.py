@@ -17,10 +17,11 @@ log = get_logger(__name__)
 
 def require_connection(api):
     def require_connection_api_wrapper(conn: 'Connection', *vargs, **kwargs) -> Response:
-        log.d("Checking connection before invoking %s", api.__name__)
+        log.d("Checking connection validity before invoking %s", api.__name__)
         if not conn.is_connected():
+            log.w("@require_connection : invalid connection")
             return create_error_response(ClientErrors.NOT_CONNECTED)
-        log.d("Connection OK, invoking %s", api.__name__)
+        log.d("Connection is valid, invoking %s", api.__name__)
         return api(conn, *vargs, **kwargs)
     return require_connection_api_wrapper
 
@@ -49,11 +50,15 @@ class Connection:
         self.server: Union[IServer, ServerProxy] = ServerProxy(server_info)
 
     def is_connected(self) -> bool:
-        return self._connected
+        return self._connected is True and self.server
 
     def sharing_name(self) -> str:
         return self._sharing_name
 
+    # =====
+
+    @handle_response
+    # NO @require_connection (open() will establish it)
     def open(self, sharing_name: str, password: str = None) -> Response:
         resp = self.server.open(sharing_name, password)
 
@@ -63,8 +68,10 @@ class Connection:
 
         return resp
 
+    # NO @handle_response (async)
+    @require_connection
     def close(self):
-        self.server.close()     # async
+        self.server.close()         # async
         self._destroy_connection()
 
     def rpwd(self) -> str:
@@ -155,8 +162,13 @@ class Connection:
             self._destroy_connection()
 
     def _destroy_connection(self):
-        log.d("Destroy connection (releasing pyro resources)")
+        log.d("Marking connection as disconnected")
         self._connected = False
-        self.server._pyroRelease()
-        self.server = None
+
+        if self.server:
+            log.d("Releasing pyro resource")
+            self.server._pyroRelease()
+            self.server = None
+        else:
+            log.w("Server already invalid, nothing to release")
 

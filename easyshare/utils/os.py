@@ -71,7 +71,7 @@ def size_str(size: float,
 
 def tree(path: str,
          sort_by: Union[str, List[str]] = "name",
-         reverse=False,
+         reverse: bool = False,
          max_depth: int = None) -> Optional[FileInfoTreeNode]:
     if is_str(sort_by):
         sort_by = [sort_by]
@@ -267,7 +267,14 @@ def mv(src: str, dest: str) -> bool:
 
 def cp(src: str, dest: str) -> bool:
     try:
-        shutil.copy2(src, dest, follow_symlinks=False)
+        if os.path.isdir(src) and os.path.isdir(dest):
+            log.d("Recursive copy DIR => DIR detected")
+            srchead, srctail = os.path.split(src)
+            dest = os.path.join(dest, srctail)
+            log.d("Definitive src = '%s' | dst = '%s'", src, dest)
+            shutil.copytree(src, dest)
+        else:
+            shutil.copy2(src, dest, follow_symlinks=False)
         return True
     except Exception as ex:
         log.e("CP exception %s", ex)
