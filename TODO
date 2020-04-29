@@ -28,3 +28,4 @@
 - ls/tree param?
 - remote interrupt
 - return string instead of int for response errors
+- autoclose connection on open()

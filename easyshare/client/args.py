@@ -1,24 +1,33 @@
-from abc import abstractmethod, ABC
-from typing import List, Optional
+from typing import List, Optional, Callable
 
-from easyshare.args import ParamsSpec, INT_PARAM, Args, NoopParamsSpec, OPT_INT_PARAM
+from easyshare.args import ParamsSpec, INT_PARAM, Args, NoopParamsSpec, OPT_INT_PARAM, KwArgSpec
 
 
-class ArgsParser(ABC):
-    @abstractmethod
+class ArgsParser:
     def parse(self, args: List[str]) -> Optional[Args]:
-        pass
+        return Args.parse(
+            args=args,
+            kwargs_specs=self._kwargs_specs(),
+            vargs_spec=self._vargs_spec(),
+            continue_parsing_hook=self._continue_parsing_hook(),
+        )
+
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return None
+
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return None
+
+    def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
+        return None
 
 
 class VariadicArgs(ArgsParser):
     def __init__(self, mandatory: int = 0):
         self.mandatory = mandatory
 
-    def parse(self, args: List[str]) -> Optional[Args]:
-        return Args.parse(
-            args=args,
-            vargs_spec=NoopParamsSpec(self.mandatory, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
-        )
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return NoopParamsSpec(self.mandatory, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
 
 
 class PositionalArgs(ArgsParser):
@@ -26,32 +35,20 @@ class PositionalArgs(ArgsParser):
         self.mandatory = mandatory
         self.optional = optional
 
-    def parse(self, args: List[str]) -> Optional[Args]:
-        return Args.parse(
-            args=args,
-            vargs_spec=NoopParamsSpec(self.mandatory, self.optional)
-        )
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return NoopParamsSpec(self.mandatory, self.optional)
 
 
 class IntArg(ArgsParser):
-    def parse(self, args: List[str]) -> Optional[Args]:
-        return Args.parse(
-            args=args,
-            vargs_spec=INT_PARAM
-        )
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return INT_PARAM
 
 
 class OptIntArg(ArgsParser):
-    def parse(self, args: List[str]) -> Optional[Args]:
-        return Args.parse(
-            args=args,
-            vargs_spec=OPT_INT_PARAM
-        )
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return OPT_INT_PARAM
 
 
 class NoParseArgs(ArgsParser):
-    def parse(self, args: List[str]) -> Optional[Args]:
-        return Args.parse(
-            args=args,
-            continue_parsing_hook=lambda arg, idx, parsedargs, positionals: False
-        )
+    def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
+        return lambda arg, idx, parsedargs, positionals: False

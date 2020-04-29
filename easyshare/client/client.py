@@ -31,8 +31,7 @@ from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.net import is_valid_ip, is_valid_port
 from easyshare.utils.types import to_int, bool_to_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run
-from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM, \
-    NoopParamsSpec
+from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM
 
 
 log = get_logger(__name__)
@@ -40,13 +39,13 @@ log = get_logger(__name__)
 
 # ==================================================================
 
+#
+# class LocalAndRemoteArgsParser(ArgsParser, ABC):
+#     def __init__(self, leading_mandatory_count: int = 0):
+#         self.leading_mandatory_count = leading_mandatory_count
 
-class LocalAndRemoteArgsParser(ArgsParser, ABC):
-    def __init__(self, leading_mandatory_count: int = 0):
-        self.leading_mandatory_count = leading_mandatory_count
 
-
-class LsArgs(LocalAndRemoteArgsParser):
+class LsArgs(PositionalArgs):
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
@@ -55,22 +54,21 @@ class LsArgs(LocalAndRemoteArgsParser):
     SHOW_DETAILS = ["-l"]
     SHOW_SIZE = ["-S"]
 
-    def parse(self, args: List[str]) -> Optional[Args]:
-        return Args.parse(
-            args=args,
-            vargs_spec=NoopParamsSpec(self.leading_mandatory_count, 1),
-            kwargs_specs=[
-                KwArgSpec(LsArgs.SORT_BY_SIZE, PRESENCE_PARAM),
-                KwArgSpec(LsArgs.REVERSE, PRESENCE_PARAM),
-                KwArgSpec(LsArgs.GROUP, PRESENCE_PARAM),
-                KwArgSpec(LsArgs.SHOW_ALL, PRESENCE_PARAM),
-                KwArgSpec(LsArgs.SHOW_DETAILS, PRESENCE_PARAM),
-                KwArgSpec(LsArgs.SHOW_SIZE, PRESENCE_PARAM),
-            ],
-        )
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 1)
+
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return [
+            KwArgSpec(LsArgs.SORT_BY_SIZE, PRESENCE_PARAM),
+            KwArgSpec(LsArgs.REVERSE, PRESENCE_PARAM),
+            KwArgSpec(LsArgs.GROUP, PRESENCE_PARAM),
+            KwArgSpec(LsArgs.SHOW_ALL, PRESENCE_PARAM),
+            KwArgSpec(LsArgs.SHOW_DETAILS, PRESENCE_PARAM),
+            KwArgSpec(LsArgs.SHOW_SIZE, PRESENCE_PARAM),
+        ]
 
 
-class TreeArgs(LocalAndRemoteArgsParser):
+class TreeArgs(PositionalArgs):
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
@@ -81,30 +79,31 @@ class TreeArgs(LocalAndRemoteArgsParser):
 
     MAX_DEPTH = ["-d", "--depth"]
 
-    def parse(self, args: List[str]) -> Optional[Args]:
-        return Args.parse(
-            args=args,
-            vargs_spec=NoopParamsSpec(self.leading_mandatory_count, 1),
-            kwargs_specs=[
-                KwArgSpec(TreeArgs.SORT_BY_SIZE, PRESENCE_PARAM),
-                KwArgSpec(TreeArgs.REVERSE, PRESENCE_PARAM),
-                KwArgSpec(TreeArgs.GROUP, PRESENCE_PARAM),
-                KwArgSpec(TreeArgs.SHOW_ALL, PRESENCE_PARAM),
-                KwArgSpec(TreeArgs.SHOW_DETAILS, PRESENCE_PARAM),
-                KwArgSpec(TreeArgs.SHOW_SIZE, PRESENCE_PARAM),
-                KwArgSpec(TreeArgs.MAX_DEPTH, INT_PARAM),
-            ]
-        )
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 1)
+
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return [
+            KwArgSpec(TreeArgs.SORT_BY_SIZE, PRESENCE_PARAM),
+            KwArgSpec(TreeArgs.REVERSE, PRESENCE_PARAM),
+            KwArgSpec(TreeArgs.GROUP, PRESENCE_PARAM),
+            KwArgSpec(TreeArgs.SHOW_ALL, PRESENCE_PARAM),
+            KwArgSpec(TreeArgs.SHOW_DETAILS, PRESENCE_PARAM),
+            KwArgSpec(TreeArgs.SHOW_SIZE, PRESENCE_PARAM),
+            KwArgSpec(TreeArgs.MAX_DEPTH, INT_PARAM),
+        ]
 
 
-class OpenArguments:
-    TIMEOUT = ["-T", "--timeout"]
+class ScanArgs(PositionalArgs):
+    SHOW_DETAILS = ["-l"]
 
+    def __init__(self):
+        super().__init__(0, 0)
 
-class ScanArguments:
-    TIMEOUT = ["-T", "--timeout"]
-    DETAILS = ["-l"]
-
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return [
+            KwArgSpec(ScanArgs.SHOW_DETAILS, PRESENCE_PARAM),
+        ]
 
 class GetArguments:
     YES_TO_ALL = ["-Y", "--yes"]
@@ -287,9 +286,9 @@ class Client:
             str, Tuple[ArgsParser, ArgsParser, Callable[[Args, Optional[Connection]], None]]] = {
 
             Commands.LOCAL_CHANGE_DIRECTORY: connectionless(PositionalArgs(0, 1), Client.cd),
-            Commands.LOCAL_LIST_DIRECTORY: connectionless(LsArgs(), Client.ls),
+            Commands.LOCAL_LIST_DIRECTORY: connectionless(LsArgs(0), Client.ls),
             Commands.LOCAL_LIST_DIRECTORY_ENHANCED: connectionless(PositionalArgs(0, 1), Client.l),
-            Commands.LOCAL_TREE_DIRECTORY: connectionless(TreeArgs(), Client.tree),
+            Commands.LOCAL_TREE_DIRECTORY: connectionless(TreeArgs(0), Client.tree),
             Commands.LOCAL_CREATE_DIRECTORY: connectionless(PositionalArgs(1), Client.mkdir),
             Commands.LOCAL_CURRENT_DIRECTORY: connectionless(PositionalArgs(0), Client.pwd),
             Commands.LOCAL_REMOVE: connectionless(VariadicArgs(1), Client.rm),
@@ -298,8 +297,8 @@ class Client:
             Commands.LOCAL_EXEC: connectionless(NoParseArgs(), Client.exec),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (PositionalArgs(0, 1), PositionalArgs(1, 1), self.rcd),
-            Commands.REMOTE_LIST_DIRECTORY: (LsArgs(), LsArgs(1), self.rls),
-            Commands.REMOTE_TREE_DIRECTORY: (TreeArgs(), TreeArgs(1), self.rtree),
+            Commands.REMOTE_LIST_DIRECTORY: (LsArgs(0), LsArgs(1), self.rls),
+            Commands.REMOTE_TREE_DIRECTORY: (TreeArgs(0), TreeArgs(1), self.rtree),
             Commands.REMOTE_CREATE_DIRECTORY: (PositionalArgs(1), PositionalArgs(2), self.rmkdir),
             Commands.REMOTE_CURRENT_DIRECTORY: (PositionalArgs(0), PositionalArgs(1), self.rpwd),
             Commands.REMOTE_REMOVE: (VariadicArgs(1), VariadicArgs(2), self.rrm),
@@ -307,7 +306,7 @@ class Client:
             Commands.REMOTE_COPY: (VariadicArgs(2), VariadicArgs(3), self.rcp),
             Commands.REMOTE_EXEC: (NoParseArgs(), self.rexec),
 
-            Commands.SCAN: (PositionalArgs(0), self.scan),
+            Commands.SCAN: (ScanArgs(), ScanArgs(), self.scan),
             Commands.OPEN: (PositionalArgs(1), PositionalArgs(1), self.open),
             Commands.CLOSE: (PositionalArgs(0), PositionalArgs(1), self.close),
 
@@ -594,8 +593,8 @@ class Client:
 
         connection.close()
 
-    def scan(self, args: Args):
-        show_details = ScanArguments.DETAILS in args
+    def scan(self, args: Args, _: Connection = None):
+        show_details = ScanArgs.SHOW_DETAILS in args
 
         log.i(">> SCAN")
 
@@ -728,7 +727,7 @@ class Client:
             sharing_name = sharing_location
             sharing_location = None
 
-        timeout = to_int(args.get_param(ScanArguments.TIMEOUT,
+        timeout = to_int(args.get_param(ScanArgs.TIMEOUT,
                                         default=Discoverer.DEFAULT_TIMEOUT))
 
         if not timeout:
@@ -801,7 +800,7 @@ class Client:
             sharing_name = sharing_location
             sharing_location = None
 
-        timeout = to_int(args.get_param(ScanArguments.TIMEOUT,
+        timeout = to_int(args.get_param(ScanArgs.TIMEOUT,
                                         default=Discoverer.DEFAULT_TIMEOUT))
 
         if not timeout:
