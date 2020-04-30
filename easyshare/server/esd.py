@@ -10,6 +10,7 @@ import Pyro4
 from typing import Dict, Optional, List, Any, Callable, TypeVar
 
 from easyshare import logging
+from easyshare import logging
 from easyshare.logging import get_logger
 from easyshare.passwd.auth import AuthFactory
 from easyshare.protocol.fileinfo import FileInfo
@@ -171,6 +172,7 @@ class Server(IServer):
             "port": server_endpoint[1],
             "sharings": [sh.info() for sh in self.sharings.values()],
             "ssl": True if self.ssl_context else False
+            # "ssl": self.ssl_context.cer
         }
 
         response = create_success_response(response_data)

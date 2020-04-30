@@ -1,7 +1,6 @@
 import os
 import random
 import time
-from abc import ABC
 from getpass import getpass
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar
@@ -29,6 +28,7 @@ from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.net import is_valid_ip, is_valid_port
+from easyshare.utils.ssl import parse_cert
 from easyshare.utils.types import to_int, bool_to_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run
 from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM
@@ -38,11 +38,6 @@ log = get_logger(__name__)
 
 
 # ==================================================================
-
-#
-# class LocalAndRemoteArgsParser(ArgsParser, ABC):
-#     def __init__(self, leading_mandatory_count: int = 0):
-#         self.leading_mandatory_count = leading_mandatory_count
 
 
 class LsArgs(PositionalArgs):
@@ -276,6 +271,8 @@ class Client:
 
         self._discover_port = discover_port
 
+        self._certs_cache: Dict[bytes, dict] = {}
+
         def connectionless(parser: ArgsParser, func: Callable[[Args], None]) -> \
                 Tuple[ArgsParser, ArgsParser, Callable[[Args], None]]:
             return parser, parser, func
@@ -313,7 +310,7 @@ class Client:
             Commands.GET: self.get,
             Commands.PUT: self.put,
 
-            Commands.INFO: self.info,
+            Commands.INFO: (PositionalArgs(0, 1), PositionalArgs(1, 0), self.info),
             Commands.PING: self.ping,
         }
 
@@ -582,10 +579,14 @@ class Client:
         #     log.w("NOT IMPLEMENTED")
 
     def open(self, args: Args, _: Connection = None):
-        self.connection = self._create_connection(SharingSpecifier.parse(args.get_varg()))
+        newconn = self._create_connection(SharingSpecifier.parse(args.get_varg()))
+        if self.connection:
+            log.i("Closing current connection before create the new one")
+            self.connection.close()
+        self.connection = newconn
 
     @provide_connection
-    def close(self, _: Args, connection: Connection = None):
+    def close(self, _: Optional[Args], connection: Connection = None):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -630,57 +631,52 @@ class Client:
 
         log.i("======================")
 
-    def info(self, args: Args):
+    def info(self, args: Args, _: Connection = None):
         # Can be done either
         # 1. If connected to a server: we already have the server info
         # 2. If not connected to a server: we have to fetch the server info
 
         # Without parameter it means we are trying to see the info of the
         # current connection
-        # With a paremeter it means we are trying to see the info of a server
-        # The param should be <hostname> | <ip[:port]>
+        # With a parameter it means we are trying to see the info of a server
+        # The param should be a server specifier: <hostname>|<ip>[:<port>]
 
-        def print_server_info(server_info: ServerInfo):
-            print(
-                "Name: {}\n"
-                "IP: {}\n"
-                "Port: {}\n"
-                "SSL: {}\n"
-                "Sharings\n{}"
+        def print_server_info(info: ServerInfo):
+            s = "Name: {}\n" + \
+                "IP: {}\n" + \
+                "Port: {}\n" + \
+                "SSL: {}\n" + \
+                "Sharings\n{}" \
                 .format(
-                    server_info.get("name"),
-                    server_info.get("ip"),
-                    server_info.get("port"),
-                    server_info.get("ssl"),
-                    Client._sharings_string(server_info.get("sharings"))
+                    info.get("name"),
+                    info.get("ip"),
+                    info.get("port"),
+                    info.get("ssl"),
+                    Client._sharings_string(info.get("sharings"), details=True)
                 )
-            )
+            print(s)
 
-        if self.is_connected():
-            # Connected, print current server info
-            log.d("Info while connected, printing current server info")
-            print_server_info(self.connection.server_info)
-        else:
-            # Not connected, we need a parameter that specifies the server
-            server_specifier = args.get_param()
+        server_spec = ServerSpecifier.parse(args.get_varg())
 
-            if not server_specifier:
-                log.e("Server specifier not found")
-                print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
-                return
+        server_info: Optional[ServerInfo] = None
 
-            log.i(">> INFO %s", server_specifier)
+        if not server_spec:
+            if self.is_connected():
+                log.d("Using server info of the current connection "
+                      "since server specifier not provided")
+                server_info = self.connection.server_info
+            else:
+                log.e("Server specifier must be provided (since not connected to a server)")
+                return ClientErrors.INVALID_COMMAND_SYNTAX
 
-            server_info: ServerInfo = self._discover_server(
-                location=server_specifier
-            )
+        if server_spec:
+            server_info = self._discover_server(server_spec)
 
-            if not server_info:
-                print_errcode(ClientErrors.SERVER_NOT_FOUND)
-                return False
+        if not server_info:
+            return ClientErrors.SERVER_NOT_FOUND
 
-            # Server info retrieved successfully
-            print_server_info(server_info)
+        # Server info retrieved successfully
+        print_server_info(server_info)
 
     def ping(self, _: Args):
         if not self.is_connected():
@@ -1426,6 +1422,30 @@ class Client:
 
         log.i("Connection established with %s:%d",
               server_info.get("ip"), server_info.get("port"))
+
+        if not server_info.get("ssl"):
+            log.w("Opened a plain connection; use SSL if possible")
+        else:
+            cert_dict = None
+            try:
+                ssl_cert = conn.server._pyroConnection.sock.getpeercert(binary_form=True)
+                cached_cert = self._certs_cache.get(ssl_cert)
+                if cached_cert:
+                    log.d("Certificate already parsed; showing cached one")
+                    cert_dict = cached_cert
+                else:
+                    cert_dict = parse_cert(ssl_cert)
+                    log.d("Certificate parsed; adding to cache")
+                    self._certs_cache[ssl_cert] = cert_dict
+            except:
+                log.w("Certificate parsing error occurred")
+
+            if cert_dict:
+                log.i("Remote SSL certificate\n%s", json_to_pretty_str(cert_dict))
+            else:
+                # log.w("Remote SSL certificate not verified (self-signed?)")
+                log.w("Remote SSL certificate cannot be verified")
+
         return conn
 
     def _get_current_or_create_connection_from_args(self, args: Args) -> Connection:
@@ -1445,6 +1465,10 @@ class Client:
         return self._create_connection(sharing_spec)
 
     def _discover_server(self, server_spec: ServerSpecifier) -> Optional[ServerInfo]:
+        if not server_spec:
+            log.w("Null server spec, no server will be found")
+            return None
+
         server_info: Optional[ServerInfo] = None
 
         def response_handler(client_endpoint: Endpoint,
@@ -1486,6 +1510,10 @@ class Client:
     def _discover_sharing(self,
                           sharing_spec: SharingSpecifier,
                           ftype: FileType = None) -> Tuple[Optional[SharingInfo], Optional[ServerInfo]]:
+
+        if not sharing_spec:
+            log.w("Null sharing spec, no sharing will be found")
+            return None, None
 
         sharing_info: Optional[SharingInfo] = None
         server_info: Optional[ServerInfo] = None

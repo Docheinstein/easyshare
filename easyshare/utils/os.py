@@ -283,21 +283,37 @@ def cp(src: str, dest: str) -> bool:
 
 def run(cmd: str,
         output_hook: Callable[[str], None]) -> int:
-    with subprocess.Popen(cmd, shell=True,
+    with subprocess.Popen(cmd,
+                          shell=True,
                           stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT) as proc:
+                          stderr=subprocess.STDOUT,
+                          stdin=subprocess.PIPE) as proc:
+        input = "xx"
         while True:
-            stdout_line = proc.stdout.readline()
-            if stdout_line:
+            print("Before communicate()")
+            stdout, _ = proc.communicate(input=None)
+            print("After communicate, stdout: '{}'".format(stdout))
+            #
+            # stdout_line = proc.stdout.readline()
+            if stdout:
                 if output_hook:
-                    output_hook(bytes_to_str(stdout_line))
-            else:
-                log.d("run: EOF")
+                    output_hook(bytes_to_str(stdout))
+                    # output_hook(bytes_to_str(stdout_line))
 
-                if proc.poll() is None:
-                    continue
-                else:
-                    break
+            if proc.poll() is None:
+                print("proc.poll is None, continue")
+                continue
+            else:
+                print("run: END ({})".format(proc.returncode))
+                break
+            # else:
+            #     log.d("run: EOF")
+            #
+            #     if proc.poll() is None:
+            #         print("proc.poll is None, continue")
+            #         continue
+            #     else:
+            #         break
 
         log.d("run: END (%d)", proc.returncode)
 

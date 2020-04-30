@@ -122,7 +122,7 @@ class Shell:
                 try:
                     if self._client.is_connected():
                         log.d("Trying to close connection gracefully")
-                        self._client.close()
+                        self._client.close(None)
                 except PyroError:
                     log.d("Cannot communicate with remote: invalidating connection")
                     self._client.connection = None
@@ -132,7 +132,7 @@ class Shell:
             except EOFError:
                 log.i("\nCTRL+D: exiting")
                 if self._client.is_connected():
-                    self._client.close()
+                    self._client.close(None)
                 break
 
     def has_command(self, command: str) -> bool:

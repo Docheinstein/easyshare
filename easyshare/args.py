@@ -56,7 +56,9 @@ OPT_INT_PARAM = IntParamsSpec(0, 1)
 PRESENCE_PARAM = ParamsSpec(0, 0, lambda ps: True)
 VARIADIC_PARAMS = NoopParamsSpec(0, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
 
+
 # ---
+
 
 class Args:
     def __init__(self, parsed: Dict, unparsed: List[Any] = None):
@@ -109,10 +111,12 @@ class Args:
 
     @staticmethod
     def parse(args: List[str], *,
+              vargs_spec: ParamsSpec = None,
               kwargs_specs: List[KwArgSpec] = None,
-              vargs_spec: ParamsSpec = VARIADIC_PARAMS,
               continue_parsing_hook: Optional[Callable[[str, int, 'Args', List[str]], bool]] = None) -> Optional['Args']:
-        # continue_parsing_hook: argname, idx, args, positionals
+            # continue_parsing_hook: argname, idx, args, positionals
+
+        vargs_spec = vargs_spec or VARIADIC_PARAMS
         kwargs_specs = kwargs_specs or []
         parsed = {}
         unparsed = []

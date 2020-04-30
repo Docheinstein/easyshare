@@ -1,7 +1,6 @@
 import os
 import sys
-from typing import Optional, List
-
+from typing import Optional, List, Callable
 
 from easyshare import logging
 from easyshare.client.args import ArgsParser
@@ -46,24 +45,21 @@ class EsArgs(ArgsParser):
 
     NO_COLOR =  ["--no-color"]
 
-    def parse(self, args: List[str]) -> Optional[Args]:
-        return Args.parse(
-            args=args,
-            # vargs_spec=NoopParamsSpec(0, 1),
-            kwargs_specs=[
-                KwArgSpec(EsArgs.HELP,
-                          ParamsSpec(0, 0, lambda _: terminate("help"))),
-                KwArgSpec(EsArgs.VERSION,
-                          ParamsSpec(0, 0, lambda _: terminate("version"))),
-                KwArgSpec(EsArgs.PORT, INT_PARAM),
-                KwArgSpec(EsArgs.WAIT, INT_PARAM),
-                KwArgSpec(EsArgs.VERBOSE, INT_PARAM),
-                KwArgSpec(EsArgs.TRACE, PRESENCE_PARAM),
-                KwArgSpec(EsArgs.NO_COLOR, PRESENCE_PARAM),
-            ],
-            # Stop to parse when a positional argument is found (probably a command)
-            continue_parsing_hook=lambda argname, idx, args, positionals: not positionals
-        )
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return [
+            KwArgSpec(EsArgs.HELP,
+                      ParamsSpec(0, 0, lambda _: terminate("help"))),
+            KwArgSpec(EsArgs.VERSION,
+                      ParamsSpec(0, 0, lambda _: terminate("version"))),
+            KwArgSpec(EsArgs.PORT, INT_PARAM),
+            KwArgSpec(EsArgs.WAIT, INT_PARAM),
+            KwArgSpec(EsArgs.VERBOSE, INT_PARAM),
+            KwArgSpec(EsArgs.TRACE, PRESENCE_PARAM),
+            KwArgSpec(EsArgs.NO_COLOR, PRESENCE_PARAM),
+        ]
+
+    def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
+        return lambda argname, idx, args, positionals: not positionals
 
 # ==================================================================
 

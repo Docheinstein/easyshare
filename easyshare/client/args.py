@@ -7,15 +7,15 @@ class ArgsParser:
     def parse(self, args: List[str]) -> Optional[Args]:
         return Args.parse(
             args=args,
-            kwargs_specs=self._kwargs_specs(),
             vargs_spec=self._vargs_spec(),
+            kwargs_specs=self._kwargs_specs(),
             continue_parsing_hook=self._continue_parsing_hook(),
         )
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
         return None
 
-    def _vargs_spec(self) -> Optional[ParamsSpec]:
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
         return None
 
     def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
