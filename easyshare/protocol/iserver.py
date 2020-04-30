@@ -5,6 +5,16 @@ from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response
 
 
+class RexecCallback(ABC):
+    @abstractmethod
+    def stdout(self, line: str):
+        pass
+
+    @abstractmethod
+    def done(self, retcode: int):
+        pass
+
+
 class IServer(ABC):
     @abstractmethod
     def open(self, sharing_name: str, password: str = None) -> Response:
@@ -70,5 +80,5 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def rexec(self, cmd: str) -> Response:
+    def rexec(self, cmd: str, callback: RexecCallback) -> Response:
         pass

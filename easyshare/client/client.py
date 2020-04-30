@@ -1,14 +1,17 @@
 import os
 import random
+import subprocess
 import time
 from getpass import getpass
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar
 
-from easyshare.client.args import PositionalArgs, NoParseArgs, VariadicArgs, ArgsParser
+import Pyro4
+
+from easyshare.client.args import PositionalArgs, StopParseArgs, VariadicArgs, ArgsParser
 from easyshare.client.commands import Commands, is_special_command
 from easyshare.client.common import print_files_info_list, \
-    print_files_info_tree
+    print_files_info_tree, ssl_certificate_to_str
 from easyshare.client.connection import Connection
 from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors, print_errcode, errcode_string
@@ -16,6 +19,7 @@ from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
+from easyshare.protocol.iserver import RexecCallback
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
@@ -28,9 +32,9 @@ from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.net import is_valid_ip, is_valid_port
-from easyshare.utils.ssl import parse_cert
-from easyshare.utils.types import to_int, bool_to_str
-from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run
+from easyshare.utils.ssl import parse_ssl_certificate, SSLCertificate, create_client_ssl_context
+from easyshare.utils.types import to_int, bool_to_str, is_int
+from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached
 from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM
 
 
@@ -233,15 +237,17 @@ def response_error_string(resp: Response) -> str:
 API = TypeVar('API', bound=Callable[..., None])
 
 
-def provide_connection(api: API) -> API:
-    def provide_connection_api_wrapper(client: 'Client', args: Args, _: Connection = None):
+def provide_sharing_connection(api: API) -> API:
+    def provide_sharing_connection_api_wrapper(client: 'Client', args: Args, _: Connection = None):
         # Wraps api providing the connection parameters.
         # The provided connection is the client current connection,
         # if it is established, or a temporary one that will be closed
-        # just after the api call
+        # just after the api call.
+        # The connection is established treating the first arg of
+        # args as a 'ServerSpecifier'
         log.d("Checking if connection exists before invoking %s", api.__name__)
 
-        conn = client._get_current_or_create_connection_from_args(args)
+        conn = client._get_current_or_create_connection_from_sharing_spec_args(args)
 
         if not conn or not conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -253,7 +259,32 @@ def provide_connection(api: API) -> API:
             log.d("Closing temporary connection")
             conn.close()
 
-    return provide_connection_api_wrapper
+    return provide_sharing_connection_api_wrapper
+
+
+def provide_server_connection(api: API) -> API:
+    def provide_server_connection_api_wrapper(client: 'Client', args: Args, _: Connection = None):
+        # Wraps api providing the connection parameters.
+        # The provided connection is the client current connection,
+        # if it is established, or a temporary one that will be closed
+        # just after the api call.
+        # The connection is established treating the first arg of
+        # args as a 'ServerSpecifier'
+        log.d("Checking if connection exists before invoking %s", api.__name__)
+
+        conn = client._get_current_or_create_connection_from_server_spec_args(args)
+
+        if not conn:
+            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+
+        log.d("Connection established, invoking %s", api.__name__)
+        api(client, args, conn)
+
+        if conn != client.connection:
+            log.d("Closing temporary connection")
+            conn.close()
+
+    return provide_server_connection_api_wrapper
 
 
 # ==================================================================
@@ -271,7 +302,7 @@ class Client:
 
         self._discover_port = discover_port
 
-        self._certs_cache: Dict[bytes, dict] = {}
+        self._certs_cache: Dict[Endpoint, dict] = {}
 
         def connectionless(parser: ArgsParser, func: Callable[[Args], None]) -> \
                 Tuple[ArgsParser, ArgsParser, Callable[[Args], None]]:
@@ -291,7 +322,7 @@ class Client:
             Commands.LOCAL_REMOVE: connectionless(VariadicArgs(1), Client.rm),
             Commands.LOCAL_MOVE: connectionless(VariadicArgs(2), Client.mv),
             Commands.LOCAL_COPY: connectionless(VariadicArgs(2), Client.cp),
-            Commands.LOCAL_EXEC: connectionless(NoParseArgs(), Client.exec),
+            Commands.LOCAL_EXEC: connectionless(StopParseArgs(), Client.exec),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (PositionalArgs(0, 1), PositionalArgs(1, 1), self.rcd),
             Commands.REMOTE_LIST_DIRECTORY: (LsArgs(0), LsArgs(1), self.rls),
@@ -301,7 +332,7 @@ class Client:
             Commands.REMOTE_REMOVE: (VariadicArgs(1), VariadicArgs(2), self.rrm),
             Commands.REMOTE_MOVE: (VariadicArgs(2), VariadicArgs(3), self.rmv),
             Commands.REMOTE_COPY: (VariadicArgs(2), VariadicArgs(3), self.rcp),
-            Commands.REMOTE_EXEC: (NoParseArgs(), self.rexec),
+            Commands.REMOTE_EXEC: (StopParseArgs(), StopParseArgs(1), self.rexec),
 
             Commands.SCAN: (ScanArgs(), ScanArgs(), self.scan),
             Commands.OPEN: (PositionalArgs(1), PositionalArgs(1), self.open),
@@ -453,7 +484,7 @@ class Client:
         exec_args = args.get_unparsed_args()
         exec_fullarg = " ".join(exec_args)
         log.i(">> EXEC %s", exec_fullarg)
-        retcode = run(exec_fullarg, output_hook=lambda line: print(line, end=""))
+        retcode = run_attached(exec_fullarg)
         if retcode != 0:
             log.w("Command failed with return code: %d", retcode)
             raise BadOutcome(ClientErrors.COMMAND_EXECUTION_FAILED)
@@ -462,7 +493,7 @@ class Client:
 
     # RPWD
 
-    @provide_connection
+    @provide_sharing_connection
     def rpwd(self, _: Args, connection: Connection = None):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -470,7 +501,7 @@ class Client:
         log.i(">> RPWD")
         print(connection.rpwd())
 
-    @provide_connection
+    @provide_sharing_connection
     def rcd(self, args: Args, connection: Connection = None):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -484,7 +515,7 @@ class Client:
         if is_error_response(resp):
             raise BadOutcome(resp.get("error"))
 
-    @provide_connection
+    @provide_sharing_connection
     def rls(self, args: Args, connection: Connection = None):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -497,7 +528,7 @@ class Client:
 
         Client._ls(args, data_provider=rls_provider, data_provider_name="RLS")
 
-    @provide_connection
+    @provide_sharing_connection
     def rtree(self, args: Args, connection: Connection = None):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -510,7 +541,7 @@ class Client:
 
         Client._tree(args, data_provider=rtree_provider, data_provider_name="RTREE")
 
-    @provide_connection
+    @provide_sharing_connection
     def rmkdir(self, args: Args, connection: Connection = None):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -527,7 +558,7 @@ class Client:
         if is_error_response(resp):
             raise BadOutcome(resp.get("error"))
 
-    @provide_connection
+    @provide_sharing_connection
     def rrm(self, args: Args, connection: Connection = None):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -550,42 +581,72 @@ class Client:
             for err in errors:
                 eprint(err)
 
-    @provide_connection
+    @provide_sharing_connection
     def rmv(self, args: Args, connection: Connection = None):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         Client._rmvcp(args, api=connection.rmv, api_name="RMV")
 
-    @provide_connection
+    @provide_sharing_connection
     def rcp(self, args: Args, connection: Connection = None):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         Client._rmvcp(args, api=connection.rcp, api_name="RCP")
 
-    @provide_connection
-    def rexec(self, args: Args):
-        raise BadOutcome(ClientErrors.COMMAND_NOT_RECOGNIZED)
-        # popen_args = args.get_unparsed_args()
-        # popen_fullarg = " ".join(popen_args)
-        # log.i(">> REXEC %s", popen_fullarg)
-        #
-        # if self.is_connected():
-        #     resp = self.connection.rexec(popen_fullarg)
-        #     if is_data_response(resp):
-        #         print(resp.get("data"))
+    @provide_server_connection
+    def rexec(self, args: Args, connection: Connection = None):
+        popen_args = args.get_unparsed_args()
+        popen_fullarg = " ".join(popen_args)
+        log.i(">> REXEC %s", popen_fullarg)
+
+        # resp = connection.rexec(popen_fullarg)
+        # outcome = resp.get("data")
+        # if outcome:
+        #     for line in outcome:
+        #         print(line, end="")
+        # # if is_int(outcome):
+        # #     log.i("Command return code: %d", outcome)
         # else:
-        #     log.w("NOT IMPLEMENTED")
+        #     raise BadOutcome(ClientErrors.COMMAND_EXECUTION_FAILED)
+
+        class RexecCallbackImpl(RexecCallback):
+            def __init__(self):
+                self.return_code = None
+
+            @Pyro4.expose
+            @Pyro4.callback
+            def stdout(self, line: str):
+                print(line, end="")
+
+            @Pyro4.expose
+            @Pyro4.callback
+            def done(self, retcode: int):
+                log.i("REXEC done (%d)", retcode)
+                self.return_code = retcode
+
+
+        with Pyro4.core.Daemon() as daemon:
+            # Create a deamon
+            rexec_callback = RexecCallbackImpl()
+            daemon.register(rexec_callback)
+
+            connection.rexec(popen_fullarg, rexec_callback)
+            log.i("Waiting for command completion...")
+            daemon.sockets
+            daemon.requestLoop(loopCondition=lambda: rexec_callback.return_code is None)
+            log.d("Exited daemon request loop")
+            log.i("Command completed with return code: %d", rexec_callback.return_code)
 
     def open(self, args: Args, _: Connection = None):
-        newconn = self._create_connection(SharingSpecifier.parse(args.get_varg()))
+        newconn = self._create_connection_from_sharing_spec(SharingSpecifier.parse(args.get_varg()))
         if self.connection:
             log.i("Closing current connection before create the new one")
             self.connection.close()
         self.connection = newconn
 
-    @provide_connection
+    @provide_sharing_connection
     def close(self, _: Optional[Args], connection: Connection = None):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -642,18 +703,38 @@ class Client:
         # The param should be a server specifier: <hostname>|<ip>[:<port>]
 
         def print_server_info(info: ServerInfo):
-            s = "Name: {}\n" + \
-                "IP: {}\n" + \
-                "Port: {}\n" + \
-                "SSL: {}\n" + \
-                "Sharings\n{}" \
-                .format(
-                    info.get("name"),
-                    info.get("ip"),
-                    info.get("port"),
-                    info.get("ssl"),
-                    Client._sharings_string(info.get("sharings"), details=True)
-                )
+
+            SEP = "================================"
+
+            SEP_FIRST =              SEP + "\n\n"
+            SEP_MID =       "\n\n" + SEP + "\n\n"
+            SEP_LAST  =     "\n\n" + SEP
+
+            # Server info
+            s = SEP_FIRST + \
+                "SERVER INFO\n\n" + \
+                "Name:  {}\n".format(info.get("name")) + \
+                "IP:    {}\n".format(info.get("ip")) + \
+                "Port:  {}\n".format(info.get("port")) + \
+                "SSL:   {}".format(info.get("ssl")) + \
+                SEP_MID
+
+            # SSL?
+            if info.get("ssl"):
+                ssl_cert = self._get_cached_or_fetch_ssl_certificate_for_endpoint(
+                    (info.get("ip"), info.get("port")))
+
+                s += \
+                    "SSL CERTIFICATE\n\n" + \
+                    ssl_certificate_to_str(ssl_cert) + \
+                    SEP_MID
+
+            # Sharings
+            s += \
+                "SHARINGS\n\n" + \
+                Client._sharings_string(info.get("sharings"), details=True) + \
+                SEP_LAST
+
             print(s)
 
         server_spec = ServerSpecifier.parse(args.get_varg())
@@ -1387,7 +1468,7 @@ class Client:
             for err in errors:
                 eprint(err)
 
-    def _create_connection(self, sharing_spec: SharingSpecifier) -> Connection:
+    def _create_connection_from_sharing_spec(self, sharing_spec: SharingSpecifier) -> Connection:
         if not sharing_spec:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
@@ -1423,32 +1504,75 @@ class Client:
         log.i("Connection established with %s:%d",
               server_info.get("ip"), server_info.get("port"))
 
-        if not server_info.get("ssl"):
-            log.w("Opened a plain connection; use SSL if possible")
-        else:
-            cert_dict = None
-            try:
-                ssl_cert = conn.server._pyroConnection.sock.getpeercert(binary_form=True)
-                cached_cert = self._certs_cache.get(ssl_cert)
-                if cached_cert:
-                    log.d("Certificate already parsed; showing cached one")
-                    cert_dict = cached_cert
-                else:
-                    cert_dict = parse_cert(ssl_cert)
-                    log.d("Certificate parsed; adding to cache")
-                    self._certs_cache[ssl_cert] = cert_dict
-            except:
-                log.w("Certificate parsing error occurred")
+        if server_info.get("ssl"):
+            ssl_cert = self._get_cached_or_fetch_ssl_certificate_for_connection(conn)
 
-            if cert_dict:
-                log.i("Remote SSL certificate\n%s", json_to_pretty_str(cert_dict))
+            if ssl_cert:
+                log.i("Remote SSL certificate\n"
+                      "================================\n"
+                      "%s\n"
+                      "================================", ssl_certificate_to_str(ssl_cert))
             else:
-                # log.w("Remote SSL certificate not verified (self-signed?)")
                 log.w("Remote SSL certificate cannot be verified")
+        else:
+            log.w("Opened a plain connection; use SSL if possible")
 
         return conn
 
-    def _get_current_or_create_connection_from_args(self, args: Args) -> Connection:
+
+    def _create_connection_from_server_spec(self, server_spec: ServerSpecifier) -> Connection:
+        if not server_spec:
+            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+
+        log.d("Server specifier: %s", server_spec)
+
+        # Discover the server to which connect
+        server_info = self._discover_server(server_spec)
+
+        if not server_info:
+            raise BadOutcome(ClientErrors.SERVER_NOT_FOUND)
+
+        log.i("Creating new connection with %s", server_info.get("uri"))
+        conn = Connection(server_info)
+
+        # open() the connection
+
+        passwd = None
+
+        # Ask the password if the sharing is protected by auth
+        if server_info.get("auth"):
+            log.i("Server '%s' is protected by password", server_spec.name)
+            passwd = getpass()
+        else:
+            log.i("Server '%s' is not protected", server_spec.name)
+
+        log.i("Connection established with %s:%d",
+              server_info.get("ip"), server_info.get("port"))
+
+        # 
+        # # Actually send open()
+        # resp = conn.open(sharing_spec.name, password=passwd)
+        # if is_error_response(resp):
+        #     raise BadOutcome(resp.get("error"))
+        # 
+        # 
+        # if server_info.get("ssl"):
+        #     ssl_cert = self._get_cached_or_fetch_ssl_certificate_for_connection(conn)
+        # 
+        #     if ssl_cert:
+        #         log.i("Remote SSL certificate\n"
+        #               "================================\n"
+        #               "%s\n"
+        #               "================================", ssl_certificate_to_str(ssl_cert))
+        #     else:
+        #         log.w("Remote SSL certificate cannot be verified")
+        # else:
+        #     log.w("Opened a plain connection; use SSL if possible")
+
+        return conn
+
+
+    def _get_current_or_create_connection_from_sharing_spec_args(self, args: Args) -> Connection:
         if self.is_connected():
             log.i("Providing already established connection")
             return self.connection
@@ -1462,7 +1586,24 @@ class Client:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         sharing_spec = SharingSpecifier.parse(vargs.pop(0))
-        return self._create_connection(sharing_spec)
+        return self._create_connection_from_sharing_spec(sharing_spec)
+
+
+    def _get_current_or_create_connection_from_server_spec_args(self, args: Args) -> Connection:
+        if self.is_connected():
+            log.i("Providing already established connection")
+            return self.connection
+
+        # Create temporary connection
+        log.i("No established connection; creating a new one")
+
+        vargs = args.get_vargs()
+
+        if not vargs:
+            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+
+        server_spec = ServerSpecifier.parse(vargs.pop(0))
+        return self._create_connection_from_server_spec(server_spec)
 
     def _discover_server(self, server_spec: ServerSpecifier) -> Optional[ServerInfo]:
         if not server_spec:
@@ -1612,21 +1753,38 @@ class Client:
 
         return s.rstrip("\n")
 
-    # @staticmethod
-    # def _fetch_data(connection, api, *vargs, **kwargs):
-    #     resp = api(*vargs, **kwargs)
-    #
-    #     if not is_data_response(resp):
-    #
-    #         conn._handle_error_response(resp)
-    #         return
-
     def _handle_error_response(self, resp: Response):
         Client._handle_connection_error_response(self.connection, resp)
 
-    # @staticmethod
-    # def _handle_connection_error_response(connection: Connection, resp: Response):
-    #     if is_error_response(ServerErrors.NOT_CONNECTED):
-    #         log.i("Received a NOT_CONNECTED response: destroying connection")
-    #         connection.close()
-    #     print_response_error(resp)
+    def _get_cached_or_fetch_ssl_certificate(
+            self,
+            endpoint: Endpoint,
+            peercert_provider: Callable[..., Optional[bytes]]) -> Optional[SSLCertificate]:
+
+        if endpoint not in self._certs_cache:
+            log.d("No cached SSL cert found for %s, fetching and parsing now", endpoint)
+            cert_bin = peercert_provider()
+            cert = None
+            try:
+                cert = parse_ssl_certificate(cert_bin)
+            except:
+                log.exception("Certificate parsing error occurred")
+            self._certs_cache[endpoint] = cert
+        else:
+            log.d("Found cached SSL cert for %s", endpoint)
+
+        return self._certs_cache[endpoint]
+
+    def _get_cached_or_fetch_ssl_certificate_for_connection(self, conn: Connection) -> Optional[SSLCertificate]:
+        return self._get_cached_or_fetch_ssl_certificate(
+            endpoint=(conn.server_info.get("ip"), conn.server_info.get("port")),
+            peercert_provider=lambda: conn.ssl_certificate()
+        )
+
+    def _get_cached_or_fetch_ssl_certificate_for_endpoint(self, endpoint: Endpoint) -> Optional[SSLCertificate]:
+        return self._get_cached_or_fetch_ssl_certificate(
+            endpoint=endpoint,
+            peercert_provider=lambda: SocketTcpOut(
+                endpoint[0], endpoint[1], ssl_context=create_client_ssl_context()
+            ).ssl_certificate()
+        )

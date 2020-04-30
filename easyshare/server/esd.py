@@ -10,7 +10,6 @@ import Pyro4
 from typing import Dict, Optional, List, Any, Callable, TypeVar
 
 from easyshare import logging
-from easyshare import logging
 from easyshare.logging import get_logger
 from easyshare.passwd.auth import AuthFactory
 from easyshare.protocol.fileinfo import FileInfo
@@ -25,7 +24,7 @@ from easyshare.config.parser import parse_config
 from easyshare.server.client import ClientContext
 from easyshare.server.discover import DiscoverDeamon
 from easyshare.shared.endpoint import Endpoint
-from easyshare.protocol.iserver import IServer
+from easyshare.protocol.iserver import IServer, RexecCallback
 from easyshare.protocol.errors import ServerErrors
 from easyshare.ssl import set_ssl_context, get_ssl_context
 from easyshare.tracing import enable_tracing, trace_in, trace_out
@@ -33,8 +32,9 @@ from easyshare.socket.udp import SocketUdpOut
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import enable_colors
 from easyshare.utils.json import json_to_bytes, json_to_pretty_str
-from easyshare.utils.net import get_primary_ip, is_valid_port, create_server_ssl_context
-from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv
+from easyshare.utils.net import get_primary_ip, is_valid_port
+from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv, run_detached
+from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfy, unprefix
 from easyshare.utils.trace import args_to_str
 from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list, bytes_to_str
@@ -834,20 +834,26 @@ class Server(IServer):
         # Notify the client about it
         return create_success_response()
 
-    def rexec(self, cmd: str) -> Response:
+    @Pyro4.expose
+    @Pyro4.oneway
+    @trace_api
+    def rexec(self, cmd: str, callback: RexecCallback):
         log.i(">> REXEC %s", cmd)
 
-        try:
-            proc: subprocess.Popen = \
-                subprocess.Popen(["/bin/sh", "-c", cmd],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
+        def stdout_hook(line):
+            log.d("> %s", line)
+            callback.stdout(line)
 
-            ret_str = bytes_to_str(proc.stdout.read())
-            return create_success_response(ret_str)
+        proc, handler = run_detached(cmd, stdout_hook=stdout_hook)
+        log.d("Waiting for command completion")
+        handler.join()
 
-        except Exception:
-            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+        log.d("Notify remote about command completion")
+        callback.done(proc.returncode)
+
+        # return create_success_response(proc.returncode)
+        # return create_success_response(output)
+
 
     def _add_put_transaction(self,
                              sharing_name: str,
@@ -1314,8 +1320,8 @@ def main():
     ssl_context = None
     if ssl_enabled and ssl_cert and ssl_privkey:
         log.i("Creating SSL context")
-        log.i("SSL cert: %s", ssl_cert)
-        log.i("SSL privkey: %s", ssl_privkey)
+        log.i("SSL cert path: %s", ssl_cert)
+        log.i("SSL privkey path: %s", ssl_privkey)
         ssl_context = create_server_ssl_context(cert=ssl_cert, privkey=ssl_privkey)
 
     # Configure pyro server

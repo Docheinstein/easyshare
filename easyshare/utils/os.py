@@ -1,7 +1,11 @@
 import errno
 import os
+import select
 import shutil
 import subprocess
+import sys
+import threading
+import time
 from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
@@ -9,6 +13,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.tree.tree import TreeRenderPostOrder
+from easyshare.utils.colors import red
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.types import is_str, is_list, bytes_to_str
 
@@ -281,48 +286,74 @@ def cp(src: str, dest: str) -> bool:
         raise ex
 
 
-def run(cmd: str,
-        output_hook: Callable[[str], None]) -> int:
-    with subprocess.Popen(cmd,
-                          shell=True,
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT,
-                          stdin=subprocess.PIPE) as proc:
-        input = "xx"
-        while True:
-            print("Before communicate()")
-            stdout, _ = proc.communicate(input=None)
-            print("After communicate, stdout: '{}'".format(stdout))
-            #
-            # stdout_line = proc.stdout.readline()
-            if stdout:
-                if output_hook:
-                    output_hook(bytes_to_str(stdout))
-                    # output_hook(bytes_to_str(stdout_line))
+def run_attached(cmd: str, stderr_redirect: int = None):
+    proc = subprocess.Popen(cmd, shell=True, text=True, stderr=stderr_redirect)
+    proc.wait()
+    return proc.returncode
 
-            if proc.poll() is None:
-                print("proc.poll is None, continue")
-                continue
-            else:
-                print("run: END ({})".format(proc.returncode))
-                break
+
+def run_detached(cmd: str, stdout_hook: Callable[[str], None]):
+
+
+    def proc_handler(proc: subprocess.Popen):
+        print("@ BEGIN")
+
+        while proc.poll() is None:
+            for line in proc.stdout:
+                stdout_hook(line)
+            # print("@ WAIT on select()")
+            # rlist, wlist, xlist = select.select([sys.stdin, proc.stdout], [], [])
+            #
+            # print("@ R: {} | W: {}".format(rlist, wlist))
+            #
+            # if rlist:
+            #     for stream in rlist:
+            #         # if stream == sys.stdin:
+            #         #     for line in sys.stdin:
+            #         #         print("< ", line, end="")
+            #         #         proc.stdin.write(line)
+            #         #         proc.stdin.flush()
+            #         if stream == proc.stdout:
+            #             for line in proc.stdout:
+            #                 stdout_hook(line)
             # else:
-            #     log.d("run: EOF")
-            #
-            #     if proc.poll() is None:
-            #         print("proc.poll is None, continue")
-            #         continue
-            #     else:
-            #         break
+            #     print("--- nothing to read ---")
 
-        log.d("run: END (%d)", proc.returncode)
+        print("@ END ({})".format(proc.returncode))
 
-        return proc.returncode
+
+    proc = subprocess.Popen(cmd, shell=True, text=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            stdin=subprocess.PIPE)
+
+
+
+    handler_thread = threading.Thread(target=proc_handler, daemon=True, args=(proc, ))
+    handler_thread.start()
+
+    return proc, handler_thread
 
 
 if __name__ == "__main__":
-    root = tree("/home/stefano/Temp/test_cartaceo")
-    print(json_to_pretty_str(root))
+    while True:
+        try:
+            def output_hook(line):
+                print("> ", red(line), end="")
 
-    for prefix, node, _ in TreeRenderPostOrder(root):
-        print("{}{}".format(prefix, node.get("name")))
+            # def input_(line):
+            #     print("> ", red(line), end="")
+
+            command = input("$ ")
+            proc, handler = run_detached(command, stdout_hook=output_hook)
+            # time.sleep(1)
+            # proc.stdin.write("Ciao")
+            # proc.stdin.flush()
+            # proc.stdin.close()
+            handler.join()
+
+            # command = input("$ ")
+            # run_attached(command)
+
+        except KeyboardInterrupt:
+            print("=============")

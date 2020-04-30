@@ -8,7 +8,9 @@ from easyshare.shared.common import DIR_COLOR, FILE_COLOR
 from easyshare.tree.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.utils.colors import fg
 from easyshare.utils.env import terminal_size
+from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.os import is_hidden, size_str
+from easyshare.utils.ssl import SSLCertificate
 
 log = get_logger(__name__)
 
@@ -130,3 +132,25 @@ def print_files_info_tree(root: TreeNodeDict,
             "[{}]  ".format(size_str(size).rjust(4)) if show_size else "",
             fg(name, color=DIR_COLOR if ftype == FTYPE_DIR else FILE_COLOR),
         ))
+
+
+def ssl_certificate_to_str(ssl_cert: SSLCertificate) -> str:
+    if not ssl_cert:
+        return ""
+
+    subject = ssl_cert.get("subject")
+    issuer = ssl_cert.get("issuer")
+
+    return \
+        "Common name:        {}\n".format(subject.get("common_name")) + \
+        "Organization:       {}\n".format(subject.get("organization")) + \
+        "Organization Unit:  {}\n".format(subject.get("organization_unit")) + \
+        "Email:              {}\n".format(subject.get("email")) + \
+        "Locality:           {}\n".format(subject.get("locality")) + \
+        "State:              {}\n".format(subject.get("state")) + \
+        "Country:            {}\n\n".format(subject.get("country")) + \
+        "Valid From:         {}\n".format(ssl_cert.get("valid_from")) + \
+        "Valid To:           {}\n\n".format(ssl_cert.get("valid_to")) + \
+        "Issuer:             {}\n".format(", ".join([issuer.get("common_name"), issuer.get("organization")])) + \
+        "Self Signed:        {}".format(ssl_cert.get("self_signed"))
+

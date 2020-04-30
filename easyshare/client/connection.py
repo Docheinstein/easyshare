@@ -1,5 +1,5 @@
-from typing import List, Union
-
+import ssl
+from typing import List, Union, Optional
 
 from easyshare.client.errors import ClientErrors
 from easyshare.client.server import ServerProxy
@@ -54,6 +54,10 @@ class Connection:
 
     def sharing_name(self) -> str:
         return self._sharing_name
+
+    def ssl_certificate(self) -> Optional[bytes]:
+        return self.server._pyroConnection.sock.getpeercert(binary_form=True) if \
+            isinstance(self.server._pyroConnection.sock, ssl.SSLSocket) else None
 
     # =====
 
@@ -127,11 +131,12 @@ class Connection:
 
         return self.server.ping()
 
-    def rexec(self, cmd: str) -> Response:
-        if not self.is_connected():
-            return create_error_response(ClientErrors.NOT_CONNECTED)
+    def rexec(self, cmd: str, pyrocallback):
+        # if not self.is_connected():
+        #     return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        return self.server.rexec(cmd)
+        # return self.server.rexec(cmd, pyrocallback)
+        self.server.rexec(cmd, pyrocallback)
 
     def put(self) -> Response:
         if not self.is_connected():

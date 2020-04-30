@@ -112,6 +112,8 @@ logging.Logger.set_verbosity = _set_verbosity
 logging_handler = logging.StreamHandler(sys.stdout)
 logging_handler.setFormatter(LoggerFormatter())
 
+# logging.basicConfig(stream=sys.stderr, format="[%(asctime)s,%(name)s,%(levelname)s] %(message)s")
+
 
 def get_logger(name: str = ROOT_LOGGER_NAME) -> Logger:
     logger: logging.Logger = logging.getLogger(name)

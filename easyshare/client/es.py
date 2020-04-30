@@ -14,6 +14,7 @@ from easyshare.shared.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import enable_colors
+from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int, is_int, is_str
 from easyshare.args import Args as Args, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM
@@ -69,6 +70,7 @@ def main():
     starting_verbosity = to_int(starting_verbosity,
                                 raise_exceptions=False,
                                 default=logging.VERBOSITY_NONE)
+    starting_verbosity = rangify(starting_verbosity, logging.VERBOSITY_MIN, logging.VERBOSITY_MAX)
     log.set_verbosity(starting_verbosity)
     log.d("Starting with verbosity = %d", starting_verbosity)
 

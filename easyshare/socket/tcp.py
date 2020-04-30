@@ -1,12 +1,13 @@
 import socket
 import ssl
 
-from typing import Tuple
+from typing import Tuple, Optional
 
 from easyshare.consts.net import PORT_ANY, ADDR_ANY
 from easyshare.shared.endpoint import Endpoint
 from easyshare.socket.base import Socket, DEFAULT_SOCKET_BUFSIZE
 from easyshare.utils.net import socket_tcp_out, socket_tcp_in
+from easyshare.utils.ssl import wrap_socket
 
 
 class SocketTcp(Socket):
@@ -16,16 +17,26 @@ class SocketTcp(Socket):
     def recv(self, bufsize=DEFAULT_SOCKET_BUFSIZE) -> bytes:
         return self.sock.recv(bufsize)
 
+    def remote_endpoint(self) -> Endpoint:
+        return self.sock.getpeername()
+
+    def remote_address(self) -> str:
+        return self.remote_endpoint()[0]
+
+    def remote_port(self) -> int:
+        return self.remote_endpoint()[1]
+
 
 class SocketTcpIn(SocketTcp):
     def __init__(self,
                  sock: socket.socket,
-                 ssl_context: ssl.SSLContext = None,
-                 ssl_server_side: bool = False):
+                 ssl_context: Optional[ssl.SSLContext] = None):
         super().__init__(
-            sock,
-            ssl_context=ssl_context,
-            ssl_server_side=ssl_server_side
+            wrap_socket(
+                sock,
+                ssl_context=ssl_context,
+                server_side=True
+            )
         )
 
 
@@ -34,12 +45,13 @@ class SocketTcpOut(SocketTcp):
                  address: str,
                  port: int, *,
                  timeout: float = None,
-                 ssl_context: ssl.SSLContext = None,
-                 ssl_server_side: bool = False):
+                 ssl_context: Optional[ssl.SSLContext] = None):
         super().__init__(
-            socket_tcp_out(address=address, port=port, timeout=timeout),
-            ssl_context=ssl_context,
-            ssl_server_side=ssl_server_side
+            wrap_socket(
+                socket_tcp_out(address=address, port=port, timeout=timeout),
+                ssl_context=ssl_context,
+                server_hostname=address
+            )
         )
 
 
@@ -48,11 +60,13 @@ class SocketTcpAcceptor(Socket):
     def __init__(self, *,
                  address: str = ADDR_ANY,
                  port: int = PORT_ANY,
-                 ssl_context: ssl.SSLContext = None):
+                 ssl_context: Optional[ssl.SSLContext] = None):
         super().__init__(
-            socket_tcp_in(address, port),
-            ssl_context=ssl_context,
-            ssl_server_side=True
+            wrap_socket(
+                socket_tcp_in(address, port),
+                ssl_context=ssl_context,
+                server_hostname=address
+            )
         )
 
     def accept(self) -> Tuple[SocketTcp, Endpoint]:

@@ -1,5 +1,7 @@
 import os
 import shlex
+import logging as pylogging
+
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
 from Pyro4.errors import PyroError
@@ -36,6 +38,7 @@ VERBOSITY_EXPLANATION_MAP = {
     logging.VERBOSITY_WARNING: " (error / warn)",
     logging.VERBOSITY_INFO: " (error / warn / info)",
     logging.VERBOSITY_DEBUG: " (error / warn / info / debug)",
+    logging.VERBOSITY_DEBUG + 1: " (error / warn / info / debug / internal)",
 }
 
 
@@ -217,7 +220,7 @@ class Shell:
                 else:
                     # Hook
                     append_space = self._suggestions_intent.space_after_completion(
-                        self._suggestions_intent.suggestions[0]
+                        self._suggestions_intent.suggestions[0].string
                     )
 
                 if append_space:
@@ -286,14 +289,19 @@ class Shell:
         root_log = get_logger()
 
         verbosity = args.get_varg(
-            default=(root_log.verbosity + 1) % (logging.VERBOSITY_MAX + 1)
+            default=(root_log.verbosity + 1) % (logging.VERBOSITY_MAX + 2)
         )
 
-        verbosity = rangify(verbosity, logging.VERBOSITY_MIN, logging.VERBOSITY_MAX)
+        verbosity = rangify(verbosity, logging.VERBOSITY_MIN, logging.VERBOSITY_MAX + 1)
 
         log.i(">> VERBOSE (%d)", verbosity)
 
         root_log.set_verbosity(verbosity)
+
+        if verbosity > logging.VERBOSITY_MAX:
+            log.d("Enabling pyro logging to DEBUG")
+            pyro_log = pylogging.getLogger("Pyro4")
+            pyro_log.setLevel(pylogging.DEBUG)
 
         print("Verbosity = {:d}{}".format(
             verbosity,

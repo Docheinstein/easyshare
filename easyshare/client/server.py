@@ -6,7 +6,7 @@ from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.tracing import is_tracing_enabled, trace_out, trace_in
 from easyshare.utils.json import json_to_pretty_str
-from easyshare.utils.net import create_client_ssl_context
+from easyshare.utils.ssl import create_client_ssl_context
 from easyshare.utils.trace import args_to_str
 
 
