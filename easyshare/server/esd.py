@@ -17,7 +17,7 @@ from easyshare.passwd.auth import AuthFactory
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import create_success_response, create_error_response, Response
-from easyshare.server.common import trace_pyro_api
+from easyshare.server.common import trace_pyro_api, current_request_endpoint
 from easyshare.server.rexec import RexecTransaction
 from easyshare.server.sharing import Sharing
 from easyshare.server.transactions import GetTransactionHandler, PutTransactionHandler
@@ -106,69 +106,6 @@ class ErrorsStrings:
 #         return api(*vargs, **kwargs)
 #     setattr(wrapped_api, "__name__", api.__name__)
 #     return wrapped_api
-
-#
-# class RexecHandler:
-#     def __init__(self,
-#                  cmd: str,
-#                  owner: Optional[ClientContext] = None,
-#                  transaction_id: str = None):
-#         self.cmd = cmd
-#         self.owner = owner
-#         self.transaction_id = transaction_id or randstring()
-#         self.output_buffer = []
-#         self.output_buffer_sync = threading.Semaphore(0)
-#         self.output_buffer_lock = threading.RLock()
-#         self.proc: Optional[subprocess.Popen] = None
-#         self.proc_handler: Optional[threading.Thread] = None
-#
-#     def run(self):
-#         self.proc, self.proc_handler = run_detached(
-#             self.cmd, stdout_hook=self._stdout_hook, end_hook=self._end_hook)
-#         return self.proc, self.proc_handler
-#
-#     def read(self, timeout=None) -> Union[List[str], int]:
-#         log.d("rexec poll()")
-#         return self._buffer_pull(timeout)
-#
-#     def write(self, data: List[str]):
-#         for val in data:
-#             log.d("< %s", val)
-#             self.proc.stdin.write(val)
-#         self.proc.stdin.flush()
-#
-#     def _stdout_hook(self, line):
-#         log.d("> %s", line)
-#         self._buffer_push(line)
-#
-#     def _end_hook(self, retcode):
-#         log.d("END %d", retcode)
-#         self._buffer_push(retcode)
-#
-#     def _buffer_pull(self, timeout=None) -> List[Union[str, int]]:
-#         ret: List[str] = []
-#
-#         self.output_buffer_sync.acquire()
-#         self.output_buffer_lock.acquire()
-#
-#         while self.output_buffer:
-#             val = self.output_buffer.pop(0)
-#             log.d("< %s", val)
-#             ret.append(val)
-#
-#         self.output_buffer_lock.release()
-#
-#         return ret
-#
-#     def _buffer_push(self, val: Any):
-#         self.output_buffer_lock.acquire()
-#
-#         self.output_buffer.append(val)
-#         # time.sleep(0.3)
-#
-#         self.output_buffer_sync.release()
-#         self.output_buffer_lock.release()
-
 
 class Server(IServer):
 
@@ -876,16 +813,22 @@ class Server(IServer):
     def rexec(self, cmd: str) -> Response:
         log.i(">> REXEC %s", cmd)
 
-        # rexec_handler = RexecHandler(cmd)
-        # self.rexecs[rexec_handler.transaction_id] = rexec_handler
-        # rexec_handler.run()
-        # log.d("Rexec handler initialized; id: %s", rexec_handler.transaction_id)
-        # return create_success_response(rexec_handler.transaction_id)
+        def on_rexec_end(retcode: int):
+            nonlocal self
 
-        rx = RexecTransaction(cmd)
+            log.i("REXEC END %d", retcode)
+            log.d("Unregistering from daemon")
+            self.pyro_deamon.unregister(rx)
+
+        rx = RexecTransaction(
+            cmd,
+            owner_address=current_request_endpoint()[0],
+            on_end=on_rexec_end
+        )
         rx.run()
 
         uri = self.pyro_deamon.register(rx).asString()
+
 
         log.d("Rexec handler initialized; uri: %s", uri)
         return create_success_response(uri)
@@ -1010,7 +953,7 @@ class Server(IServer):
         the request right now (provided by the underlying Pyro deamon)
         :return: the endpoint of the current client
         """
-        print("CURRENT CONTEXT:", Pyro4.current_context.client_sock_addr)
+        # print("CURRENT CONTEXT:", Pyro4.current_context.client_sock_addr)
         return Pyro4.current_context.client_sock_addr
 
     def _current_request_client(self) -> Optional[ClientContext]:

@@ -1,6 +1,6 @@
 import subprocess
 import threading
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Callable
 
 import Pyro4
 
@@ -8,23 +8,25 @@ from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.pyro import IRexecTransaction
 from easyshare.protocol.response import Response, create_success_response, create_error_response
-from easyshare.server.common import trace_pyro_api
+from easyshare.server.common import trace_pyro_api, current_request_endpoint
 from easyshare.utils.os import run_detached
 from easyshare.utils.types import is_int
 
+
 log = get_logger(__name__)
+
 
 STDOUT = 1
 STDERR = 2
 
 
-class StreamBuffer:
+class BlockingBuffer:
     def __init__(self):
         self._buffer = []
         self._sync = threading.Semaphore(0)
         self._lock = threading.Lock()
 
-    def pull(self, timeout=None) -> List:
+    def pull(self) -> List:
         ret = []
 
         self._sync.acquire()
@@ -50,15 +52,21 @@ class StreamBuffer:
 
 
 class RexecTransaction(IRexecTransaction):
-    def __init__(self, cmd: str):
+    def __init__(self, cmd: str, owner_address: str, on_end: Callable[[int], None]):
         self._cmd = cmd
-        self._buffer = StreamBuffer()
+        self._owner_address = owner_address
+        self._on_end = on_end
+        self._buffer = BlockingBuffer()
         self.proc: Optional[subprocess.Popen] = None
         self.proc_handler: Optional[threading.Thread] = None
 
     @Pyro4.expose
     @trace_pyro_api
     def recv(self) -> Response:
+        if self._owner_address and \
+                self._owner_address != current_request_endpoint()[0]:
+            return create_error_response(ServerErrors.NOT_ALLOWED)
+
         log.i(">> REXEC RECV")
 
         buf = None
@@ -86,12 +94,19 @@ class RexecTransaction(IRexecTransaction):
         if retcode is not None:
             data["retcode"] = retcode
 
+            if self._on_end:
+                self._on_end(retcode)
+
         return create_success_response(data)
 
 
     @Pyro4.expose
     @trace_pyro_api
     def send(self, data: str) -> Response:
+        if self._owner_address and \
+                self._owner_address != current_request_endpoint()[0]:
+            return create_error_response(ServerErrors.NOT_ALLOWED)
+
         log.i(">> REXEC SEND (%s)", data)
 
         if not data:
@@ -105,7 +120,11 @@ class RexecTransaction(IRexecTransaction):
     @Pyro4.expose
     @trace_pyro_api
     def send_event(self, ev: int) -> Response:
-        log.i(">> REXEC SEND EVENT (%d)")
+        if self._owner_address and \
+                self._owner_address != current_request_endpoint()[0]:
+            return create_error_response(ServerErrors.NOT_ALLOWED)
+
+        log.i(">> REXEC SEND EVENT (%d)", ev)
 
         if ev == IRexecTransaction.Event.TERMINATE:
             log.d("Sending SIGTERM")

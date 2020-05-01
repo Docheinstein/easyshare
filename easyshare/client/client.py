@@ -339,6 +339,7 @@ class Client:
             Commands.LOCAL_MOVE: connectionless(VariadicArgs(2), Client.mv),
             Commands.LOCAL_COPY: connectionless(VariadicArgs(2), Client.cp),
             Commands.LOCAL_EXEC: connectionless(StopParseArgs(), Client.exec),
+            Commands.LOCAL_EXEC_SHORT: connectionless(StopParseArgs(), Client.exec),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (PositionalArgs(0, 1), PositionalArgs(1, 1), self.rcd),
             Commands.REMOTE_LIST_DIRECTORY: (LsArgs(0), LsArgs(1), self.rls),
@@ -349,6 +350,7 @@ class Client:
             Commands.REMOTE_MOVE: (VariadicArgs(2), VariadicArgs(3), self.rmv),
             Commands.REMOTE_COPY: (VariadicArgs(2), VariadicArgs(3), self.rcp),
             Commands.REMOTE_EXEC: (StopParseArgs(), StopParseArgs(1), self.rexec),
+            Commands.REMOTE_EXEC_SHORT: (StopParseArgs(), StopParseArgs(1), self.rexec),
 
             Commands.SCAN: (ScanArgs(), ScanArgs(), self.scan),
             Commands.OPEN: (PositionalArgs(1), PositionalArgs(1), self.open),
@@ -404,7 +406,7 @@ class Client:
         log.i("Parsed command arguments\n%s", args)
 
         try:
-            executor(args)
+            executor(args, None)
             return 0
         except BadOutcome as ex:
             log.exception("Internal trouble, throwing it up")

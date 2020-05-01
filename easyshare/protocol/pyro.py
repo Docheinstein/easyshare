@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-import Pyro4
-
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response
 

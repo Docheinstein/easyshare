@@ -17,7 +17,8 @@ class Commands:
     LOCAL_COPY = "cp"
     LOCAL_MOVE = "mv"
     LOCAL_REMOVE = "rm"
-    LOCAL_EXEC = ":"
+    LOCAL_EXEC = "exec"
+    LOCAL_EXEC_SHORT = ":"
 
     REMOTE_CURRENT_DIRECTORY = "rpwd"
     REMOTE_LIST_DIRECTORY = "rls"
@@ -27,7 +28,8 @@ class Commands:
     REMOTE_COPY = "rcp"
     REMOTE_MOVE = "rmv"
     REMOTE_REMOVE = "rrm"
-    REMOTE_EXEC = "::"
+    REMOTE_EXEC = "rexec"
+    REMOTE_EXEC_SHORT = "::"
 
     SCAN = "scan"
     OPEN = "open"
