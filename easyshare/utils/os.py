@@ -291,68 +291,11 @@ def run_attached(cmd: str, stderr_redirect: int = None):
     proc = subprocess.Popen(cmd, shell=True, text=True, stderr=stderr_redirect)
     proc.wait()
     return proc.returncode
-#
-#
-# def run_detached(cmd: str,
-#                  stdout_hook: Callable[[str], None],
-#                  end_hook: Callable[[int], None]):
-#
-#
-#     def proc_handler(proc: subprocess.Popen):
-#         while proc.poll() is None:
-#             # print("stdout select()")
-#             # rlist, wlist, xlist = select.select([proc.stdout], [], [], 0.04)
-#             # print("stdout select() end")
-#
-#             # if proc.stdout in rlist:
-#             #     line = proc.stdout.read()
-#             #     stdout_hook(line)
-#
-#             for line in proc.stdout:
-#                 stdout_hook(line)
-#
-#             # print("@ WAIT on select()")
-#             # rlist, wlist, xlist = select.select([sys.stdin, proc.stdout], [], [])
-#             #
-#             # print("@ R: {} | W: {}".format(rlist, wlist))
-#             #
-#             # if rlist:
-#             #     for stream in rlist:
-#             #         # if stream == sys.stdin:
-#             #         #     for line in sys.stdin:
-#             #         #         print("< ", line, end="")
-#             #         #         proc.stdin.write(line)
-#             #         #         proc.stdin.flush()
-#             #         if stream == proc.stdout:
-#             #             for line in proc.stdout:
-#             #                 stdout_hook(line)
-#             # else:
-#             #     print("--- nothing to read ---")
-#
-#         # print("@ END ({})".format(proc.returncode))
-#         end_hook(proc.returncode)
-#
-#
-#     proc = subprocess.Popen(cmd, shell=True, text=True,
-#                             stdout=subprocess.PIPE,
-#                             stderr=subprocess.STDOUT,
-#                             stdin=subprocess.PIPE)
-#
-#
-#     stdout_flags = fcntl.fcntl(proc.stdout, fcntl.F_GETFL)
-#
-#     # p("changing stdout mode => non blocking")
-#     fcntl.fcntl(proc.stdout, fcntl.F_SETFL, stdout_flags | os.O_NONBLOCK)
-#
-#     handler_thread = threading.Thread(target=proc_handler, daemon=True, args=(proc, ))
-#     handler_thread.start()
-#
-#     return proc, handler_thread
-#
 
 
 def run_detached(cmd: str,
                  stdout_hook: Callable[[str], None],
+                 stderr_hook: Callable[[str], None],
                  end_hook: Callable[[int], None]):
 
     def proc_handler(proc: subprocess.Popen):
@@ -360,13 +303,18 @@ def run_detached(cmd: str,
         fcntl.fcntl(proc.stdout, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
         while proc.poll() is None:
-            rlist, wlist, xlist = select.select([proc.stdout], [], [], 0.04)
+            rlist, wlist, xlist = select.select([proc.stdout, proc.stderr], [], [], 0.04)
 
             if proc.stdout in rlist:
                 line = proc.stdout.read()
                 if line:
                     if stdout_hook:
                         stdout_hook(line)
+            elif proc.stderr in rlist:
+                line = proc.stderr.read()
+                if line:
+                    if stderr_hook:
+                        stderr_hook(line)
 
         end_hook(proc.returncode)
 
@@ -374,7 +322,7 @@ def run_detached(cmd: str,
 
     popen_proc = subprocess.Popen(cmd, shell=True, text=True,
                                   stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT,
+                                  stderr=subprocess.PIPE,
                                   stdin=subprocess.PIPE)
 
     proc_handler = threading.Thread(target=proc_handler, daemon=True, args=(popen_proc, ))
@@ -382,34 +330,6 @@ def run_detached(cmd: str,
 
     return popen_proc, proc_handler
 
-
-#
-# def stdin_read_nonblocking(continue_condition: Callable[..., bool],
-#                            stdin_hook: Callable[[str], None],
-#                            eof_hook: Callable):
-#     flags = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
-#     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-#
-#     # try:
-#     while continue_condition():
-#         rlist, wlist, xlist = select.select([sys.stdin], [], [], 0.04)
-#
-#         if sys.stdin in rlist:
-#             line_b = sys.stdin.buffer.read()
-#
-#             if line_b:
-#                 if stdin_hook:
-#                     stdin_hook(bytes_to_str(line_b))
-#             else:
-#                 if eof_hook:
-#                     eof_hook()
-#     # except KeyboardInterrupt:
-#     #     print("\nCTRL+C")
-#     # except EOFError:
-#     #     print("\nCTRL+D")
-#
-#     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, flags)
-#
 
 if __name__ == "__main__":
     pass

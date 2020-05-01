@@ -1,29 +1,27 @@
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List
 
 import Pyro4
 
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response
 
-#
-# class RexecCallback(ABC):
-#     @abstractmethod
-#     def stdout(self, line: str):
-#         pass
-#
-#     @abstractmethod
-#     def done(self, retcode: int):
-#         pass
-
 
 class IRexecTransaction(ABC):
+    class Event:
+        TERMINATE = 0
+        EOF = 1
+
     @abstractmethod
     def recv(self) -> Response:
         pass
 
     @abstractmethod
     def send(self, data: str) -> Response:
+        pass
+
+    @abstractmethod
+    def send_event(self, ev: int) -> Response:
         pass
 
 

@@ -36,6 +36,7 @@ from easyshare.shared.progress import FileProgressor
 from easyshare.ssl import get_ssl_context
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint
+from easyshare.utils.colors import red
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.net import is_valid_ip, is_valid_port
 from easyshare.utils.ssl import parse_ssl_certificate, SSLCertificate, create_client_ssl_context
@@ -620,7 +621,6 @@ class Client:
         # resp = rx.jump()
         # print(json_to_pretty_str(resp))
 
-
         retcode = None
 
         # --- STDOUT RECEIVER ---
@@ -636,19 +636,18 @@ class Client:
                 if is_error_response(resp):
                     raise BadOutcome(resp.get("error"))
 
-                recv = resp.get("data")
+                recv_data = resp.get("data")
 
                 # log.d("REXEC recv: %s", str(recv))
+                stdout = recv_data.get("stdout")
+                stderr = recv_data.get("stderr")
+                retcode = recv_data.get("retcode")
 
-                for val in recv:
-                    if is_int(val):
-                        # int data => return code
-                        retcode = val
-                    elif is_str(val):
-                        # str data => stdout
-                        print(val, end="")
-                    else:
-                        log.w("Unexpected data type: %s", type(val))
+                for line in stdout:
+                    print(line, end="", flush=True)
+
+                for line in stderr:
+                    print(red(line), end="", flush=True)
 
             log.i("REXEC done (%d)", retcode)
 
@@ -665,21 +664,22 @@ class Client:
 
         # try:
         while retcode is None:
-            rlist, wlist, xlist = select.select([sys.stdin], [], [], 0.04)
+            try:
+                rlist, wlist, xlist = select.select([sys.stdin], [], [], 0.04)
 
-            if sys.stdin in rlist:
-                data_b = sys.stdin.buffer.read()
+                if sys.stdin in rlist:
+                    data_b = sys.stdin.buffer.read()
 
-                if data_b:
-                    data_s = bytes_to_str(data_b)
-                    log.d("Sending data: %s", data_s)
-                    rexec_transaction.send(data_s)
-                else:
-                    log.d("EOF")
-        # except KeyboardInterrupt:
-        #     print("\nCTRL+C")
-        # except EOFError:
-        #     print("\nCTRL+D")
+                    if data_b:
+                        data_s = bytes_to_str(data_b)
+                        log.d("Sending data: %s", data_s)
+                        rexec_transaction.send(data_s)
+                    else:
+                        log.d("rexec CTRL+D")
+                        rexec_transaction.send_event(IRexecTransaction.Event.EOF)
+            except KeyboardInterrupt:
+                log.d("rexec CTRL+C")
+                rexec_transaction.send_event(IRexecTransaction.Event.TERMINATE)
 
         # Restore stdin in blocking mode
 

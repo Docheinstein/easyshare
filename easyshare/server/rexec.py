@@ -10,25 +10,81 @@ from easyshare.protocol.pyro import IRexecTransaction
 from easyshare.protocol.response import Response, create_success_response, create_error_response
 from easyshare.server.common import trace_pyro_api
 from easyshare.utils.os import run_detached
+from easyshare.utils.types import is_int
 
 log = get_logger(__name__)
+
+STDOUT = 1
+STDERR = 2
+
+
+class StreamBuffer:
+    def __init__(self):
+        self._buffer = []
+        self._sync = threading.Semaphore(0)
+        self._lock = threading.Lock()
+
+    def pull(self, timeout=None) -> List:
+        ret = []
+
+        self._sync.acquire()
+        self._lock.acquire()
+
+        while self._buffer:
+            val = self._buffer.pop(0)
+            log.d("[-] %s", val)
+            ret.append(val)
+
+        self._lock.release()
+
+        return ret
+
+    def push(self, val):
+        self._lock.acquire()
+
+        log.d("[+] %s", val)
+        self._buffer.append(val)
+
+        self._sync.release()
+        self._lock.release()
 
 
 class RexecTransaction(IRexecTransaction):
     def __init__(self, cmd: str):
-        self.cmd = cmd
-        self.output_buffer = []
-        self.output_buffer_sync = threading.Semaphore(0)
-        self.output_buffer_lock = threading.RLock()
+        self._cmd = cmd
+        self._buffer = StreamBuffer()
         self.proc: Optional[subprocess.Popen] = None
         self.proc_handler: Optional[threading.Thread] = None
 
     @Pyro4.expose
     @trace_pyro_api
     def recv(self) -> Response:
-        log.i(">> REXEC RECV (%s)")
+        log.i(">> REXEC RECV")
 
-        data = self._read()
+        buf = None
+        while not buf:  # avoid spurious wake ups
+            buf = self._buffer.pull()
+
+        stdout = []
+        stderr = []
+        retcode = None
+
+        for v in buf:
+            if is_int(v):
+                retcode = v
+            elif len(v) == 2:
+                if v[1] == STDOUT:
+                    stdout.append(v[0])
+                elif v[1] == STDERR:
+                    stderr.append(v[0])
+
+        data = {
+            "stdout": stdout,
+            "stderr": stderr,
+        }
+
+        if retcode is not None:
+            data["retcode"] = retcode
 
         return create_success_response(data)
 
@@ -36,57 +92,49 @@ class RexecTransaction(IRexecTransaction):
     @Pyro4.expose
     @trace_pyro_api
     def send(self, data: str) -> Response:
-        log.i(">> REXEC SEND (%s)")
+        log.i(">> REXEC SEND (%s)", data)
 
         if not data:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        self._write(data)
-
-        return create_success_response()
-
-
-    def run(self):
-        self.proc, self.proc_handler = run_detached(
-            self.cmd, stdout_hook=self._stdout_hook, end_hook=self._end_hook)
-        return self.proc, self.proc_handler
-
-    def _read(self, timeout=None) -> Union[List[str], int]:
-        log.d("rexec poll()")
-        return self._buffer_pull(timeout)
-
-    def _write(self, data: str):
         self.proc.stdin.write(data)
         self.proc.stdin.flush()
 
+        return create_success_response()
+
+    @Pyro4.expose
+    @trace_pyro_api
+    def send_event(self, ev: int) -> Response:
+        log.i(">> REXEC SEND EVENT (%d)")
+
+        if ev == IRexecTransaction.Event.TERMINATE:
+            log.d("Sending SIGTERM")
+            self.proc.terminate()
+        elif ev == IRexecTransaction.Event.EOF:
+            log.d("Sending EOF")
+            self.proc.stdin.close()
+        else:
+            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        return create_success_response()
+
+    def run(self):
+        self.proc, self.proc_handler = run_detached(
+            self._cmd,
+            stdout_hook=self._stdout_hook,
+            stderr_hook=self._stderr_hook,
+            end_hook=self._end_hook
+        )
+        return self.proc, self.proc_handler
+
     def _stdout_hook(self, line):
         log.d("> %s", line)
-        self._buffer_push(line)
+        self._buffer.push((line, STDOUT))
+
+    def _stderr_hook(self, line):
+        log.w("> %s", line)
+        self._buffer.push((line, STDERR))
 
     def _end_hook(self, retcode):
         log.d("END %d", retcode)
-        self._buffer_push(retcode)
-
-    def _buffer_pull(self, timeout=None) -> List[Union[str, int]]:
-        ret: List[str] = []
-
-        self.output_buffer_sync.acquire()
-        self.output_buffer_lock.acquire()
-
-        while self.output_buffer:
-            val = self.output_buffer.pop(0)
-            log.d("< %s", val)
-            ret.append(val)
-
-        self.output_buffer_lock.release()
-
-        return ret
-
-    def _buffer_push(self, val: Union[str, int]):
-        self.output_buffer_lock.acquire()
-
-        self.output_buffer.append(val)
-        # time.sleep(0.3)
-
-        self.output_buffer_sync.release()
-        self.output_buffer_lock.release()
+        self._buffer.push(retcode)
