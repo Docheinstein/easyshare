@@ -1,6 +1,8 @@
 import ssl
 from typing import List, Union, Optional
 
+import Pyro4
+
 from easyshare.client.errors import ClientErrors
 from easyshare.client.server import ServerProxy
 from easyshare.logging import get_logger
@@ -8,7 +10,7 @@ from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response, create_error_response, is_success_response, is_data_response, \
     is_error_response
-from easyshare.protocol.iserver import IServer
+from easyshare.protocol.pyro import IServer
 from easyshare.protocol.serverinfo import ServerInfo
 
 
@@ -48,6 +50,7 @@ class Connection:
 
         # Create the proxy for the remote server
         self.server: Union[IServer, ServerProxy] = ServerProxy(server_info)
+        # Pyro4.asyncproxy(self.server)
 
     def is_connected(self) -> bool:
         return self._connected is True and self.server
@@ -64,7 +67,11 @@ class Connection:
     @handle_response
     # NO @require_connection (open() will establish it)
     def open(self, sharing_name: str, password: str = None) -> Response:
-        resp = self.server.open(sharing_name, password)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.open(sharing_name, password)
+
+        # resp = resp_future.value
+        resp = resp_future
 
         if is_success_response(resp):
             self._connected = True
@@ -84,7 +91,10 @@ class Connection:
     @handle_response
     @require_connection
     def rcd(self, path) -> Response:
-        resp = self.server.rcd(path)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.rcd(path)
+
+        resp = resp_future.value
 
         if is_success_response(resp):
             self._rpwd = resp["data"]
@@ -95,35 +105,53 @@ class Connection:
     @require_connection
     def rls(self, sort_by: List[str], reverse: bool = False,
             hidden: bool = False,  path: str = None) -> Response:
-        return self.server.rls(path=path, sort_by=sort_by,
-                               reverse=reverse, hidden=hidden)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.rls(path=path, sort_by=sort_by,
+                            reverse=reverse, hidden=hidden)
+        return resp_future
+        # return resp_future.value
 
     @handle_response
     @require_connection
     def rtree(self, sort_by: List[str], reverse=False, hidden: bool = False,
               max_depth: int = int, path: str = None) -> Response:
-        return self.server.rtree(path=path, sort_by=sort_by, reverse=reverse,
-                                 hidden=hidden, max_depth=max_depth)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.rtree(path=path, sort_by=sort_by, reverse=reverse,
+                              hidden=hidden, max_depth=max_depth)
+
+        return resp_future.value
 
     @handle_response
     @require_connection
     def rmkdir(self, directory) -> Response:
-        return self.server.rmkdir(directory)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.rmkdir(directory)
+
+        return resp_future.value
 
     @handle_response
     @require_connection
     def rrm(self, paths: List[str]) -> Response:
-        return self.server.rrm(paths)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.rrm(paths)
+
+        return resp_future.value
 
     @handle_response
     @require_connection
     def rmv(self, sources: List[str], destination: str) -> Response:
-        return self.server.rmv(sources, destination)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.rmv(sources, destination)
+
+        return resp_future.value
 
     @handle_response
     @require_connection
     def rcp(self, sources: List[str], destination: str) -> Response:
-        return self.server.rcp(sources, destination)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.rcp(sources, destination)
+
+        return resp_future.value
 
     def ping(self) -> Response:
         if not self.is_connected():
@@ -131,12 +159,31 @@ class Connection:
 
         return self.server.ping()
 
-    def rexec(self, cmd: str, pyrocallback):
+    # def rexec(self, cmd: str) -> Response:
+    def rexec(self, cmd: str) -> Response:
         # if not self.is_connected():
         #     return create_error_response(ClientErrors.NOT_CONNECTED)
 
-        # return self.server.rexec(cmd, pyrocallback)
-        self.server.rexec(cmd, pyrocallback)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.rexec(cmd)
+
+        return resp_future
+
+    def rexec_recv(self, transaction: str) -> Response:
+        # if not self.is_connected():
+        #     return create_error_response(ClientErrors.NOT_CONNECTED)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.rexec_recv(transaction)
+
+        return resp_future
+
+    def rexec_send(self, transaction: str, data: str) -> Response:
+        # if not self.is_connected():
+        #     return create_error_response(ClientErrors.NOT_CONNECTED)
+        resp_future: Union[Response, Pyro4.futures.FutureResult] = \
+            self.server.rexec_send(transaction, data)
+
+        return resp_future
 
     def put(self) -> Response:
         if not self.is_connected():

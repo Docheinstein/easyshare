@@ -1,6 +1,11 @@
+import fcntl
 import os
 import random
+import select
+import signal
 import subprocess
+import sys
+import threading
 import time
 from getpass import getpass
 from stat import S_ISDIR, S_ISREG
@@ -15,11 +20,12 @@ from easyshare.client.common import print_files_info_list, \
 from easyshare.client.connection import Connection
 from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors, print_errcode, errcode_string
+from easyshare.client.server import ServerProxy
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
-from easyshare.protocol.iserver import RexecCallback
+from easyshare.protocol.pyro import IRexecTransaction
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
@@ -33,7 +39,7 @@ from easyshare.utils.app import eprint
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.net import is_valid_ip, is_valid_port
 from easyshare.utils.ssl import parse_ssl_certificate, SSLCertificate, create_client_ssl_context
-from easyshare.utils.types import to_int, bool_to_str, is_int
+from easyshare.utils.types import to_int, bool_to_str, is_int, is_str, bytes_to_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached
 from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM
 
@@ -601,43 +607,88 @@ class Client:
         popen_fullarg = " ".join(popen_args)
         log.i(">> REXEC %s", popen_fullarg)
 
-        # resp = connection.rexec(popen_fullarg)
-        # outcome = resp.get("data")
-        # if outcome:
-        #     for line in outcome:
-        #         print(line, end="")
-        # # if is_int(outcome):
-        # #     log.i("Command return code: %d", outcome)
-        # else:
-        #     raise BadOutcome(ClientErrors.COMMAND_EXECUTION_FAILED)
+        resp = connection.rexec(popen_fullarg)
 
-        class RexecCallbackImpl(RexecCallback):
-            def __init__(self):
-                self.return_code = None
+        if is_error_response(resp):
+            raise BadOutcome(resp.get("error"))
 
-            @Pyro4.expose
-            @Pyro4.callback
-            def stdout(self, line: str):
-                print(line, end="")
+        rexec_uri = resp.get("data")
 
-            @Pyro4.expose
-            @Pyro4.callback
-            def done(self, retcode: int):
-                log.i("REXEC done (%d)", retcode)
-                self.return_code = retcode
+        log.d("URI: %s", rexec_uri)
+        rexec_transaction: Union[Pyro4.Proxy, IRexecTransaction] = Pyro4.Proxy(rexec_uri)
+        Pyro4.asyncproxy(rexec_transaction)
+        # resp = rx.jump()
+        # print(json_to_pretty_str(resp))
 
 
-        with Pyro4.core.Daemon() as daemon:
-            # Create a deamon
-            rexec_callback = RexecCallbackImpl()
-            daemon.register(rexec_callback)
+        retcode = None
 
-            connection.rexec(popen_fullarg, rexec_callback)
-            log.i("Waiting for command completion...")
-            daemon.sockets
-            daemon.requestLoop(loopCondition=lambda: rexec_callback.return_code is None)
-            log.d("Exited daemon request loop")
-            log.i("Command completed with return code: %d", rexec_callback.return_code)
+        # --- STDOUT RECEIVER ---
+
+        def rexec_stdout_receiver():
+            nonlocal retcode
+            # nonlocal connection
+            nonlocal rexec_transaction
+
+            while retcode is None:
+                resp = rexec_transaction.recv().value
+
+                if is_error_response(resp):
+                    raise BadOutcome(resp.get("error"))
+
+                recv = resp.get("data")
+
+                # log.d("REXEC recv: %s", str(recv))
+
+                for val in recv:
+                    if is_int(val):
+                        # int data => return code
+                        retcode = val
+                    elif is_str(val):
+                        # str data => stdout
+                        print(val, end="")
+                    else:
+                        log.w("Unexpected data type: %s", type(val))
+
+            log.i("REXEC done (%d)", retcode)
+
+        rexec_stdout_receiver_th = threading.Thread(
+            target=rexec_stdout_receiver, daemon=True)
+        rexec_stdout_receiver_th.start()
+
+        # --- STDIN SENDER ---
+
+        # Put stdin in non-blocking mode
+
+        stding_flags = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
+        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags | os.O_NONBLOCK)
+
+        # try:
+        while retcode is None:
+            rlist, wlist, xlist = select.select([sys.stdin], [], [], 0.04)
+
+            if sys.stdin in rlist:
+                data_b = sys.stdin.buffer.read()
+
+                if data_b:
+                    data_s = bytes_to_str(data_b)
+                    log.d("Sending data: %s", data_s)
+                    rexec_transaction.send(data_s)
+                else:
+                    log.d("EOF")
+        # except KeyboardInterrupt:
+        #     print("\nCTRL+C")
+        # except EOFError:
+        #     print("\nCTRL+D")
+
+        # Restore stdin in blocking mode
+
+        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags)
+
+        # Wait everybody
+
+        rexec_stdout_receiver_th.join()
+
 
     def open(self, args: Args, _: Connection = None):
         newconn = self._create_connection_from_sharing_spec(SharingSpecifier.parse(args.get_varg()))

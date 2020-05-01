@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Any, Union
 
-from Pyro4 import Proxy
+import Pyro4
 
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.ssl import get_ssl_context, set_ssl_context
@@ -10,11 +10,15 @@ from easyshare.utils.ssl import create_client_ssl_context
 from easyshare.utils.trace import args_to_str
 
 
-class ServerProxy(Proxy):
+class ServerProxy(Pyro4.Proxy):
 
     LOCAL_ATTR_PREFIX = "_server"
 
-    def __init__(self, server_info: ServerInfo):
+    def __init__(self, server_info: Union[Pyro4.URI, ServerInfo], **kwargs):
+        if not isinstance(server_info, dict):
+            super().__init__(server_info, **kwargs)
+            return
+
         self._server_uri = server_info.get("uri")
         self._server_ip = server_info.get("ip")
         self._server_port = server_info.get("port")
@@ -54,5 +58,5 @@ class ServerProxy(Proxy):
 
     def __setattr__(self, key, value):
         if key.startswith(ServerProxy.LOCAL_ATTR_PREFIX):
-            return super(Proxy, self).__setattr__(key, value)   # local attributes
-        return super().__setattr__(key, value)                  # dispatch to pyro
+            return super(Pyro4.Proxy, self).__setattr__(key, value)   # local attributes
+        return super().__setattr__(key, value)                        # dispatch to pyro

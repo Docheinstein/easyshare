@@ -1,13 +1,15 @@
 import os
+import queue
 import ssl
 import subprocess
 import sys
 import socket
+import threading
 import time
 
 import Pyro4
 
-from typing import Dict, Optional, List, Any, Callable, TypeVar
+from typing import Dict, Optional, List, Any, Callable, TypeVar, Union
 
 from easyshare import logging
 from easyshare.logging import get_logger
@@ -15,6 +17,8 @@ from easyshare.passwd.auth import AuthFactory
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import create_success_response, create_error_response, Response
+from easyshare.server.common import trace_pyro_api
+from easyshare.server.rexec import RexecTransaction
 from easyshare.server.sharing import Sharing
 from easyshare.server.transactions import GetTransactionHandler, PutTransactionHandler
 from easyshare.shared.args import Args
@@ -24,7 +28,7 @@ from easyshare.config.parser import parse_config
 from easyshare.server.client import ClientContext
 from easyshare.server.discover import DiscoverDeamon
 from easyshare.shared.endpoint import Endpoint
-from easyshare.protocol.iserver import IServer, RexecCallback
+from easyshare.protocol.pyro import IServer
 from easyshare.protocol.errors import ServerErrors
 from easyshare.ssl import set_ssl_context, get_ssl_context
 from easyshare.tracing import enable_tracing, trace_in, trace_out
@@ -35,7 +39,7 @@ from easyshare.utils.json import json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
 from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv, run_detached
 from easyshare.utils.ssl import create_server_ssl_context
-from easyshare.utils.str import satisfy, unprefix
+from easyshare.utils.str import satisfy, unprefix, randstring
 from easyshare.utils.trace import args_to_str
 from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list, bytes_to_str
 
@@ -92,31 +96,6 @@ class ErrorsStrings:
 
 # === TRACING ===
 
-API = TypeVar('API', bound=Callable[..., Any])
-
-
-def trace_api(api: API) -> API:
-
-    def wrapped_api(server: 'Server', *vargs, **kwargs) -> Optional[Response]:
-        requester = server._current_request_endpoint()
-
-
-
-        trace_in("{} ({})".format(api.__name__, args_to_str(vargs, kwargs)),
-                 ip=requester[0],
-                 port=requester[1])
-
-        resp = api(server, *vargs, **kwargs)
-
-        if resp:
-            trace_out("{}\n{}".format(api.__name__, json_to_pretty_str(resp)),
-                      ip=requester[0],
-                      port=requester[1])
-        # else: should be a one-way call without response
-        return resp
-
-    return wrapped_api
-
 
 # def require_connection(api: API) -> API:
 #     def wrapped_api(server: 'Server', *vargs, **kwargs) -> Optional[Response]:
@@ -128,6 +107,67 @@ def trace_api(api: API) -> API:
 #     setattr(wrapped_api, "__name__", api.__name__)
 #     return wrapped_api
 
+#
+# class RexecHandler:
+#     def __init__(self,
+#                  cmd: str,
+#                  owner: Optional[ClientContext] = None,
+#                  transaction_id: str = None):
+#         self.cmd = cmd
+#         self.owner = owner
+#         self.transaction_id = transaction_id or randstring()
+#         self.output_buffer = []
+#         self.output_buffer_sync = threading.Semaphore(0)
+#         self.output_buffer_lock = threading.RLock()
+#         self.proc: Optional[subprocess.Popen] = None
+#         self.proc_handler: Optional[threading.Thread] = None
+#
+#     def run(self):
+#         self.proc, self.proc_handler = run_detached(
+#             self.cmd, stdout_hook=self._stdout_hook, end_hook=self._end_hook)
+#         return self.proc, self.proc_handler
+#
+#     def read(self, timeout=None) -> Union[List[str], int]:
+#         log.d("rexec poll()")
+#         return self._buffer_pull(timeout)
+#
+#     def write(self, data: List[str]):
+#         for val in data:
+#             log.d("< %s", val)
+#             self.proc.stdin.write(val)
+#         self.proc.stdin.flush()
+#
+#     def _stdout_hook(self, line):
+#         log.d("> %s", line)
+#         self._buffer_push(line)
+#
+#     def _end_hook(self, retcode):
+#         log.d("END %d", retcode)
+#         self._buffer_push(retcode)
+#
+#     def _buffer_pull(self, timeout=None) -> List[Union[str, int]]:
+#         ret: List[str] = []
+#
+#         self.output_buffer_sync.acquire()
+#         self.output_buffer_lock.acquire()
+#
+#         while self.output_buffer:
+#             val = self.output_buffer.pop(0)
+#             log.d("< %s", val)
+#             ret.append(val)
+#
+#         self.output_buffer_lock.release()
+#
+#         return ret
+#
+#     def _buffer_push(self, val: Any):
+#         self.output_buffer_lock.acquire()
+#
+#         self.output_buffer.append(val)
+#         # time.sleep(0.3)
+#
+#         self.output_buffer_sync.release()
+#         self.output_buffer_lock.release()
 
 
 class Server(IServer):
@@ -141,6 +181,7 @@ class Server(IServer):
         self.clients: Dict[Endpoint, ClientContext] = {}
         self.puts: Dict[str, PutTransactionHandler] = {}
         self.gets: Dict[str, GetTransactionHandler] = {}
+        self.rexecs: Dict[str, RexecHandler] = {}
 
         self.discover_deamon = DiscoverDeamon(discover_port, self.handle_discover_request)
 
@@ -210,7 +251,7 @@ class Server(IServer):
 
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def open(self, sharing_name: str, password: str = None) -> Response:
         if not sharing_name:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
@@ -255,7 +296,7 @@ class Server(IServer):
 
     @Pyro4.expose
     @Pyro4.oneway
-    @trace_api
+    @trace_pyro_api
     def close(self):
         client_endpoint = self._current_request_endpoint()
         log.i("<< CLOSE %s", str(client_endpoint))
@@ -284,7 +325,7 @@ class Server(IServer):
         log.i("# gets = %d", len(self.gets))
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def rpwd(self) -> Response:
         # NOT NEEDED
         log.i("<< RPWD %s", str(self._current_request_endpoint()))
@@ -296,7 +337,7 @@ class Server(IServer):
         return create_success_response(client.rpwd)
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def rcd(self, path: str) -> Response:
         if not path:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
@@ -327,7 +368,7 @@ class Server(IServer):
         return create_success_response(client.rpwd)
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def rls(self, *, path: str = None, sort_by: List[str] = None,
             reverse: bool = False, hidden: bool = False, ) -> Response:
         client = self._current_request_client()
@@ -362,7 +403,7 @@ class Server(IServer):
 
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def rtree(self, *,  path: str = None, sort_by: List[str] = None,
               reverse: bool = False, hidden: bool = False,
               max_depth: int = None,) -> Response:
@@ -398,7 +439,7 @@ class Server(IServer):
 
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def rmkdir(self, directory: str) -> Response:
         client = self._current_request_client()
 
@@ -429,7 +470,7 @@ class Server(IServer):
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def rrm(self, paths: List[str]) -> Response:
         client = self._current_request_client()
 
@@ -485,7 +526,7 @@ class Server(IServer):
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def rmv(self, sources: List[str], destination: str) -> Response:
         client = self._current_request_client()
 
@@ -549,7 +590,7 @@ class Server(IServer):
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def rcp(self, sources: List[str], destination: str) -> Response:
         client = self._current_request_client()
 
@@ -614,7 +655,7 @@ class Server(IServer):
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def ping(self):
         for x in range(0, 10):
             log.i("[%d] Sleeping", x)
@@ -623,8 +664,10 @@ class Server(IServer):
         return create_success_response("pong")
 
 
+
+
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def put(self) -> Response:
         client = self._current_request_client()
         if not client:
@@ -654,7 +697,7 @@ class Server(IServer):
 
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def get(self, files: List[str]) -> Response:
         client = self._current_request_client()
         if not client:
@@ -685,7 +728,7 @@ class Server(IServer):
 
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def put_next_info(self, transaction_id, finfo: FileInfo) -> Response:
         client = self._current_request_client()
 
@@ -743,7 +786,7 @@ class Server(IServer):
 
 
     @Pyro4.expose
-    @trace_api
+    @trace_pyro_api
     def get_next_info(self, transaction_id) -> Response:
         client = self._current_request_client()
 
@@ -835,25 +878,57 @@ class Server(IServer):
         return create_success_response()
 
     @Pyro4.expose
-    @Pyro4.oneway
-    @trace_api
-    def rexec(self, cmd: str, callback: RexecCallback):
+    @trace_pyro_api
+    def rexec(self, cmd: str) -> Response:
         log.i(">> REXEC %s", cmd)
 
-        def stdout_hook(line):
-            log.d("> %s", line)
-            callback.stdout(line)
+        # rexec_handler = RexecHandler(cmd)
+        # self.rexecs[rexec_handler.transaction_id] = rexec_handler
+        # rexec_handler.run()
+        # log.d("Rexec handler initialized; id: %s", rexec_handler.transaction_id)
+        # return create_success_response(rexec_handler.transaction_id)
 
-        proc, handler = run_detached(cmd, stdout_hook=stdout_hook)
-        log.d("Waiting for command completion")
-        handler.join()
+        rx = RexecTransaction(cmd)
+        rx.run()
 
-        log.d("Notify remote about command completion")
-        callback.done(proc.returncode)
+        uri = self.pyro_deamon.register(rx).asString()
 
-        # return create_success_response(proc.returncode)
-        # return create_success_response(output)
-
+        log.d("Rexec handler initialized; uri: %s", uri)
+        return create_success_response(uri)
+    #
+    # @Pyro4.expose
+    # @trace_pyro_api
+    # def rexec_recv(self, transaction_id: str) -> Response:
+    #     log.i(">> REXEC RECV (%s)", transaction_id)
+    #
+    #     rexec_handler = self.rexecs.get(transaction_id)
+    #
+    #     if not rexec_handler:
+    #         log.w("No rexec transaction for id %s", transaction_id)
+    #         return create_error_response(ServerErrors.INVALID_TRANSACTION)
+    #
+    #     buf = rexec_handler.read()
+    #
+    #     return create_success_response(buf)
+    #
+    #
+    # @Pyro4.expose
+    # @trace_pyro_api
+    # def rexec_send(self, transaction_id: str, data: List[str]) -> Response:
+    #     log.i(">> REXEC SEND (%s)", transaction_id)
+    #
+    #     rexec_handler = self.rexecs.get(transaction_id)
+    #
+    #     if not rexec_handler:
+    #         log.w("No rexec transaction for id %s", transaction_id)
+    #         return create_error_response(ServerErrors.INVALID_TRANSACTION)
+    #
+    #     if not data:
+    #         return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+    #
+    #     rexec_handler.write(data)
+    #
+    #     return create_success_response()
 
     def _add_put_transaction(self,
                              sharing_name: str,
@@ -941,6 +1016,7 @@ class Server(IServer):
         the request right now (provided by the underlying Pyro deamon)
         :return: the endpoint of the current client
         """
+        print("CURRENT CONTEXT:", Pyro4.current_context.client_sock_addr)
         return Pyro4.current_context.client_sock_addr
 
     def _current_request_client(self) -> Optional[ClientContext]:
