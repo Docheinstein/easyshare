@@ -29,3 +29,5 @@
 - remote interrupt
 - return string instead of int for response errors
 - autoclose connection on open()
+- -p for each api?
+- timeouts pyro, keepalive, cleaning up,...

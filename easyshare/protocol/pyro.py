@@ -92,11 +92,3 @@ class IServer(ABC):
     @abstractmethod
     def rexec(self, cmd: str) -> Response:
         pass
-    #
-    # @abstractmethod
-    # def rexec_recv(self, transaction: str) -> Response:
-    #     pass
-    #
-    # @abstractmethod
-    # def rexec_send(self, transaction: str, data: str) -> Response:
-    #     pass

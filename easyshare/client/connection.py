@@ -154,8 +154,8 @@ class Connection:
         return resp_future.value
 
     def ping(self) -> Response:
-        if not self.is_connected():
-            return create_error_response(ClientErrors.NOT_CONNECTED)
+        # if not self.is_connected():
+        #     return create_error_response(ClientErrors.NOT_CONNECTED)
 
         return self.server.ping()
 

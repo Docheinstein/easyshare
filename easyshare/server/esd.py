@@ -657,13 +657,7 @@ class Server(IServer):
     @Pyro4.expose
     @trace_pyro_api
     def ping(self):
-        for x in range(0, 10):
-            log.i("[%d] Sleeping", x)
-            time.sleep(1)
-        log.d("Creating 'pong' response")
         return create_success_response("pong")
-
-
 
 
     @Pyro4.expose

@@ -2,8 +2,6 @@ import fcntl
 import os
 import random
 import select
-import signal
-import subprocess
 import sys
 import threading
 import time
@@ -20,7 +18,6 @@ from easyshare.client.common import print_files_info_list, \
 from easyshare.client.connection import Connection
 from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors, print_errcode, errcode_string
-from easyshare.client.server import ServerProxy
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
@@ -109,6 +106,18 @@ class ScanArgs(PositionalArgs):
     def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
         return [
             KwArgSpec(ScanArgs.SHOW_DETAILS, PRESENCE_PARAM),
+        ]
+
+
+class PingArgs(PositionalArgs):
+    COUNT = ["-c", "--count"]
+
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 0)
+
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return [
+            KwArgSpec(PingArgs.COUNT, INT_PARAM),
         ]
 
 class GetArguments:
@@ -349,7 +358,7 @@ class Client:
             Commands.PUT: self.put,
 
             Commands.INFO: (PositionalArgs(0, 1), PositionalArgs(1, 0), self.info),
-            Commands.PING: self.ping,
+            Commands.PING: (PingArgs(0), PingArgs(1), self.ping),
         }
 
     def has_command(self, command: str) -> bool:
@@ -398,7 +407,7 @@ class Client:
             executor(args)
             return 0
         except BadOutcome as ex:
-            log.e("Internal trouble, throwing it up")
+            log.exception("Internal trouble, throwing it up")
             return ex.args[0]
             # return ex.args[0]
         except Exception as ex:
@@ -810,17 +819,27 @@ class Client:
         # Server info retrieved successfully
         print_server_info(server_info)
 
-    def ping(self, _: Args):
-        if not self.is_connected():
-            print_errcode(ClientErrors.NOT_CONNECTED)
-            return
+    @provide_server_connection
+    def ping(self, args: Args, connection: Connection = None):
+        # if not connection or not connection.is_connected():
+        if not connection:
+            raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        resp = self.connection.ping()
-        if is_data_response(resp) and resp.get("data") == "pong":
-            print("Connection is UP")
-        else:
-            print("Connection is DOWN")
+        count = args.get_kwarg_param(PingArgs.COUNT, default=None)
 
+        i = 1
+        while not count or i <= count:
+            start = time.monotonic_ns()
+            resp = connection.ping()
+            end = time.monotonic_ns()
+
+            if is_data_response(resp) and resp.get("data") == "pong":
+                print("[{}] OK      time={:.1f}ms".format(i, (end - start) * 1e-6))
+            else:
+                print("[{}] FAIL")
+
+            i += 1
+            time.sleep(1)
 
 
     def put_files(self, args: Args):
