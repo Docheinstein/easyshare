@@ -8,6 +8,8 @@ from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.pyro import IRexecTransaction
 from easyshare.protocol.response import Response, create_success_response, create_error_response
+from easyshare.server.client import ClientContext
+from easyshare.server.clientpublication import ClientPublication, check_publication_owner
 from easyshare.utils.os import run_detached
 from easyshare.utils.pyro import pyro_client_endpoint, pyro_expose
 from easyshare.utils.types import is_int
@@ -51,22 +53,23 @@ class BlockingBuffer:
         self._lock.release()
 
 
-class RexecTransaction(IRexecTransaction):
-    def __init__(self, cmd: str, owner_address: str, on_end: Callable[[int], None]):
+class RexecTransaction(IRexecTransaction, ClientPublication):
+
+    def __init__(self, cmd: str, *,
+                 client: ClientContext,
+                 unpublish_hook: Callable = None):
+        super().__init__(client, unpublish_hook)
         self._cmd = cmd
-        self._owner_address = owner_address
-        self._on_end = on_end
         self._buffer = BlockingBuffer()
         self.proc: Optional[subprocess.Popen] = None
         self.proc_handler: Optional[threading.Thread] = None
 
     @pyro_expose
+    @check_publication_owner
     def recv(self) -> Response:
-        if self._owner_address and \
-                self._owner_address != pyro_client_endpoint()[0]:
-            return create_error_response(ServerErrors.NOT_ALLOWED)
+        client_endpoint = pyro_client_endpoint()
 
-        log.i(">> REXEC RECV")
+        log.i(">> REXEC RECV [%s]", client_endpoint)
 
         buf = None
         while not buf:  # avoid spurious wake ups
@@ -93,20 +96,17 @@ class RexecTransaction(IRexecTransaction):
         if retcode is not None:
             data["retcode"] = retcode
 
-            if self._on_end:
-                self._on_end(retcode)
+            self.unpublish()
 
         return create_success_response(data)
 
 
-    @Pyro4.expose
     @pyro_expose
+    @check_publication_owner
     def send_data(self, data: str) -> Response:
-        if self._owner_address and \
-                self._owner_address != pyro_client_endpoint()[0]:
-            return create_error_response(ServerErrors.NOT_ALLOWED)
+        client_endpoint = pyro_client_endpoint()
 
-        log.i(">> REXEC SEND (%s)", data)
+        log.i(">> REXEC SEND (%s) [%s]", data, client_endpoint)
 
         if not data:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
@@ -116,14 +116,12 @@ class RexecTransaction(IRexecTransaction):
 
         return create_success_response()
 
-    @Pyro4.expose
     @pyro_expose
+    @check_publication_owner
     def send_event(self, ev: int) -> Response:
-        if self._owner_address and \
-                self._owner_address != pyro_client_endpoint()[0]:
-            return create_error_response(ServerErrors.NOT_ALLOWED)
+        client_endpoint = pyro_client_endpoint()
 
-        log.i(">> REXEC SEND EVENT (%d)", ev)
+        log.i(">> REXEC SEND EVENT (%d) [%s]", ev, client_endpoint)
 
         if ev == IRexecTransaction.Event.TERMINATE:
             log.d("Sending SIGTERM")

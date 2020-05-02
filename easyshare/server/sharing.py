@@ -5,6 +5,7 @@ from easyshare.logging import get_logger
 from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.filetype import FileType, FTYPE_DIR, FTYPE_FILE
 from easyshare.protocol.sharinginfo import SharingInfo
+from easyshare.utils.json import json_to_str, json_to_pretty_str
 
 log = get_logger()
 
@@ -17,7 +18,7 @@ class Sharing:
         self.read_only = read_only
 
     def __str__(self):
-        return self.info()
+        return json_to_pretty_str(self.info())
 
     @staticmethod
     def create(name: str, path: str, read_only: bool = False, auth: Auth = AuthNone()) -> Optional['Sharing']:

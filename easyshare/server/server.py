@@ -17,6 +17,7 @@ from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import create_success_response, create_error_response, Response
+from easyshare.server.daemon import init_pyro_daemon, publish_pyro_object, unpublish_pyro_objects, get_pyro_daemon
 from easyshare.server.rexec import RexecTransaction
 from easyshare.server.serving import Serving
 from easyshare.server.sharing import Sharing
@@ -38,9 +39,9 @@ from easyshare.utils.colors import enable_colors
 from easyshare.utils.json import json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
 from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv, run_detached
-from easyshare.utils.pyro import pyro_expose, pyro_client_endpoint
+from easyshare.utils.pyro import pyro_expose, pyro_client_endpoint, pyro_oneway
 from easyshare.utils.ssl import create_server_ssl_context
-from easyshare.utils.str import satisfy, unprefix, randstring
+from easyshare.utils.str import satisfy, unprefix, randstring, uuid
 from easyshare.utils.trace import args_to_str
 from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list, bytes_to_str
 
@@ -93,6 +94,16 @@ class ErrorsStrings:
     INVALID_SERVER_NAME = "Invalid server name"
 
 
+def require_client_connected(api):
+    def require_client_connected_api(server: 'Server', *vargs, **kwargs):
+        if not server._current_request_client():
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+        return api(server, *vargs, **kwargs)
+
+    require_client_connected_api.__name__ = api.__name__
+    return require_client_connected_api
+
+
 class Server(IServer):
 
     def __init__(self, *, discover_port: int, name: str, auth: Auth = AuthNone(), ssl_context: ssl.SSLContext = None):
@@ -106,7 +117,7 @@ class Server(IServer):
 
         # sharing_name -> sharing
         # self.clients: Dict[Endpoint, ClientContext] = {}
-        self._clients: Dict[Endpoint, None] = {}
+        self._clients: Dict[Endpoint, ClientContext] = {}
         # self.puts: Dict[str, PutTransactionHandler] = {}
         # self.gets: Dict[str, GetTransactionHandler] = {}
         # self.rexecs: Dict[str, RexecHandler] = {}
@@ -120,13 +131,14 @@ class Server(IServer):
         set_ssl_context(ssl_context)
         self._ssl_context = get_ssl_context()
 
-        self._pyro_deamon = Pyro4.Daemon(host=self._ip)
-        self._pyro_uri = self._pyro_deamon.register(self).asString()
+        init_pyro_daemon(self._ip)
+
+        self._pyro_uri, _ = publish_pyro_object(self)
 
         log.i("Server registered at URI: %s", self._pyro_uri)
 
     def add_sharing(self, sharing: Sharing):
-        log.i("+ SHARING %s", sharing)
+        log.i("+ SHARING %s", str(sharing))
         self._sharings[sharing.name] = sharing
 
     def handle_discover_request(self, client_endpoint: Endpoint, data: bytes):
@@ -176,13 +188,16 @@ class Server(IServer):
         self._discover_deamon.start()
 
         log.i("Starting PYRO request loop")
-        self._pyro_deamon.requestLoop()
+        get_pyro_daemon().requestLoop()
 
     @pyro_expose
     def connect(self, password: str = None) -> Response:
-        client_endpoint = pyro_client_endpoint()
+        client_endpoint = self._current_request_endpoint()
+        client = self._current_request_client()
 
-        if client_endpoint in self._clients:
+        log.i("<< CONNECT [%s]", client_endpoint)
+
+        if client:
             log.w("Client already connected")
             return create_success_response()
 
@@ -197,30 +212,38 @@ class Server(IServer):
         else:
             log.i("Authentication OK")
 
-        self._clients[client_endpoint] = None
+        self._add_client(client_endpoint)
 
         return create_success_response()
 
     @pyro_expose
-    @Pyro4.oneway
+    @pyro_oneway
+    @require_client_connected
     def disconnect(self):
-        client_endpoint = pyro_client_endpoint()
+        client_endpoint = self._current_request_endpoint()
 
-        if client_endpoint in self._clients:
+        log.i("<< DISCONNECT [%s]", client_endpoint)
+
+        if self._del_client(self._current_request_endpoint()):
             log.i("Client disconnected gracefully")
-            del self._clients[client_endpoint]
         else:
+            # Should not happen due @require_client_connected
             log.w("disconnect() failed; client not found")
 
 
     @pyro_expose
+    # @require_client_connected
+    def list(self):
+        client_endpoint = self._current_request_endpoint()
+
+        log.i("<< LIST [%s]", client_endpoint)
+
+        return create_success_response([sh.info() for sh in self._sharings.values()])
+
+
+    @pyro_expose
+    @require_client_connected
     def open(self, sharing_name: str) -> Response:
-        # TODO auto connect() if not connected
-        client_endpoint = pyro_client_endpoint()
-
-        if client_endpoint not in self._clients:
-            return create_error_response(ServerErrors.NOT_CONNECTED)
-
         if not sharing_name:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
@@ -229,38 +252,16 @@ class Server(IServer):
         if not sharing:
             return create_error_response(ServerErrors.SHARING_NOT_FOUND)
 
-        log.i("<< OPEN %s %s", sharing_name, str(client_endpoint))
+        client = self._current_request_client()
 
-        def destroy_serving():
-            log.d("Destroying serving")
-            self._pyro_deamon.unregister(serving)
+        log.i("<< OPEN %s [%s]", sharing_name, client)
 
-        serving = Serving(
-            sharing,
-            client_address=client_endpoint[0],
-            on_end=destroy_serving
-        )
+        serving = Serving(sharing, client=client)
+        serving.publish()
 
-        serving_uri = self._pyro_deamon.register(serving).asString()
+        log.i("Opened sharing URI: %s", serving.publication_uri)
 
-        # client = self._current_request_client()
-        # if not client:
-        #     # New client
-        #     client = ClientContext()
-        #     client.endpoint = client_endpoint
-        #     client.sharing_name = sharing_name
-        #     self.clients[client_endpoint] = client
-        #     log.i("New client connected (%s) to sharing %s",
-        #           str(client), client.sharing_name)
-        # else:
-        #     client.sharing_name = sharing_name
-        #     client.rpwd = ""
-        #     log.i("Already connected client (%s) changed sharing to %s",
-        #           str(client), client.sharing_name)
-        #
-
-        return create_success_response(serving_uri)
-
+        return create_success_response(serving.publication_uri)
 
 
     @Pyro4.expose
@@ -801,23 +802,19 @@ class Server(IServer):
 
     @pyro_expose
     def rexec(self, cmd: str) -> Response:
-        log.i(">> REXEC %s", cmd)
+        client = self._current_request_client()
+        if not client:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
 
-        def on_command_end(retcode: int):
-            nonlocal self
-
-            log.i("REXEC END %d", retcode)
-            log.d("Unregistering from daemon")
-            self._pyro_deamon.unregister(rx)
+        log.i(">> REXEC %s [%s]", cmd, client)
 
         rx = RexecTransaction(
             cmd,
-            owner_address=pyro_client_endpoint()[0],
-            on_end=on_command_end
+            client=client
         )
         rx.run()
 
-        uri = self._pyro_deamon.register(rx).asString()
+        uri = rx.publish()
 
         log.d("Rexec handler initialized; uri: %s", uri)
         return create_success_response(uri)
@@ -936,6 +933,30 @@ class Server(IServer):
     #     if client:
     #         client.gets.remove(transaction_id)
 
+    def _add_client(self, endpoint: Endpoint) -> ClientContext:
+        ctx = ClientContext(endpoint)
+        log.i("Adding client %s", ctx)
+        self._clients[endpoint] = ctx
+        return ctx
+
+    def _del_client(self, endpoint: Endpoint) -> bool:
+        ctx = self._clients.pop(endpoint, None)
+
+        if not ctx:
+            log.w("No client found to remove for endpoint: %s", endpoint)
+            return False
+
+        log.d("Removed client %s", ctx)
+
+        for pub in ctx.publications:
+            pub.unpublish()
+        return True
+    #
+    # def _publish_pyro_object_for_client(self, obj: Any, client: ClientContext) -> str:
+    #     uri, uid = publish_pyro_object(obj)
+    #     client.publications.append(uid)
+    #     return uri
+
     def _current_request_endpoint(self) -> Optional[Endpoint]:
         """
         Returns the endpoint (ip, port) of the client that is making
@@ -943,7 +964,7 @@ class Server(IServer):
         :return: the endpoint of the current client
         """
         # print("CURRENT CONTEXT:", Pyro4.current_context.client_sock_addr)
-        return Pyro4.current_context.client_sock_addr
+        return pyro_client_endpoint()
 
     def _current_request_client(self) -> Optional[ClientContext]:
         """
@@ -1136,5 +1157,5 @@ class Server(IServer):
         Returns the current endpoint (ip, port) the server (Pyro deamon) is bound to.
         :return: the current server endpoint
         """
-        return self._pyro_deamon.sock.getsockname()
+        return get_pyro_daemon().sock.getsockname()
 

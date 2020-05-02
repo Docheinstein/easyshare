@@ -73,3 +73,8 @@ def pyro_expose(api: API) -> API:
     expose_wrapper._pyroExposed = True
 
     return expose_wrapper
+
+
+def pyro_oneway(api: API) -> API:
+    api._pyroOneway = True
+    return api

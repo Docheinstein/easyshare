@@ -32,6 +32,7 @@ class Commands:
     REMOTE_EXEC_SHORT = "::"
 
     SCAN = "scan"
+    LIST = "list"
 
     CONNECT = "connect"
     DISCONNECT = "disconnect"

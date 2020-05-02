@@ -109,6 +109,18 @@ class ScanArgs(PositionalArgs):
         ]
 
 
+class ListArgs(PositionalArgs):
+    SHOW_DETAILS = ["-l"]
+
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 0)
+
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return [
+            KwArgSpec(ListArgs.SHOW_DETAILS, PRESENCE_PARAM),
+        ]
+
+
 class PingArgs(PositionalArgs):
     COUNT = ["-c", "--count"]
 
@@ -286,6 +298,12 @@ class Client:
             Commands.SCAN: (connectionless_parser_provider, [ScanArgs()],
                             self.scan),
 
+            Commands.INFO: (serverconnection_parser_provider, [PositionalArgs(0, 1), PositionalArgs(1, 0)],
+                            self.info),
+
+            Commands.LIST: (serverconnection_parser_provider, [ListArgs(0), ListArgs(1)],
+                            self.list),
+
             Commands.CONNECT: (serverconnection_parser_provider, [PositionalArgs(1), PositionalArgs(1)],
                                self.connect),
             Commands.DISCONNECT: (serverconnection_parser_provider, [PositionalArgs(0), PositionalArgs(1)],
@@ -299,8 +317,6 @@ class Client:
             Commands.GET: self.get,
             Commands.PUT: self.put,
 
-            Commands.INFO: (serverconnection_parser_provider, [PositionalArgs(0, 1), PositionalArgs(1, 0)],
-                            self.info),
             Commands.PING: (serverconnection_parser_provider, [PingArgs(0), PingArgs(1)],
                             self.ping),
         }
@@ -487,22 +503,62 @@ class Client:
     def open(self, args: Args, _):
         log.i(">> OPEN")
 
-        sharing_conn, server_conn = self._create_sharing_connection_from_sharing_spec(SharingSpecifier.parse(args.get_varg()))
+        new_server_conn: Optional[ServerConnection] = None
+        new_sharing_conn: Optional[SharingConnection] = None
 
-        if sharing_conn and server_conn and \
-                sharing_conn.is_connected() and server_conn.is_connected():
+        # Check whether we are connected to a server which owns the
+        # sharing we are looking for, otherwise performs a scan
+        sharing_spec = SharingSpecifier.parse(args.get_varg())
 
-            if self.is_connected_to_sharing():
-                log.i("Closing current sharing connection before set the new one")
-                self.sharing_connection.close()
+        if not sharing_spec:
+            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-            if self.is_connected_to_server():
-                log.i("Closing current server connection before set the new one")
-                self.server_connection.disconnect()
+        if self.is_connected_to_server():
+
+            new_server_conn = self.server_connection
+
+            local_sharing_info = Client._sharing_info_of_server_info_by_sharing_spec(
+                server_info=self.server_connection.server_info,
+                sharing_spec=sharing_spec,
+                sharing_ftype=FTYPE_DIR)
+
+            if local_sharing_info:
+                # The server has the sharing we are looking for, skip connection creation
+                log.d("Correct sharing info found amoung sharings of local server connection")
+
+                new_sharing_conn = Client._create_sharing_connection_from_server_connection(
+                    server_conn=self.server_connection,
+                    sharing_info=local_sharing_info,
+                )
+
+        # Have we found the sharing yet or do we have to perform a scan?
+        if not new_server_conn or not new_sharing_conn:
+            new_sharing_conn, new_server_conn = self._create_sharing_connection_from_sharing_spec(sharing_spec)
+
+        if new_sharing_conn and \
+                new_server_conn and \
+                new_sharing_conn.is_connected() and \
+                new_server_conn.is_connected():
+
+            # Close current stuff (if the new connections are actually new)
+
+            if new_sharing_conn == self.sharing_connection:
+                log.d("Same sharing connection; not closing it")
+            else:
+                if self.is_connected_to_sharing():
+                    log.d("Closing current sharing connection before set the new one")
+                    self.sharing_connection.close()
+
+            if new_server_conn == self.server_connection:
+                log.d("Same server connection; not closing it")
+            else:
+                if self.is_connected_to_server():
+                    log.i("Closing current server connection before set the new one")
+                    self.server_connection.disconnect()
 
             log.i("Server and sharing connection established")
-            self.sharing_connection = sharing_conn
-            self.server_connection = server_conn
+            self.sharing_connection = new_sharing_conn
+            self.server_connection = new_server_conn
         else:
             log.e("Server or sharing connection establishment failed")
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -724,6 +780,26 @@ class Client:
 
         # Server info retrieved successfully
         print_server_info(server_info)
+
+    @provide_server_connection
+    def list(self, args: Args, connection: ServerConnection = None):
+        if not connection or not connection.is_connected():
+            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+
+        show_details = ScanArgs.SHOW_DETAILS in args
+
+        log.i(">> LIST")
+
+        resp = connection.list()
+
+        if is_error_response(resp):
+            raise BadOutcome(resp.get("error"))
+
+        if not is_data_response(resp):
+            raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+        print(Client._sharings_string(resp.get("data"),
+                                      details=show_details))
 
     # =================================================
     # ================ SHARING COMMANDS ===============
@@ -1563,23 +1639,40 @@ class Client:
             raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
 
         # Create the sharing connection: open()
-
-        open_resp = server_conn.open(sharing_spec.name)
-
-        if is_error_response(open_resp):
-            raise BadOutcome(open_resp.get("error"))
-
-        sharing_uri = open_resp.get("data")
-        sharing_conn = SharingConnection(
-            sharing_uri,
-            sharing_info=sharing_info,
-            server_info=server_info
+        sharing_conn = Client._create_sharing_connection_from_server_connection(
+            server_conn=server_conn,
+            sharing_info=sharing_info
         )
 
         return sharing_conn, server_conn
 
+    @staticmethod
+    def _create_sharing_connection_from_server_connection(
+            server_conn: ServerConnection,
+            sharing_info: SharingInfo) -> Optional[SharingConnection]:
 
+        if not server_conn or not server_conn.is_connected():
+            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
+        # Create the sharing connection: open()
+
+        open_resp = server_conn.open(sharing_info.get("name"))
+
+        if is_error_response(open_resp):
+            raise BadOutcome(open_resp.get("error"))
+
+        if not is_data_response(open_resp):
+            raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+        sharing_uri = open_resp.get("data")
+
+        sharing_conn = SharingConnection(
+            sharing_uri,
+            sharing_info=sharing_info,
+            server_info=server_conn.server_info
+        )
+
+        return sharing_conn
 
 
     def _create_server_connection_from_server_spec(self, server_spec: ServerSpecifier) -> ServerConnection:
@@ -1669,31 +1762,17 @@ class Client:
         def response_handler(client_endpoint: Endpoint,
                              a_server_info: ServerInfo) -> bool:
             nonlocal server_info
-            log.d("Handling DISCOVER response from %s\n%s",
-                  str(client_endpoint), str(a_server_info))
 
-            # Check against the location filters
+            log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
 
-            # Server name check (optional)
-            if server_spec.name and a_server_info.get("name") != server_spec.name:
-                log.d("Discarding server info which does not match the server name filter '%s'",
-                      server_spec.name)
-                return True  # Continue DISCOVER
+            if Client._server_info_satisfy_server_spec(
+                    server_info=a_server_info,
+                    server_spec=server_spec):
 
-            # Server ip check (optional)
-            if server_spec.ip and a_server_info.get("ip") != server_spec.ip:
-                log.d("Discarding server info which does not match the ip filter '%s'",
-                      server_spec.ip)
-                return True  # Continue DISCOVER
+                server_info = a_server_info
+                return False    # Stop DISCOVER
 
-            # Server port check (optional)
-            if server_spec.port and a_server_info.get("port") != server_spec.port:
-                log.d("Discarding server info which does not match the port filter '%d'",
-                      server_spec.port)
-                return True  # Continue DISCOVER
-
-            server_info = a_server_info
-            return False  # Stop DISCOVER
+            return True         # Continue DISCOVER
 
         Discoverer(
             server_discover_port=self._discover_port,
@@ -1719,53 +1798,19 @@ class Client:
             nonlocal sharing_info
             nonlocal server_info
 
-            log.d("Handling DISCOVER response from %s\n%s",
-                  str(client_endpoint), str(a_server_info))
+            log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
 
-            # Check against the location filters
+            sharing_info = Client._sharing_info_of_server_info_by_sharing_spec(
+                server_info=a_server_info,
+                sharing_spec=sharing_spec,
+                sharing_ftype=ftype
+            )
 
-            # Server name check (optional)
-            if sharing_spec.server_name and a_server_info.get("name") != sharing_spec.server_name:
-                log.d("Discarding server info which does not match the server name filter '%s'",
-                      sharing_spec.server_name)
-                return True  # Continue DISCOVER
-
-            # Server ip check (optional)
-            if sharing_spec.server_ip and a_server_info.get("ip") != sharing_spec.server_ip:
-                log.d("Discarding server info which does not match the ip filter '%s'",
-                      sharing_spec.server_ip)
-                return True  # Continue DISCOVER
-
-            # Server port check (optional)
-            if sharing_spec.server_port and a_server_info.get("port") != sharing_spec.server_port:
-                log.d("Discarding server info which does not match the port filter '%d'",
-                      sharing_spec.server_port)
-                return True  # Continue DISCOVER
-
-            for a_sharing_info in a_server_info.get("sharings"):
-                # Sharing name check (mandatory)
-                if sharing_spec.name and a_sharing_info.get("name") != sharing_spec.name:
-                    log.d("Ignoring sharing which does not match the sharing name filter '%s'",
-                          sharing_spec.name)
-                    continue
-
-                # Ftype check (optional)
-                if ftype and a_sharing_info.get("ftype") != ftype:
-                    log.d("Ignoring sharing which does not match the ftype filter '%s'", ftype)
-                    log.w("Found a sharing with the right name but wrong ftype, wrong command maybe?")
-                    continue
-
-                # FOUND
-                log.i("Sharing [%s] found at %s:%d",
-                      a_sharing_info.get("name"),
-                      a_server_info.get("ip"),
-                      a_server_info.get("port"))
-
+            if sharing_info:
                 server_info = a_server_info
-                sharing_info = a_sharing_info
-                return False        # Stop DISCOVER
+                return False    # Stop DISCOVER
 
-            return True             # Continue DISCOVER
+            return True         # Continue DISCOVER
 
         Discoverer(
             server_discover_port=self._discover_port,
@@ -1842,3 +1887,69 @@ class Client:
                 endpoint[0], endpoint[1], ssl_context=create_client_ssl_context()
             ).ssl_certificate()
         )
+
+    @staticmethod
+    def _server_info_satisfy_server_spec(
+        server_info: ServerInfo,
+        server_spec: ServerSpecifier) -> bool:
+
+        if not server_spec:
+            # Satisfy since no constraints
+            return True
+
+        # Server name check (optional)
+        if server_spec.name and server_info.get("name") != server_spec.name:
+            log.d("Server info does not match the server name filter '%s'",
+                  server_spec.name)
+            return False
+
+        # Server ip check (optional)
+        if server_spec.ip and server_info.get("ip") != server_spec.ip:
+            log.d("Server info does not match the ip filter '%s'",
+                  server_spec.ip)
+            return False
+
+        # Server port check (optional)
+        if server_spec.port and server_info.get("port") != server_spec.port:
+            log.d("Server info does not match the port filter '%d'",
+                  server_spec.port)
+            return False
+
+        log.d("server_info_satisfy_server_spec() OK")
+        return True
+
+
+
+    @staticmethod
+    def _sharing_info_of_server_info_by_sharing_spec(
+            server_info: ServerInfo,
+            sharing_spec: SharingSpecifier,
+            sharing_ftype: FileType) -> Optional[SharingInfo]:
+
+            # Check server constraints
+            if not Client._server_info_satisfy_server_spec(server_info, sharing_spec.server):
+                return None
+
+            # Check among the server sharings
+            for a_sharing_info in server_info.get("sharings"):
+                # Sharing name check (mandatory)
+                if sharing_spec.name and a_sharing_info.get("name") != sharing_spec.name:
+                    log.d("Ignoring sharing which does not match the sharing name filter '%s'",
+                          sharing_spec.name)
+                    continue
+
+                # Ftype check (optional)
+                if sharing_ftype and a_sharing_info.get("ftype") != sharing_ftype:
+                    log.d("Ignoring sharing which does not match the ftype filter '%s'", sharing_ftype)
+                    log.w("Found a sharing with the right name but wrong ftype, wrong command maybe?")
+                    continue
+
+                # FOUND
+                log.i("Server [%s:%d] satisfies sharing spec %s",
+                      server_info.get("ip"),
+                      server_info.get("port"),
+                      sharing_spec)
+
+                return a_sharing_info
+
+            return None

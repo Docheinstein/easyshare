@@ -30,11 +30,15 @@ def create_error_response(error_code=None) -> Response:
 
 
 def is_success_response(resp: Response) -> bool:
-    return is_dict(resp) and resp.get("success", False) is True
+    return \
+        resp and \
+        is_dict(resp) and \
+        resp.get("success", False) is True
 
 
 def is_data_response(resp: Response, data_field: str = None) -> bool:
     return \
+        resp and \
         is_dict(resp) and \
         is_success_response(resp) and \
         resp.get("data") is not None and \
@@ -42,5 +46,9 @@ def is_data_response(resp: Response, data_field: str = None) -> bool:
 
 
 def is_error_response(resp: Response, error_code=None) -> bool:
-    return is_dict(resp) and resp.get("success") is False and is_int(resp.get("error"))\
-           and (not error_code or resp.get("error") == error_code)
+    return \
+        resp and \
+        is_dict(resp) and \
+        resp.get("success") is False and \
+        is_int(resp.get("error")) and \
+        (not error_code or resp.get("error") == error_code)

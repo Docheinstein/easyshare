@@ -1,12 +1,12 @@
 from typing import List, Callable
 
-import Pyro4
-
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.pyro import IServing
 from easyshare.protocol.response import Response, create_error_response, create_success_response
+from easyshare.server.client import ClientContext
+from easyshare.server.clientpublication import ClientPublication, check_publication_owner
 from easyshare.server.sharing import Sharing
 from easyshare.utils.os import ls
 from easyshare.utils.pyro import pyro_expose, pyro_client_endpoint
@@ -14,7 +14,7 @@ from easyshare.utils.pyro import pyro_expose, pyro_client_endpoint
 log = get_logger(__name__)
 
 
-class Serving(IServing):
+class Serving(IServing, ClientPublication):
 
     def rpwd(self) -> Response:
         pass
@@ -51,16 +51,13 @@ class Serving(IServing):
         pass
 
     def __init__(self, sharing: Sharing, *,
-                 client_address: str = None,
-                 client_port: str = None,
-                 on_end: Callable = None):
+                 client: ClientContext,
+                 unpublish_hook: Callable = None):
+        super().__init__(client, unpublish_hook)
         self._sharing = sharing
-        self._client_address = client_address
-        self._client_port = client_port
-        self._on_end = on_end
-
 
     @pyro_expose
+    @check_publication_owner
     def rls(self, *,
             path: str = None, sort_by: List[str] = None,
             reverse: bool = False, hidden: bool = False, ) -> Response:
@@ -75,7 +72,7 @@ class Serving(IServing):
         path = path or "."
         sort_by = sort_by or ["name"]
 
-        log.i("<< RLS %s %s%s (%s)",
+        log.i("<< RLS %s %s%s [%s]",
               path, sort_by, " | reverse " if reverse else "", str(client_endpoint))
 
         try:
@@ -101,22 +98,15 @@ class Serving(IServing):
 
 
     @pyro_expose
-    @Pyro4.oneway
+    @check_publication_owner
     def close(self):
-        # CHECK CLIENT
-
-
-        # client_endpoint = self._current_request_endpoint()
-        # log.i("<< CLOSE %s", str(client_endpoint))
-        # client = self._current_request_client()
-
-        # if not client:
-        #     log.w("Received a close request from an unknown client")
-        #     return
         client_endpoint = pyro_client_endpoint()
 
-        log.i("<< CLOSE (%s)", str(client_endpoint))
+        log.i("<< CLOSE [%s]", str(client_endpoint))
         log.i("Deallocating client resources...")
+
+        # CHECK CLIENT
+
 
         # Remove any pending transaction
         # for get_trans_id in client.gets:
@@ -134,5 +124,4 @@ class Serving(IServing):
         # log.i("# clients = %d", len(self.clients))
         # log.i("# gets = %d", len(self.gets))
 
-        if self._on_end:
-            self._on_end()
+        self.unpublish()

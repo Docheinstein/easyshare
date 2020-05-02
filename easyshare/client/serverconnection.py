@@ -23,6 +23,9 @@ def require_server_connection(api):
             return create_error_response(ClientErrors.NOT_CONNECTED)
         log.d("Connection is valid, invoking %s", api.__name__)
         return api(conn, *vargs, **kwargs)
+
+    require_server_connection_api_wrapper.__name__ = api.__name__
+
     return require_server_connection_api_wrapper
 
 
@@ -95,6 +98,12 @@ class ServerConnection:
     @require_server_connection
     def open(self, sharing_name) -> Response:
         return self.server.open(sharing_name)
+
+
+    @handle_server_response
+    @require_server_connection
+    def list(self) -> Response:
+        return self.server.list()
 
 
     @handle_server_response

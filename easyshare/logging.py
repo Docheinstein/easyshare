@@ -100,7 +100,7 @@ def _set_verbosity(logger: logging.Logger, verbosity: int):
 logging.addLevelName(LEVEL_ERROR,   styled("[ERROR]", fg=Color.RED))
 logging.addLevelName(LEVEL_WARNING, styled("[WARN] ", fg=Color.YELLOW))
 logging.addLevelName(LEVEL_INFO,    styled("[INFO] ", fg=Color.BLUE))
-logging.addLevelName(LEVEL_DEBUG,   styled("[DEBUG]", fg=Color.MAGENTA))
+logging.addLevelName(LEVEL_DEBUG,   styled("[DEBUG]", fg=Color.GREEN))
 
 
 logging.Logger.e = logging.Logger.error

@@ -1,6 +1,6 @@
 import string
 import random
-
+from uuid import uuid4 as UUID
 from easyshare.utils.types import is_str
 
 
@@ -11,6 +11,10 @@ def strstr(s: str) -> str:
 def randstring(length=16) -> str:
     alphabet = string.ascii_letters + string.digits
     return "".join([random.choice(alphabet) for _ in range(length)])
+
+
+def uuid() -> str:
+    return UUID().hex
 
 
 def keep(s: str, allowed: str) -> str:

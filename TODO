@@ -31,3 +31,7 @@
 - autoclose connection on open()
 - -p for each api?
 - timeouts pyro, keepalive, cleaning up,...
+- ; => comment
+- server connection down detection => close and disconnect
+- test lock multiclient
+- Not so relevant but: open do no scan if connected to the right server
