@@ -2,35 +2,64 @@ import time
 
 import Pyro4
 
-from easyshare.server.common import trace_pyro_api
+from easyshare.tracing import enable_tracing
 from easyshare.utils.net import get_primary_ip
+from easyshare.utils.pyro import pyro_expose, pyro_client_endpoint
+
+SUCCESS = {"success": True}
+pyro_daemon = Pyro4.Daemon(host=get_primary_ip())
+
+
+class PyroWorker:
+    def __init__(self, owner, on_end):
+        self.owner = owner
+        self.on_end = on_end
+        self.counter = 0
+
+    @pyro_expose
+    def work(self):
+        resp = {"success": True, "data": "Work done for you ({})!".format(self.counter)}
+        self.counter += 1
+        return resp
+
+    @pyro_expose
+    def done(self):
+        if self.on_end:
+            self.on_end()
+
+        return SUCCESS
 
 
 class PyroServer:
-    @Pyro4.expose
-    @trace_pyro_api
+    @pyro_expose
     def hello(self, *args):
-        print("hello() (", Pyro4.current_context.client_sock_addr, ")")
-        return {
-            "success": True
-        }
+        return SUCCESS
 
 
-    @Pyro4.expose
-    @trace_pyro_api
+    @pyro_expose
     def block(self, t):
-        print("block() {} (".format(int(t)), Pyro4.current_context.client_sock_addr, ")")
         time.sleep(int(t))
-        print("block() END (", Pyro4.current_context.client_sock_addr, ")")
 
-        return {
-            "success": True
-        }
+        return SUCCESS
+
+    @pyro_expose
+    def make(self, *args):
+        def on_end():
+            print("Unregistering worker")
+            pyro_daemon.unregister(worker)
+
+        worker = PyroWorker(pyro_client_endpoint(), on_end)
+        worker_uri = pyro_daemon.register(worker).asString()
+
+        print("Worker URI: ", worker_uri)
+
+        return {"success": True, "data": worker_uri}
 
 
 if __name__ == "__main__":
+    enable_tracing(True)
+
     pyro_server = PyroServer()
-    pyro_daemon = Pyro4.Daemon(host=get_primary_ip())
     uri = pyro_daemon.register(pyro_server).asString()
     print("Server URI:", uri)
 

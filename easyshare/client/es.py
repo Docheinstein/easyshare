@@ -17,7 +17,7 @@ from easyshare.utils.colors import enable_colors
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int, is_int, is_str
-from easyshare.args import Args as Args, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM
+from easyshare.args import Args as Args, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, OPT_INT_PARAM
 
 log = get_logger()
 
@@ -55,7 +55,7 @@ class EsArgs(ArgsParser):
             KwArgSpec(EsArgs.PORT, INT_PARAM),
             KwArgSpec(EsArgs.WAIT, INT_PARAM),
             KwArgSpec(EsArgs.VERBOSE, INT_PARAM),
-            KwArgSpec(EsArgs.TRACE, PRESENCE_PARAM),
+            KwArgSpec(EsArgs.TRACE, OPT_INT_PARAM),
             KwArgSpec(EsArgs.NO_COLOR, PRESENCE_PARAM),
         ]
 
@@ -93,7 +93,8 @@ def main():
     enable_colors(EsArgs.NO_COLOR not in args)
 
     # Packet tracing
-    enable_tracing(EsArgs.TRACE in args)
+    if args.has_kwarg(EsArgs.TRACE):
+        enable_tracing(args.get_kwarg_param(EsArgs.TRACE, 1))
 
     # Initialize client
     client = Client(discover_port=args.get_kwarg_param(EsArgs.PORT, DEFAULT_DISCOVER_PORT))

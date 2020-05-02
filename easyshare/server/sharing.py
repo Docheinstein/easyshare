@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, List
 
 from easyshare.logging import get_logger
 from easyshare.passwd.auth import Auth, AuthNone
@@ -8,19 +8,16 @@ from easyshare.protocol.sharinginfo import SharingInfo
 
 log = get_logger()
 
+
 class Sharing:
-    def __init__(self, name: str, ftype: FileType, path: str,
-                 read_only: bool, auth: Auth = AuthNone()):
+    def __init__(self, name: str, ftype: FileType, path: str, read_only: bool):
         self.name = name
         self.ftype = ftype
         self.path = path
         self.read_only = read_only
-        self.auth = auth
 
     def __str__(self):
-        d: dict = self.info()
-        d["auth_type"] = self.auth.algo_name()
-        return str(d)
+        return self.info()
 
     @staticmethod
     def create(name: str, path: str, read_only: bool = False, auth: Auth = AuthNone()) -> Optional['Sharing']:
@@ -53,7 +50,6 @@ class Sharing:
             ftype=ftype,
             path=path,
             read_only=read_only,
-            auth=auth
         )
 
     def info(self) -> SharingInfo:
@@ -61,5 +57,4 @@ class Sharing:
             "name": self.name,
             "ftype": self.ftype,
             "read_only": self.read_only,
-            "auth": True if (self.auth and self.auth.algo_security() > 0) else False
         }

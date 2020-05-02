@@ -8,8 +8,8 @@ from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.pyro import IRexecTransaction
 from easyshare.protocol.response import Response, create_success_response, create_error_response
-from easyshare.server.common import trace_pyro_api, current_request_endpoint
 from easyshare.utils.os import run_detached
+from easyshare.utils.pyro import pyro_client_endpoint, pyro_expose
 from easyshare.utils.types import is_int
 
 
@@ -60,11 +60,10 @@ class RexecTransaction(IRexecTransaction):
         self.proc: Optional[subprocess.Popen] = None
         self.proc_handler: Optional[threading.Thread] = None
 
-    @Pyro4.expose
-    @trace_pyro_api
+    @pyro_expose
     def recv(self) -> Response:
         if self._owner_address and \
-                self._owner_address != current_request_endpoint()[0]:
+                self._owner_address != pyro_client_endpoint()[0]:
             return create_error_response(ServerErrors.NOT_ALLOWED)
 
         log.i(">> REXEC RECV")
@@ -101,10 +100,10 @@ class RexecTransaction(IRexecTransaction):
 
 
     @Pyro4.expose
-    @trace_pyro_api
-    def send(self, data: str) -> Response:
+    @pyro_expose
+    def send_data(self, data: str) -> Response:
         if self._owner_address and \
-                self._owner_address != current_request_endpoint()[0]:
+                self._owner_address != pyro_client_endpoint()[0]:
             return create_error_response(ServerErrors.NOT_ALLOWED)
 
         log.i(">> REXEC SEND (%s)", data)
@@ -118,10 +117,10 @@ class RexecTransaction(IRexecTransaction):
         return create_success_response()
 
     @Pyro4.expose
-    @trace_pyro_api
+    @pyro_expose
     def send_event(self, ev: int) -> Response:
         if self._owner_address and \
-                self._owner_address != current_request_endpoint()[0]:
+                self._owner_address != pyro_client_endpoint()[0]:
             return create_error_response(ServerErrors.NOT_ALLOWED)
 
         log.i(">> REXEC SEND EVENT (%d)", ev)

@@ -13,7 +13,7 @@ import readline as rl
 from easyshare.client.args import OptIntArg, ArgsParser, VariadicArgs
 from easyshare.client.client import Client
 from easyshare.client.commands import Commands, is_special_command
-from easyshare.client.common import print_tabulated, StyledString
+from easyshare.client.ui import print_tabulated, StyledString
 from easyshare.client.errors import print_errcode, ClientErrors
 from easyshare.client.help import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
@@ -80,8 +80,19 @@ class Shell:
     def input_loop(self):
         while True:
             try:
+                log.d("========================\n"
+                      "Connected to server : %s%s\n"
+                      "Connected to sharing: %s%s",
+                      self._client.is_connected_to_server(),
+                      " ({})".format(self._client.server_connection.server_info.get("name"))
+                        if self._client.is_connected_to_server() else "",
+                      self._client.is_connected_to_sharing(),
+                      " ({})".format(self._client.sharing_connection.sharing_info.get("name"))
+                        if self._client.is_connected_to_sharing() else "",
+                )
+
                 self._prompt = self._build_prompt_string()
-                # print(self._prompt, end="", flush=True)
+
                 command_line = input(self._prompt)
 
                 if not command_line:
@@ -123,9 +134,9 @@ class Shell:
                 print_errcode(ClientErrors.CONNECTION_ERROR)
                 # Close client connection anyway
                 try:
-                    if self._client.is_connected():
-                        log.d("Trying to close connection gracefully")
-                        self._client.close(None)
+                    if self._client.is_connected_to_server():
+                        log.d("Trying to disconnect gracefully")
+                        self._client.disconnect(None)
                 except PyroError:
                     log.d("Cannot communicate with remote: invalidating connection")
                     self._client.connection = None
@@ -134,8 +145,9 @@ class Shell:
                 print()
             except EOFError:
                 log.i("\nCTRL+D: exiting")
-                if self._client.is_connected():
-                    self._client.close(None)
+                if self._client.is_connected_to_server():
+                    log.d("Trying to disconnect gracefully")
+                    self._client.disconnect(None)
                 break
 
     def has_command(self, command: str) -> bool:
@@ -242,11 +254,15 @@ class Shell:
     def _build_prompt_string(self):
         remote = ""
 
-        if self._client.is_connected():
-            remote = "{}:/{}".format(
-                self._client.connection.sharing_name(),
-                self._client.connection.rpwd()
+        if self._client.is_connected_to_server():
+            remote = self._client.server_connection.server_info.get("name")
+
+            if self._client.is_connected_to_sharing():
+                remote += ":{}:/{}".format(
+                self._client.sharing_connection.sharing_name(),
+                self._client.sharing_connection.rcwd()
             )
+
             # remote = fg(remote, color=Color.MAGENTA)
 
         local = os.getcwd()

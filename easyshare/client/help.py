@@ -3,7 +3,7 @@ from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
 from easyshare.client.commands import Commands
-from easyshare.client.common import StyledString
+from easyshare.client.ui import StyledString
 from easyshare.client.client import Client
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo

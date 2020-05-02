@@ -4,21 +4,39 @@ from typing import Union
 import Pyro4
 
 from easyshare.tests.pyros import PyroServer
-from easyshare.utils.json import json_to_pretty_str
+from easyshare.tracing import enable_tracing
+from easyshare.utils.pyro import TracedPyroProxy
+
+worker = None
+
+
+def run_cmd(cmd_parts):
+    global worker
+
+    print(cmd_parts)
+    comm_name = cmd_parts[0]
+    comm_args = cmd_parts[1:]
+    if comm_name == "work" or comm_name == "done" and worker:
+        worker.__getattr__(comm_name)()
+    else:
+        resp = pyro_server.__getattr__(comm_name)(*comm_args)
+
+        if comm_name == "make":
+            worker_uri = resp.get("data")
+            worker = TracedPyroProxy(worker_uri)
+            print("Initialized worker at URI:", worker_uri)
+
 
 
 if __name__ == "__main__":
+    enable_tracing(True)
+
     with open("/tmp/server_uri.txt", mode="r") as f:
         uri = f.read()
 
     print("Initializing proxy at URI:", uri)
-    pyro_server: Union[Pyro4.Proxy, PyroServer] = Pyro4.Proxy(uri)
+    pyro_server: Union[Pyro4.Proxy, PyroServer] = TracedPyroProxy(uri)
     print("Initialized proxy")
-
-    def run_cmd(cmd_parts):
-        print(cmd_parts)
-        resp = pyro_server.__getattr__(cmd_parts[0])(*cmd_parts[1:])
-        print(json_to_pretty_str(resp))
 
 
     while True:

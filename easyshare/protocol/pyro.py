@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Union
+
+import Pyro4
 
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response
@@ -11,23 +13,19 @@ class IRexecTransaction(ABC):
         EOF = 1
 
     @abstractmethod
-    def recv(self) -> Response:
+    def recv(self) -> Union[Pyro4.futures.FutureResult, Response]:
         pass
 
     @abstractmethod
-    def send(self, data: str) -> Response:
+    def send_data(self, data: str) -> Union[Pyro4.futures.FutureResult, Response]:
         pass
 
     @abstractmethod
-    def send_event(self, ev: int) -> Response:
+    def send_event(self, ev: int) -> Union[Pyro4.futures.FutureResult, Response]:
         pass
 
 
-class IServer(ABC):
-    @abstractmethod
-    def open(self, sharing_name: str, password: str = None) -> Response:
-        pass
-
+class IServing(ABC):
     @abstractmethod
     def close(self):
         pass
@@ -81,6 +79,22 @@ class IServer(ABC):
 
     @abstractmethod
     def put_next_info(self, transaction, info: FileInfo) -> Response:
+        pass
+
+
+class IServer(ABC):
+    @abstractmethod
+    def connect(self, password: str) -> Response:
+        """ New client"""
+        pass
+
+    @abstractmethod
+    def disconnect(self) -> Response:
+        pass
+
+    @abstractmethod
+    def open(self, sharing_name: str) -> Response:
+        """ Opens a sharing """
         pass
 
     @abstractmethod

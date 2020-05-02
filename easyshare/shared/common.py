@@ -26,6 +26,7 @@ DONE_COLOR = Color.GREEN
 
 ENV_EASYSHARE_VERBOSITY = "EASYSHARE_VERBOSITY"
 
+
 def is_sharing_name(s: str):
     return satisfy(s, SHARING_NAME_ALPHABET)
 
