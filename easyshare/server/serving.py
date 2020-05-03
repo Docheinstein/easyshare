@@ -1,5 +1,7 @@
 from typing import List, Callable
 
+from Pyro5.api import expose
+
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
@@ -9,7 +11,7 @@ from easyshare.server.client import ClientContext
 from easyshare.server.clientpublication import ClientPublication, check_publication_owner
 from easyshare.server.sharing import Sharing
 from easyshare.utils.os import ls
-from easyshare.utils.pyro import pyro_expose, pyro_client_endpoint
+from easyshare.utils.pyro import pyro_client_endpoint, trace_api
 
 log = get_logger(__name__)
 
@@ -56,7 +58,8 @@ class Serving(IServing, ClientPublication):
         super().__init__(client, unpublish_hook)
         self._sharing = sharing
 
-    @pyro_expose
+    @expose
+    @trace_api
     @check_publication_owner
     def rls(self, *,
             path: str = None, sort_by: List[str] = None,
@@ -97,7 +100,8 @@ class Serving(IServing, ClientPublication):
 
 
 
-    @pyro_expose
+    @expose
+    @trace_api
     @check_publication_owner
     def close(self):
         client_endpoint = pyro_client_endpoint()

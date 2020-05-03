@@ -7,9 +7,11 @@ import socket
 import threading
 import time
 
-import Pyro4
+from Pyro5 import api as pyro
 
 from typing import Dict, Optional, List, Any, Callable, TypeVar, Union
+
+from Pyro5.api import expose, oneway
 
 from easyshare import logging
 from easyshare.logging import get_logger
@@ -39,7 +41,7 @@ from easyshare.utils.colors import enable_colors
 from easyshare.utils.json import json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
 from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv, run_detached
-from easyshare.utils.pyro import pyro_expose, pyro_client_endpoint, pyro_oneway
+from easyshare.utils.pyro import pyro_client_endpoint, trace_api
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfy, unprefix, randstring, uuid
 from easyshare.utils.trace import args_to_str
@@ -190,7 +192,8 @@ class Server(IServer):
         log.i("Starting PYRO request loop")
         get_pyro_daemon().requestLoop()
 
-    @pyro_expose
+    @expose
+    @trace_api
     def connect(self, password: str = None) -> Response:
         client_endpoint = self._current_request_endpoint()
         client = self._current_request_client()
@@ -216,8 +219,10 @@ class Server(IServer):
 
         return create_success_response()
 
-    @pyro_expose
-    @pyro_oneway
+
+    @expose
+    @oneway
+    @trace_api
     @require_client_connected
     def disconnect(self):
         client_endpoint = self._current_request_endpoint()
@@ -231,7 +236,8 @@ class Server(IServer):
             log.w("disconnect() failed; client not found")
 
 
-    @pyro_expose
+    @expose
+    @trace_api
     # @require_client_connected
     def list(self):
         client_endpoint = self._current_request_endpoint()
@@ -241,7 +247,8 @@ class Server(IServer):
         return create_success_response([sh.info() for sh in self._sharings.values()])
 
 
-    @pyro_expose
+    @expose
+    @trace_api
     @require_client_connected
     def open(self, sharing_name: str) -> Response:
         if not sharing_name:
@@ -264,9 +271,9 @@ class Server(IServer):
         return create_success_response(serving.publication_uri)
 
 
-    @Pyro4.expose
-    @Pyro4.oneway
-    @pyro_expose
+    @expose
+    @oneway
+    @trace_api
     def close(self):
         client_endpoint = self._current_request_endpoint()
         log.i("<< CLOSE %s", str(client_endpoint))
@@ -294,8 +301,8 @@ class Server(IServer):
         log.i("# clients = %d", len(self._clients))
         log.i("# gets = %d", len(self.gets))
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def rpwd(self) -> Response:
         # NOT NEEDED
         log.i("<< RPWD %s", str(self._current_request_endpoint()))
@@ -306,8 +313,8 @@ class Server(IServer):
 
         return create_success_response(client.rpwd)
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def rcd(self, path: str) -> Response:
         if not path:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
@@ -337,8 +344,8 @@ class Server(IServer):
 
         return create_success_response(client.rpwd)
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def rtree(self, *, path: str = None, sort_by: List[str] = None,
               reverse: bool = False, hidden: bool = False,
               max_depth: int = None, ) -> Response:
@@ -372,8 +379,8 @@ class Server(IServer):
             log.e("RTREE error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def rmkdir(self, directory: str) -> Response:
         client = self._current_request_client()
 
@@ -403,8 +410,8 @@ class Server(IServer):
             log.e("RMKDIR error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def rrm(self, paths: List[str]) -> Response:
         client = self._current_request_client()
 
@@ -459,8 +466,8 @@ class Server(IServer):
             log.e("RRM error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def rmv(self, sources: List[str], destination: str) -> Response:
         client = self._current_request_client()
 
@@ -523,8 +530,8 @@ class Server(IServer):
             log.e("RMV error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def rcp(self, sources: List[str], destination: str) -> Response:
         client = self._current_request_client()
 
@@ -587,13 +594,13 @@ class Server(IServer):
             log.e("RCP error: %s", str(ex))
             return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def ping(self):
         return create_success_response("pong")
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def put(self) -> Response:
         client = self._current_request_client()
         if not client:
@@ -621,8 +628,8 @@ class Server(IServer):
             "port": transaction_handler.port()
         })
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def get(self, files: List[str]) -> Response:
         client = self._current_request_client()
         if not client:
@@ -651,8 +658,8 @@ class Server(IServer):
             "port": transaction_handler.port()
         })
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def put_next_info(self, transaction_id, finfo: FileInfo) -> Response:
         client = self._current_request_client()
 
@@ -708,8 +715,8 @@ class Server(IServer):
 
         return create_success_response()
 
-    @Pyro4.expose
-    @pyro_expose
+    @expose
+    @trace_api
     def get_next_info(self, transaction_id) -> Response:
         client = self._current_request_client()
 
@@ -800,7 +807,8 @@ class Server(IServer):
         # Notify the client about it
         return create_success_response()
 
-    @pyro_expose
+    @expose
+    @trace_api
     def rexec(self, cmd: str) -> Response:
         client = self._current_request_client()
         if not client:
@@ -820,8 +828,8 @@ class Server(IServer):
         return create_success_response(uri)
 
     #
-    # @Pyro4.expose
-    # @pyro_expose
+    # @expose
+    # @trace_api
     # def rexec_recv(self, transaction_id: str) -> Response:
     #     log.i(">> REXEC RECV (%s)", transaction_id)
     #
@@ -836,8 +844,8 @@ class Server(IServer):
     #     return create_success_response(buf)
     #
     #
-    # @Pyro4.expose
-    # @pyro_expose
+    # @expose
+    # @trace_api
     # def rexec_send(self, transaction_id: str, data: List[str]) -> Response:
     #     log.i(">> REXEC SEND (%s)", transaction_id)
     #

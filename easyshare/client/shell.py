@@ -4,7 +4,7 @@ import logging as pylogging
 
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
-from Pyro4.errors import PyroError
+from Pyro5.errors import PyroError
 
 from easyshare import logging
 from easyshare.args import Args

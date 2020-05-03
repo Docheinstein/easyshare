@@ -1,8 +1,8 @@
 import subprocess
 import threading
-from typing import Optional, Union, List, Callable
+from typing import Optional, List, Callable
 
-import Pyro4
+from Pyro5.api import expose
 
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
@@ -11,7 +11,7 @@ from easyshare.protocol.response import Response, create_success_response, creat
 from easyshare.server.client import ClientContext
 from easyshare.server.clientpublication import ClientPublication, check_publication_owner
 from easyshare.utils.os import run_detached
-from easyshare.utils.pyro import pyro_client_endpoint, pyro_expose
+from easyshare.utils.pyro import pyro_client_endpoint, trace_api
 from easyshare.utils.types import is_int
 
 
@@ -64,7 +64,8 @@ class RexecTransaction(IRexecTransaction, ClientPublication):
         self.proc: Optional[subprocess.Popen] = None
         self.proc_handler: Optional[threading.Thread] = None
 
-    @pyro_expose
+    @expose
+    @trace_api
     @check_publication_owner
     def recv(self) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -101,7 +102,8 @@ class RexecTransaction(IRexecTransaction, ClientPublication):
         return create_success_response(data)
 
 
-    @pyro_expose
+    @expose
+    @trace_api
     @check_publication_owner
     def send_data(self, data: str) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -116,7 +118,8 @@ class RexecTransaction(IRexecTransaction, ClientPublication):
 
         return create_success_response()
 
-    @pyro_expose
+    @expose
+    @trace_api
     @check_publication_owner
     def send_event(self, ev: int) -> Response:
         client_endpoint = pyro_client_endpoint()

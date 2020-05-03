@@ -1,13 +1,13 @@
 import time
 
-import Pyro4
+from Pyro5.api import Daemon, expose
 
 from easyshare.tracing import enable_tracing
 from easyshare.utils.net import get_primary_ip
-from easyshare.utils.pyro import pyro_expose, pyro_client_endpoint
+from easyshare.utils.pyro import pyro_client_endpoint, trace_api
 
 SUCCESS = {"success": True}
-pyro_daemon = Pyro4.Daemon(host=get_primary_ip())
+pyro_daemon = Daemon(host=get_primary_ip())
 
 
 class PyroWorker:
@@ -16,13 +16,15 @@ class PyroWorker:
         self.on_end = on_end
         self.counter = 0
 
-    @pyro_expose
+    @expose
+    @trace_api
     def work(self):
         resp = {"success": True, "data": "Work done for you ({})!".format(self.counter)}
         self.counter += 1
         return resp
 
-    @pyro_expose
+    @expose
+    @trace_api
     def done(self):
         if self.on_end:
             self.on_end()
@@ -31,18 +33,21 @@ class PyroWorker:
 
 
 class PyroServer:
-    @pyro_expose
+    @expose
+    @trace_api
     def hello(self, *args):
         return SUCCESS
 
 
-    @pyro_expose
+    @expose
+    @trace_api
     def block(self, t):
         time.sleep(int(t))
 
         return SUCCESS
 
-    @pyro_expose
+    @expose
+    @trace_api
     def make(self, *args):
         def on_end():
             print("Unregistering worker")

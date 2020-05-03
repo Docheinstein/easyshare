@@ -38,5 +38,5 @@ setup(
     license="MIT",
     keywords="easyshare",
     url="https://github.com/Docheinstein/easyshare",
-    install_requires=['Pyro4', 'colorama', 'termcolor']
+    install_requires=['Pyro5', 'colorama', 'termcolor']
 )

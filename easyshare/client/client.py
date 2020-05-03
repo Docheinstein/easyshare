@@ -9,7 +9,7 @@ from getpass import getpass
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar
 
-import Pyro4
+from Pyro5 import api as pyro
 
 from easyshare.client.args import PositionalArgs, StopParseArgs, VariadicArgs, ArgsParser
 from easyshare.client.commands import Commands, is_special_command
@@ -36,6 +36,7 @@ from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint
 from easyshare.utils.colors import red
 from easyshare.utils.json import json_to_pretty_str
+from easyshare.utils.pyro import TracedPyroProxy
 from easyshare.utils.ssl import parse_ssl_certificate, SSLCertificate, create_client_ssl_context
 from easyshare.utils.types import to_int, bool_to_str, bytes_to_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached
@@ -181,6 +182,7 @@ def provide_sharing_connection(api: API) -> API:
             log.d("Closing temporary server connection")
             server_conn.disconnect()
 
+    provide_sharing_connection_api_wrapper.__name__ = api.__name__
     return provide_sharing_connection_api_wrapper
 
 
@@ -205,6 +207,8 @@ def provide_server_connection(api: API) -> API:
         if server_conn != client.server_connection:
             log.d("Disconnecting temporary server connection")
             server_conn.disconnect()
+
+    provide_server_connection_api_wrapper.__name__ = api.__name__
 
     return provide_server_connection_api_wrapper
 
@@ -295,6 +299,10 @@ class Client:
             Commands.REMOTE_EXEC_SHORT: (serverconnection_parser_provider, [StopParseArgs(), StopParseArgs(1)],
                                          self.rexec),
 
+            Commands.GET: self.get,
+            Commands.PUT: self.put,
+
+
             Commands.SCAN: (connectionless_parser_provider, [ScanArgs()],
                             self.scan),
 
@@ -311,14 +319,12 @@ class Client:
 
             Commands.OPEN: (serverconnection_parser_provider, [PositionalArgs(1), PositionalArgs(1)],
                             self.open),
-            Commands.CLOSE: (serverconnection_parser_provider, [PositionalArgs(0), PositionalArgs(1)],
+            Commands.CLOSE: (sharingconnection_parser_provider, [PositionalArgs(0), PositionalArgs(1)],
                              self.close),
-
-            Commands.GET: self.get,
-            Commands.PUT: self.put,
 
             Commands.PING: (serverconnection_parser_provider, [PingArgs(0), PingArgs(1)],
                             self.ping),
+
         }
 
     def has_command(self, command: str) -> bool:
@@ -380,7 +386,7 @@ class Client:
     # === LOCAL COMMANDS ===
 
     @staticmethod
-    def cd(args: Args):
+    def cd(args: Args, _):
         directory = pathify(args.get_varg(default="~"))
 
         log.i(">> CD %s", directory)
@@ -391,7 +397,7 @@ class Client:
         os.chdir(directory)
 
     @staticmethod
-    def ls(args: Args):
+    def ls(args: Args, _):
 
         def ls_provider(path, **kwargs):
             path = pathify(path or os.getcwd())
@@ -401,7 +407,7 @@ class Client:
         Client._ls(args, data_provider=ls_provider, data_provider_name="LS")
 
     @staticmethod
-    def l(args: Args):
+    def l(args: Args, _):
         # Just call ls -la
         # Reuse the parsed args for keep the (optional) path
         args._parsed[LsArgs.SHOW_ALL[0]] = True
@@ -409,7 +415,7 @@ class Client:
         Client.ls(args)
 
     @staticmethod
-    def tree(args: Args):
+    def tree(args: Args, _):
 
         def tree_provider(path, **kwargs):
             path = pathify(path or os.getcwd())
@@ -419,7 +425,7 @@ class Client:
         Client._tree(args, data_provider=tree_provider, data_provider_name="TREE")
 
     @staticmethod
-    def mkdir(args: Args):
+    def mkdir(args: Args, _):
         directory = pathify(args.get_varg())
 
         if not directory:
@@ -430,13 +436,13 @@ class Client:
         os.mkdir(directory)
 
     @staticmethod
-    def pwd(_: Args):
+    def pwd(_: Args, _2):
         log.i(">> PWD")
 
         print(os.getcwd())
 
     @staticmethod
-    def rm(args: Args):
+    def rm(args: Args, _):
         paths = [pathify(p) for p in args.get_vargs()]
 
         if not paths:
@@ -448,15 +454,15 @@ class Client:
             rm(p, error_callback=lambda err: eprint(err))
 
     @staticmethod
-    def mv(args: Args):
+    def mv(args: Args, _):
         Client._mvcp(args, mv, "MV")
 
     @staticmethod
-    def cp(args: Args):
+    def cp(args: Args, _):
         Client._mvcp(args, cp, "CP")
 
     @staticmethod
-    def exec(args: Args):
+    def exec(args: Args, _):
         exec_args = args.get_unparsed_args()
         exec_fullarg = " ".join(exec_args)
         log.i(">> EXEC %s", exec_fullarg)
@@ -577,79 +583,80 @@ class Client:
         rexec_uri = rexec_resp.get("data")
 
         log.d("Rexec handler URI: %s", rexec_uri)
-        rexec_transaction: Union[Pyro4.Proxy, IRexecTransaction] = Pyro4.Proxy(rexec_uri)
-        Pyro4.asyncproxy(rexec_transaction)
 
-        retcode = None
+        rexec_proxy: Union[TracedPyroProxy, IRexecTransaction]
 
-        # --- STDOUT RECEIVER ---
+        with TracedPyroProxy(rexec_uri) as rexec_proxy:
 
-        def rexec_stdout_receiver():
-            nonlocal retcode
-            # nonlocal connection
-            nonlocal rexec_transaction
+            retcode = None
 
+            # --- STDOUT RECEIVER ---
+
+            def rexec_stdout_receiver():
+                rexec_polling_proxy: Union[TracedPyroProxy, IRexecTransaction]
+
+                with TracedPyroProxy(rexec_uri) as rexec_polling_proxy:
+                    nonlocal retcode
+
+                    while retcode is None:
+                        resp = rexec_polling_proxy.recv()
+
+                        if is_error_response(resp):
+                            raise BadOutcome(resp.get("error"))
+
+                        recv_data = resp.get("data")
+
+                        # log.d("REXEC recv: %s", str(recv))
+                        stdout = recv_data.get("stdout")
+                        stderr = recv_data.get("stderr")
+                        retcode = recv_data.get("retcode")
+
+                        for line in stdout:
+                            print(line, end="", flush=True)
+
+                        for line in stderr:
+                            print(red(line), end="", flush=True)
+
+                    log.i("REXEC done (%d)", retcode)
+
+
+            rexec_stdout_receiver_th = threading.Thread(
+                target=rexec_stdout_receiver, daemon=True)
+            rexec_stdout_receiver_th.start()
+
+            # --- STDIN SENDER ---
+
+            # Put stdin in non-blocking mode
+
+            stding_flags = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
+            fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags | os.O_NONBLOCK)
+
+            # try:
             while retcode is None:
-                resp = rexec_transaction.recv().value
+                try:
+                    rlist, wlist, xlist = select.select([sys.stdin], [], [], 0.04)
 
-                if is_error_response(resp):
-                    raise BadOutcome(resp.get("error"))
+                    if sys.stdin in rlist:
+                        data_b = sys.stdin.buffer.read()
 
-                recv_data = resp.get("data")
+                        if data_b:
+                            data_s = bytes_to_str(data_b)
+                            log.d("Sending data: %s", data_s)
+                            rexec_proxy.send_data(data_s)
+                        else:
+                            log.d("rexec CTRL+D")
+                            rexec_proxy.send_event(IRexecTransaction.Event.EOF)
+                except KeyboardInterrupt:
+                    log.d("rexec CTRL+C")
+                    rexec_proxy.send_event(IRexecTransaction.Event.TERMINATE)
 
-                # log.d("REXEC recv: %s", str(recv))
-                stdout = recv_data.get("stdout")
-                stderr = recv_data.get("stderr")
-                retcode = recv_data.get("retcode")
+            # Restore stdin in blocking mode
 
-                for line in stdout:
-                    print(line, end="", flush=True)
+            fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags)
 
-                for line in stderr:
-                    print(red(line), end="", flush=True)
+            # Wait everybody
 
-            log.i("REXEC done (%d)", retcode)
-
-        rexec_stdout_receiver_th = threading.Thread(
-            target=rexec_stdout_receiver, daemon=True)
-        rexec_stdout_receiver_th.start()
-
-        # --- STDIN SENDER ---
-
-        # Put stdin in non-blocking mode
-
-        stding_flags = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
-        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags | os.O_NONBLOCK)
-
-        # try:
-        while retcode is None:
-            try:
-                rlist, wlist, xlist = select.select([sys.stdin], [], [], 0.04)
-
-                if sys.stdin in rlist:
-                    data_b = sys.stdin.buffer.read()
-
-                    if data_b:
-                        data_s = bytes_to_str(data_b)
-                        log.d("Sending data: %s", data_s)
-                        rexec_transaction.send_data(data_s)
-                    else:
-                        log.d("rexec CTRL+D")
-                        rexec_transaction.send_event(IRexecTransaction.Event.EOF)
-            except KeyboardInterrupt:
-                log.d("rexec CTRL+C")
-                rexec_transaction.send_event(IRexecTransaction.Event.TERMINATE)
-
-        # Restore stdin in blocking mode
-
-        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags)
-
-        # Wait everybody
-
-        rexec_stdout_receiver_th.join()
-
-        # Close the underlying proxy connection
-        rexec_transaction._pyroRelease()
+            rexec_stdout_receiver_th.join()
 
     @provide_server_connection
     def ping(self, args: Args, connection: ServerConnection = None):

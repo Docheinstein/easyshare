@@ -1,7 +1,7 @@
 from typing import Any, TypeVar, Callable, Optional
 
 from easyshare.tracing import is_tracing_enabled
-import Pyro4
+from Pyro5 import api as pyro
 
 from easyshare.protocol.response import Response
 from easyshare.shared.endpoint import Endpoint
@@ -11,10 +11,10 @@ from easyshare.utils.trace import args_to_str
 
 
 def pyro_client_endpoint() -> Endpoint:
-    return Pyro4.current_context.client_sock_addr
+    return pyro.current_context.client_sock_addr
 
 
-class TracedPyroProxy(Pyro4.Proxy):
+class TracedPyroProxy(pyro.Proxy):
 
     LOCAL_ATTR_PREFIX = "_easyshare"
 
@@ -44,15 +44,14 @@ class TracedPyroProxy(Pyro4.Proxy):
 
     def __setattr__(self, key, value):
         if key.startswith(TracedPyroProxy.LOCAL_ATTR_PREFIX):
-            return super(Pyro4.Proxy, self).__setattr__(key, value)   # local attributes
+            return super(pyro.Proxy, self).__setattr__(key, value)   # local attributes
         return super().__setattr__(key, value)                        # dispatch to pyro
 
 
 API = TypeVar('API', bound=Callable[..., Any])
 
-
-def pyro_expose(api: API) -> API:
-    def expose_wrapper(pyro_obj, *vargs, **kwargs) -> Optional[Response]:
+def trace_api(api: API) -> API:
+    def trace_api_wrapper(pyro_obj, *vargs, **kwargs) -> Optional[Response]:
         requester = pyro_client_endpoint()
 
         api_name = pyro_obj.__class__.__name__ + "." + api.__name__
@@ -69,12 +68,35 @@ def pyro_expose(api: API) -> API:
         # else: should be a one-way call without response
         return resp
 
-    expose_wrapper.__name__ = api.__name__
-    expose_wrapper._pyroExposed = True
+    trace_api_wrapper.__name__ = api.__name__
 
-    return expose_wrapper
+    return trace_api_wrapper
 
-
-def pyro_oneway(api: API) -> API:
-    api._pyroOneway = True
-    return api
+#
+# def pyro_expose(api: API) -> API:
+#     def expose_wrapper(pyro_obj, *vargs, **kwargs) -> Optional[Response]:
+#         requester = pyro_client_endpoint()
+#
+#         api_name = pyro_obj.__class__.__name__ + "." + api.__name__
+#         trace_in("{} ({})".format(api_name, args_to_str(vargs, kwargs)),
+#                  ip=requester[0],
+#                  port=requester[1])
+#
+#         resp = api(pyro_obj, *vargs, **kwargs)
+#
+#         if resp:
+#             trace_out("{}\n{}".format(api_name, json_to_pretty_str(resp)),
+#                       ip=requester[0],
+#                       port=requester[1])
+#         # else: should be a one-way call without response
+#         return resp
+#
+#     expose_wrapper.__name__ = api.__name__
+#     expose_wrapper._pyroExposed = True
+#
+#     return expose_wrapper
+#
+#
+# def pyro_oneway(api: API) -> API:
+#     api._pyroOneway = True
+#     return api

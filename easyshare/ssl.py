@@ -1,8 +1,8 @@
 import ssl
 from typing import Optional
 
-import Pyro4
-from Pyro4 import socketutil
+import Pyro5
+import Pyro5.socketutil
 
 from easyshare.logging import get_logger
 
@@ -21,7 +21,7 @@ def set_ssl_context(ssl_context: Optional[ssl.SSLContext]):
     _ssl_context = ssl_context
 
     # Override pyro ssl context getter
-    Pyro4.config.SSL = True if ssl_context else False
-    socketutil.getSSLcontext = get_ssl_context
+    Pyro5.config.SSL = True if ssl_context else False
+    Pyro5.socketutil.get_ssl_context = get_ssl_context
 
     log.i("SSL: %s", "enabled" if _ssl_context else "disabled")

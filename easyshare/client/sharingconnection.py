@@ -1,20 +1,15 @@
-import ssl
-from typing import List, Union, Optional
+from typing import Union
 
-import Pyro4
 
 from easyshare.client.errors import ClientErrors
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
-from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response, create_error_response, is_success_response, is_data_response, \
     is_error_response
-from easyshare.protocol.pyro import IServer, IServing
+from easyshare.protocol.pyro import IServing
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
-from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.utils.pyro import TracedPyroProxy
-from easyshare.utils.ssl import create_client_ssl_context
 
 log = get_logger(__name__)
 

@@ -7,7 +7,6 @@ import socket
 import threading
 import time
 
-import Pyro4
 
 from typing import Dict, Optional, List, Any, Callable, TypeVar, Union
 
@@ -38,7 +37,6 @@ from easyshare.utils.colors import enable_colors
 from easyshare.utils.json import json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
 from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv, run_detached
-from easyshare.utils.pyro import pyro_expose, pyro_client_endpoint
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfy, unprefix, randstring
 from easyshare.utils.trace import args_to_str

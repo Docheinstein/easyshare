@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Union
 
-import Pyro4
+import Pyro5
 
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response
@@ -13,15 +13,15 @@ class IRexecTransaction(ABC):
         EOF = 1
 
     @abstractmethod
-    def recv(self) -> Union[Pyro4.futures.FutureResult, Response]:
+    def recv(self) -> Response:
         pass
 
     @abstractmethod
-    def send_data(self, data: str) -> Union[Pyro4.futures.FutureResult, Response]:
+    def send_data(self, data: str) -> Response:
         pass
 
     @abstractmethod
-    def send_event(self, ev: int) -> Union[Pyro4.futures.FutureResult, Response]:
+    def send_event(self, ev: int) -> Response:
         pass
 
 
