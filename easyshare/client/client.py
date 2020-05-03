@@ -148,6 +148,19 @@ class PutArguments:
 # ==================================================================
 
 
+def ensure_success_response(resp: Response):
+    if is_error_response(resp):
+        raise BadOutcome(resp.get("error"))
+    if not is_success_response(resp):
+        raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+def ensure_data_response(resp: Response):
+    if is_error_response(resp):
+        raise BadOutcome(resp.get("error"))
+    if not is_success_response(resp):
+        raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+
 def response_error_string(resp: Response) -> str:
     return errcode_string(resp.get("error"))
 
@@ -233,10 +246,10 @@ class Client:
         self._certs_cache: Dict[Endpoint, dict] = {}
 
 
-        def connectionless_parser_provider(parser: ArgsParser) -> ArgsParser:
+        def LOCAL(parser: ArgsParser) -> ArgsParser:
             return parser
 
-        def serverconnection_parser_provider(connectionful_parser: ArgsParser, connectionless_parser: ArgsParser) -> ArgsParser:
+        def SERVER(connectionful_parser: ArgsParser, connectionless_parser: ArgsParser) -> ArgsParser:
             if self.is_connected_to_server():
                 log.d("serverconnection_parser_provider -> 'already connect' parser")
                 return connectionful_parser
@@ -245,7 +258,7 @@ class Client:
             return connectionless_parser
 
 
-        def sharingconnection_parser_provider(connectionful_parser: ArgsParser, connectionless_parser: ArgsParser) -> ArgsParser:
+        def SHARING(connectionful_parser: ArgsParser, connectionless_parser: ArgsParser) -> ArgsParser:
             if self.is_connected_to_sharing():
                 log.d("sharingconnection_parser_provider -> 'already connect' parser")
                 return connectionful_parser
@@ -263,68 +276,132 @@ class Client:
             ]
         ] = {
 
-            Commands.LOCAL_CHANGE_DIRECTORY: (connectionless_parser_provider, [PositionalArgs(0, 1)],
-                                              Client.cd),
-            Commands.LOCAL_LIST_DIRECTORY: (connectionless_parser_provider, [LsArgs(0)],
-                                            Client.ls),
-            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (connectionless_parser_provider, [PositionalArgs(0, 1)],
-                                                     Client.l),
-            Commands.LOCAL_TREE_DIRECTORY: (connectionless_parser_provider, [TreeArgs(0)],
-                                            Client.tree),
-            Commands.LOCAL_CREATE_DIRECTORY: (connectionless_parser_provider, [PositionalArgs(1)],
-                                              Client.mkdir),
-            Commands.LOCAL_CURRENT_DIRECTORY: (connectionless_parser_provider, [PositionalArgs(0)],
-                                               Client.pwd),
-            Commands.LOCAL_REMOVE: (connectionless_parser_provider, [VariadicArgs(1)],
-                                    Client.rm),
-            Commands.LOCAL_MOVE: (connectionless_parser_provider, [VariadicArgs(2)],
-                                  Client.mv),
-            Commands.LOCAL_COPY: (connectionless_parser_provider, [VariadicArgs(2)],
-                                  Client.cp),
-            Commands.LOCAL_EXEC: (connectionless_parser_provider, [StopParseArgs()],
-                                  Client.exec),
-            Commands.LOCAL_EXEC_SHORT: (connectionless_parser_provider, [StopParseArgs()],
-                                        Client.exec),
+            Commands.LOCAL_CHANGE_DIRECTORY: (
+                LOCAL,
+                [PositionalArgs(0, 1)],
+                Client.cd),
+            Commands.LOCAL_LIST_DIRECTORY: (
+                LOCAL,
+                [LsArgs(0)],
+                Client.ls),
+            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (
+                LOCAL,
+                [PositionalArgs(0, 1)],
+                Client.l),
+            Commands.LOCAL_TREE_DIRECTORY: (
+                LOCAL,
+                [TreeArgs(0)],
+                Client.tree),
+            Commands.LOCAL_CREATE_DIRECTORY: (
+                LOCAL,
+                [PositionalArgs(1)],
+                Client.mkdir),
+            Commands.LOCAL_CURRENT_DIRECTORY: (
+                LOCAL,
+                [PositionalArgs(0)],
+                Client.pwd),
+            Commands.LOCAL_REMOVE: (
+                LOCAL,
+                [VariadicArgs(1)],
+                Client.rm),
+            Commands.LOCAL_MOVE: (
+                LOCAL,
+                [VariadicArgs(2)],
+                Client.mv),
+            Commands.LOCAL_COPY: (
+                LOCAL,
+                [VariadicArgs(2)],
+                Client.cp),
+            Commands.LOCAL_EXEC: (
+                LOCAL,
+                [StopParseArgs()],
+                Client.exec),
+            Commands.LOCAL_EXEC_SHORT: (
+                LOCAL,
+                [StopParseArgs()],
+                Client.exec),
 
-            Commands.REMOTE_CHANGE_DIRECTORY: (PositionalArgs(0, 1), PositionalArgs(1, 1), self.rcd),
-            Commands.REMOTE_LIST_DIRECTORY: (LsArgs(0), LsArgs(1), self.rls),
-            Commands.REMOTE_TREE_DIRECTORY: (TreeArgs(0), TreeArgs(1), self.rtree),
-            Commands.REMOTE_CREATE_DIRECTORY: (PositionalArgs(1), PositionalArgs(2), self.rmkdir),
-            Commands.REMOTE_CURRENT_DIRECTORY: (PositionalArgs(0), PositionalArgs(1), self.rpwd),
-            Commands.REMOTE_REMOVE: (VariadicArgs(1), VariadicArgs(2), self.rrm),
-            Commands.REMOTE_MOVE: (VariadicArgs(2), VariadicArgs(3), self.rmv),
-            Commands.REMOTE_COPY: (VariadicArgs(2), VariadicArgs(3), self.rcp),
-            Commands.REMOTE_EXEC: (serverconnection_parser_provider, [StopParseArgs(), StopParseArgs(1)],
-                                   self.rexec),
-            Commands.REMOTE_EXEC_SHORT: (serverconnection_parser_provider, [StopParseArgs(), StopParseArgs(1)],
-                                         self.rexec),
+            Commands.REMOTE_CHANGE_DIRECTORY: (
+                SHARING,
+                [PositionalArgs(0, 1), PositionalArgs(1, 1)],
+                self.rcd),
+            Commands.REMOTE_LIST_DIRECTORY: (
+                SHARING,
+                [LsArgs(0), LsArgs(1)],
+                self.rls),
+            Commands.REMOTE_TREE_DIRECTORY: (
+                SHARING,
+                [TreeArgs(0), TreeArgs(1)],
+                self.rtree),
+            Commands.REMOTE_CREATE_DIRECTORY: (
+                SHARING,
+                [PositionalArgs(1), PositionalArgs(2)],
+                self.rmkdir),
+            Commands.REMOTE_CURRENT_DIRECTORY: (
+                SHARING,
+                [PositionalArgs(0), PositionalArgs(1)],
+                self.rpwd),
+            Commands.REMOTE_REMOVE: (
+                SHARING,
+                self.rrm),
+            Commands.REMOTE_MOVE: (
+                SHARING,
+                [VariadicArgs(2), VariadicArgs(3)],
+                self.rmv),
+            Commands.REMOTE_COPY: (
+                SHARING,
+                [VariadicArgs(2), VariadicArgs(3)],
+                self.rcp),
+            Commands.REMOTE_EXEC: (
+                SERVER,
+                [StopParseArgs(), StopParseArgs(1)],
+                self.rexec),
+            Commands.REMOTE_EXEC_SHORT: (
+                SERVER,
+                [StopParseArgs(), StopParseArgs(1)],
+                self.rexec),
 
             Commands.GET: self.get,
             Commands.PUT: self.put,
 
 
-            Commands.SCAN: (connectionless_parser_provider, [ScanArgs()],
-                            self.scan),
+            Commands.SCAN: (
+                LOCAL,
+                [ScanArgs()],
+                self.scan),
 
-            Commands.INFO: (serverconnection_parser_provider, [PositionalArgs(0, 1), PositionalArgs(1, 0)],
-                            self.info),
+            Commands.INFO: (
+                SERVER,
+                [PositionalArgs(0, 1), PositionalArgs(1, 0)],
+                self.info),
 
-            Commands.LIST: (serverconnection_parser_provider, [ListArgs(0), ListArgs(1)],
-                            self.list),
+            Commands.LIST: (
+                SERVER,
+                [ListArgs(0), ListArgs(1)],
+                self.list),
 
-            Commands.CONNECT: (serverconnection_parser_provider, [PositionalArgs(1), PositionalArgs(1)],
-                               self.connect),
-            Commands.DISCONNECT: (serverconnection_parser_provider, [PositionalArgs(0), PositionalArgs(1)],
-                                  self.disconnect),
+            Commands.CONNECT: (
+                SERVER,
+                [PositionalArgs(1), PositionalArgs(1)],
+                self.connect),
+            Commands.DISCONNECT: (
+                SERVER,
+                [PositionalArgs(0), PositionalArgs(1)],
+                self.disconnect),
 
-            Commands.OPEN: (serverconnection_parser_provider, [PositionalArgs(1), PositionalArgs(1)],
-                            self.open),
-            Commands.CLOSE: (sharingconnection_parser_provider, [PositionalArgs(0), PositionalArgs(1)],
-                             self.close),
+            Commands.OPEN: (
+                SERVER,
+                [PositionalArgs(1), PositionalArgs(1)],
+                self.open),
+            Commands.CLOSE: (
+                SHARING,
+                [PositionalArgs(0), PositionalArgs(1)],
+                self.close),
 
-            Commands.PING: (serverconnection_parser_provider, [PingArgs(0), PingArgs(1)],
-                            self.ping),
-
+            Commands.PING: (
+                SERVER,
+                [PingArgs(0), PingArgs(1)],
+                self.ping),
         }
 
     def has_command(self, command: str) -> bool:
@@ -539,6 +616,7 @@ class Client:
 
         # Have we found the sharing yet or do we have to perform a scan?
         if not new_server_conn or not new_sharing_conn:
+            # Performs a scan
             new_sharing_conn, new_server_conn = self._create_sharing_connection_from_sharing_spec(sharing_spec)
 
         if new_sharing_conn and \
@@ -576,9 +654,7 @@ class Client:
         log.i(">> REXEC %s", popen_fullarg)
 
         rexec_resp = connection.rexec(popen_fullarg)
-
-        if is_error_response(rexec_resp):
-            raise BadOutcome(rexec_resp.get("error"))
+        ensure_data_response(rexec_resp)
 
         rexec_uri = rexec_resp.get("data")
 
@@ -600,9 +676,7 @@ class Client:
 
                     while retcode is None:
                         resp = rexec_polling_proxy.recv()
-
-                        if is_error_response(resp):
-                            raise BadOutcome(resp.get("error"))
+                        ensure_data_response(resp)
 
                         recv_data = resp.get("data")
 
@@ -649,6 +723,8 @@ class Client:
                 except KeyboardInterrupt:
                     log.d("rexec CTRL+C")
                     rexec_proxy.send_event(IRexecTransaction.Event.TERMINATE)
+                    # Design choice: do not break here but wait that the remote
+                    # notify us about the command completion
 
             # Restore stdin in blocking mode
 
@@ -798,12 +874,7 @@ class Client:
         log.i(">> LIST")
 
         resp = connection.list()
-
-        if is_error_response(resp):
-            raise BadOutcome(resp.get("error"))
-
-        if not is_data_response(resp):
-            raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+        ensure_data_response(resp)
 
         print(Client._sharings_string(resp.get("data"),
                                       details=show_details))
@@ -827,7 +898,11 @@ class Client:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         log.i(">> RPWD")
-        print(connection.rpwd())
+        resp = connection.rpwd()
+        ensure_data_response(resp)
+
+        rcwd = resp.get("data")
+        print(rcwd)
 
     @provide_sharing_connection
     def rcd(self, args: Args, connection: SharingConnection = None):
@@ -839,9 +914,9 @@ class Client:
         log.i(">> RCD %s", directory)
 
         resp = connection.rcd(directory)
+        ensure_data_response(resp)
 
-        if is_error_response(resp):
-            raise BadOutcome(resp.get("error"))
+        log.d("Current rcwd: %s", connection._rcwd)
 
     @provide_sharing_connection
     def rls(self, args: Args, connection: SharingConnection = None):
@@ -850,8 +925,7 @@ class Client:
 
         def rls_provider(f, **kwargs):
             resp = connection.rls(**kwargs, path=f)
-            if is_error_response(resp):
-                raise BadOutcome(resp.get("error"))
+            ensure_data_response(resp)
             return resp.get("data")
 
         Client._ls(args, data_provider=rls_provider, data_provider_name="RLS")
@@ -863,8 +937,7 @@ class Client:
 
         def rtree_provider(f, **kwargs):
             resp = connection.rtree(**kwargs, path=f)
-            if is_error_response(resp):
-                raise BadOutcome(resp.get("error"))
+            ensure_data_response(resp)
             return resp.get("data")
 
         Client._tree(args, data_provider=rtree_provider, data_provider_name="RTREE")
@@ -882,9 +955,7 @@ class Client:
         log.i(">> RMKDIR %s", directory)
 
         resp = connection.rmkdir(directory)
-
-        if is_error_response(resp):
-            raise BadOutcome(resp.get("error"))
+        ensure_success_response(resp)
 
     @provide_sharing_connection
     def rrm(self, args: Args, connection: SharingConnection = None):
@@ -899,9 +970,7 @@ class Client:
         log.i(">> RRM %s ", paths)
 
         resp = connection.rrm(paths)
-
-        if is_error_response(resp):
-            raise BadOutcome(resp.get("error"))
+        ensure_success_response(resp)
 
         if is_data_response(resp, "errors"):
             errors = resp.get("data").get("errors")
@@ -1609,9 +1678,7 @@ class Client:
         log.i(">> %s %s -> %s", api_name, str(paths), dest)
 
         resp = api(paths, dest)
-
-        if is_error_response(resp):
-            raise BadOutcome(resp.get("error"))
+        ensure_success_response(resp)
 
         if is_data_response(resp, "errors"):
             errors = resp.get("data").get("errors")

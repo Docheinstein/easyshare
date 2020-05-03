@@ -38,6 +38,8 @@ def handle_server_response(api):
             conn._destroy_connection()
         return resp
 
+    handle_server_response_api_wrapper.__name__ = __name__
+
     return handle_server_response_api_wrapper
 
 
@@ -45,9 +47,9 @@ class ServerConnection:
 
     def __init__(self, server_info: ServerInfo):
         log.d("Initializing new ServerConnection")
+        self._connected = False
 
         self.server_info: ServerInfo = server_info
-        self._connected = False
 
         # Create the proxy for the remote server
         self.server: Union[IServer, TracedPyroProxy] = TracedPyroProxy(

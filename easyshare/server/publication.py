@@ -1,7 +1,7 @@
 from collections import Callable
 
 from easyshare.logging import get_logger
-from easyshare.server.daemon import unpublish_pyro_object, publish_pyro_object
+from easyshare.server.daemon import get_pyro_daemon
 from easyshare.utils.str import uuid
 
 
@@ -19,13 +19,13 @@ class Publication:
 
     def publish(self) -> str:
         self.publication_uri, self.publication_uid = \
-            publish_pyro_object(self, uid=self.publication_uid)
+            get_pyro_daemon().publish(self, uid=self.publication_uid)
         self.published = True
         return self.publication_uri
 
 
     def unpublish(self):
-        unpublish_pyro_object(self.publication_uid)
+        get_pyro_daemon().unpublish(self.publication_uid)
         self.published = False
 
         if self._unpublish_hook:

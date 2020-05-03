@@ -1,11 +1,10 @@
-from typing import Union
-
+from typing import Union, List
 
 from easyshare.client.errors import ClientErrors
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.response import Response, create_error_response, is_success_response, is_data_response, \
-    is_error_response
+    is_error_response, create_success_response
 from easyshare.protocol.pyro import IServing
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
@@ -22,6 +21,9 @@ def require_sharing_connection(api):
             return create_error_response(ClientErrors.NOT_CONNECTED)
         log.d("Sharing connection is valid, invoking %s", api.__name__)
         return api(conn, *vargs, **kwargs)
+
+    require_sharing_connection_api_wrapper.__name__ = api.__name__
+
     return require_sharing_connection_api_wrapper
 
 
@@ -36,6 +38,8 @@ def handle_sharing_response(api):
 
         return resp
 
+    handle_sharing_response_api_wrapper.__name__ = __name__
+
     return handle_sharing_response_api_wrapper
 
 
@@ -46,7 +50,8 @@ class SharingConnection:
         self.sharing_info: SharingInfo = sharing_info
         self.server_info: ServerInfo = server_info
 
-        self._connected = True
+        self._connected = True  # Start as connected,
+                                # we already have opened the remote serving
         self._rcwd = ""
 
         # Create the proxy for the remote sharing
@@ -76,107 +81,55 @@ class SharingConnection:
         self.serving.close()         # async
         self._destroy_connection()
 
-    #
-    # def rpwd(self) -> str:
-    #     return self._rpwd
-    #
-    # @handle_response
-    # @require_connection
-    # def rcd(self, path) -> Response:
-    #     resp_future: Union[Response, Pyro4.futures.FutureResult] = \
-    #         self.server.rcd(path)
-    #
-    #     resp = resp_future.value
-    #
-    #     if is_success_response(resp):
-    #         self._rpwd = resp["data"]
-    #
-    #     return resp
-    #
-    # @handle_response
-    # @require_connection
-    # def rls(self, sort_by: List[str], reverse: bool = False,
-    #         hidden: bool = False,  path: str = None) -> Response:
-    #     resp_future: Union[Response, Pyro4.futures.FutureResult] = \
-    #         self.server.rls(path=path, sort_by=sort_by,
-    #                         reverse=reverse, hidden=hidden)
-    #     return resp_future
-    #     # return resp_future.value
-    #
-    # @handle_response
-    # @require_connection
-    # def rtree(self, sort_by: List[str], reverse=False, hidden: bool = False,
-    #           max_depth: int = int, path: str = None) -> Response:
-    #     resp_future: Union[Response, Pyro4.futures.FutureResult] = \
-    #         self.server.rtree(path=path, sort_by=sort_by, reverse=reverse,
-    #                           hidden=hidden, max_depth=max_depth)
-    #
-    #     return resp_future.value
-    #
-    # @handle_response
-    # @require_connection
-    # def rmkdir(self, directory) -> Response:
-    #     resp_future: Union[Response, Pyro4.futures.FutureResult] = \
-    #         self.server.rmkdir(directory)
-    #
-    #     return resp_future.value
-    #
-    # @handle_response
-    # @require_connection
-    # def rrm(self, paths: List[str]) -> Response:
-    #     resp_future: Union[Response, Pyro4.futures.FutureResult] = \
-    #         self.server.rrm(paths)
-    #
-    #     return resp_future.value
-    #
-    # @handle_response
-    # @require_connection
-    # def rmv(self, sources: List[str], destination: str) -> Response:
-    #     resp_future: Union[Response, Pyro4.futures.FutureResult] = \
-    #         self.server.rmv(sources, destination)
-    #
-    #     return resp_future.value
-    #
-    # @handle_response
-    # @require_connection
-    # def rcp(self, sources: List[str], destination: str) -> Response:
-    #     resp_future: Union[Response, Pyro4.futures.FutureResult] = \
-    #         self.server.rcp(sources, destination)
-    #
-    #     return resp_future.value
-    #
-    # def ping(self) -> Response:
-    #     # if not self.is_connected():
-    #     #     return create_error_response(ClientErrors.NOT_CONNECTED)
-    #
-    #     return self.server.ping()
-    #
-    # # def rexec(self, cmd: str) -> Response:
-    # def rexec(self, cmd: str) -> Response:
-    #     # if not self.is_connected():
-    #     #     return create_error_response(ClientErrors.NOT_CONNECTED)
-    #
-    #     resp_future: Union[Response, Pyro4.futures.FutureResult] = \
-    #         self.server.rexec(cmd)
-    #
-    #     return resp_future
-    #
-    # def rexec_recv(self, transaction: str) -> Response:
-    #     # if not self.is_connected():
-    #     #     return create_error_response(ClientErrors.NOT_CONNECTED)
-    #     resp_future: Union[Response, Pyro4.futures.FutureResult] = \
-    #         self.server.rexec_recv(transaction)
-    #
-    #     return resp_future
-    #
-    # def rexec_send(self, transaction: str, data: str) -> Response:
-    #     # if not self.is_connected():
-    #     #     return create_error_response(ClientErrors.NOT_CONNECTED)
-    #     resp_future: Union[Response, Pyro4.futures.FutureResult] = \
-    #         self.server.rexec_send(transaction, data)
-    #
-    #     return resp_future
-    #
+
+    @require_sharing_connection
+    def rpwd(self) -> Response:
+        return create_success_response(self._rcwd)  # cached
+
+    @handle_sharing_response
+    @require_sharing_connection
+    def rcd(self, path) -> Response:
+        resp = self.serving.rcd(path)
+
+        if is_success_response(resp):
+            self._rcwd = resp["data"]
+
+        return resp
+
+    @handle_sharing_response
+    @require_sharing_connection
+    def rls(self, sort_by: List[str], reverse: bool = False,
+            hidden: bool = False,  path: str = None) -> Response:
+        return self.serving.rls(path=path, sort_by=sort_by,
+                                reverse=reverse, hidden=hidden)
+
+    @handle_sharing_response
+    @require_sharing_connection
+    def rtree(self, sort_by: List[str], reverse=False, hidden: bool = False,
+              max_depth: int = int, path: str = None) -> Response:
+        return self.serving.rtree(path=path, sort_by=sort_by, reverse=reverse,
+                                  hidden=hidden, max_depth=max_depth)
+
+    @handle_sharing_response
+    @require_sharing_connection
+    def rmkdir(self, directory) -> Response:
+        return self.serving.rmkdir(directory)
+
+    @handle_sharing_response
+    @require_sharing_connection
+    def rrm(self, paths: List[str]) -> Response:
+        return self.serving.rrm(paths)
+
+    @handle_sharing_response
+    @require_sharing_connection
+    def rmv(self, sources: List[str], destination: str) -> Response:
+        return self.serving.rmv(sources, destination)
+
+    @handle_sharing_response
+    @require_sharing_connection
+    def rcp(self, sources: List[str], destination: str) -> Response:
+        return self.serving.rcp(sources, destination)
+
     # def put(self) -> Response:
     #     if not self.is_connected():
     #         return create_error_response(ClientErrors.NOT_CONNECTED)

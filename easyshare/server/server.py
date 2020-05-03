@@ -7,7 +7,7 @@ import socket
 import threading
 import time
 
-from Pyro5 import api as pyro
+from Pyro5 import api as pyro, socketutil
 
 from typing import Dict, Optional, List, Any, Callable, TypeVar, Union
 
@@ -19,7 +19,7 @@ from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import create_success_response, create_error_response, Response
-from easyshare.server.daemon import init_pyro_daemon, publish_pyro_object, unpublish_pyro_objects, get_pyro_daemon
+from easyshare.server.daemon import init_pyro_daemon, get_pyro_daemon
 from easyshare.server.rexec import RexecTransaction
 from easyshare.server.serving import Serving
 from easyshare.server.sharing import Sharing
@@ -134,8 +134,10 @@ class Server(IServer):
         self._ssl_context = get_ssl_context()
 
         init_pyro_daemon(self._ip)
+        daemon = get_pyro_daemon()
 
-        self._pyro_uri, _ = publish_pyro_object(self)
+        daemon.add_disconnection_callback(self._handle_client_disconnect)
+        self._pyro_uri, _ = daemon.publish(self)
 
         log.i("Server registered at URI: %s", self._pyro_uri)
 
@@ -1167,3 +1169,8 @@ class Server(IServer):
         """
         return get_pyro_daemon().sock.getsockname()
 
+
+    def _handle_client_disconnect(self, pyroconn: socketutil.SocketConnection):
+        endpoint = pyroconn.sock.getpeername()
+        log.d("Cleaning up client %s resources", endpoint)
+        self._del_client(endpoint)

@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Set
 
 from easyshare.logging import get_logger
 from easyshare.server.publication import Publication
@@ -12,7 +12,7 @@ class ClientContext:
 
     def __init__(self, endpoint: Endpoint):
         self.endpoint: Optional[Endpoint] = endpoint
-        self.publications: List[Publication] = []
+        self.publications: Set[Publication] = set()
         self.tag = randstring(8)
 
     def __str__(self):
@@ -20,7 +20,7 @@ class ClientContext:
 
     def add_publication(self, pub: Publication):
         log.d("Publication [%s] added", pub.publication_uid)
-        self.publications.append(pub)
+        self.publications.add(pub)
 
 
     def remove_publication(self, pub: Publication):

@@ -1,36 +1,57 @@
-from typing import Optional, Any, Tuple, List
+from typing import Optional, Any, Tuple, List, Set, Callable, Union
 
 import Pyro5.api as pyro
 
 from easyshare.logging import get_logger
 from easyshare.utils.str import uuid
+from easyshare.utils.types import is_str
 
 log = get_logger(__name__)
 
-pyro_daemon: Optional[pyro.Daemon] = None
+
+class EsdDaemon(pyro.Daemon):
+    def __init__(self, *vargs, **kwargs):
+        super().__init__(*vargs, **kwargs)
+        self.disconnection_callbacks = set()
+
+    def add_disconnection_callback(self, callback):
+        self.disconnection_callbacks.add(callback)
+
+    def remove_disconnection_callback(self, callback):
+        self.disconnection_callbacks.remove(callback)
+
+    def publish(self, obj: Any, uid: str = None) -> Tuple[str, str]:  # uri, uid
+        obj_id = uid or uuid()
+        log.i("Publishing pyro object %s with uid='%s'",
+              obj.__class__.__name__, obj_id[:6] + "..." + obj_id[-6:])
+
+        return str(self.register(obj, objectId=obj_id)), obj_id
+
+    def unpublish(self, obj_ids: Union[str, List[str]]):
+        if is_str(obj_ids):
+            obj_ids = [obj_ids]
+
+        for obj_id in obj_ids:
+            log.i("Unpublishing pyro object with uid='%s'",
+                  obj_id[:6] + "..." + obj_id[-6:])
+            self.unregister(objectOrId=obj_id)
+
+    def clientDisconnect(self, conn):
+        log.i("Client disconnected: %s", conn)
+        log.d("Notifying %d listeners", len(self.disconnection_callbacks))
+        for cb in self.disconnection_callbacks:
+            cb(conn)
+
+
+pyro_daemon: Optional[EsdDaemon] = None
+
 
 def init_pyro_daemon(host: str):
     global pyro_daemon
     log.i("Initializing pyro daemon at %s", host)
-    pyro_daemon = pyro.Daemon(host=host)
+    pyro_daemon = EsdDaemon(host=host)
 
 
-def get_pyro_daemon():
+def get_pyro_daemon() -> Optional[EsdDaemon]:
     return pyro_daemon
 
-
-def publish_pyro_object(obj: Any, uid: str = None) -> Tuple[str, str]: # uri, uid
-    obj_id = uid or uuid()
-    log.i("Publishing pyro object %s with uid='%s'", obj.__class__.__name__, obj_id[:6] + "..." + obj_id[-6:])
-
-    return str(pyro_daemon.register(obj, objectId=obj_id)), obj_id
-
-
-def unpublish_pyro_object(obj_id: str):
-    log.i("Unpublishing pyro object with uid='%s'", obj_id[:6] + "..." + obj_id[-6:])
-    pyro_daemon.unregister(objectOrId=obj_id)
-
-
-def unpublish_pyro_objects(obj_ids: List[str]):
-    for obj_id in obj_ids:
-        unpublish_pyro_object(obj_id)

@@ -39,12 +39,14 @@ class IServing(ABC):
         pass
 
     @abstractmethod
-    def rls(self, *, path: str = None, sort_by: List[str] = None,
+    def rls(self, *,
+            path: str = None, sort_by: List[str] = None,
             reverse: bool = False, hidden: bool = False, ) -> Response:
         pass
 
     @abstractmethod
-    def rtree(self, *,  path: str = None, sort_by: List[str] = None,
+    def rtree(self, *,
+              path: str = None, sort_by: List[str] = None,
               reverse: bool = False, hidden: bool = False,
               max_depth: int = None,) -> Response:
         pass
