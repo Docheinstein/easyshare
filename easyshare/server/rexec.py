@@ -9,7 +9,8 @@ from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.pyro import IRexecTransaction
 from easyshare.protocol.response import Response, create_success_response, create_error_response
 from easyshare.server.client import ClientContext
-from easyshare.server.clientpublication import ClientPublication, check_publication_owner
+from easyshare.server.clientservice import check_service_owner, ClientService
+from easyshare.server.common import try_or_command_failed_response
 from easyshare.utils.os import run_detached
 from easyshare.utils.pyro import pyro_client_endpoint, trace_api
 from easyshare.utils.types import is_int
@@ -53,12 +54,11 @@ class BlockingBuffer:
         self._lock.release()
 
 
-class RexecTransaction(IRexecTransaction, ClientPublication):
+class RexecTransaction(IRexecTransaction, ClientService):
 
     def __init__(self, cmd: str, *,
-                 client: ClientContext,
-                 unpublish_hook: Callable = None):
-        super().__init__(client, unpublish_hook)
+                 client: ClientContext):
+        super().__init__(client)
         self._cmd = cmd
         self._buffer = BlockingBuffer()
         self.proc: Optional[subprocess.Popen] = None
@@ -66,7 +66,8 @@ class RexecTransaction(IRexecTransaction, ClientPublication):
 
     @expose
     @trace_api
-    @check_publication_owner
+    @check_service_owner
+    @try_or_command_failed_response
     def recv(self) -> Response:
         client_endpoint = pyro_client_endpoint()
 
@@ -97,14 +98,13 @@ class RexecTransaction(IRexecTransaction, ClientPublication):
         if retcode is not None:
             data["retcode"] = retcode
 
-            self.unpublish()
-
         return create_success_response(data)
 
 
     @expose
     @trace_api
-    @check_publication_owner
+    @check_service_owner
+    @try_or_command_failed_response
     def send_data(self, data: str) -> Response:
         client_endpoint = pyro_client_endpoint()
 
@@ -120,7 +120,8 @@ class RexecTransaction(IRexecTransaction, ClientPublication):
 
     @expose
     @trace_api
-    @check_publication_owner
+    @check_service_owner
+    @try_or_command_failed_response
     def send_event(self, ev: int) -> Response:
         client_endpoint = pyro_client_endpoint()
 

@@ -31,9 +31,9 @@ def require_server_connection(api):
 
 def handle_server_response(api):
     def handle_server_response_api_wrapper(conn: 'ServerConnection', *vargs, **kwargs) -> Response:
-        log.d("Invoking %s and handling response", api.__name__)
+        log.d("Invoking '%s' and handling response", api.__name__)
         resp = api(conn, *vargs, **kwargs)
-        log.d("Handling %s response", api.__name__)
+        log.d("Handling '%s' response", api.__name__)
         if is_error_response(resp, ServerErrors.NOT_CONNECTED):
             conn._destroy_connection()
         return resp
@@ -91,7 +91,6 @@ class ServerConnection:
     def disconnect(self) -> Response:
         resp = self.server.disconnect()
 
-        self._connected = False
         self._destroy_connection()
 
         return resp
@@ -124,7 +123,7 @@ class ServerConnection:
         self._connected = False
 
         if self.server:
-            log.d("Releasing server connection's pyro resource")
+            log.d("Releasing pyro resources of the server connection")
             self.server._pyroRelease()
             self.server = None
         else:

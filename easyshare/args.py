@@ -166,7 +166,7 @@ class Args:
 
                 if continue_parsing_hook:
                     cont = continue_parsing_hook(arg, cursor, ret, positionals)
-                    log.d("continue: %d", cont)
+                    log.d("continue: %s", cont)
 
                     if not cont:
                         log.i("Parsed stopped by the continue hook")

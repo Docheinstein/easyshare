@@ -9,7 +9,7 @@ from getpass import getpass
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar
 
-from Pyro5 import api as pyro
+from Pyro5.errors import PyroError
 
 from easyshare.client.args import PositionalArgs, StopParseArgs, VariadicArgs, ArgsParser
 from easyshare.client.commands import Commands, is_special_command
@@ -18,7 +18,7 @@ from easyshare.client.sharingconnection import SharingConnection
 from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors, print_errcode, errcode_string
 from easyshare.client.serverconnection import ServerConnection
-from easyshare.client.ui import ssl_certificate_to_str, print_files_info_list
+from easyshare.client.ui import ssl_certificate_to_str, print_files_info_list, print_files_info_tree
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
@@ -314,11 +314,11 @@ class Client:
                 Client.cp),
             Commands.LOCAL_EXEC: (
                 LOCAL,
-                [StopParseArgs()],
+                [StopParseArgs(1, 1)],
                 Client.exec),
             Commands.LOCAL_EXEC_SHORT: (
                 LOCAL,
-                [StopParseArgs()],
+                [StopParseArgs(1, 1)],
                 Client.exec),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (
@@ -354,11 +354,11 @@ class Client:
                 self.rcp),
             Commands.REMOTE_EXEC: (
                 SERVER,
-                [StopParseArgs(), StopParseArgs(1)],
+                [StopParseArgs(1, 1), StopParseArgs(2, 2)],
                 self.rexec),
             Commands.REMOTE_EXEC_SHORT: (
                 SERVER,
-                [StopParseArgs(), StopParseArgs(1)],
+                [StopParseArgs(1, 1), StopParseArgs(2, 2)],
                 self.rexec),
 
             Commands.GET: self.get,
@@ -444,12 +444,22 @@ class Client:
         try:
             executor(args, None)
             return 0
+
+        except PyroError:
+            # Pyro fail: destroy connection
+            log.exception("Pyro exception caught, destroying active connections...")
+            self.destroy_connection()
+            return ClientErrors.CONNECTION_ERROR
+
         except BadOutcome as ex:
-            log.exception("Internal trouble, throwing it up")
+            # "Expected" fail
+            log.exception("BadOutcome: %s", str(ex.args[0]))
             return ex.args[0]
-            # return ex.args[0]
+
         except Exception as ex:
+            # Every other unexpected fail: destroy connection
             log.exception("Exception caught while executing command\n%s", ex)
+            self.destroy_connection()
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
     def is_connected_to_server(self) -> bool:
@@ -540,13 +550,15 @@ class Client:
 
     @staticmethod
     def exec(args: Args, _):
-        exec_args = args.get_unparsed_args()
-        exec_fullarg = " ".join(exec_args)
-        log.i(">> EXEC %s", exec_fullarg)
-        retcode = run_attached(exec_fullarg)
+        popen_cmd = args.get_vargs(default=[])
+        popen_cmd_args = args.get_unparsed_args(default=[])
+        popen_full_command = " ".join(popen_cmd + popen_cmd_args)
+
+        log.i(">> EXEC %s", popen_full_command)
+
+        retcode = run_attached(popen_full_command)
         if retcode != 0:
             log.w("Command failed with return code: %d", retcode)
-            raise BadOutcome(ClientErrors.COMMAND_EXECUTION_FAILED)
 
 
     # =================================================
@@ -649,11 +661,13 @@ class Client:
 
     @provide_server_connection
     def rexec(self, args: Args, connection: ServerConnection = None):
-        popen_args = args.get_unparsed_args()
-        popen_fullarg = " ".join(popen_args)
-        log.i(">> REXEC %s", popen_fullarg)
+        popen_cmd = args.get_vargs(default=[])
+        popen_cmd_args = args.get_unparsed_args(default=[])
+        popen_full_command = " ".join(popen_cmd + popen_cmd_args)
 
-        rexec_resp = connection.rexec(popen_fullarg)
+        log.i(">> REXEC %s", popen_full_command)
+
+        rexec_resp = connection.rexec(popen_full_command)
         ensure_data_response(rexec_resp)
 
         rexec_uri = rexec_resp.get("data")
@@ -2027,3 +2041,15 @@ class Client:
                 return a_sharing_info
 
             return None
+
+    def destroy_connection(self):
+        try:
+            log.d("Destroying connection and invalidating it")
+            if self.is_connected_to_server():
+                self.server_connection.disconnect()
+        except:
+            log.w("Clean disconnection failed, invalidating connection anyway")
+        finally:
+            self.server_connection = None
+            self.sharing_connection = None
+

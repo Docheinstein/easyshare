@@ -1,29 +1,44 @@
-from typing import Callable
+import threading
 
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.response import create_error_response
 from easyshare.server.client import ClientContext
-from easyshare.server.publication import Publication
+from easyshare.server.daemon import get_pyro_daemon
 from easyshare.utils.pyro import pyro_client_endpoint
+from easyshare.utils.str import uuid
 
 log = get_logger(__name__)
 
 
-class ClientPublication(Publication):
-    def __init__(self, client: ClientContext, unpublish_hook: Callable):
-        super().__init__(unpublish_hook)
+class ClientService:
+    def __init__(self, client: ClientContext):
+        self.service_uri = None
+        self.service_uid = "esd_" + uuid()
+        self.published = False
+
         self._client = client
-        # self._real_client_endpoint = None
+        self._lock = threading.Lock()
+
 
     def publish(self) -> str:
-        super().publish()
-        self._client.add_publication(self)
-        return self.publication_uri
+        with self._lock:
+            self.service_uri, self.service_uid = \
+                get_pyro_daemon().publish(self, uid=self.service_uid)
+            self.published = True
+            self._client.add_service(self.service_uid)
+            return self.service_uri
 
     def unpublish(self):
-        super().unpublish()
-        self._client.remove_publication(self)
+        with self._lock:
+            if self.is_published():
+                get_pyro_daemon().unpublish(self.service_uid)
+                self.published = False
+                self._client.remove_service(self.service_uid)
+
+
+    def is_published(self) -> bool:
+        return self.published
 
     def _is_request_allowed(self):
         # Check whether the client that tries to access this publication
@@ -52,17 +67,17 @@ class ClientPublication(Publication):
         allowed = self._client.endpoint[0] == current_client_endpoint[0]
 
         if allowed:
-            log.d("Publication owner check OK")
+            log.d("Service owner check OK")
         else:
             log.w("Not allowed, address mismatch between %s and %s", current_client_endpoint, self._client.endpoint)
         return allowed
 
 
 # decorator
-def check_publication_owner(api):
-    def check_publication_owner_wrapper(client_pub: ClientPublication, *vargs, **kwargs):
-        if not client_pub._is_request_allowed():
+def check_service_owner(api):
+    def check_service_owner_wrapper(client_service: ClientService, *vargs, **kwargs):
+        if not client_service._is_request_allowed():
             return create_error_response(ServerErrors.NOT_ALLOWED)
-        return api(client_pub, *vargs, **kwargs)
-    check_publication_owner_wrapper.__name__ = api.__name__
-    return check_publication_owner_wrapper
+        return api(client_service, *vargs, **kwargs)
+    check_service_owner_wrapper.__name__ = api.__name__
+    return check_service_owner_wrapper

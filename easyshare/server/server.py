@@ -19,6 +19,7 @@ from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import create_success_response, create_error_response, Response
+from easyshare.server.common import try_or_command_failed_response
 from easyshare.server.daemon import init_pyro_daemon, get_pyro_daemon
 from easyshare.server.rexec import RexecTransaction
 from easyshare.server.serving import Serving
@@ -120,6 +121,7 @@ class Server(IServer):
         # sharing_name -> sharing
         # self.clients: Dict[Endpoint, ClientContext] = {}
         self._clients: Dict[Endpoint, ClientContext] = {}
+        self._clients_lock = threading.Lock()
         # self.puts: Dict[str, PutTransactionHandler] = {}
         # self.gets: Dict[str, GetTransactionHandler] = {}
         # self.rexecs: Dict[str, RexecHandler] = {}
@@ -196,6 +198,7 @@ class Server(IServer):
 
     @expose
     @trace_api
+    @try_or_command_failed_response
     def connect(self, password: str = None) -> Response:
         client_endpoint = self._current_request_endpoint()
         client = self._current_request_client()
@@ -226,6 +229,7 @@ class Server(IServer):
     @oneway
     @trace_api
     @require_client_connected
+    @try_or_command_failed_response
     def disconnect(self):
         client_endpoint = self._current_request_endpoint()
 
@@ -240,6 +244,7 @@ class Server(IServer):
 
     @expose
     @trace_api
+    @try_or_command_failed_response
     # @require_client_connected
     def list(self):
         client_endpoint = self._current_request_endpoint()
@@ -252,6 +257,7 @@ class Server(IServer):
     @expose
     @trace_api
     @require_client_connected
+    @try_or_command_failed_response
     def open(self, sharing_name: str) -> Response:
         if not sharing_name:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
@@ -266,11 +272,11 @@ class Server(IServer):
         log.i("<< OPEN %s [%s]", sharing_name, client)
 
         serving = Serving(sharing, client=client)
-        serving.publish()
+        uri = serving.publish()
 
-        log.i("Opened sharing URI: %s", serving.publication_uri)
+        log.i("Opened sharing URI: %s", uri)
 
-        return create_success_response(serving.publication_uri)
+        return create_success_response(uri)
 
 
     @expose
@@ -345,41 +351,6 @@ class Server(IServer):
         log.i("New rpwd: %s", client.rpwd)
 
         return create_success_response(client.rpwd)
-
-    @expose
-    @trace_api
-    def rtree(self, *, path: str = None, sort_by: List[str] = None,
-              reverse: bool = False, hidden: bool = False,
-              max_depth: int = None, ) -> Response:
-        client = self._current_request_client()
-        if not client:
-            log.w("Client not connected: %s", self._current_request_endpoint())
-            return create_error_response(ServerErrors.NOT_CONNECTED)
-
-        path = path or "."
-        sort_by = sort_by or ["name"]
-
-        log.i("<< RTREE %s %s%s (%s)",
-              path, sort_by, " | reverse " if reverse else "", str(client))
-
-        try:
-            tree_path = self._path_for_client(client, path)
-            log.i("Going to tree on %s", tree_path)
-
-            # Check path legality (it should be valid, if he rcd into it...)
-            if not self._is_path_allowed_for_client(client, tree_path):
-                return create_error_response(ServerErrors.INVALID_PATH)
-
-            tree_root = tree(tree_path, sort_by=sort_by, reverse=reverse, max_depth=max_depth)
-            if tree_root is None:
-                return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
-
-            log.i("RTREE response %s", json_to_pretty_str(tree_root))
-
-            return create_success_response(tree_root)
-        except Exception as ex:
-            log.e("RTREE error: %s", str(ex))
-            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @expose
     @trace_api
@@ -944,28 +915,31 @@ class Server(IServer):
     #         client.gets.remove(transaction_id)
 
     def _add_client(self, endpoint: Endpoint) -> ClientContext:
-        ctx = ClientContext(endpoint)
-        log.i("Adding client %s", ctx)
-        self._clients[endpoint] = ctx
+        with self._clients_lock:
+            ctx = ClientContext(endpoint)
+
+            log.i("Adding client %s", ctx)
+
+            self._clients[endpoint] = ctx
+
         return ctx
 
     def _del_client(self, endpoint: Endpoint) -> bool:
-        ctx = self._clients.pop(endpoint, None)
+        with self._clients_lock:
+            ctx = self._clients.pop(endpoint, None)
 
-        if not ctx:
-            log.w("No client found to remove for endpoint: %s", endpoint)
-            return False
+            if not ctx:
+                return False
 
-        log.d("Removed client %s", ctx)
+            log.i("Removing client %s", ctx)
 
-        for pub in ctx.publications:
-            pub.unpublish()
+            daemon = get_pyro_daemon()
+
+            with ctx.lock:
+                for service_id in ctx.services:
+                    daemon.unpublish(service_id)
+
         return True
-    #
-    # def _publish_pyro_object_for_client(self, obj: Any, client: ClientContext) -> str:
-    #     uri, uid = publish_pyro_object(obj)
-    #     client.publications.append(uid)
-    #     return uri
 
     def _current_request_endpoint(self) -> Optional[Endpoint]:
         """

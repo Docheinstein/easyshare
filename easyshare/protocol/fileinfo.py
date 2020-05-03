@@ -12,7 +12,7 @@ try:
         ftype: FileType
         size: int
 
-    class FileInfoTreeNode(TypedDict, TreeNodeDict, total=False):
+    class FileInfoTreeNode(FileInfo, TreeNodeDict, total=False):
         pass
 
 except:

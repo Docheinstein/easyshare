@@ -130,14 +130,14 @@ class Shell:
                     log.d("Command execution: OK")
 
             except PyroError as pyroerr:
-                log.e("Pyro error occurred %s", pyroerr)
+                log.exception("Pyro error occurred %s", pyroerr)
                 print_errcode(ClientErrors.CONNECTION_ERROR)
-                self._try_disconnect()
+                self._client.destroy_connection()
                 break
 
             except EOFError:
                 log.i("\nCTRL+D: exiting")
-                self._try_disconnect()
+                self._client.destroy_connection()
                 break
 
             except KeyboardInterrupt:
@@ -172,15 +172,6 @@ class Shell:
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
         return 0
-
-    def _try_disconnect(self):
-        try:
-            if self._client.is_connected_to_server():
-                log.d("Trying to disconnect gracefully")
-                self._client.disconnect(None)
-        except PyroError:
-            log.e("Cannot communicate with remote: invalidating connection")
-            self._client.connection = None
 
     def _display_suggestions(self, substitution, matches, longest_match_length):
         # Simulate the default behaviour of readline, but:

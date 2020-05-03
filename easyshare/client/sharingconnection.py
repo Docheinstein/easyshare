@@ -163,7 +163,7 @@ class SharingConnection:
         self._connected = False
 
         if self.serving:
-            log.d("Releasing sharing connection's pyro resource")
+            log.d("Releasing pyro resources of the sharing connection")
             self.serving._pyroRelease()
             self.serving = None
         else:

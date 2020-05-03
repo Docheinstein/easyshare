@@ -50,11 +50,12 @@ class OptIntArg(ArgsParser):
 
 
 class StopParseArgs(ArgsParser):
-    def __init__(self, mandatory: int = 0):
+    def __init__(self, mandatory: int = 0, stop_after: int = 0):
         self.mandatory = mandatory
+        self.stop_after = stop_after
 
     def _vargs_spec(self) -> Optional[ParamsSpec]:
         return NoopParamsSpec(self.mandatory, 0)
 
     def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
-        return lambda arg, idx, parsedargs, positionals: len(positionals) < self.mandatory
+        return lambda arg, idx, parsedargs, positionals: len(positionals) < self.stop_after
