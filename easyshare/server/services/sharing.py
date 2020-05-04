@@ -366,6 +366,7 @@ class SharingService(ISharingService, ClientSharingService):
             client=self._client,
             end_callback=lambda getserv: getserv.unpublish()
         )
+        get.run()
 
         uri = get.publish()
 

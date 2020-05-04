@@ -5,11 +5,14 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Tuple
 
+from easyshare.logging import get_logger
 from easyshare.utils.colors import fg, Color, enable_colors
 from easyshare.utils.env import is_unicode_supported, terminal_size
 from easyshare.utils.os import M, size_str
 from easyshare.utils.time import duration_str
 
+
+log = get_logger(__name__)
 
 class ProgressBarStyle(Enum):
     AUTO = object()

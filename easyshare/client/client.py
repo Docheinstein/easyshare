@@ -1127,6 +1127,7 @@ class Client:
 
                 log.i("Opening file '{}' locally".format(fname))
                 file = open(fname, "wb")
+                log.i("Opened {}".format(fname))
 
                 # Really get it
 
@@ -1136,11 +1137,13 @@ class Client:
 
                 while read < fsize:
                     recv_size = min(BUFFER_SIZE, fsize - read)
+                    log.i("Waiting chunk... (expected size: %dB)", recv_size)
+
                     chunk = transfer_socket.recv(recv_size)
 
                     if not chunk:
                         log.i("END")
-                        break
+                        raise BadOutcome(ClientErrors.COMMAND_EXECUTION_FAILED)
 
                     chunk_len = len(chunk)
 

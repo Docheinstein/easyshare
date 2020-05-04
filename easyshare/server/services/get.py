@@ -53,7 +53,7 @@ class GetService(IGetService, ClientSharingService):
     def next(self) -> Response:
         client_endpoint = pyro_client_endpoint()
 
-        log.i("<< GET_NEXT %s [%s]", str(client_endpoint))
+        log.i("<< GET_NEXT [%s]", str(client_endpoint))
 
         while len(self._next_servings) > 0:
 
