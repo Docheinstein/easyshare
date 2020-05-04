@@ -1,6 +1,6 @@
 from typing import TypedDict, Optional, Any, Union, Dict, TypeVar, Generic
 
-from easyshare.utils.types import is_int, is_dict
+from easyshare.utils.types import is_int, is_dict, is_str
 
 try:
     # From python 3.8
@@ -22,9 +22,9 @@ def create_success_response(data=None) -> Response:
     return {"success": True}
 
 
-def create_error_response(error_code=None) -> Response:
-    if error_code:
-        return {"success": False, "error": error_code}
+def create_error_response(err: [int, str]=None) -> Response:
+    if err:
+        return {"success": False, "error": err}
 
     return {"success": False}
 
@@ -50,5 +50,5 @@ def is_error_response(resp: Response, error_code=None) -> bool:
         resp and \
         is_dict(resp) and \
         resp.get("success") is False and \
-        is_int(resp.get("error")) and \
+        is_int(resp.get("error")) or is_str(resp.get("error")) and \
         (not error_code or resp.get("error") == error_code)

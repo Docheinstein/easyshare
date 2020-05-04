@@ -57,8 +57,8 @@ class BlockingBuffer:
 class RexecTransaction(IRexecTransaction, ClientService):
 
     def __init__(self, cmd: str, *,
-                 client: ClientContext):
-        super().__init__(client)
+                 client: ClientContext, end_callback: Callable[[ClientService], None]):
+        super().__init__(client, end_callback)
         self._cmd = cmd
         self._buffer = BlockingBuffer()
         self.proc: Optional[subprocess.Popen] = None
@@ -96,7 +96,10 @@ class RexecTransaction(IRexecTransaction, ClientService):
         }
 
         if retcode is not None:
+            # Command finished, notify the remote and close the service
             data["retcode"] = retcode
+
+            self._notify_service_end()
 
         return create_success_response(data)
 

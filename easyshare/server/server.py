@@ -22,7 +22,7 @@ from easyshare.protocol.response import create_success_response, create_error_re
 from easyshare.server.common import try_or_command_failed_response
 from easyshare.server.daemon import init_pyro_daemon, get_pyro_daemon
 from easyshare.server.rexec import RexecTransaction
-from easyshare.server.serving import Serving
+from easyshare.server.sharingservice import SharingService
 from easyshare.server.sharing import Sharing
 from easyshare.server.transactions import GetTransactionHandler, PutTransactionHandler
 from easyshare.shared.args import Args
@@ -271,7 +271,7 @@ class Server(IServer):
 
         log.i("<< OPEN %s [%s]", sharing_name, client)
 
-        serving = Serving(sharing, client=client)
+        serving = SharingService(sharing, client=client, end_callback=lambda cs: cs.unpublish())
         uri = serving.publish()
 
         log.i("Opened sharing URI: %s", uri)
@@ -368,8 +368,6 @@ class Server(IServer):
         log.i("<< RMKDIR %s (%s)", directory, str(client))
 
         try:
-            # full_path = os.path.join(self._current_client_path(client), directory)
-            # TODO: test
             full_path = self._path_for_client(client, directory)
 
             log.i("Going to mkdir on %s", full_path)
@@ -791,7 +789,8 @@ class Server(IServer):
 
         rx = RexecTransaction(
             cmd,
-            client=client
+            client=client,
+            end_callback=lambda cs: cs.unpublish()
         )
         rx.run()
 

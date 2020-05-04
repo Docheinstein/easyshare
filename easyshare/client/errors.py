@@ -1,5 +1,8 @@
+from typing import Union
+
 from easyshare.protocol.errors import ServerErrors
 from easyshare.utils.app import eprint
+from easyshare.utils.types import is_int, is_str
 
 
 class ClientErrors:
@@ -72,3 +75,10 @@ def errcode_string(error_code: int) -> str:
 
 def print_errcode(error_code: int):
     eprint(errcode_string(error_code))
+
+
+def print_error(err: Union[int, str]):
+    if is_int(err):
+        print_errcode(err)
+    elif is_str(err):
+        eprint(err)

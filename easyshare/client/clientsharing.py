@@ -16,7 +16,7 @@
 #
 # from easyshare.client.connection import Connection
 # from easyshare.client.discover import Discoverer
-# from easyshare.client.errors import ClientErrors, print_errcode, errcode_string
+# from easyshare.client.errors import ClientErrors, print_error, errcode_string
 # from easyshare.consts.net import ADDR_BROADCAST
 # from easyshare.logging import get_logger
 # from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
@@ -722,7 +722,7 @@
 #
 #     def put_files(self, args: Args):
 #         if not self.is_connected():
-#             print_errcode(ClientErrors.NOT_CONNECTED)
+#             print_error(ClientErrors.NOT_CONNECTED)
 #             return
 #
 #         files = args.get_params(default=[])
@@ -734,14 +734,14 @@
 #     def put_sharing(self, args: Args):
 #         if self.is_connected():
 #             # We should not reach this point if we are connected to a sharing
-#             print_errcode(ClientErrors.IMPLEMENTATION_ERROR)
+#             print_error(ClientErrors.IMPLEMENTATION_ERROR)
 #             return
 #
 #         params = args.get_params()
 #         sharing_specifier = params.pop(0)
 #
 #         if not sharing_specifier:
-#             print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
+#             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
 #             return
 #
 #         sharing_name, _, sharing_location = sharing_specifier.rpartition("@")
@@ -756,7 +756,7 @@
 #                                         default=Discoverer.DEFAULT_TIMEOUT))
 #
 #         if not timeout:
-#             print_errcode(ClientErrors.INVALID_PARAMETER_VALUE)
+#             print_error(ClientErrors.INVALID_PARAMETER_VALUE)
 #             return False
 #
 #         # We have to perform a discover
@@ -768,7 +768,7 @@
 #         )
 #
 #         if not server_info:
-#             print_errcode(ClientErrors.SHARING_NOT_FOUND)
+#             print_error(ClientErrors.SHARING_NOT_FOUND)
 #             return False
 #
 #         log.d("Creating new temporary connection with %s", server_info.get("uri"))
@@ -796,7 +796,7 @@
 #
 #     def get_files(self, args: Args):
 #         if not self.is_connected():
-#             print_errcode(ClientErrors.NOT_CONNECTED)
+#             print_error(ClientErrors.NOT_CONNECTED)
 #             return
 #
 #         files = args.get_params(default=[])
@@ -807,14 +807,14 @@
 #     def get_sharing(self, args: Args):
 #         if self.is_connected():
 #             # We should not reach this point if we are connected to a sharing
-#             print_errcode(ClientErrors.IMPLEMENTATION_ERROR)
+#             print_error(ClientErrors.IMPLEMENTATION_ERROR)
 #             return
 #
 #         params = args.get_params()
 #         sharing_specifier = params.pop(0)
 #
 #         if not sharing_specifier:
-#             print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
+#             print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
 #             return
 #
 #         sharing_name, _, sharing_location = sharing_specifier.rpartition("@")
@@ -829,7 +829,7 @@
 #                                         default=Discoverer.DEFAULT_TIMEOUT))
 #
 #         if not timeout:
-#             print_errcode(ClientErrors.INVALID_PARAMETER_VALUE)
+#             print_error(ClientErrors.INVALID_PARAMETER_VALUE)
 #             return False
 #
 #         # We have to perform a discover
@@ -841,7 +841,7 @@
 #         )
 #
 #         if not server_info:
-#             print_errcode(ClientErrors.SHARING_NOT_FOUND)
+#             print_error(ClientErrors.SHARING_NOT_FOUND)
 #             return False
 #
 #         log.d("Creating new temporary connection with %s", server_info.get("uri"))
@@ -899,7 +899,7 @@
 #         port = put_response["data"].get("port")
 #
 #         if not transaction_id or not port:
-#             print_errcode(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+#             print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 #             return
 #
 #         log.i("Successfully PUTed")
@@ -1091,7 +1091,7 @@
 #         get_response = connection.get(files)
 #
 #         if not is_data_response(get_response):
-#             print_errcode(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+#             print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 #             return
 #
 #         if is_error_response(get_response):
@@ -1102,7 +1102,7 @@
 #         port = get_response["data"].get("port")
 #
 #         if not transaction_id or not port:
-#             print_errcode(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+#             print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 #             return
 #
 #         log.i("Successfully GETed")
@@ -1129,7 +1129,7 @@
 #             log.i("get_next_info()\n%s", get_next_resp)
 #
 #             if not is_success_response(get_next_resp):
-#                 print_errcode(ClientErrors.COMMAND_EXECUTION_FAILED)
+#                 print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
 #                 return
 #
 #             next_file: FileInfo = get_next_resp.get("data")

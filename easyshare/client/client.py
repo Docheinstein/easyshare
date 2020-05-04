@@ -7,7 +7,7 @@ import threading
 import time
 from getpass import getpass
 from stat import S_ISDIR, S_ISREG
-from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar
+from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, NoReturn
 
 from Pyro5.errors import PyroError
 
@@ -16,7 +16,7 @@ from easyshare.client.commands import Commands, is_special_command
 from easyshare.client.common import ServerSpecifier, SharingSpecifier
 from easyshare.client.sharingconnection import SharingConnection
 from easyshare.client.discover import Discoverer
-from easyshare.client.errors import ClientErrors, print_errcode, errcode_string
+from easyshare.client.errors import ClientErrors, print_error, errcode_string
 from easyshare.client.serverconnection import ServerConnection
 from easyshare.client.ui import ssl_certificate_to_str, print_files_info_list, print_files_info_tree
 from easyshare.consts.net import ADDR_BROADCAST
@@ -38,7 +38,7 @@ from easyshare.utils.colors import red
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.pyro import TracedPyroProxy
 from easyshare.utils.ssl import parse_ssl_certificate, SSLCertificate, create_client_ssl_context
-from easyshare.utils.types import to_int, bool_to_str, bytes_to_str
+from easyshare.utils.types import to_int, bool_to_str, bytes_to_str, is_int
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached
 from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM
 
@@ -147,6 +147,10 @@ class PutArguments:
 
 # ==================================================================
 
+def _print(*vargs, **kwargs):
+    print(*vargs, **kwargs)
+
+
 
 def ensure_success_response(resp: Response):
     if is_error_response(resp):
@@ -159,10 +163,6 @@ def ensure_data_response(resp: Response):
         raise BadOutcome(resp.get("error"))
     if not is_success_response(resp):
         raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-
-
-def response_error_string(resp: Response) -> str:
-    return errcode_string(resp.get("error"))
 
 
 API = TypeVar('API', bound=Callable[..., None])
@@ -343,6 +343,7 @@ class Client:
                 self.rpwd),
             Commands.REMOTE_REMOVE: (
                 SHARING,
+                [VariadicArgs(1), VariadicArgs(2)],
                 self.rrm),
             Commands.REMOTE_MOVE: (
                 SHARING,
@@ -990,7 +991,7 @@ class Client:
             errors = resp.get("data").get("errors")
             log.e("%d errors occurred while doing rrm", len(errors))
             for err in errors:
-                eprint(err)
+                print_error(err)
 
     @provide_sharing_connection
     def rmv(self, args: Args, connection: SharingConnection = None):
@@ -1008,7 +1009,7 @@ class Client:
 
     def put_files(self, args: Args):
         if not self.is_connected():
-            print_errcode(ClientErrors.NOT_CONNECTED)
+            print_error(ClientErrors.NOT_CONNECTED)
             return
 
         files = args.get_params(default=[])
@@ -1020,14 +1021,14 @@ class Client:
     def put_sharing(self, args: Args):
         if self.is_connected():
             # We should not reach this point if we are connected to a sharing
-            print_errcode(ClientErrors.IMPLEMENTATION_ERROR)
+            print_error(ClientErrors.IMPLEMENTATION_ERROR)
             return
 
         params = args.get_params()
         sharing_specifier = params.pop(0)
 
         if not sharing_specifier:
-            print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return
 
         sharing_name, _, sharing_location = sharing_specifier.rpartition("@")
@@ -1042,7 +1043,7 @@ class Client:
                                         default=Discoverer.DEFAULT_TIMEOUT))
 
         if not timeout:
-            print_errcode(ClientErrors.INVALID_PARAMETER_VALUE)
+            print_error(ClientErrors.INVALID_PARAMETER_VALUE)
             return False
 
         # We have to perform a discover
@@ -1054,7 +1055,7 @@ class Client:
         )
 
         if not server_info:
-            print_errcode(ClientErrors.SHARING_NOT_FOUND)
+            print_error(ClientErrors.SHARING_NOT_FOUND)
             return False
 
         log.d("Creating new temporary connection with %s", server_info.get("uri"))
@@ -1082,7 +1083,7 @@ class Client:
 
     def get_files(self, args: Args):
         if not self.is_connected():
-            print_errcode(ClientErrors.NOT_CONNECTED)
+            print_error(ClientErrors.NOT_CONNECTED)
             return
 
         files = args.get_params(default=[])
@@ -1093,14 +1094,14 @@ class Client:
     def get_sharing(self, args: Args):
         if self.is_connected():
             # We should not reach this point if we are connected to a sharing
-            print_errcode(ClientErrors.IMPLEMENTATION_ERROR)
+            print_error(ClientErrors.IMPLEMENTATION_ERROR)
             return
 
         params = args.get_params()
         sharing_specifier = params.pop(0)
 
         if not sharing_specifier:
-            print_errcode(ClientErrors.INVALID_COMMAND_SYNTAX)
+            print_error(ClientErrors.INVALID_COMMAND_SYNTAX)
             return
 
         sharing_name, _, sharing_location = sharing_specifier.rpartition("@")
@@ -1115,7 +1116,7 @@ class Client:
                                         default=Discoverer.DEFAULT_TIMEOUT))
 
         if not timeout:
-            print_errcode(ClientErrors.INVALID_PARAMETER_VALUE)
+            print_error(ClientErrors.INVALID_PARAMETER_VALUE)
             return False
 
         # We have to perform a discover
@@ -1127,7 +1128,7 @@ class Client:
         )
 
         if not server_info:
-            print_errcode(ClientErrors.SHARING_NOT_FOUND)
+            print_error(ClientErrors.SHARING_NOT_FOUND)
             return False
 
         log.d("Creating new temporary connection with %s", server_info.get("uri"))
@@ -1185,7 +1186,7 @@ class Client:
         port = put_response["data"].get("port")
 
         if not transaction_id or not port:
-            print_errcode(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+            print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
             return
 
         log.i("Successfully PUTed")
@@ -1377,7 +1378,7 @@ class Client:
         get_response = connection.get(files)
 
         if not is_data_response(get_response):
-            print_errcode(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+            print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
             return
 
         if is_error_response(get_response):
@@ -1388,7 +1389,7 @@ class Client:
         port = get_response["data"].get("port")
 
         if not transaction_id or not port:
-            print_errcode(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+            print_error(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
             return
 
         log.i("Successfully GETed")
@@ -1415,7 +1416,7 @@ class Client:
             log.i("get_next_info()\n%s", get_next_resp)
 
             if not is_success_response(get_next_resp):
-                print_errcode(ClientErrors.COMMAND_EXECUTION_FAILED)
+                print_error(ClientErrors.COMMAND_EXECUTION_FAILED)
                 return
 
             next_file: FileInfo = get_next_resp.get("data")
@@ -1649,9 +1650,10 @@ class Client:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         dest = mvcp_args.pop()
+        sources = mvcp_args
 
         # C1/C2 check: with 3+ arguments
-        if len(mvcp_args) >= 3:
+        if len(sources) >= 2:
             # C1  if <dest> exists => must be a dir
             # C2  If <dest> doesn't exist => ERROR
             # => must be a valid dir
@@ -1662,7 +1664,7 @@ class Client:
         # Every other constraint is well handled by shutil.move()
         errors = []
 
-        for src in mvcp_args:
+        for src in sources:
             log.i(">> %s '%s' '%s'", primitive_name, src, dest)
             try:
                 primitive(src, dest)
@@ -1698,7 +1700,7 @@ class Client:
             errors = resp.get("data").get("errors")
             log.e("%d errors occurred while doing %s", len(errors), api_name)
             for err in errors:
-                eprint(err)
+                print_error(err)
 
 
     def _create_sharing_connection_from_sharing_spec(self, sharing_spec: SharingSpecifier) -> \
@@ -1795,8 +1797,7 @@ class Client:
 
         resp = conn.connect(passwd)
 
-        if is_error_response(resp):
-            raise BadOutcome(resp.get("error"))
+        ensure_success_response(resp)
 
         log.i("Connection established with %s:%d",
               server_info.get("ip"), server_info.get("port"))

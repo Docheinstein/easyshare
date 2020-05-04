@@ -14,12 +14,12 @@ from easyshare.client.args import OptIntArg, ArgsParser, VariadicArgs
 from easyshare.client.client import Client
 from easyshare.client.commands import Commands, is_special_command
 from easyshare.client.ui import print_tabulated, StyledString
-from easyshare.client.errors import print_errcode, ClientErrors
+from easyshare.client.errors import print_error, ClientErrors
 from easyshare.client.help import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
-from easyshare.utils.colors import styled, Attribute
+from easyshare.utils.colors import styled, Attribute, Color
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.types import is_bool, is_int, is_str
@@ -103,11 +103,11 @@ class Shell:
                     command_line_parts = shlex.split(command_line)
                 except ValueError:
                     log.w("Invalid command line")
-                    print_errcode(ClientErrors.COMMAND_NOT_RECOGNIZED)
+                    print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
                     continue
 
                 if len(command_line_parts) < 1:
-                    print_errcode(ClientErrors.COMMAND_NOT_RECOGNIZED)
+                    print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
                     continue
 
                 command: str = command_line_parts[0]
@@ -123,7 +123,7 @@ class Shell:
                     outcome = self._client.execute_command(command, command_args)
 
                 if is_int(outcome) and outcome > 0:
-                    print_errcode(outcome)
+                    print_error(outcome)
                 elif is_str(outcome):
                     eprint(outcome)
                 else:
@@ -131,7 +131,7 @@ class Shell:
 
             except PyroError as pyroerr:
                 log.exception("Pyro error occurred %s", pyroerr)
-                print_errcode(ClientErrors.CONNECTION_ERROR)
+                print_error(ClientErrors.CONNECTION_ERROR)
                 self._client.destroy_connection()
                 break
 
@@ -271,7 +271,6 @@ class Shell:
 
     @classmethod
     def _help(cls, _: Args) -> Union[int, str]:
-        print("HELP")
         return 0
 
     @classmethod

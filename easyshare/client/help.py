@@ -175,8 +175,8 @@ class ListLocalCommandInfo(ListCommandArgsInfo, ABC):
 class ListRemoteCommandInfo(ListCommandArgsInfo, ABC):
     @classmethod
     def list(cls, token: str, line: str, client: 'Client') -> List[FileInfo]:
-        if not client or not client.is_connected():
-            log.w("Cannot list() on a non connected client")
+        if not client or not client.is_connected_to_sharing():
+            log.w("Cannot list suggestions on a non connected client")
             return []
 
         log.i("List remotely on token = '%s', line = '%s'", token, line)
@@ -184,7 +184,7 @@ class ListRemoteCommandInfo(ListCommandArgsInfo, ABC):
         path_dir, path_trail = os.path.split(pattern)
 
         log.i("rls-ing on %s", pattern)
-        resp = client.connection.rls(sort_by=["name"], path=path_dir)
+        resp = client.sharing_connection.rls(sort_by=["name"], path=path_dir)
 
         if not is_data_response(resp):
             log.w("Unable to retrieve a valid response for rls")

@@ -25,7 +25,7 @@ class IRexecTransaction(ABC):
         pass
 
 
-class IServing(ABC):
+class ISharingService(ABC):
     @abstractmethod
     def close(self):
         pass

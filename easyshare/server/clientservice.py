@@ -1,4 +1,5 @@
 import threading
+from typing import Callable
 
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
@@ -12,12 +13,15 @@ log = get_logger(__name__)
 
 
 class ClientService:
-    def __init__(self, client: ClientContext):
+    def __init__(self, client: ClientContext,
+                 end_callback: Callable[['ClientService'], None]):
         self.service_uri = None
         self.service_uid = "esd_" + uuid()
         self.published = False
 
         self._client = client
+        self._end_callback = end_callback
+
         self._lock = threading.Lock()
 
 
@@ -39,6 +43,10 @@ class ClientService:
 
     def is_published(self) -> bool:
         return self.published
+
+    def _notify_service_end(self):
+        if self._end_callback:
+            self._end_callback(self)
 
     def _is_request_allowed(self):
         # Check whether the client that tries to access this publication

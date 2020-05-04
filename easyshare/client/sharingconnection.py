@@ -5,7 +5,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.response import Response, create_error_response, is_success_response, is_data_response, \
     is_error_response, create_success_response
-from easyshare.protocol.pyro import IServing
+from easyshare.protocol.pyro import ISharingService
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.utils.pyro import TracedPyroProxy
@@ -55,7 +55,7 @@ class SharingConnection:
         self._rcwd = ""
 
         # Create the proxy for the remote sharing
-        self.serving: Union[IServing, TracedPyroProxy] = TracedPyroProxy(
+        self.serving: Union[ISharingService, TracedPyroProxy] = TracedPyroProxy(
             sharing_uri,
             alias="{}{}{}".format(
                 sharing_info.get("name") if sharing_info else "",
