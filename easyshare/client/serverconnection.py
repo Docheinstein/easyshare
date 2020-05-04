@@ -4,7 +4,7 @@ from typing import Union, Optional
 from easyshare.client.errors import ClientErrors
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
-from easyshare.protocol.pyro import IServer
+from easyshare.protocol.exposed import IServer
 from easyshare.protocol.response import Response, is_success_response, create_error_response, is_error_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.ssl import get_ssl_context, set_ssl_context

@@ -1,19 +1,13 @@
 import os
-import queue
 import ssl
-import subprocess
-import sys
-import socket
 import threading
-import time
 
-from Pyro5 import api as pyro, socketutil
+from Pyro5 import socketutil
 
-from typing import Dict, Optional, List, Any, Callable, TypeVar, Union
+from typing import Dict, Optional, List
 
 from Pyro5.api import expose, oneway
 
-from easyshare import logging
 from easyshare.logging import get_logger
 from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.fileinfo import FileInfo
@@ -21,32 +15,26 @@ from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import create_success_response, create_error_response, Response
 from easyshare.server.common import try_or_command_failed_response
 from easyshare.server.daemon import init_pyro_daemon, get_pyro_daemon
-from easyshare.server.rexec import RexecTransaction
-from easyshare.server.sharingservice import SharingService
+from easyshare.server.services.rexec import RexecService
+from easyshare.server.services.sharing import SharingService
 from easyshare.server.sharing import Sharing
 from easyshare.server.transactions import GetTransactionHandler, PutTransactionHandler
-from easyshare.shared.args import Args
 from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, \
-    APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET, ENV_EASYSHARE_VERBOSITY
-from easyshare.config.parser import parse_config
+    APP_NAME_SERVER
 from easyshare.server.client import ClientContext
 from easyshare.server.discover import DiscoverDeamon
 from easyshare.shared.endpoint import Endpoint
-from easyshare.protocol.pyro import IServer
+from easyshare.protocol.exposed import IServer
 from easyshare.protocol.errors import ServerErrors
 from easyshare.ssl import set_ssl_context, get_ssl_context
-from easyshare.tracing import enable_tracing, trace_in, trace_out
+from easyshare.tracing import trace_out
 from easyshare.socket.udp import SocketUdpOut
-from easyshare.utils.app import terminate, abort
-from easyshare.utils.colors import enable_colors
 from easyshare.utils.json import json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
-from easyshare.utils.os import ls, relpath, is_relpath, rm, tree, cp, mv, run_detached
+from easyshare.utils.os import relpath, is_relpath
 from easyshare.utils.pyro import pyro_client_endpoint, trace_api
-from easyshare.utils.ssl import create_server_ssl_context
-from easyshare.utils.str import satisfy, unprefix, randstring, uuid
-from easyshare.utils.trace import args_to_str
-from easyshare.utils.types import bytes_to_int, to_int, to_bool, is_valid_list, bytes_to_str
+from easyshare.utils.str import unprefix
+from easyshare.utils.types import bytes_to_int
 
 # ==================================================================
 
@@ -271,299 +259,19 @@ class Server(IServer):
 
         log.i("<< OPEN %s [%s]", sharing_name, client)
 
-        serving = SharingService(sharing, client=client, end_callback=lambda cs: cs.unpublish())
+        serving = SharingService(
+            sharing=sharing,
+            sharing_rcwd="",
+            client=client,
+            end_callback=lambda cs: cs.unpublish()
+        )
+
         uri = serving.publish()
 
         log.i("Opened sharing URI: %s", uri)
 
         return create_success_response(uri)
 
-
-    @expose
-    @oneway
-    @trace_api
-    def close(self):
-        client_endpoint = self._current_request_endpoint()
-        log.i("<< CLOSE %s", str(client_endpoint))
-        client = self._current_request_client()
-
-        if not client:
-            log.w("Received a close request from an unknown client")
-            return
-
-        log.i("Deallocating client resources...")
-
-        # Remove any pending transaction
-        for get_trans_id in client.gets:
-            # self._end_get_transaction(get_trans_id, client, abort=True)
-            if get_trans_id in self.gets:
-                log.i("Removing GET transaction = %s", get_trans_id)
-                self.gets.pop(get_trans_id).abort()
-
-        # Remove from clients
-        log.i("Removing %s from clients", client)
-
-        del self._clients[client_endpoint]
-        log.i("Client connection closed gracefully")
-
-        log.i("# clients = %d", len(self._clients))
-        log.i("# gets = %d", len(self.gets))
-
-    @expose
-    @trace_api
-    def rpwd(self) -> Response:
-        # NOT NEEDED
-        log.i("<< RPWD %s", str(self._current_request_endpoint()))
-
-        client = self._current_request_client()
-        if not client:
-            return create_error_response(ServerErrors.NOT_CONNECTED)
-
-        return create_success_response(client.rpwd)
-
-    @expose
-    @trace_api
-    def rcd(self, path: str) -> Response:
-        if not path:
-            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        client = self._current_request_client()
-        if not client:
-            return create_error_response(ServerErrors.NOT_CONNECTED)
-
-        log.i("<< RCD %s (%s)", path, str(client))
-
-        new_path = self._path_for_client(client, path)
-
-        log.i("Sharing path: %s", new_path)
-
-        if not self._is_path_allowed_for_client(client, new_path):
-            log.e("Path is invalid (out of sharing domain)")
-            return create_error_response(ServerErrors.INVALID_PATH)
-
-        if not os.path.isdir(new_path):
-            log.e("Path does not exists")
-            return create_error_response(ServerErrors.INVALID_PATH)
-
-        log.i("Path exists, success")
-
-        client.rpwd = self._trailing_path_for_client_from_root(client, new_path)
-        log.i("New rpwd: %s", client.rpwd)
-
-        return create_success_response(client.rpwd)
-
-    @expose
-    @trace_api
-    def rmkdir(self, directory: str) -> Response:
-        client = self._current_request_client()
-
-        if not client:
-            return create_error_response(ServerErrors.NOT_CONNECTED)
-
-        sharing = self._current_request_sharing()
-
-        if sharing.read_only:
-            return create_error_response(ServerErrors.NOT_WRITABLE)
-
-        log.i("<< RMKDIR %s (%s)", directory, str(client))
-
-        try:
-            full_path = self._path_for_client(client, directory)
-
-            log.i("Going to mkdir on %s", full_path)
-
-            if not self._is_path_allowed_for_client(client, full_path):
-                return create_error_response(ServerErrors.INVALID_PATH)
-
-            os.mkdir(full_path)
-            return create_success_response()
-        except Exception as ex:
-            log.e("RMKDIR error: %s", str(ex))
-            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
-
-    @expose
-    @trace_api
-    def rrm(self, paths: List[str]) -> Response:
-        client = self._current_request_client()
-
-        if not client:
-            return create_error_response(ServerErrors.NOT_CONNECTED)
-
-        sharing = self._current_client_sharing(client)
-
-        log.i("<< RRM %s (%s)", paths, str(client))
-
-        try:
-            errors = []
-
-            def handle_rm_error(err):
-                log.i("RM error: adding error to notify to remote:\n%s", err)
-                errors.append(str(err))
-
-            for path in paths:
-
-                rm_path = self._path_for_client(client, path)
-
-                log.i("RM on path: %s", rm_path)
-
-                if not self._is_path_allowed_for_client(client, rm_path):
-                    log.e("Path is invalid (out of sharing domain)")
-                    return create_error_response(ServerErrors.INVALID_PATH)
-
-                # Do not allow to remove the entire sharing
-                try:
-                    if os.path.samefile(sharing.path, rm_path):
-                        log.e("Cannot delete the sharing's root directory; aborting")
-                        return create_error_response(ServerErrors.INVALID_PATH)
-                    # Ok..
-                except Exception:
-                    pass
-                    # Maybe the file does not exists, don't worry and pass
-                    # it to rm that will handle it properly with error_callback
-
-                rm(rm_path, error_callback=handle_rm_error)
-
-            # Eventually put errors in the response
-
-            response_data = None
-
-            if errors:
-                log.w("Reporting %d errors to the client", len(errors))
-                response_data = {"errors": errors}
-
-            return create_success_response(response_data)
-
-        except Exception as ex:
-            log.e("RRM error: %s", str(ex))
-            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
-
-    @expose
-    @trace_api
-    def rmv(self, sources: List[str], destination: str) -> Response:
-        client = self._current_request_client()
-
-        if not client:
-            return create_error_response(ServerErrors.NOT_CONNECTED)
-
-        if not sources or not destination:
-            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        dest_full_path = self._path_for_client(client, destination)
-
-        if not self._is_path_allowed_for_client(client, dest_full_path):
-            log.e("Path is invalid (out of sharing domain)")
-            return create_error_response(ServerErrors.INVALID_PATH)
-
-        # C1/C2 check: with 3+ arguments
-        if len(sources) >= 2:
-            # C1  if <dest> exists => must be a dir
-            # C2  If <dest> doesn't exist => ERROR
-            # => must be a valid dir
-            if not os.path.isdir(dest_full_path):
-                log.e("'%s' must be an existing directory", dest_full_path)
-                return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
-
-        log.i("<< RMV %s -> %s (%s)", sources, destination, str(client))
-
-        try:
-            errors = []
-
-            for src in sources:
-
-                src_full_path = self._path_for_client(client, src)
-
-                if not self._is_path_allowed_for_client(client, src_full_path):
-                    if len(sources) == 1:
-                        return create_error_response(ServerErrors.INVALID_PATH)
-
-                    errors.append("Invalid path")
-                    continue
-
-                try:
-                    log.i("MV %s -> %s", src_full_path, dest_full_path)
-
-                    mv(src_full_path, dest_full_path)
-                except Exception as ex:
-                    errors.append(str(ex))
-
-                if errors:
-                    log.e("%d errors occurred", len(errors))
-
-            response_data = None
-
-            if errors:
-                log.w("Reporting %d errors to the client", len(errors))
-                response_data = {"errors": errors}
-
-            return create_success_response(response_data)
-
-        except Exception as ex:
-            log.e("RMV error: %s", str(ex))
-            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
-
-    @expose
-    @trace_api
-    def rcp(self, sources: List[str], destination: str) -> Response:
-        client = self._current_request_client()
-
-        if not client:
-            return create_error_response(ServerErrors.NOT_CONNECTED)
-
-        if not sources or not destination:
-            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        dest_full_path = self._path_for_client(client, destination)
-
-        if not self._is_path_allowed_for_client(client, dest_full_path):
-            log.e("Path is invalid (out of sharing domain)")
-            return create_error_response(ServerErrors.INVALID_PATH)
-
-        # C1/C2 check: with 3+ arguments
-        if len(sources) >= 2:
-            # C1  if <dest> exists => must be a dir
-            # C2  If <dest> doesn't exist => ERROR
-            # => must be a valid dir
-            if not os.path.isdir(dest_full_path):
-                log.e("'%s' must be an existing directory", dest_full_path)
-                return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
-
-        log.i("<< RCP %s -> %s (%s)", sources, destination, str(client))
-
-        try:
-            errors = []
-
-            for src in sources:
-
-                src_full_path = self._path_for_client(client, src)
-
-                if not self._is_path_allowed_for_client(client, src_full_path):
-                    if len(sources) == 1:
-                        return create_error_response(ServerErrors.INVALID_PATH)
-
-                    errors.append("Invalid path")
-                    continue
-
-                try:
-                    log.i("CP %s -> %s", src_full_path, dest_full_path)
-
-                    cp(src_full_path, dest_full_path)
-                except Exception as ex:
-                    errors.append(str(ex))
-
-                if errors:
-                    log.e("%d errors occurred", len(errors))
-
-            response_data = None
-
-            if errors:
-                log.w("Reporting %d errors to the client", len(errors))
-                response_data = {"errors": errors}
-
-            return create_success_response(response_data)
-
-        except Exception as ex:
-            log.e("RCP error: %s", str(ex))
-            return create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
     @expose
     @trace_api
@@ -787,7 +495,7 @@ class Server(IServer):
 
         log.i(">> REXEC %s [%s]", cmd, client)
 
-        rx = RexecTransaction(
+        rx = RexecService(
             cmd,
             client=client,
             end_callback=lambda cs: cs.unpublish()

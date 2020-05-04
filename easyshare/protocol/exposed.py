@@ -1,13 +1,18 @@
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List
 
-import Pyro5
 
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response
 
 
-class IRexecTransaction(ABC):
+class IGetService(ABC):
+    @abstractmethod
+    def next(self) -> Response:
+        pass
+
+
+class IRexecService(ABC):
     class Event:
         TERMINATE = 0
         EOF = 1

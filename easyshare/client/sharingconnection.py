@@ -5,7 +5,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.response import Response, create_error_response, is_success_response, is_data_response, \
     is_error_response, create_success_response
-from easyshare.protocol.pyro import ISharingService
+from easyshare.protocol.exposed import ISharingService
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.utils.pyro import TracedPyroProxy
@@ -55,7 +55,7 @@ class SharingConnection:
         self._rcwd = ""
 
         # Create the proxy for the remote sharing
-        self.serving: Union[ISharingService, TracedPyroProxy] = TracedPyroProxy(
+        self.service: Union[ISharingService, TracedPyroProxy] = TracedPyroProxy(
             sharing_uri,
             alias="{}{}{}".format(
                 sharing_info.get("name") if sharing_info else "",
@@ -65,7 +65,7 @@ class SharingConnection:
         )
 
     def is_connected(self) -> bool:
-        return self._connected is True and self.serving
+        return self._connected is True and self.service
 
     def sharing_name(self) -> str:
         return self.sharing_info.get("name")
@@ -78,7 +78,7 @@ class SharingConnection:
     # NO @handle_response (async)
     @require_sharing_connection
     def close(self):
-        self.serving.close()         # async
+        self.service.close()         # async
         self._destroy_connection()
 
 
@@ -89,7 +89,7 @@ class SharingConnection:
     @handle_sharing_response
     @require_sharing_connection
     def rcd(self, path) -> Response:
-        resp = self.serving.rcd(path)
+        resp = self.service.rcd(path)
 
         if is_success_response(resp):
             self._rcwd = resp["data"]
@@ -100,35 +100,40 @@ class SharingConnection:
     @require_sharing_connection
     def rls(self, sort_by: List[str], reverse: bool = False,
             hidden: bool = False,  path: str = None) -> Response:
-        return self.serving.rls(path=path, sort_by=sort_by,
+        return self.service.rls(path=path, sort_by=sort_by,
                                 reverse=reverse, hidden=hidden)
 
     @handle_sharing_response
     @require_sharing_connection
     def rtree(self, sort_by: List[str], reverse=False, hidden: bool = False,
               max_depth: int = int, path: str = None) -> Response:
-        return self.serving.rtree(path=path, sort_by=sort_by, reverse=reverse,
+        return self.service.rtree(path=path, sort_by=sort_by, reverse=reverse,
                                   hidden=hidden, max_depth=max_depth)
 
     @handle_sharing_response
     @require_sharing_connection
     def rmkdir(self, directory) -> Response:
-        return self.serving.rmkdir(directory)
+        return self.service.rmkdir(directory)
 
     @handle_sharing_response
     @require_sharing_connection
     def rrm(self, paths: List[str]) -> Response:
-        return self.serving.rrm(paths)
+        return self.service.rrm(paths)
 
     @handle_sharing_response
     @require_sharing_connection
     def rmv(self, sources: List[str], destination: str) -> Response:
-        return self.serving.rmv(sources, destination)
+        return self.service.rmv(sources, destination)
 
     @handle_sharing_response
     @require_sharing_connection
     def rcp(self, sources: List[str], destination: str) -> Response:
-        return self.serving.rcp(sources, destination)
+        return self.service.rcp(sources, destination)
+
+    @handle_sharing_response
+    @require_sharing_connection
+    def get(self, files: List[str]) -> Response:
+        return self.service.get(files)
 
     # def put(self) -> Response:
     #     if not self.is_connected():
@@ -162,10 +167,10 @@ class SharingConnection:
         log.d("Marking sharing connection as disconnected")
         self._connected = False
 
-        if self.serving:
+        if self.service:
             log.d("Releasing pyro resources of the sharing connection")
-            self.serving._pyroRelease()
-            self.serving = None
+            self.service._pyroRelease()
+            self.service = None
         else:
             log.w("Sharing connection already invalid, nothing to release")
 

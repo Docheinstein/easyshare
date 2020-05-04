@@ -1,3 +1,4 @@
+
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.response import create_error_response

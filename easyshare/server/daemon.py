@@ -1,11 +1,10 @@
-from typing import Optional, Any, Tuple, List, Set, Callable, Union
+from typing import Optional, Any, Tuple
 
 import Pyro5.api as pyro
 from Pyro5 import socketutil
 
 from easyshare.logging import get_logger
 from easyshare.utils.str import uuid
-from easyshare.utils.types import is_str
 
 log = get_logger(__name__)
 
@@ -40,15 +39,15 @@ class EsdDaemon(pyro.Daemon):
             cb(conn)
 
 
-pyro_daemon: Optional[EsdDaemon] = None
+_pyro_daemon: Optional[EsdDaemon] = None
 
 
 def init_pyro_daemon(host: str):
-    global pyro_daemon
+    global _pyro_daemon
     log.i("Initializing pyro daemon at %s", host)
-    pyro_daemon = EsdDaemon(host=host)
+    _pyro_daemon = EsdDaemon(host=host)
 
 
 def get_pyro_daemon() -> Optional[EsdDaemon]:
-    return pyro_daemon
+    return _pyro_daemon
 

@@ -6,10 +6,10 @@ from Pyro5.api import expose
 
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
-from easyshare.protocol.pyro import IRexecTransaction
+from easyshare.protocol.exposed import IRexecService
 from easyshare.protocol.response import Response, create_success_response, create_error_response
 from easyshare.server.client import ClientContext
-from easyshare.server.clientservice import check_service_owner, ClientService
+from easyshare.server.services.service import check_service_owner, ClientService
 from easyshare.server.common import try_or_command_failed_response
 from easyshare.utils.os import run_detached
 from easyshare.utils.pyro import pyro_client_endpoint, trace_api
@@ -54,10 +54,11 @@ class BlockingBuffer:
         self._lock.release()
 
 
-class RexecTransaction(IRexecTransaction, ClientService):
+class RexecService(IRexecService, ClientService):
 
     def __init__(self, cmd: str, *,
-                 client: ClientContext, end_callback: Callable[[ClientService], None]):
+                 client: ClientContext,
+                 end_callback: Callable[[ClientService], None]):
         super().__init__(client, end_callback)
         self._cmd = cmd
         self._buffer = BlockingBuffer()
@@ -130,10 +131,10 @@ class RexecTransaction(IRexecTransaction, ClientService):
 
         log.i(">> REXEC SEND EVENT (%d) [%s]", ev, client_endpoint)
 
-        if ev == IRexecTransaction.Event.TERMINATE:
+        if ev == IRexecService.Event.TERMINATE:
             log.d("Sending SIGTERM")
             self.proc.terminate()
-        elif ev == IRexecTransaction.Event.EOF:
+        elif ev == IRexecService.Event.EOF:
             log.d("Sending EOF")
             self.proc.stdin.close()
         else:

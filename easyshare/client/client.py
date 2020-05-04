@@ -23,7 +23,7 @@ from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
-from easyshare.protocol.pyro import IRexecTransaction
+from easyshare.protocol.exposed import IRexecService, IGetService
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
@@ -362,9 +362,12 @@ class Client:
                 [StopParseArgs(1, 1), StopParseArgs(2, 2)],
                 self.rexec),
 
-            Commands.GET: self.get,
-            Commands.PUT: self.put,
+            Commands.GET: (
+                SHARING,
+                [VariadicArgs(0), VariadicArgs(1)],
+                self.get),
 
+            Commands.PUT: self.put,
 
             Commands.SCAN: (
                 LOCAL,
@@ -675,16 +678,16 @@ class Client:
 
         log.d("Rexec handler URI: %s", rexec_uri)
 
-        rexec_proxy: Union[TracedPyroProxy, IRexecTransaction]
+        rexec_service: Union[TracedPyroProxy, IRexecService]
 
-        with TracedPyroProxy(rexec_uri) as rexec_proxy:
+        with TracedPyroProxy(rexec_uri) as rexec_service:
 
             retcode = None
 
             # --- STDOUT RECEIVER ---
 
             def rexec_stdout_receiver():
-                rexec_polling_proxy: Union[TracedPyroProxy, IRexecTransaction]
+                rexec_polling_proxy: Union[TracedPyroProxy, IRexecService]
 
                 with TracedPyroProxy(rexec_uri) as rexec_polling_proxy:
                     nonlocal retcode
@@ -731,13 +734,13 @@ class Client:
                         if data_b:
                             data_s = bytes_to_str(data_b)
                             log.d("Sending data: %s", data_s)
-                            rexec_proxy.send_data(data_s)
+                            rexec_service.send_data(data_s)
                         else:
                             log.d("rexec CTRL+D")
-                            rexec_proxy.send_event(IRexecTransaction.Event.EOF)
+                            rexec_service.send_event(IRexecService.Event.EOF)
                 except KeyboardInterrupt:
                     log.d("rexec CTRL+C")
-                    rexec_proxy.send_event(IRexecTransaction.Event.TERMINATE)
+                    rexec_service.send_event(IRexecService.Event.TERMINATE)
                     # Design choice: do not break here but wait that the remote
                     # notify us about the command completion
 
@@ -1006,6 +1009,165 @@ class Client:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         Client._rmvcp(args, api=connection.rcp, api_name="RCP")
+
+    @provide_sharing_connection
+    def get(self, args: Args, connection: SharingConnection = None):
+        if not connection or not connection.is_connected():
+            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+
+        files = args.get_vargs()
+
+        resp = connection.get(files)
+        ensure_data_response(resp)
+
+        get_service_uri = resp.get("data").get("uri")
+        get_transfer_port = resp.get("data").get("transfer_port")
+
+        if not get_service_uri or not get_transfer_port:
+            raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+        log.i("Successfully GETed")
+
+        # Raw transfer socket
+        transfer_socket = SocketTcpOut(
+            connection.server_info.get("ip"), 
+            get_transfer_port,
+            ssl_context=get_ssl_context(),
+        )
+
+        overwrite_all: Optional[bool] = None
+
+        if GetArguments.YES_TO_ALL in args:
+            overwrite_all = True
+        if GetArguments.NO_TO_ALL in args:
+            overwrite_all = False
+
+        log.i("Overwrite all mode: %s", bool_to_str(overwrite_all))
+        
+        # Proxy
+
+        get_service: Union[TracedPyroProxy, IGetService]
+
+        with TracedPyroProxy(get_service_uri) as get_service:
+
+            while True:
+                log.i("Fetching another file info")
+                get_next_resp = get_service.next()
+
+                log.i("get_next_info()\n%s", get_next_resp)
+                ensure_success_response(get_next_resp)  # it might be without data
+
+                next_file: FileInfo = get_next_resp.get("data")
+
+                if not next_file:
+                    log.i("Nothing more to GET")
+                    break
+
+                fname = next_file.get("name")
+                fsize = next_file.get("size")
+                ftype = next_file.get("ftype")
+
+                log.i("NEXT: %s of type %s", fname, ftype)
+
+                progressor = FileProgressor(
+                    fsize,
+                    description="GET " + fname,
+                    color_progress=PROGRESS_COLOR,
+                    color_done=DONE_COLOR
+                )
+
+                # Case: DIR
+                if ftype == FTYPE_DIR:
+                    log.i("Creating dirs %s", fname)
+                    os.makedirs(fname, exist_ok=True)
+                    progressor.done()
+                    continue
+
+                if ftype != FTYPE_FILE:
+                    log.w("Cannot handle this ftype")
+                    continue
+
+                # Case: FILE
+                parent_dirs, _ = os.path.split(fname)
+                if parent_dirs:
+                    log.i("Creating parent dirs %s", parent_dirs)
+                    os.makedirs(parent_dirs, exist_ok=True)
+
+                # Check wheter it already exists
+                if os.path.isfile(fname):
+                    log.w("File already exists, asking whether overwrite it (if needed)")
+
+                    # Ask whether overwrite just once or forever
+                    current_overwrite_decision = overwrite_all
+
+                    # Ask until we get a valid answer
+                    while current_overwrite_decision is None:
+
+                        overwrite_answer = input(
+                            "{} already exists, overwrite it? [Y : yes / yy : yes to all / n : no / nn : no to all] "
+                                .format(fname)
+                        ).lower()
+
+                        if not overwrite_answer or overwrite_answer == "y":
+                            current_overwrite_decision = True
+                        elif overwrite_answer == "n":
+                            current_overwrite_decision = False
+                        elif overwrite_answer == "yy":
+                            current_overwrite_decision = overwrite_all = True
+                        elif overwrite_answer == "nn":
+                            current_overwrite_decision = overwrite_all = False
+                        else:
+                            log.w("Invalid answer, asking again")
+
+                    if current_overwrite_decision is False:
+                        log.i("Skipping " + fname)
+                        continue
+                    else:
+                        log.d("Will overwrite file")
+
+                log.i("Opening file '{}' locally".format(fname))
+                file = open(fname, "wb")
+
+                # Really get it
+
+                BUFFER_SIZE = 4096
+
+                read = 0
+
+                while read < fsize:
+                    recv_size = min(BUFFER_SIZE, fsize - read)
+                    chunk = transfer_socket.recv(recv_size)
+
+                    if not chunk:
+                        log.i("END")
+                        break
+
+                    chunk_len = len(chunk)
+
+                    log.i("Read chunk of %dB", chunk_len)
+
+                    written_chunk_len = file.write(chunk)
+
+                    if chunk_len != written_chunk_len:
+                        log.w("Written less bytes than expected: something will go wrong")
+                        exit(-1)
+
+                    read += written_chunk_len
+                    log.i("%d/%d (%.2f%%)", read, fsize, read / fsize * 100)
+                    progressor.update(read)
+
+                progressor.done()
+                log.i("DONE %s", fname)
+                file.close()
+
+                if os.path.getsize(fname) == fsize:
+                    log.d("File OK (length match)")
+                else:
+                    log.e("File length mismatch. %d != %d",
+                      os.path.getsize(fname), fsize)
+
+        log.i("GET transaction finished, closing socket")
+        transfer_socket.close()
 
     def put_files(self, args: Args):
         if not self.is_connected():
@@ -1531,7 +1693,7 @@ class Client:
         log.i("GET transaction %s finished, closing socket", transaction_id)
         transfer_socket.close()
 
-    def get(self, args: Args):
+    def getold(self, args: Args):
         # 'get' command is multipurpose
         # 1. Inside a connection: get a list of files (or directories)
         # 2. Outside a connection:

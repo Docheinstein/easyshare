@@ -6,7 +6,6 @@ import time
 from typing import List, Optional, Callable
 
 from easyshare.logging import get_logger
-from easyshare.protocol.fileinfo import FileInfo
 from easyshare.server.client import ClientContext
 from easyshare.ssl import get_ssl_context
 from easyshare.socket.tcp import SocketTcpAcceptor
