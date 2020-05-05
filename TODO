@@ -11,3 +11,4 @@
 - server connection down detection => close and disconnect
 - test lock multiclient
 - rangify lists
+- -v optional
