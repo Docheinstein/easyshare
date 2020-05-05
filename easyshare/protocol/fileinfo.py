@@ -1,7 +1,7 @@
-from typing import Dict, Union, List, Optional
+from typing import Dict, Union, List
 
 from easyshare.protocol.filetype import FileType
-from easyshare.tree.tree import TreeNodeDict
+from easyshare.shared.tree import TreeNodeDict
 
 try:
     # From python 3.8

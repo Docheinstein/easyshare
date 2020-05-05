@@ -4,19 +4,14 @@ import os
 import select
 import shutil
 import subprocess
-import sys
 import threading
-import time
 from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
-from easyshare.tree.tree import TreeRenderPostOrder
-from easyshare.utils.colors import red
-from easyshare.utils.json import json_to_pretty_str
-from easyshare.utils.types import is_str, is_list, bytes_to_str
+from easyshare.utils.types import is_str, is_list
 
 log = get_logger(__name__)
 

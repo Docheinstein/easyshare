@@ -5,8 +5,8 @@ from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_DIR
 from easyshare.shared.common import DIR_COLOR, FILE_COLOR
-from easyshare.tree.tree import TreeNodeDict, TreeRenderPostOrder
-from easyshare.utils.colors import fg, styled
+from easyshare.shared.tree import TreeNodeDict, TreeRenderPostOrder
+from easyshare.utils.colors import fg
 from easyshare.utils.env import terminal_size
 from easyshare.utils.os import is_hidden, size_str
 from easyshare.utils.ssl import SSLCertificate

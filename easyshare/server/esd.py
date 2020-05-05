@@ -1,15 +1,17 @@
 import os
 import sys
 import socket
+from typing import List, Optional, Callable
 
 from easyshare import logging
+from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM
+from easyshare.client.args import ArgsParser
 from easyshare.logging import get_logger
 from easyshare.server.server import Server
 from easyshare.server.sharing import Sharing
 from easyshare.shared.args import Args
 from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, \
     APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET, ENV_EASYSHARE_VERBOSITY
-from easyshare.config.parser import parse_config
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import enable_colors
@@ -34,18 +36,44 @@ HELP_APP = """easyshare deamon (esd)
 
 # === ARGUMENTS ===
 
-
-class ServerArguments:
-    TRACE = ["-t", "--trace"]
-    VERBOSE = ["-v", "--verbose"]
-    SHARE = ["-s", "--share"]
-    CONFIG = ["-c", "--config"]
-    PORT = ["-p", "--port"]
-    NAME = ["-n", "--name"]
+class SharingArgs(ArgsParser):
     READ_ONLY = ["-r", "--read-only"]
+    PASSWORD = ["-p", "--password"]
+
+
+class EsdArgs(ArgsParser):
     HELP = ["-h", "--help"]
     VERSION = ["-V", "--version"]
-    NO_COLOR = ["--no-color"]
+
+    VERBOSE =   ["-v", "--verbose"]
+    TRACE =     ["-t", "--trace"]
+
+    NO_COLOR =  ["--no-color"]
+
+    CONFIG = ["-c", "--config"]
+    NAME = ["-n", "--name"]
+
+    # PORT = ["-p", "--port"]
+    # WAIT =      ["-w", "--wait"]
+
+
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return [
+            KwArgSpec(EsdArgs.HELP,
+                      ParamsSpec(0, 0, lambda _: terminate("help"))),
+            KwArgSpec(EsdArgs.VERSION,
+                      ParamsSpec(0, 0, lambda _: terminate("version"))),
+            # KwArgSpec(EsdArgs.PORT, INT_PARAM),
+            # KwArgSpec(EsArgs.WAIT, INT_PARAM),
+            KwArgSpec(EsdArgs.VERBOSE, INT_PARAM),
+            KwArgSpec(EsdArgs.TRACE, INT_PARAM_OPT),
+            KwArgSpec(EsdArgs.NO_COLOR, PRESENCE_PARAM),
+            KwArgSpec(EsdArgs.CONFIG, STR_PARAM),
+            KwArgSpec(EsdArgs.NAME, STR_PARAM),
+        ]
+
+    def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
+        return lambda argname, idx, args, positionals: not positionals
 
 
 class ServerConfigKeys:
@@ -59,28 +87,8 @@ class ServerConfigKeys:
     SSL_PRIVKEY = "ssl_privkey"
 
 
-# === ERRORS ===
-
-
-class ErrorsStrings:
-    INVALID_PORT = "Invalid port"
-    INVALID_SERVER_NAME = "Invalid server name"
-
-
 # ==================================================================
 
-# === TRACING ===
-
-
-# def require_connection(api: API) -> API:
-#     def wrapped_api(server: 'Server', *vargs, **kwargs) -> Optional[Response]:
-#         client = server._current_request_client()
-#         if not client:
-#             log.e("Connection is required for '%s'", api.__name__)
-#             return create_error_response(ServerErrors.NOT_CONNECTED)
-#         return api(*vargs, **kwargs)
-#     setattr(wrapped_api, "__name__", api.__name__)
-#     return wrapped_api
 
 def main():
     starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
@@ -211,11 +219,10 @@ def main():
 
     # Validation
     if not is_valid_port(port):
-        abort(ErrorsStrings.INVALID_PORT)
+        abort("Invalid port")
 
     if not satisfy(name, SERVER_NAME_ALPHABET):
-        log.e("Invalid server name %s", name)
-        abort(ErrorsStrings.INVALID_SERVER_NAME)
+        abort("Invalid server name")
 
     # Add sharings from command line
     # If a sharing with the same name already exists due to config file,

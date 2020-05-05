@@ -1,3 +1,5 @@
+SPECIAL_COMMAND_MARK = ":"
+
 class Commands:
     HELP = "help"
     EXIT = "exit"
@@ -18,7 +20,7 @@ class Commands:
     LOCAL_MOVE = "mv"
     LOCAL_REMOVE = "rm"
     LOCAL_EXEC = "exec"
-    LOCAL_EXEC_SHORT = ":"
+    LOCAL_EXEC_SHORT = SPECIAL_COMMAND_MARK
 
     REMOTE_CURRENT_DIRECTORY = "rpwd"
     REMOTE_LIST_DIRECTORY = "rls"
@@ -29,7 +31,7 @@ class Commands:
     REMOTE_MOVE = "rmv"
     REMOTE_REMOVE = "rrm"
     REMOTE_EXEC = "rexec"
-    REMOTE_EXEC_SHORT = "::"
+    REMOTE_EXEC_SHORT = SPECIAL_COMMAND_MARK * 2
 
     SCAN = "scan"
     LIST = "list"
@@ -47,8 +49,9 @@ class Commands:
     PING = "ping"
 
 
-def is_special_command(c: str):
-    return c.startswith(":")
+def is_special_command(s: str):
+    return s.startswith(SPECIAL_COMMAND_MARK)
 
-def matches_special_command(s: str, comm: str):
-    return s.startswith(comm) and (len(s) == len(comm) or s[len(comm)] != ":")
+def matches_special_command(s: str, sp_comm: str):
+    return s.startswith(sp_comm) and \
+           (len(s) == len(sp_comm) or s[len(sp_comm)] != SPECIAL_COMMAND_MARK)

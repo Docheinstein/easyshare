@@ -51,9 +51,14 @@ class NoopParamsSpec(ParamsSpec):
                          lambda ps: ps)
 
 
+STR_PARAM = NoopParamsSpec(1, 0)
+STR_PARAM_OPT = NoopParamsSpec(0, 1)
+
 INT_PARAM = IntParamsSpec(1, 0)
-OPT_INT_PARAM = IntParamsSpec(0, 1)
+INT_PARAM_OPT = IntParamsSpec(0, 1)
+
 PRESENCE_PARAM = ParamsSpec(0, 0, lambda ps: True)
+
 VARIADIC_PARAMS = NoopParamsSpec(0, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
 
 

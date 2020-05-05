@@ -49,16 +49,18 @@ class PutService(IPutService, ClientSharingService):
     @check_service_owner
     @try_or_command_failed_response
     def next(self, finfo: FileInfo) -> Response:
+        client_endpoint = pyro_client_endpoint()
 
         if not finfo:
-            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+            log.i("<< PUT_NEXT DONE [%s]", str(client_endpoint))
+            self._incomings.put(None)
+            return create_success_response()
 
         if self._sharing.ftype == FTYPE_FILE:
             # Cannot put within a file
             log.e("Cannot put within a file sharing")
             return create_error_response(ServerErrors.NOT_ALLOWED)
 
-        client_endpoint = pyro_client_endpoint()
 
         log.i("<< PUT_NEXT [%s]", str(client_endpoint))
 
@@ -113,6 +115,7 @@ class PutService(IPutService, ClientSharingService):
                 continue
 
             log.i("Received connection from valid client %s", client_endpoint)
+            self._transfer_acceptor_sock.close()
             break
 
         go_ahead = True
@@ -162,7 +165,6 @@ class PutService(IPutService, ClientSharingService):
         log.i("Transaction handler job finished")
 
         transfer_sock.close()
-        self._transfer_acceptor_sock.close()
 
         self._notify_service_end()
 

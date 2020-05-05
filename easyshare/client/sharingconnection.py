@@ -140,34 +140,6 @@ class SharingConnection:
     def put(self) -> Response:
         return self.service.put()
 
-    # def put(self) -> Response:
-    #     if not self.is_connected():
-    #         return create_error_response(ClientErrors.NOT_CONNECTED)
-    #
-    #     return self.server.put()
-    #
-    # def put_next_info(self, transaction, finfo: FileInfo) -> Response:
-    #     if not self.is_connected():
-    #         return create_error_response(ClientErrors.NOT_CONNECTED)
-    #
-    #     return self.server.put_next_info(transaction, finfo)
-    #
-    # def get(self, files: List[str]) -> Response:
-    #     if not self.is_connected():
-    #         return create_error_response(ClientErrors.NOT_CONNECTED)
-    #
-    #     return self.server.get(files)
-    #
-    # def get_next_info(self, transaction_id: str) -> Response:
-    #     if not self.is_connected():
-    #         return create_error_response(ClientErrors.NOT_CONNECTED)
-    #
-    #     return self.server.get_next_info(transaction_id)
-    #
-    # def _handle_response(self, resp: Response):
-    #     if is_error_response(resp, ServerErrors.NOT_CONNECTED):
-    #         self._destroy_connection()
-
     def _destroy_connection(self):
         log.d("Marking sharing connection as disconnected")
         self._connected = False

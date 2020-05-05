@@ -9,7 +9,6 @@ from easyshare.client.commands import Commands, is_special_command
 from easyshare.client.errors import errcode_string
 from easyshare.client.shell import Shell
 from easyshare.logging import get_logger
-from easyshare.shared.args import Args
 from easyshare.shared.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, ENV_EASYSHARE_VERBOSITY
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
@@ -17,7 +16,7 @@ from easyshare.utils.colors import enable_colors
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int, is_int, is_str
-from easyshare.args import Args as Args, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, OPT_INT_PARAM
+from easyshare.args import Args as Args, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT
 
 log = get_logger()
 
@@ -55,7 +54,7 @@ class EsArgs(ArgsParser):
             KwArgSpec(EsArgs.PORT, INT_PARAM),
             KwArgSpec(EsArgs.WAIT, INT_PARAM),
             KwArgSpec(EsArgs.VERBOSE, INT_PARAM),
-            KwArgSpec(EsArgs.TRACE, OPT_INT_PARAM),
+            KwArgSpec(EsArgs.TRACE, INT_PARAM_OPT),
             KwArgSpec(EsArgs.NO_COLOR, PRESENCE_PARAM),
         ]
 

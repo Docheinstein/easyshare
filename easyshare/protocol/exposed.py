@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
-
+from typing import List, Union
 
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response
@@ -15,7 +14,7 @@ class IGetService(ABC):
 
 class IPutService(ABC):
     @abstractmethod
-    def next(self, finfo: FileInfo) -> Response:
+    def next(self, finfo: Union[FileInfo, None]) -> Response:
         pass
 
 

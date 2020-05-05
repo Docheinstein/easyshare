@@ -131,6 +131,7 @@ class GetService(IGetService, ClientSharingService):
         while True:
             log.d("Waiting client connection...")
             transfer_sock, client_endpoint = self._transfer_acceptor_sock.accept()
+            self._transfer_acceptor_sock.close()
 
             # Check that the new client endpoint matches the expect one
             if client_endpoint[0] != self._client.endpoint[0]:
@@ -190,8 +191,6 @@ class GetService(IGetService, ClientSharingService):
         log.i("Transaction handler job finished")
 
         transfer_sock.close()
-        self._transfer_acceptor_sock.close()
-
 
         self._notify_service_end()
 

@@ -28,7 +28,7 @@ def check_write_permission(api):
     def check_write_permission_wrapper(service: 'SharingService', *vargs, **kwargs):
         if service._sharing.read_only:
             log.e("Forbidden: write action on read only sharing by [%s]", pyro_client_endpoint())
-            return service._create_sharing_error_response(service._sharing, ServerErrors.NOT_WRITABLE)
+            return service._create_sharing_error_response(ServerErrors.NOT_WRITABLE)
         return api(service, *vargs, **kwargs)
 
     check_write_permission_wrapper.__name__ = api.__name__
@@ -408,25 +408,6 @@ class SharingService(ISharingService, ClientSharingService):
         log.i("<< CLOSE [%s]", str(client_endpoint))
         log.i("Deallocating client resources...")
 
+        # TODO remove gets/puts
+
         self._notify_service_end()
-
-        # CHECK CLIENT
-
-
-        # Remove any pending transaction
-        # for get_trans_id in client.gets:
-        #     # self._end_get_transaction(get_trans_id, client, abort=True)
-        #     if get_trans_id in self.gets:
-        #         log.i("Removing GET transaction = %s", get_trans_id)
-        #         self.gets.pop(get_trans_id).abort()
-        #
-        # # Remove from clients
-        # log.i("Removing %s from clients", client)
-        #
-        # del self.clients[client_endpoint]
-        # log.i("Client connection closed gracefully")
-        #
-        # log.i("# clients = %d", len(self.clients))
-        # log.i("# gets = %d", len(self.gets))
-
-        # self.unpublish()

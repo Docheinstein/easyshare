@@ -1,6 +1,6 @@
 from typing import List, Optional, Callable
 
-from easyshare.args import ParamsSpec, INT_PARAM, Args, NoopParamsSpec, OPT_INT_PARAM, KwArgSpec
+from easyshare.args import ParamsSpec, INT_PARAM, Args, NoopParamsSpec, INT_PARAM_OPT, KwArgSpec
 
 
 class ArgsParser:
@@ -46,7 +46,7 @@ class IntArg(ArgsParser):
 
 class OptIntArg(ArgsParser):
     def _vargs_spec(self) -> Optional[ParamsSpec]:
-        return OPT_INT_PARAM
+        return INT_PARAM_OPT
 
 
 class StopParseArgs(ArgsParser):

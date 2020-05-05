@@ -1,37 +1,13 @@
-
-- rename, mv, rm
-- rrename, rmv, rrm
+- Better handling of client disconnection/cleanup for get/put
 - benchmark GET, for decide buffer size, ...
-- verbosity/tracing refactor (unique logger? different loggers?)
-- timeout is global
+- timeout (global, float)
 - Server concurrency on shared structures
-- everything as property
-- type: path, relpath, abspath
-- allow automatic overriding with -o or -y option
-- timeout float
-- different implementation of args/kwargs for allow 'scan' in any position?
-- -v=5 or -v 5
-- server trace
-- remove debug and make verbose -> info
 - help (usage), man
-- pyro callback for handle rrm
-- keepalive for handle client disconnect?
 - ssl
-- decorators: require_connection, ...
-- tracedproxy instead of serverpoxy
-- check arguments very well
-- unify api such as ls/rls tree/rtree
 - decide whether catch or raise exceptions in utils.os
-- GET: notify warnings to remote on the next get_info
-- transaction handler is probably to split in two
-- support any command globally?
-- ls/tree param?
-- remote interrupt
 - return string instead of int for response errors
-- autoclose connection on open()
-- -p for each api?
 - timeouts pyro, keepalive, cleaning up,...
-- ; => comment
+- ; => comment on esd.conf
 - server connection down detection => close and disconnect
 - test lock multiclient
-- Not so relevant but: open do no scan if connected to the right server
+- rangify lists
