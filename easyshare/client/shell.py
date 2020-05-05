@@ -12,7 +12,7 @@ import readline as rl
 
 from easyshare.client.args import OptIntArg, ArgsParser, VariadicArgs
 from easyshare.client.client import Client
-from easyshare.client.commands import Commands, is_special_command
+from easyshare.client.commands import Commands, is_special_command, matches_special_command
 from easyshare.client.ui import print_tabulated, StyledString
 from easyshare.client.errors import print_error, ClientErrors
 from easyshare.client.help import SuggestionsIntent, COMMANDS_INFO
@@ -98,6 +98,8 @@ class Shell:
                 if not command_line:
                     log.w("Empty command line")
                     continue
+
+                command_line = command_line.strip()
 
                 try:
                     command_line_parts = shlex.split(command_line)
@@ -194,7 +196,7 @@ class Shell:
 
             for comm_name, comm_info in COMMANDS_INFO.items():
                 if stripped_current_line.startswith(comm_name + " ") or \
-                        is_special_command(comm_name):
+                        matches_special_command(stripped_current_line, comm_name):
                     # Typing a COMPLETE command
                     # e.g. 'ls '
                     log.d("Fetching suggestions intent for command '%s'", comm_name)
@@ -216,23 +218,6 @@ class Shell:
                     # Case 1: complete command
                     self._suggestions_intent.suggestions.append(StyledString(comm_name))
 
-            # If there is only a command that begins with
-            # this name, complete the command (and eventually insert a space)
-            if self._suggestions_intent.completion and \
-                    self._suggestions_intent.space_after_completion and \
-                    len(self._suggestions_intent.suggestions) == 1:
-
-                if is_bool(self._suggestions_intent.space_after_completion):
-                    append_space = self._suggestions_intent.space_after_completion
-                else:
-                    # Hook
-                    append_space = self._suggestions_intent.space_after_completion(
-                        self._suggestions_intent.suggestions[0].string
-                    )
-
-                if append_space:
-                    self._suggestions_intent.suggestions[0].string += " "
-
             self._suggestions_intent.suggestions = \
                 sorted(self._suggestions_intent.suggestions,
                        key=lambda sug: sug.string.lower())
@@ -242,7 +227,27 @@ class Shell:
             sug = self._suggestions_intent.suggestions[count].string
 
             # Escape whitespaces
-            return sug.replace(" ", "\\ ")
+            sug = sug.replace(" ", "\\ ")
+
+
+            # If there is only a command that begins with
+            # this name, complete the command (and eventually insert a space)
+            if self._suggestions_intent.completion and \
+                    self._suggestions_intent.space_after_completion and \
+                    count == len(self._suggestions_intent.suggestions) - 1:
+
+                if is_bool(self._suggestions_intent.space_after_completion):
+                    append_space = self._suggestions_intent.space_after_completion
+                else:
+                    # Hook
+                    append_space = self._suggestions_intent.space_after_completion(
+                        sug
+                    )
+
+                if append_space:
+                    sug += " "
+
+            return sug
 
         return None
 

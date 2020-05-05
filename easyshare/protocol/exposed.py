@@ -12,6 +12,13 @@ class IGetService(ABC):
         pass
 
 
+
+class IPutService(ABC):
+    @abstractmethod
+    def next(self, finfo: FileInfo) -> Response:
+        pass
+
+
 class IRexecService(ABC):
     class Event:
         TERMINATE = 0
@@ -77,15 +84,7 @@ class ISharingService(ABC):
         pass
 
     @abstractmethod
-    def get_next_info(self, transaction) -> Response:
-        pass
-
-    @abstractmethod
     def put(self) -> Response:
-        pass
-
-    @abstractmethod
-    def put_next_info(self, transaction, info: FileInfo) -> Response:
         pass
 
 

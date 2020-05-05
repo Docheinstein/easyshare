@@ -49,3 +49,6 @@ class Commands:
 
 def is_special_command(c: str):
     return c.startswith(":")
+
+def matches_special_command(s: str, comm: str):
+    return s.startswith(comm) and (len(s) == len(comm) or s[len(comm)] != ":")

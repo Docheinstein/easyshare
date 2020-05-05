@@ -7,12 +7,14 @@ from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.exposed import ISharingService
-from easyshare.protocol.response import Response, create_success_response
+from easyshare.protocol.filetype import FTYPE_FILE
+from easyshare.protocol.response import Response, create_success_response, create_error_response
 from easyshare.server.client import ClientContext
 from easyshare.server.services.base.service import check_service_owner, ClientService
 from easyshare.server.services.base.sharingservice import ClientSharingService
 from easyshare.server.services.get import GetService
 from easyshare.server.common import try_or_command_failed_response
+from easyshare.server.services.put import PutService
 from easyshare.server.sharing import Sharing
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.os import ls, is_relpath, relpath, tree, cp, mv, rm
@@ -35,15 +37,6 @@ def check_write_permission(api):
 
 
 class SharingService(ISharingService, ClientSharingService):
-
-    def get_next_info(self, transaction) -> Response:
-        pass
-
-    def put(self) -> Response:
-        pass
-
-    def put_next_info(self, transaction, info: FileInfo) -> Response:
-        pass
 
     def __init__(self,
                  sharing: Sharing,
@@ -196,7 +189,7 @@ class SharingService(ISharingService, ClientSharingService):
         log.i("Going to mkdir on %s", real_path)
 
         try:
-            os.mkdir(real_path)
+            os.makedirs(real_path, exist_ok=True)
         except Exception as ex:
             log.exception("mkdir exception")
             return self._create_sharing_error_response(str(ex))
@@ -373,6 +366,37 @@ class SharingService(ISharingService, ClientSharingService):
         return create_success_response({
             "uri": uri,
             "transfer_port": get.transfer_port()
+        })
+
+
+
+    @expose
+    @trace_api
+    @try_or_command_failed_response
+    @check_service_owner
+    def put(self) -> Response:
+        client_endpoint = pyro_client_endpoint()
+
+        log.i("<< PUT [%s]", str(client_endpoint))
+
+        if self._sharing.ftype == FTYPE_FILE:
+            # Cannot put within a file
+            log.e("Cannot put within a file sharing")
+            return create_error_response(ServerErrors.NOT_ALLOWED)
+
+        put = PutService(
+            sharing=self._sharing,
+            sharing_rcwd=self._rcwd,
+            client=self._client,
+            end_callback=lambda putserv: putserv.unpublish()
+        )
+        put.run()
+
+        uri = put.publish()
+
+        return create_success_response({
+            "uri": uri,
+            "transfer_port": put.transfer_port()
         })
 
     @expose

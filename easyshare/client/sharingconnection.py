@@ -135,6 +135,11 @@ class SharingConnection:
     def get(self, files: List[str]) -> Response:
         return self.service.get(files)
 
+    @handle_sharing_response
+    @require_sharing_connection
+    def put(self) -> Response:
+        return self.service.put()
+
     # def put(self) -> Response:
     #     if not self.is_connected():
     #         return create_error_response(ClientErrors.NOT_CONNECTED)

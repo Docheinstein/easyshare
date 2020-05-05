@@ -23,7 +23,7 @@ from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
-from easyshare.protocol.exposed import IRexecService, IGetService
+from easyshare.protocol.exposed import IRexecService, IGetService, IPutService
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
@@ -367,7 +367,11 @@ class Client:
                 [VariadicArgs(0), VariadicArgs(1)],
                 self.get),
 
-            Commands.PUT: self.put,
+            Commands.PUT: (
+                SHARING,
+                [VariadicArgs(0), VariadicArgs(1)],
+                self.put),
+
 
             Commands.SCAN: (
                 LOCAL,
@@ -503,7 +507,7 @@ class Client:
         # Reuse the parsed args for keep the (optional) path
         args._parsed[LsArgs.SHOW_ALL[0]] = True
         args._parsed[LsArgs.SHOW_DETAILS[0]] = True
-        Client.ls(args)
+        Client.ls(args, _)
 
     @staticmethod
     def tree(args: Args, _):
@@ -524,7 +528,7 @@ class Client:
 
         log.i(">> MKDIR %s", directory)
 
-        os.mkdir(directory)
+        os.makedirs(directory, exist_ok=True)
 
     @staticmethod
     def pwd(_: Args, _2):
@@ -1172,6 +1176,223 @@ class Client:
         log.i("GET transaction finished, closing socket")
         transfer_socket.close()
 
+    @provide_sharing_connection
+    def put(self, args: Args, connection: SharingConnection):
+
+        if not connection or not connection.is_connected():
+            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+
+        files = args.get_vargs()
+
+        resp = connection.put()
+        ensure_data_response(resp)
+
+        put_service_uri = resp.get("data").get("uri")
+        put_service_port = resp.get("data").get("transfer_port")
+
+        if not put_service_uri or not put_service_port:
+            raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+        log.i("Successfully PUTed")
+
+
+        # Raw transfer socket
+        transfer_socket = SocketTcpOut(
+            connection.server_info.get("ip"),
+            put_service_port,
+            ssl_context=get_ssl_context(),
+        )
+
+        if len(files) == 0:
+            files = ["."]
+
+        files = sorted(files, reverse=True)
+        sendfiles: List[dict] = []
+
+        for f in files:
+            _, trail = os.path.split(f)
+            log.i("-> trail: %s", trail)
+            sendfile = {
+                "local": f,
+                "remote": trail
+            }
+            log.i("Adding sendfile %s", json_to_pretty_str(sendfile))
+            sendfiles.append(sendfile)
+
+        overwrite_all: Optional[bool] = None
+
+        if PutArguments.YES_TO_ALL in args:
+            overwrite_all = True
+        if PutArguments.NO_TO_ALL in args:
+            overwrite_all = False
+
+        log.i("Overwrite all mode: %s", bool_to_str(overwrite_all))
+
+        # Proxy
+
+        put_service: Union[TracedPyroProxy, IPutService]
+
+        with TracedPyroProxy(put_service_uri) as put_service:
+
+
+            def send_file(local_path: str, remote_path: str):
+                nonlocal overwrite_all
+
+                fstat = os.lstat(local_path)
+                fsize = fstat.st_size
+
+                if S_ISDIR(fstat.st_mode):
+                    ftype = FTYPE_DIR
+                elif S_ISREG(fstat.st_mode):
+                    ftype = FTYPE_FILE
+                else:
+                    log.w("Unknown file type")
+                    return
+
+                finfo = {
+                    "name": remote_path,
+                    "ftype": ftype,
+                    "size": fsize
+                }
+
+                log.i("send_file finfo: %s", json_to_pretty_str(finfo))
+
+                log.d("doing a put_next")
+
+                put_next_resp = put_service.next(finfo)
+                ensure_success_response(put_next_resp)
+
+                # Overwrite handling
+
+                if is_data_response(put_next_resp) and \
+                        put_next_resp.get("data") == "ask_overwrite":
+
+                    # Ask whether overwrite just once or forever
+                    current_overwrite_decision = overwrite_all
+
+                    # Ask until we get a valid answer
+                    while current_overwrite_decision is None:
+
+                        overwrite_answer = input(
+                            "{} already exists, overwrite it? [Y : yes / yy : yes to all / n : no / nn : no to all] "
+                                .format(remote_path)
+                        ).lower()
+
+                        if not overwrite_answer or overwrite_answer == "y":
+                            current_overwrite_decision = True
+                        elif overwrite_answer == "n":
+                            current_overwrite_decision = False
+                        elif overwrite_answer == "yy":
+                            current_overwrite_decision = overwrite_all = True
+                        elif overwrite_answer == "nn":
+                            current_overwrite_decision = overwrite_all = False
+                        else:
+                            log.w("Invalid answer, asking again")
+
+                    if current_overwrite_decision is False:
+                        log.i("Skipping " + remote_path)
+                        return
+                    else:
+                        log.d("Will overwrite file")
+
+                progressor = FileProgressor(
+                    fsize,
+                    description="PUT " + local_path,
+                    color_progress=PROGRESS_COLOR,
+                    color_done=DONE_COLOR
+                )
+
+                if ftype == FTYPE_DIR:
+                    log.d("Sent a DIR, nothing else to do")
+                    progressor.done()
+                    return
+
+                log.d("Actually sending the file")
+
+                BUFFER_SIZE = 4096
+
+                f = open(local_path, "rb")
+
+                cur_pos = 0
+
+                while cur_pos < fsize:
+                    r = random.random() * 0.001
+                    time.sleep(0.001 + r)
+
+                    chunk = f.read(BUFFER_SIZE)
+                    log.i("Read chunk of %dB", len(chunk))
+
+                    if not chunk:
+                        log.i("Finished %s", local_path)
+                        # FIXME: sending something?
+                        break
+
+                    transfer_socket.send(chunk)
+
+                    cur_pos += len(chunk)
+                    progressor.update(cur_pos)
+
+                log.i("DONE %s", local_path)
+                f.close()
+
+                progressor.done()
+
+
+            while sendfiles:
+                log.i("Putting another file info")
+                next_file = sendfiles.pop()
+
+                # Check what is this
+                # 1. Non existing: skip
+                # 2. A file: send it directly (parent dirs won't be replicated)
+                # 3. A dir: send it recursively
+
+                next_file_local = next_file.get("local")
+                next_file_remote = next_file.get("remote")
+
+                if os.path.isfile(next_file_local):
+                    # Send it directly
+                    log.d("-> is a FILE")
+                    send_file(next_file_local, next_file_remote)
+
+                elif os.path.isdir(next_file_local):
+                    # Send it recursively
+
+                    log.d("-> is a DIR")
+
+                    # Directory found
+                    dir_files = sorted(os.listdir(next_file_local), reverse=True)
+
+                    if dir_files:
+
+                        log.i("Found a filled directory: adding all inner files to remaining_files")
+                        for f in dir_files:
+                            f_path_local = os.path.join(next_file_local, f)
+                            f_path_remote = os.path.join(next_file_remote, f)
+                            # Push to the begin instead of the end
+                            # In this way we perform a breadth-first search
+                            # instead of a depth-first search, which makes more sense
+                            # because we will push the files that belongs to the same
+                            # directory at the same time
+                            sendfile = {
+                                "local": f_path_local,
+                                "remote": f_path_remote
+                            }
+                            log.i("Adding sendfile %s", json_to_pretty_str(sendfile))
+
+                            sendfiles.append(sendfile)
+                    else:
+                        log.i("Found an empty directory")
+                        log.d("Pushing an info for the empty directory")
+
+                        send_file(next_file_local, next_file_remote)
+                else:
+                    eprint("Failed to send '{}'".format(next_file_local))
+                    log.w("Unknown file type, doing nothing")
+
+
+
+
     def put_files(self, args: Args):
         if not self.is_connected():
             print_error(ClientErrors.NOT_CONNECTED)
@@ -1710,7 +1931,7 @@ class Client:
             log.d("GET => get_sharing")
             self.get_sharing(args)
 
-    def put(self, args: Args):
+    def putold(self, args: Args):
         if self.is_connected():
             log.d("PUT => put_files")
             self.put_files(args)

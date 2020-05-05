@@ -154,12 +154,12 @@ class ListCommandArgsInfo(CommandArgsInfo, ABC):
             else:
                 # Append a file, with a trailing space since there
                 # is no need to traverse the file system
-                ff = fname_tail + " "
+                ff = fname_tail
                 suggestions.append(StyledString(ff, fg(ff, color=FILE_COLOR)))
 
         return SuggestionsIntent(suggestions,
                                  completion=True,
-                                 space_after_completion=False)
+                                 space_after_completion=lambda s: not s.endswith("/"))
 
 
 class ListLocalCommandInfo(ListCommandArgsInfo, ABC):
@@ -310,12 +310,12 @@ class RtreeCommandInfo(BaseTreeCommandInfo, ListRemoteAllCommandInfo):
     pass
 
 
-class GetCommandInfo(CommandArgsInfo):
+class GetCommandInfo(ListRemoteAllCommandInfo):
     YES_TO_ALL = CommandArgInfo(["-Y", "--yes"], "Always overwrite existing files")
     NO_TO_ALL = CommandArgInfo(["-N", "--no"], "Never overwrite existing files")
 
 
-class PutCommandInfo(CommandArgsInfo):
+class PutCommandInfo(ListLocalAllCommandInfo):
     YES_TO_ALL = CommandArgInfo(["-Y", "--yes"], "Always overwrite existing files")
     NO_TO_ALL = CommandArgInfo(["-N", "--no"], "Never overwrite existing files")
 
@@ -345,6 +345,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_MOVE: ListLocalAllCommandInfo,
     Commands.LOCAL_REMOVE: ListLocalAllCommandInfo,
     Commands.LOCAL_EXEC: ListLocalAllCommandInfo,
+    Commands.LOCAL_EXEC_SHORT: ListLocalAllCommandInfo,
 
 
     Commands.REMOTE_CURRENT_DIRECTORY: CommandInfo,
@@ -356,6 +357,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_MOVE: ListRemoteAllCommandInfo,
     Commands.REMOTE_REMOVE: ListRemoteAllCommandInfo,
     Commands.REMOTE_EXEC: ListRemoteAllCommandInfo,
+    Commands.REMOTE_EXEC_SHORT: ListRemoteAllCommandInfo,
 
 
     Commands.SCAN: ScanCommandInfo,
