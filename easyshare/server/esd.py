@@ -6,12 +6,13 @@ from typing import List, Optional, Callable
 from easyshare import logging
 from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM
 from easyshare.client.args import ArgsParser
+from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ParseError
 from easyshare.logging import get_logger
 from easyshare.server.server import Server
 from easyshare.server.sharing import Sharing
 from easyshare.shared.args import Args
 from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, \
-    APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET, ENV_EASYSHARE_VERBOSITY
+    APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET, ENV_EASYSHARE_VERBOSITY, easyshare_load_env
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import enable_colors
@@ -23,8 +24,6 @@ from easyshare.utils.types import to_int, to_bool, is_valid_list
 # ==================================================================
 
 log = get_logger()
-
-APP_INFO = APP_NAME_SERVER + " (" + APP_NAME_SERVER_SHORT + ") v. " + APP_VERSION
 
 
 # === HELPS ===
@@ -65,7 +64,7 @@ class EsdArgs(ArgsParser):
                       ParamsSpec(0, 0, lambda _: terminate("version"))),
             # KwArgSpec(EsdArgs.PORT, INT_PARAM),
             # KwArgSpec(EsArgs.WAIT, INT_PARAM),
-            KwArgSpec(EsdArgs.VERBOSE, INT_PARAM),
+            KwArgSpec(EsdArgs.VERBOSE, INT_PARAM_OPT),
             KwArgSpec(EsdArgs.TRACE, INT_PARAM_OPT),
             KwArgSpec(EsdArgs.NO_COLOR, PRESENCE_PARAM),
             KwArgSpec(EsdArgs.CONFIG, STR_PARAM),
@@ -75,154 +74,159 @@ class EsdArgs(ArgsParser):
     def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
         return lambda argname, idx, args, positionals: not positionals
 
+class EsdConfKeys:
+    G_NAME = "name"
+    G_PASSWORD = "password"
+    G_SSL = "ssl"
+    G_SSL_CERT = "ssl_cert"
+    G_SSL_PRIVKEY = "ssl_privkey"
 
-class ServerConfigKeys:
-    PORT = "port"
-    NAME = "name"
-    PASSWORD = "password"
-    SHARING_PATH = "path"
-    SHARING_READ_ONLY = "readonly"
-    SSL = "ssl"
-    SSL_CERT = "ssl_cert"
-    SSL_PRIVKEY = "ssl_privkey"
+    S_PATH = "path"
+    S_READONLY = "readonly"
+
+ESD_CONF_SPEC = {
+    None: {
+        # "port": INT_VAL,
+        EsdConfKeys.G_NAME: STR_VAL,
+        EsdConfKeys.G_PASSWORD: STR_VAL,
+        EsdConfKeys.G_SSL: BOOL_VAL,
+        EsdConfKeys.G_SSL_CERT: STR_VAL,
+        EsdConfKeys.G_SSL_PRIVKEY: STR_VAL
+    },
+    "^\\[([a-zA-Z0-9_]+)\\]$": {
+        EsdConfKeys.S_PATH: STR_VAL,
+        EsdConfKeys.S_READONLY: BOOL_VAL,
+    }
+}
 
 
 # ==================================================================
 
 
 def main():
-    starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
-    starting_verbosity = to_int(starting_verbosity,
-                                raise_exceptions=False,
-                                default=logging.VERBOSITY_NONE)
-    log.set_verbosity(starting_verbosity)
-    log.d("Starting with verbosity = %d", starting_verbosity)
+    easyshare_load_env()
 
     if len(sys.argv) <= 1:
         terminate(HELP_APP)
 
-    args = Args(sys.argv[1:])
+    # Parse arguments
+    args = EsdArgs().parse(sys.argv[1:])
 
-    enable_colors(ServerArguments.NO_COLOR not in args)
+    if not args:
+        abort("Error occurred while parsing arguments")
 
-    if ServerArguments.HELP in args:
-        terminate(HELP_APP)
+    # Verbosity
+    if args.has_kwarg(EsdArgs.VERBOSE):
+        log.set_verbosity(args.get_kwarg_param(EsdArgs.VERBOSE,
+                                               default=logging.VERBOSITY_MAX))
 
-    if ServerArguments.VERSION in args:
-        terminate(APP_INFO)
+    log.i("{} v. {}".format(APP_NAME_SERVER_SHORT, APP_VERSION))
+    log.i("Starting with arguments\n%s", args)
 
-    verbosity = 0
-    tracing = 0
+    enable_colors(EsdArgs.NO_COLOR not in args)
 
-    # if ServerArguments.VERBOSE in args:
-    #     verbosity = to_int(args.get_param(ServerArguments.VERBOSE, default=VERBOSITY_VERBOSE))
-    #     if verbosity is None:
-    #         abort("Invalid --verbose parameter value")
-    #
-    # if ServerArguments.TRACE in args:
-    #     tracing = to_int(args.get_param(ServerArguments.TRACE, default=1))
-    #     if tracing is None:
-    #         abort("Invalid --trace parameter value")
-    #
-    # init_logging(verbosity)
-    # enable_tracing(True if tracing else False)
-    enable_tracing(True)
+    # Packet tracing
+    if args.has_kwarg(EsdArgs.TRACE):
+        enable_tracing(args.get_kwarg_param(EsdArgs.TRACE, 1))
 
-    log.i(APP_INFO)
+    # Default values
+    server_name = socket.gethostname()
+    server_password = None
+    server_ssl_enabled = False
+    server_ssl_cert = None
+    server_ssl_privkey = None
 
-    # Init stuff with default values
-    sharings = {}
-    port = DEFAULT_DISCOVER_PORT
-    name = socket.gethostname()
-    password = None
-    ssl_enabled = False
-    ssl_cert = None
-    ssl_privkey = None
+    # Config file
 
-    # Eventually parse config file
-    config_path = args.get_param(ServerArguments.CONFIG)
+    if EsdArgs.CONFIG in args:
+        cfg = None
 
-    if config_path:
-        def strip_quotes(s: str) -> str:
-            return s.strip('"\'') if s else s
+        try:
+            cfg = Conf.parse(
+                path=args.get_kwarg_param(EsdArgs.CONFIG),
+                sections_parsers=ESD_CONF_SPEC,
+                comment_prefixes=["#", ";"]
+            )
+        except ParseError as err:
+            abort("Parse of config file failed: {}".format(str(err)))
 
-        cfg = parse_config(config_path)
         if cfg:
-            log.i("Parsed config file\n%s", str(cfg))
+            log.i("Config file parsed successfully:\n%s", cfg)
 
-            # Globals
-            global_section = cfg.pop(None)
-            if global_section:
-                if ServerConfigKeys.PORT in global_section:
-                    port = to_int(global_section.get(ServerConfigKeys.PORT))
+            # Config's global settings
 
-                if ServerConfigKeys.NAME in global_section:
-                    name = strip_quotes(global_section.get(ServerConfigKeys.NAME, name))
+            server_name = cfg.get_global_value(
+                EsdConfKeys.G_NAME,
+                default=server_name
+            )
 
-                if ServerConfigKeys.PASSWORD in global_section:
-                    password = strip_quotes(global_section.get(ServerConfigKeys.PASSWORD, name))
+            server_password = cfg.get_global_value(
+                EsdConfKeys.G_PASSWORD,
+                default=server_password
+            )
 
-                    if password:
-                        log.d("Global password found")
+            server_ssl_cert = cfg.get_global_value(
+                EsdConfKeys.G_SSL_CERT,
+                default=server_ssl_cert
+            )
+            server_ssl_privkey = cfg.get_global_value(
+                EsdConfKeys.G_SSL_PRIVKEY,
+                default=server_ssl_privkey
+            )
 
-                if ServerConfigKeys.SSL in global_section:
-                    # to_bool
-                    ssl_enabled = to_bool(global_section.get(ServerConfigKeys.SSL, ssl_enabled))
+            server_ssl_enabled = cfg.get_global_value(
+                EsdConfKeys.G_SSL,
+                default=server_ssl_cert and server_ssl_privkey
+            )
 
-                    if ssl_enabled:
-                        log.i("SSL required on")
-                        ssl_cert = strip_quotes(global_section.get(ServerConfigKeys.SSL_CERT, ssl_cert))
-                        ssl_privkey = strip_quotes(global_section.get(ServerConfigKeys.SSL_PRIVKEY, ssl_privkey))
+            # if server_ssl_enabled:
+            #     if not server_ssl_cert:
+            #         log.w("ssl=true, but ssl_cert has not been specified")
+            #
+            #     if not server_ssl_privkey:
+            #         log.w("ssl=true, but ssl_privkey has not been specified")
 
-                        if not ssl_cert:
-                            log.w("SSL required on, but ssl_cert has not been specified")
+            # Config's sharings
+            sharings = {}
 
-                        if not ssl_privkey:
-                            log.w("SSL required on, but ssl_cert has not been specified")
+            for s_name, s_settings in cfg.get_non_global_sections().items():
+                s_path = s_settings.get(EsdConfKeys.S_PATH)
+                s_readonly = s_settings.get(EsdConfKeys.S_PATH, False)
 
-            # Sharings
-            for sharing_name, sharing_settings in cfg.items():
-
-                sharing_password = strip_quotes(sharing_settings.get(ServerConfigKeys.PASSWORD))
-
-                if sharing_password:
-                    log.i("Sharing %s is protected by password", sharing_name)
+                if not s_path:
+                    log.w("Invalid path for sharing '%s'; skipping it", s_name)
+                    continue
 
                 sharing = Sharing.create(
-                    name=strip_quotes(sharing_name),
-                    path=strip_quotes(sharing_settings.get(ServerConfigKeys.SHARING_PATH)),
-                    read_only=to_bool(sharing_settings.get(ServerConfigKeys.SHARING_READ_ONLY, False))
-                    # auth=AuthFactory.parse(sharing_password if sharing_password else password)
+                    name=s_name,
+                    path=s_path,
+                    read_only=s_readonly
                 )
 
                 if not sharing:
-                    log.w("Invalid or incomplete sharing config; skipping '%s'", str(sharing))
+                    log.w("Invalid or incomplete sharing config; skipping '%s'", s_name)
                     continue
 
-                log.i("Adding valid sharing %s", sharing_name)
+                sharings[s_name] = sharing
 
-                sharings[sharing_name] = sharing
-        else:
-            log.w("Parsing error; ignoring config file")
-
-    # Read arguments from command line (overwrite config)
-
-    # Globals (port, name, ...)
-
-    # Port
-    if ServerArguments.PORT in args:
-        port = to_int(args.get_param(ServerArguments.PORT))
+    # Args from command line
 
     # Name
-    if ServerArguments.NAME in args:
-        name = args.get_param(ServerArguments.NAME)
+    server_name = args.get_kwarg_param(
+        EsdArgs.NAME,
+        default=server_name
+    )
 
     # Validation
-    if not is_valid_port(port):
-        abort("Invalid port")
 
-    if not satisfy(name, SERVER_NAME_ALPHABET):
-        abort("Invalid server name")
+    if not satisfy(server_name, SERVER_NAME_ALPHABET):
+        abort("Invalid server name: '{}'".format(server_name))
+
+    # if not is_valid_port(port):
+    #     abort("Invalid port")
+
+    print("== LOCALS ==", locals())
+    terminate("Enough for now...")
 
     # Add sharings from command line
     # If a sharing with the same name already exists due to config file,

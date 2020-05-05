@@ -21,7 +21,7 @@ class Sharing:
         return json_to_pretty_str(self.info())
 
     @staticmethod
-    def create(name: str, path: str, read_only: bool = False, auth: Auth = AuthNone()) -> Optional['Sharing']:
+    def create(name: str, path: str, read_only: bool = False) -> Optional['Sharing']:
         # Ensure path existence
         if not path:
             log.w("Sharing creation failed; path not provided")

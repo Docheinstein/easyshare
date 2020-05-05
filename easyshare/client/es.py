@@ -9,7 +9,8 @@ from easyshare.client.commands import Commands, is_special_command
 from easyshare.client.errors import errcode_string
 from easyshare.client.shell import Shell
 from easyshare.logging import get_logger
-from easyshare.shared.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, ENV_EASYSHARE_VERBOSITY
+from easyshare.shared.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, ENV_EASYSHARE_VERBOSITY, \
+    easyshare_load_env
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import enable_colors
@@ -53,7 +54,7 @@ class EsArgs(ArgsParser):
                       ParamsSpec(0, 0, lambda _: terminate("version"))),
             KwArgSpec(EsArgs.PORT, INT_PARAM),
             KwArgSpec(EsArgs.WAIT, INT_PARAM),
-            KwArgSpec(EsArgs.VERBOSE, INT_PARAM),
+            KwArgSpec(EsArgs.VERBOSE, INT_PARAM_OPT),
             KwArgSpec(EsArgs.TRACE, INT_PARAM_OPT),
             KwArgSpec(EsArgs.NO_COLOR, PRESENCE_PARAM),
         ]
@@ -65,13 +66,7 @@ class EsArgs(ArgsParser):
 
 
 def main():
-    starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
-    starting_verbosity = to_int(starting_verbosity,
-                                raise_exceptions=False,
-                                default=logging.VERBOSITY_NONE)
-    starting_verbosity = rangify(starting_verbosity, logging.VERBOSITY_MIN, logging.VERBOSITY_MAX)
-    log.set_verbosity(starting_verbosity)
-    log.d("Starting with verbosity = %d", starting_verbosity)
+    easyshare_load_env()
 
     # Uncomment for debug arguments parsing
     # log.set_verbosity(logging.VERBOSITY_MAX)
@@ -83,7 +78,9 @@ def main():
         abort("Error occurred while parsing arguments")
 
     # Verbosity
-    log.set_verbosity(args.get_kwarg_param(EsArgs.VERBOSE, starting_verbosity))
+    if args.has_kwarg(EsArgs.VERBOSE):
+        log.set_verbosity(args.get_kwarg_param(EsArgs.VERBOSE,
+                                               default=logging.VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_CLIENT_SHORT, APP_VERSION))
     log.i("Starting with arguments\n%s", args)

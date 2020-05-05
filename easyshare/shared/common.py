@@ -1,7 +1,11 @@
+import os
 import string
 
+from easyshare import logging
+from easyshare.logging import get_logger
 from easyshare.utils.colors import Color
 from easyshare.utils.str import satisfy
+from easyshare.utils.types import to_int
 
 APP_NAME = "easyshare"
 APP_NAME_SERVER = "easyshare deamon"
@@ -34,3 +38,13 @@ def is_sharing_name(s: str):
 def is_server_name(s: str):
     return satisfy(s, SERVER_NAME_ALPHABET)
 
+def easyshare_load_env():
+    # EASYSHARE_VERBOSITY
+    starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
+    starting_verbosity = to_int(starting_verbosity,
+                                raise_exceptions=False,
+                                default=logging.VERBOSITY_NONE)
+
+    root_log = get_logger(logging.ROOT_LOGGER_NAME)
+    root_log.set_verbosity(starting_verbosity)
+    root_log.d("Starting with verbosity = %d", starting_verbosity)

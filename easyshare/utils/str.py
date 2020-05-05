@@ -26,6 +26,8 @@ def keep(s: str, allowed: str) -> str:
 
 
 def satisfy(s: str, allowed: str) -> bool:
+    if not s or not allowed:
+        return False
     for c in s:
         if c not in allowed:
             return False
