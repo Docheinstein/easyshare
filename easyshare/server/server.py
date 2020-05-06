@@ -1,4 +1,4 @@
-import os
+import socket
 import ssl
 import threading
 
@@ -8,6 +8,7 @@ from typing import Dict, Optional
 
 from Pyro5.api import expose, oneway
 
+from easyshare.consts.net import PORT_ANY, ADDR_ANY
 from easyshare.logging import get_logger
 from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.response import create_success_response, create_error_response, Response
@@ -16,10 +17,8 @@ from easyshare.server.daemon import init_pyro_daemon, get_pyro_daemon
 from easyshare.server.services.rexec import RexecService
 from easyshare.server.services.sharing import SharingService
 from easyshare.server.sharing import Sharing
-from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, \
-    APP_NAME_SERVER
 from easyshare.server.client import ClientContext
-from easyshare.server.discover import DiscoverDeamon
+from easyshare.server.discover import DiscoverDaemon
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.exposed import IServer
 from easyshare.protocol.errors import ServerErrors
@@ -49,11 +48,17 @@ def require_client_connected(api):
 
 class Server(IServer):
 
-    def __init__(self, *, discover_port: int, name: str, auth: Auth = AuthNone(), ssl_context: ssl.SSLContext = None):
-        self._ip = get_primary_ip()
-
-        self._discover_port = discover_port
-        self._name = name
+    def __init__(self, *,
+                 name: str = None,
+                 address: str = None,
+                 port: int = None,
+                 discover_port: int = None,
+                 auth: Auth = AuthNone(),
+                 ssl_context: ssl.SSLContext = None):
+        self._name = name or socket.gethostname()
+        self._port = port or PORT_ANY
+        self._discover_port = discover_port or PORT_ANY
+        self._address = address or ADDR_ANY
         self._auth = auth
 
         self._sharings: Dict[str, Sharing] = {}
@@ -61,20 +66,25 @@ class Server(IServer):
         self._clients: Dict[Endpoint, ClientContext] = {}
         self._clients_lock = threading.Lock()
 
-        self._discover_deamon = DiscoverDeamon(discover_port, self.handle_discover_request)
-
-        log.i("Server name: %s", self._name)
-        log.i("Server discover port: %d", self._discover_port)
-        log.i("Server IP: %s", self._ip)
+        self._discover_daemon = DiscoverDaemon(
+            address=self._address,
+            port=self._discover_port,
+            callback=self.handle_discover_request
+        )
 
         set_ssl_context(ssl_context)
         self._ssl_context = get_ssl_context()
 
-        init_pyro_daemon(self._ip)
-        daemon = get_pyro_daemon()
+        init_pyro_daemon(self._address)
+        pyro_daemon = get_pyro_daemon()
 
-        daemon.add_disconnection_callback(self._handle_client_disconnect)
-        self._pyro_uri, _ = daemon.publish(self)
+        pyro_daemon.add_disconnection_callback(self._handle_client_disconnect)
+        self._pyro_uri, _ = pyro_daemon.publish(self)
+
+        address, port = self._endpoint()
+        log.i("Server real address: %s", address)
+        log.i("Server real port: %d", port)
+        log.i("Server real discover port: %d", self._discover_daemon.sock.port())
 
         log.i("Server registered at URI: %s", self._pyro_uri)
 
@@ -126,7 +136,7 @@ class Server(IServer):
 
     def start(self):
         log.i("Starting DISCOVER deamon")
-        self._discover_deamon.start()
+        self._discover_daemon.start()
 
         log.i("Starting PYRO request loop")
         get_pyro_daemon().requestLoop()
@@ -145,7 +155,7 @@ class Server(IServer):
             return create_success_response()
 
         # Authentication
-        log.i("Authentication check - type: %s", self._auth.algo_name())
+        log.i("Authentication check - type: %s", self._auth.algo_type())
 
         # Just ask the auth whether it matches or not
         # (The password can either be none/plain/hash, the auth handles them all)

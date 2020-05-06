@@ -9,6 +9,10 @@ from easyshare.utils.types import to_int, list_wrap, is_int
 log = get_logger(__name__)
 
 
+class ArgsParseError(Exception):
+    pass
+
+
 class ParamsSpec(ABC):
     VARIADIC_PARAMETERS_COUNT = -1
 
@@ -118,7 +122,7 @@ class Args:
     def parse(args: List[str], *,
               vargs_spec: ParamsSpec = None,
               kwargs_specs: List[KwArgSpec] = None,
-              continue_parsing_hook: Optional[Callable[[str, int, 'Args', List[str]], bool]] = None) -> Optional['Args']:
+              continue_parsing_hook: Optional[Callable[[str, int, 'Args', List[str]], bool]] = None) -> 'Args':
             # continue_parsing_hook: argname, idx, args, positionals
 
         vargs_spec = vargs_spec or VARIADIC_PARAMS
@@ -185,22 +189,22 @@ class Args:
 
                 # Check whether this is a kwarg or varg
 
-                if _is_long_kwarg(arg):
+                if Args._is_long_kwarg(arg):
                     # Long format kwarg
 
                     bucket, argpec = get_bucket(arg)
 
                     if bucket is not None:
-                        cursor += _append_to_bucket(
+                        cursor += Args._append_to_bucket(
                             bucket,
                             params=args,
                             params_offset=cursor + 1,
                             params_spec=argpec.params_spec,
-                            param_ok_hook=lambda p: not _is_kwarg)
+                            param_ok_hook=lambda p: not Args._is_kwarg)
                     else:
                         log.w("Unknown argument: '%s'", arg)
 
-                elif _is_kwarg(arg):
+                elif Args._is_kwarg(arg):
                     # Short format kwarg
                     # e.g. "-v"
                     # e.g. "-lsh"
@@ -222,12 +226,12 @@ class Args:
                             # We can feed the parser only if we are on the
                             # last param of the chain, otherwise params_count
                             # must be 0
-                            cursor += _append_to_bucket(
+                            cursor += Args._append_to_bucket(
                                 bucket,
                                 params=args,
                                 params_offset=cursor + 1,
                                 params_spec=argpec.params_spec,
-                                param_ok_hook=lambda s: not _is_kwarg(s) and is_last_of_chain)
+                                param_ok_hook=lambda s: not Args._is_kwarg(s) and is_last_of_chain)
                         else:
                             log.w("Unknown argument in chain: '%s'", c_arg_name)
 
@@ -246,7 +250,7 @@ class Args:
             log.d("%d positional arguments", len(positionals))
 
             positionals_bucket = parsed.setdefault(None, [])
-            positionals_count = _append_to_bucket(
+            positionals_count = Args._append_to_bucket(
                 positionals_bucket,
                 params=positionals,
                 params_spec=vargs_spec,
@@ -259,91 +263,98 @@ class Args:
             # Eventually add the remaining to the unparsed
             unparsed += positionals[positionals_count:]
 
-        except Exception as ex:
-            log.e("Exception occurred while parsing: %s", ex)
-            return None
+            return ret
 
-        return ret
-
-
-def _is_kwarg(s: str):
-    return s.startswith("-") and len(s) > 1
+        except Exception as err:
+            raise ArgsParseError(str(err))
 
 
-def _is_long_kwarg(s: str):
-    return s.startswith("--") and len(s) > 2
+
+    @staticmethod
+    def _is_kwarg(s: str):
+        return s.startswith("-") and len(s) > 1
 
 
-def _is_varg(s: str):
-    return not _is_kwarg(s)
+    @staticmethod
+    def _is_long_kwarg(s: str):
+        return s.startswith("--") and len(s) > 2
 
 
-def _append_to_bucket(bucket: List[str],
-                      params: List[str],
-                      params_spec: ParamsSpec,
-                      params_offset: int = 0,
-                      param_ok_hook: Callable[[str], bool] = lambda p: True):
+    @staticmethod
+    def _is_varg(s: str):
+        return not Args._is_kwarg(s)
 
-    log.d("_append_to_bucket\n%s\nparams = %s\noffset = %d",
-          str(params_spec), params, params_offset)
 
-    param_cursor = 0
+    @staticmethod
+    def _append_to_bucket(bucket: List[str],
+                          params: List[str],
+                          params_spec: ParamsSpec,
+                          params_offset: int = 0,
+                          param_ok_hook: Callable[[str], bool] = lambda p: True):
 
-    # MANDATORY
+        log.d("Parsing and append to bucket...\n"
+              "\t%s\n"
+              "\tparams = %s\n"
+              "\toffset = %d\n",
+              str(params_spec), params, params_offset)
 
-    # Ensure that we have enough params to provide
-    # to the params parser of this argument
+        param_cursor = 0
 
-    if params_offset + params_spec.mandatory_count > len(params):
-        raise IndexError("not enough parameters to feed argument")
+        # MANDATORY
 
-    # Ensure that the params are allowed
-    # (the check could be performed even by the params_parser; this
-    # is just an helper, for example for filter kwarg/varg)
+        # Ensure that we have enough params to provide
+        # to the params parser of this argument
 
-    while param_cursor < params_spec.mandatory_count:
-        param = params[params_offset + param_cursor]
-        log.d("[%d] Mandatory: checking validity: param_ok_hook('%s')", param_cursor, param)
+        if params_offset + params_spec.mandatory_count > len(params):
+            raise IndexError("not enough parameters to feed argument")
 
-        if not param_ok_hook(param):
-            raise ValueError("invalid parameter for feed argument '%s'".format(param))
+        # Ensure that the params are allowed
+        # (the check could be performed even by the params_parser; this
+        # is just an helper, for example for filter kwarg/varg)
 
-        param_cursor += 1
-
-    # OPTIONALS
-
-    while params_spec.optional_count == ParamsSpec.VARIADIC_PARAMETERS_COUNT \
-            or param_cursor < params_spec.optional_count:
-
-        # Check if it is there
-        if params_offset + param_cursor < len(params):
-            # There is this optional param, check if is valid
+        while param_cursor < params_spec.mandatory_count:
             param = params[params_offset + param_cursor]
-            log.d("[%d] Optional: checking validity: param_ok_hook('%s')", param_cursor, param)
+            log.d("[%d] Mandatory: checking validity: param_ok_hook('%s')", param_cursor, param)
 
             if not param_ok_hook(param):
                 raise ValueError("invalid parameter for feed argument '%s'".format(param))
-        else:
-            log.d("No more params, stopping optionals fetching")
-            break
 
-        param_cursor += 1
+            param_cursor += 1
 
-    log.d("Parsing and appending to bucket (taking %d:%d)",
-          params_offset, params_offset + param_cursor)
+        # OPTIONALS
 
-    # Provide the params to the parser, and add
-    # the parsed value to the bucket
-    val = params_spec.parser(
-        params[params_offset:params_offset + param_cursor]
-    )
+        while params_spec.optional_count == ParamsSpec.VARIADIC_PARAMETERS_COUNT \
+                or param_cursor < params_spec.optional_count:
 
-    log.i("> %s", "{}".format(val))
-    bucket += list_wrap(val)
+            # Check if it is there
+            if params_offset + param_cursor < len(params):
+                # There is this optional param, check if is valid
+                param = params[params_offset + param_cursor]
+                log.d("[%d] Optional: checking validity: param_ok_hook('%s')", param_cursor, param)
 
-    return param_cursor
+                if not param_ok_hook(param):
+                    raise ValueError("invalid parameter for feed argument '%s'".format(param))
+            else:
+                log.d("No more params, stopping optionals fetching")
+                break
 
-#
+            param_cursor += 1
+
+        log.d("Parsing and appending to bucket (taking %d:%d)",
+              params_offset, params_offset + param_cursor)
+
+        # Provide the params to the parser, and add
+        # the parsed value to the bucket
+        val = params_spec.parser(
+            params[params_offset:params_offset + param_cursor]
+        )
+
+        log.i("> %s", "{}".format(val))
+        bucket += list_wrap(val)
+
+        return param_cursor
+
+    #
 # if __name__ == "__main__":
 #     def main():
 #         args = Args.parse(

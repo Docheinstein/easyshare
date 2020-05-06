@@ -1,27 +1,26 @@
-import os
-import sys
 import socket
+import sys
 from typing import List, Optional, Callable
 
 from easyshare import logging
-from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM
-from easyshare.client.args import ArgsParser
-from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ParseError
+from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError
+from easyshare.client.args import ArgsParser, PositionalArgs
+from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.logging import get_logger
+from easyshare.passwd.auth import AuthFactory
 from easyshare.server.server import Server
 from easyshare.server.sharing import Sharing
 from easyshare.shared.args import Args
-from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, \
-    APP_NAME_SERVER, DEFAULT_DISCOVER_PORT, SERVER_NAME_ALPHABET, ENV_EASYSHARE_VERBOSITY, easyshare_load_env
+from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import enable_colors
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfy
-from easyshare.utils.types import to_int, to_bool, is_valid_list
-
+from easyshare.utils.asserts import assert_true
 # ==================================================================
+from easyshare.utils.types import to_int
 
 log = get_logger()
 
@@ -35,26 +34,32 @@ HELP_APP = """easyshare deamon (esd)
 
 # === ARGUMENTS ===
 
-class SharingArgs(ArgsParser):
+class SharingArgs(PositionalArgs):
     READ_ONLY = ["-r", "--read-only"]
-    PASSWORD = ["-p", "--password"]
 
+    def __init__(self):
+        super().__init__(1, 1)
+
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return [
+            KwArgSpec(SharingArgs.READ_ONLY, PRESENCE_PARAM),
+        ]
 
 class EsdArgs(ArgsParser):
     HELP = ["-h", "--help"]
     VERSION = ["-V", "--version"]
 
+    CONFIG = ["-c", "--config"]
+
+    NAME = ["-n", "--name"]
+    ADDRESS = ["-a", "--address"]
+    PORT = ["-p", "--port"]
+    DISCOVER_PORT = ["-d", "--discover-port"]
+    PASSWORD = ["-P", "--password"]
+
     VERBOSE =   ["-v", "--verbose"]
     TRACE =     ["-t", "--trace"]
-
     NO_COLOR =  ["--no-color"]
-
-    CONFIG = ["-c", "--config"]
-    NAME = ["-n", "--name"]
-
-    # PORT = ["-p", "--port"]
-    # WAIT =      ["-w", "--wait"]
-
 
     def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
         return [
@@ -62,13 +67,19 @@ class EsdArgs(ArgsParser):
                       ParamsSpec(0, 0, lambda _: terminate("help"))),
             KwArgSpec(EsdArgs.VERSION,
                       ParamsSpec(0, 0, lambda _: terminate("version"))),
-            # KwArgSpec(EsdArgs.PORT, INT_PARAM),
-            # KwArgSpec(EsArgs.WAIT, INT_PARAM),
+
+            KwArgSpec(EsdArgs.CONFIG, STR_PARAM),
+
+            KwArgSpec(EsdArgs.NAME, STR_PARAM),
+            KwArgSpec(EsdArgs.ADDRESS, STR_PARAM),
+            KwArgSpec(EsdArgs.PORT, INT_PARAM),
+            KwArgSpec(EsdArgs.DISCOVER_PORT, INT_PARAM),
+            KwArgSpec(EsdArgs.PASSWORD, STR_PARAM),
+
             KwArgSpec(EsdArgs.VERBOSE, INT_PARAM_OPT),
             KwArgSpec(EsdArgs.TRACE, INT_PARAM_OPT),
             KwArgSpec(EsdArgs.NO_COLOR, PRESENCE_PARAM),
-            KwArgSpec(EsdArgs.CONFIG, STR_PARAM),
-            KwArgSpec(EsdArgs.NAME, STR_PARAM),
+
         ]
 
     def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
@@ -76,22 +87,38 @@ class EsdArgs(ArgsParser):
 
 class EsdConfKeys:
     G_NAME = "name"
+    G_ADDRESS = "address"
+    G_PORT = "port"
+    G_DISCOVER_PORT = "discover_port"
     G_PASSWORD = "password"
     G_SSL = "ssl"
     G_SSL_CERT = "ssl_cert"
     G_SSL_PRIVKEY = "ssl_privkey"
 
+    G_VERBOSE =   "verbose"
+    G_TRACE =     "trace"
+    G_NO_COLOR =  "no_color"
+
     S_PATH = "path"
     S_READONLY = "readonly"
 
+PORT_VAL = lambda sec, key, val: assert_true(
+    is_valid_port(to_int(val, raise_exceptions=True)), "Invalid port")
+
+
 ESD_CONF_SPEC = {
     None: {
-        # "port": INT_VAL,
         EsdConfKeys.G_NAME: STR_VAL,
+        EsdConfKeys.G_ADDRESS: STR_VAL,
+        EsdConfKeys.G_PORT: PORT_VAL,
+        EsdConfKeys.G_DISCOVER_PORT: PORT_VAL,
         EsdConfKeys.G_PASSWORD: STR_VAL,
         EsdConfKeys.G_SSL: BOOL_VAL,
         EsdConfKeys.G_SSL_CERT: STR_VAL,
-        EsdConfKeys.G_SSL_PRIVKEY: STR_VAL
+
+        EsdConfKeys.G_VERBOSE: INT_VAL,
+        EsdConfKeys.G_TRACE: INT_VAL,
+        EsdConfKeys.G_NO_COLOR: BOOL_VAL,
     },
     "^\\[([a-zA-Z0-9_]+)\\]$": {
         EsdConfKeys.S_PATH: STR_VAL,
@@ -104,33 +131,39 @@ ESD_CONF_SPEC = {
 
 
 def main():
-    easyshare_load_env()
+    easyshare_setup()
 
     if len(sys.argv) <= 1:
         terminate(HELP_APP)
 
     # Parse arguments
-    args = EsdArgs().parse(sys.argv[1:])
+    g_args = None
 
-    if not args:
-        abort("Error occurred while parsing arguments")
+    try:
+        g_args = EsdArgs().parse(sys.argv[1:])
+    except ArgsParseError as err:
+        log.exception("Exception occurred while parsing args")
+        abort("Parse of global arguments failed: {}".format(str(err)))
 
-    # Verbosity
-    if args.has_kwarg(EsdArgs.VERBOSE):
-        log.set_verbosity(args.get_kwarg_param(EsdArgs.VERBOSE,
+    # Eventually set verbosity before anything else
+    # so that the rest of the startup (config parsing, ...)
+    # can be logged
+    if g_args.has_kwarg(EsdArgs.VERBOSE):
+        log.set_verbosity(g_args.get_kwarg_param(EsdArgs.VERBOSE,
                                                default=logging.VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_SERVER_SHORT, APP_VERSION))
-    log.i("Starting with arguments\n%s", args)
-
-    enable_colors(EsdArgs.NO_COLOR not in args)
-
-    # Packet tracing
-    if args.has_kwarg(EsdArgs.TRACE):
-        enable_tracing(args.get_kwarg_param(EsdArgs.TRACE, 1))
+    log.i("Starting with arguments\n%s", g_args)
 
     # Default values
+    verbosity = 0
+    tracing = 0
+    no_colors = False
+
     server_name = socket.gethostname()
+    server_address = None
+    server_port = None
+    server_discover_port = None
     server_password = None
     server_ssl_enabled = False
     server_ssl_cert = None
@@ -138,16 +171,38 @@ def main():
 
     # Config file
 
-    if EsdArgs.CONFIG in args:
+    sharings = {}
+
+    def add_sharing(path: str, name: str, readonly: bool):
+        if not path:
+            log.w("Invalid path for sharing '%s'; skipping it")
+            return
+
+        sh = Sharing.create(
+            name=name,
+            path=path,
+            read_only=readonly
+        )
+
+        if not sh:
+            log.w("Invalid or incomplete sharing config; skipping it")
+            return
+
+        sharings[name] = sh
+
+    # Take out config settings
+
+    if EsdArgs.CONFIG in g_args:
         cfg = None
 
         try:
             cfg = Conf.parse(
-                path=args.get_kwarg_param(EsdArgs.CONFIG),
+                path=g_args.get_kwarg_param(EsdArgs.CONFIG),
                 sections_parsers=ESD_CONF_SPEC,
                 comment_prefixes=["#", ";"]
             )
-        except ParseError as err:
+        except ConfParseError as err:
+            log.exception("Exception occurred while parsing conf")
             abort("Parse of config file failed: {}".format(str(err)))
 
         if cfg:
@@ -158,6 +213,21 @@ def main():
             server_name = cfg.get_global_value(
                 EsdConfKeys.G_NAME,
                 default=server_name
+            )
+
+            server_address = cfg.get_global_value(
+                EsdConfKeys.G_ADDRESS,
+                default=server_address
+            )
+
+            server_port = cfg.get_global_value(
+                EsdConfKeys.G_PORT,
+                default=server_port
+            )
+
+            server_discover_port = cfg.get_global_value(
+                EsdConfKeys.G_DISCOVER_PORT,
+                default=server_discover_port
             )
 
             server_password = cfg.get_global_value(
@@ -179,109 +249,160 @@ def main():
                 default=server_ssl_cert and server_ssl_privkey
             )
 
-            # if server_ssl_enabled:
-            #     if not server_ssl_cert:
-            #         log.w("ssl=true, but ssl_cert has not been specified")
-            #
-            #     if not server_ssl_privkey:
-            #         log.w("ssl=true, but ssl_privkey has not been specified")
+            no_colors = cfg.get_global_value(
+                EsdConfKeys.G_NO_COLOR,
+                default=no_colors
+            )
+
+            tracing = cfg.get_global_value(
+                EsdConfKeys.G_TRACE,
+                default=tracing
+            )
+
+            verbosity = cfg.get_global_value(
+                EsdConfKeys.G_VERBOSE,
+                default=verbosity
+            )
 
             # Config's sharings
-            sharings = {}
 
             for s_name, s_settings in cfg.get_non_global_sections().items():
                 s_path = s_settings.get(EsdConfKeys.S_PATH)
                 s_readonly = s_settings.get(EsdConfKeys.S_PATH, False)
 
-                if not s_path:
-                    log.w("Invalid path for sharing '%s'; skipping it", s_name)
-                    continue
+                add_sharing(path=s_path, name=s_name, readonly=s_readonly)
 
-                sharing = Sharing.create(
-                    name=s_name,
-                    path=s_path,
-                    read_only=s_readonly
-                )
-
-                if not sharing:
-                    log.w("Invalid or incomplete sharing config; skipping '%s'", s_name)
-                    continue
-
-                sharings[s_name] = sharing
-
-    # Args from command line
+    # Args from command line: eventually overwrite config settings
 
     # Name
-    server_name = args.get_kwarg_param(
+    server_name = g_args.get_kwarg_param(
         EsdArgs.NAME,
         default=server_name
     )
+
+    # Server address
+    server_address = g_args.get_kwarg_param(
+        EsdArgs.ADDRESS,
+        default=server_address
+    )
+
+    # Server port
+    server_port = g_args.get_kwarg_param(
+        EsdArgs.PORT,
+        default=server_port
+    )
+
+    # Discover port
+    server_discover_port = g_args.get_kwarg_param(
+        EsdArgs.DISCOVER_PORT,
+        default=server_discover_port
+    )
+
+    # Password
+    server_password = g_args.get_kwarg_param(
+        EsdArgs.PASSWORD,
+        default=server_password
+    )
+
+    # Colors
+    if g_args.has_kwarg(EsdArgs.NO_COLOR):
+        no_colors = True
+
+    # Packet tracing
+    if g_args.has_kwarg(EsdArgs.TRACE):
+        # The param of -v is optional:
+        # if not specified the default is DEBUG
+        tracing = g_args.get_kwarg_param(
+            EsdArgs.TRACE,
+            default=1
+        )
+
+    # Verbosity
+    if g_args.has_kwarg(EsdArgs.VERBOSE):
+        # The param of -v is optional:
+        # if not specified the default is DEBUG
+        verbosity = g_args.get_kwarg_param(
+            EsdArgs.VERBOSE,
+            default=logging.VERBOSITY_MAX
+        )
 
     # Validation
 
     if not satisfy(server_name, SERVER_NAME_ALPHABET):
         abort("Invalid server name: '{}'".format(server_name))
 
-    # if not is_valid_port(port):
-    #     abort("Invalid port")
+    # Logging/Tracing/UI setup
 
-    print("== LOCALS ==", locals())
-    terminate("Enough for now...")
+    log.d("Colors: %s", not no_colors)
+    log.d("Tracing: %s", tracing)
+    log.d("Verbosity: %s", verbosity)
 
-    # Add sharings from command line
-    # If a sharing with the same name already exists due to config file,
-    # the values of the command line will overwrite those
+    enable_colors(not no_colors)
+    enable_tracing(tracing)
+    if verbosity:
+        log.set_verbosity(verbosity)
 
-    sharings_noarg_params = args.get_params()
+    # Parse sharing arguments (only a sharing is allowed in the cli)
 
-    # sharings_arg_mparams can contain more than one sharing params
-    # e.g. [['home', '/home/stefano'], ['tmp', '/tmp']]
-    sharings_arg_mparams = args.get_mparams(ServerArguments.SHARE)
+    unparsed = g_args.get_unparsed_args()
+    if unparsed:
+        log.d("Found unparsed positional args: considering those sharing args")
 
-    sharings_params = []
+        s_args = None
 
-    # Eventually add sharing specified without -s (the first one)
-    if sharings_noarg_params:
-        sharings_params.append(sharings_noarg_params)
+        try:
+            s_args = SharingArgs().parse(unparsed)
+        except ArgsParseError as err:
+            log.exception("Exception occurred while parsing args")
+            abort("Parse of sharing arguments failed: {}".format(str(err)))
 
-    # Eventually add sharings specified with -s or --sharing
-    if sharings_arg_mparams:
-        for sh_params in sharings_arg_mparams:
-            sharings_params.append(sh_params)
+        s_vargs = s_args.get_vargs()
 
-    if sharings_params:
-        # Add sharings to server
-        for sharing_params in sharings_params:
-            if not is_valid_list(sharing_params):
-                log.w("Skipping invalid sharing")
-                log.i("Invalid sharing params: %s", sharing_params)
-                continue
+        if s_vargs: # should always be valid actually
+            s_path = s_vargs[0]
+            s_name = s_vargs[1] if len(s_vargs) >= 2 else None
+            s_readonly = s_args.get_kwarg_param(SharingArgs.READ_ONLY,
+                                                default=False)
 
-            sharing = Sharing.create(
-                path=sharing_params[0],
-                name=sharing_params[1] if len(sharing_params) > 1 else None
-                # auth=AuthFactory.parse(password)  # allow parameters...
-            )
+            add_sharing(path=s_path, name=s_name, readonly=s_readonly)
 
-            if not sharing:
-                log.w("Invalid or incomplete sharing config; skipping sharing '%s'", str(sharing))
-                continue
-
-            log.i("Adding valid sharing [%s]", sharing)
-
-            sharings[sharing.name] = sharing
 
     # SSL
 
     ssl_context = None
-    if ssl_enabled and ssl_cert and ssl_privkey:
-        log.i("Creating SSL context")
-        log.i("SSL cert path: %s", ssl_cert)
-        log.i("SSL privkey path: %s", ssl_privkey)
-        ssl_context = create_server_ssl_context(cert=ssl_cert, privkey=ssl_privkey)
+    if server_ssl_enabled:
+        if server_ssl_cert and server_ssl_privkey:
+            log.i("Creating SSL context")
+            log.i("SSL cert path: %s", server_ssl_cert)
+            log.i("SSL privkey path: %s", server_ssl_privkey)
+            ssl_context = create_server_ssl_context(
+                cert=server_ssl_cert, privkey=server_ssl_privkey)
+        else:
+            if not server_ssl_cert:
+                log.w("ssl=true, but ssl_cert has not been specified; disabling ssl")
 
-    # Configure pyro server
-    server = Server(discover_port=port, name=name, ssl_context=ssl_context)
+            if not server_ssl_privkey:
+                log.w("ssl=true, but ssl_privkey has not been specified; disabling ssl")
+
+    # Configure server and add sharings to it
+
+    auth = AuthFactory.parse(server_password)
+
+    log.i("Required server name: %s", server_name)
+    log.i("Required server address: %s", server_address)
+    log.i("Required server port: %s", str(server_port))
+    log.i("Required server discover port: %s", str(server_discover_port))
+    log.i("Required auth: %s", auth.algo_type())
+
+
+    server = Server(
+        name=server_name,
+        address=server_address,
+        port=server_port,
+        discover_port=server_discover_port,
+        auth=AuthFactory.parse(server_password),
+        ssl_context=ssl_context
+    )
 
     if not sharings:
         log.w("No sharings found, it will be an empty server")
@@ -291,7 +412,7 @@ def main():
         print("+ " + sharing.name + " --> " + sharing.path)
         server.add_sharing(sharing)
 
-    server.start()
+    # server.start()
 
 
 if __name__ == "__main__":

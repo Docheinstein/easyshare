@@ -38,7 +38,8 @@ def is_sharing_name(s: str):
 def is_server_name(s: str):
     return satisfy(s, SERVER_NAME_ALPHABET)
 
-def easyshare_load_env():
+
+def easyshare_setup():
     # EASYSHARE_VERBOSITY
     starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
     starting_verbosity = to_int(starting_verbosity,

@@ -9,20 +9,21 @@ from easyshare.utils.types import bytes_to_int
 
 log = get_logger()
 
-class DiscoverDeamon(threading.Thread):
+class DiscoverDaemon(threading.Thread):
 
-    def __init__(self, port: int, callback: Callable[[Endpoint, bytes], None]):
+    def __init__(self,
+                 address: str,
+                 port: int,
+                 callback: Callable[[Endpoint, bytes], None]):
         threading.Thread.__init__(self)
-        self.port = port
-        self.callback = callback
+        self.sock = SocketUdpIn(address=address, port=port)
+        self._callback = callback
 
     def run(self) -> None:
         log.i("Starting DISCOVER deamon")
 
-        sock = SocketUdpIn(port=self.port)
-
         while True:
-            data, client_endpoint = sock.recv()
+            data, client_endpoint = self.sock.recv()
 
             trace_in(
                 "DISCOVER {} ({})".format(str(data),  bytes_to_int(data)),
@@ -31,4 +32,4 @@ class DiscoverDeamon(threading.Thread):
             )
 
             log.i("Received DISCOVER request from: %s", client_endpoint)
-            self.callback(client_endpoint, data)
+            self._callback(client_endpoint, data)

@@ -42,7 +42,7 @@ def is_valid_ip(ip: str) -> bool:
 
 
 def is_valid_port(p: int) -> bool:
-    return is_int(p) and 0 < p < 65535
+    return is_int(p) and 0 <= p <= 65535
 
 
 def socket_udp_in(address: str = ADDR_ANY, port: int = PORT_ANY, *,
@@ -75,6 +75,25 @@ def _socket(mode: SocketMode, direction: SocketDirection,
             address: str = None, port: int = None,
             timeout: float = None, broadcast: bool = False,
             pending_connections: int = 1, reuse_addr: bool = True) -> Optional[socket.socket]:
+
+    log.d("Creating raw_socket\n"
+        "\tmode:        %s\n"
+        "\tdirection:   %s\n"
+        "\taddress:     %s\n"
+        "\tport:        %s\n"  
+        "\ttimeout:     %s\n"  
+        "\tbroadcast:   %s\n"  
+        "\tno. allowed: %s\n"  
+        "\treuse_addr:  %s",
+          mode,
+          direction,
+          "<any>" if address == ADDR_ANY else address,
+          "<any>" if port == PORT_ANY else port,
+          timeout,
+          broadcast,
+          str(pending_connections),
+          reuse_addr
+    )
 
     if mode == SocketMode.TCP:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)    # TCP

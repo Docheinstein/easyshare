@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Dict, Optional, List, Tuple, Any, Callable, Union
+from typing import Dict, Optional, List, Any, Callable, Union
 
 from easyshare.logging import get_logger
 from easyshare.utils.json import json_to_pretty_str
@@ -8,7 +8,7 @@ from easyshare.utils.types import to_int
 
 log = get_logger()
 
-class ParseError(Exception):
+class ConfParseError(Exception):
     pass
 
 KeyValParser = Callable[[Union[str, None], str, str], Any] # section, key, val => Any
@@ -30,7 +30,7 @@ class Conf:
     @staticmethod
     def parse(path: str,
               sections_parsers: Dict[Union[str, None], Dict[str, KeyValParser]],
-              comment_prefixes: List[str] = None) -> Optional['Conf']:
+              comment_prefixes: List[str] = None) -> 'Conf':
 
         comment_prefixes = comment_prefixes or []
 
@@ -42,8 +42,7 @@ class Conf:
 
         try:
             if not path or not os.path.isfile(path):
-                log.e("Invalid config file path %s", path)
-                raise ParseError("Invalid config path: '{}'".format(path))
+                raise ConfParseError("Invalid config path: '{}'".format(path))
 
             # Maps regex that specify the section name to the parses
             # of the key,val of that section
@@ -129,8 +128,8 @@ class Conf:
             cfg.close()
 
             return Conf(data)
-        except Exception as ex:
-            raise ParseError(str(ex))
+        except Exception as err:
+            raise ConfParseError(str(err))
 
 
     def has_section(self, section: Union[str, None]) -> bool:
@@ -195,6 +194,6 @@ if __name__ == "__main__":
             }
         )
         print(cfg)
-    except ParseError as exc:
+    except ConfParseError as exc:
         print("Parse failed with error: {}".format((str(exc))))
         raise exc

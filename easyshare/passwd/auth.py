@@ -17,7 +17,7 @@ class Auth(ABC):
 
     @classmethod
     @abstractmethod
-    def algo_name(cls) -> str:
+    def algo_type(cls) -> str:
         pass
 
 
@@ -30,7 +30,7 @@ class AuthNone(Auth):
         return 0
 
     @classmethod
-    def algo_name(cls) -> str:
+    def algo_type(cls) -> str:
         return "none"
 
     def __str__(self):
@@ -49,7 +49,7 @@ class AuthPlain(Auth):
         return 10
 
     @classmethod
-    def algo_name(cls) -> str:
+    def algo_type(cls) -> str:
         return "plain"
 
     def __str__(self):
@@ -66,7 +66,7 @@ class AuthHash(Auth, ABC):
         pass
 
     @classmethod
-    def algo_name(cls) -> str:
+    def algo_type(cls) -> str:
         return "hash"
 
     def __init__(self, algo_id: str, salt: b64, hash: b64):
