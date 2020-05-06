@@ -12,10 +12,12 @@ from easyshare.server.server import Server
 from easyshare.server.sharing import Sharing
 from easyshare.shared.args import Args
 from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup
+from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import enable_colors
 from easyshare.utils.net import is_valid_port
+from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfy
 from easyshare.utils.asserts import assert_true
@@ -102,16 +104,12 @@ class EsdConfKeys:
     S_PATH = "path"
     S_READONLY = "readonly"
 
-PORT_VAL = lambda sec, key, val: assert_true(
-    is_valid_port(to_int(val, raise_exceptions=True)), "Invalid port")
-
-
 ESD_CONF_SPEC = {
     None: {
         EsdConfKeys.G_NAME: STR_VAL,
         EsdConfKeys.G_ADDRESS: STR_VAL,
-        EsdConfKeys.G_PORT: PORT_VAL,
-        EsdConfKeys.G_DISCOVER_PORT: PORT_VAL,
+        EsdConfKeys.G_PORT: INT_VAL,
+        EsdConfKeys.G_DISCOVER_PORT: INT_VAL,
         EsdConfKeys.G_PASSWORD: STR_VAL,
         EsdConfKeys.G_SSL: BOOL_VAL,
         EsdConfKeys.G_SSL_CERT: STR_VAL,
@@ -131,6 +129,8 @@ ESD_CONF_SPEC = {
 
 
 def main():
+    import logging as pylogging
+
     easyshare_setup()
 
     if len(sys.argv) <= 1:
@@ -148,9 +148,10 @@ def main():
     # Eventually set verbosity before anything else
     # so that the rest of the startup (config parsing, ...)
     # can be logged
+    # Verbosity over VERBOSITY_MAX enables pyro logging too
     if g_args.has_kwarg(EsdArgs.VERBOSE):
         log.set_verbosity(g_args.get_kwarg_param(EsdArgs.VERBOSE,
-                                               default=logging.VERBOSITY_MAX))
+                                                 default=logging.VERBOSITY_MAX + 1))
 
     log.i("{} v. {}".format(APP_NAME_SERVER_SHORT, APP_VERSION))
     log.i("Starting with arguments\n%s", g_args)
@@ -328,8 +329,14 @@ def main():
 
     # Validation
 
+    # - server name
     if not satisfy(server_name, SERVER_NAME_ALPHABET):
         abort("Invalid server name: '{}'".format(server_name))
+
+    # - ports
+    for p in [server_port, server_discover_port]:
+        if p and not is_valid_port(p):
+            abort("Invalid port number %d", p)
 
     # Logging/Tracing/UI setup
 
@@ -341,6 +348,7 @@ def main():
     enable_tracing(tracing)
     if verbosity:
         log.set_verbosity(verbosity)
+        enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
     # Parse sharing arguments (only a sharing is allowed in the cli)
 
@@ -404,15 +412,23 @@ def main():
         ssl_context=ssl_context
     )
 
-    if not sharings:
+    print("Server name:    ", server.name())
+    print("Server auth:    ", server.auth_type())
+    print("Server address: ", server.endpoint()[0])
+    print("Server port:    ", server.endpoint()[1])
+    print("Discover port:  ", server._discover_daemon.endpoint()[1])
+    print("SSL:            ", True if get_ssl_context() else False)
+
+
+    if sharings:
+        # Add every sharing to the server
+        for sharing in sharings.values():
+            print("* " + sharing.name + " --> " + sharing.path)
+            server.add_sharing(sharing)
+    else:
         log.w("No sharings found, it will be an empty server")
 
-    # Add every sharing to the server
-    for sharing in sharings.values():
-        print("+ " + sharing.name + " --> " + sharing.path)
-        server.add_sharing(sharing)
-
-    # server.start()
+    server.start()
 
 
 if __name__ == "__main__":

@@ -42,10 +42,24 @@ class EsdDaemon(pyro.Daemon):
 _pyro_daemon: Optional[EsdDaemon] = None
 
 
-def init_pyro_daemon(host: str):
+def init_pyro_daemon(address: str,
+                     port: int = 0,
+                     nat_address: str = None,
+                     nat_port: int = None):
     global _pyro_daemon
-    log.i("Initializing pyro daemon at %s", host)
-    _pyro_daemon = EsdDaemon(host=host)
+    log.i("Initializing pyro daemon\n"
+          "\tAddress: %s\n"
+          "\tPort: %s\n"
+          "\tNat address: %s\n"
+          "\tNat port: %s",
+          address, port, nat_address, nat_port
+      )
+    _pyro_daemon = EsdDaemon(
+        host=address,
+        port=port,
+        nathost=nat_address,
+        natport=nat_port
+    )
 
 
 def get_pyro_daemon() -> Optional[EsdDaemon]:

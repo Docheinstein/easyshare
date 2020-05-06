@@ -112,14 +112,13 @@ logging.Logger.set_verbosity = _set_verbosity
 logging_handler = logging.StreamHandler(sys.stdout)
 logging_handler.setFormatter(LoggerFormatter())
 
-# logging.basicConfig(stream=sys.stderr, format="[%(asctime)s,%(name)s,%(levelname)s] %(message)s")
 
-
-def get_logger(name: str = ROOT_LOGGER_NAME) -> Logger:
+def get_logger(name: str = ROOT_LOGGER_NAME, force_initialize: bool = False) -> Logger:
     logger: logging.Logger = logging.getLogger(name)
-    if name == ROOT_LOGGER_NAME:
+    if name == ROOT_LOGGER_NAME or force_initialize:
         logger.addHandler(logging_handler)
-    logger.verbosity = LEVEL_TO_VERBOSITY[logger.getEffectiveLevel()]
+    verbosity = logger.getEffectiveLevel()
+    logger.verbosity = LEVEL_TO_VERBOSITY[rangify(verbosity, LEVEL_FATAL, LEVEL_DEBUG)]
     return logger
 
 

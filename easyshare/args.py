@@ -200,7 +200,7 @@ class Args:
                             params=args,
                             params_offset=cursor + 1,
                             params_spec=argpec.params_spec,
-                            param_ok_hook=lambda p: not Args._is_kwarg)
+                            param_ok_hook=lambda p: not Args._is_kwarg(p))
                     else:
                         log.w("Unknown argument: '%s'", arg)
 
@@ -295,7 +295,7 @@ class Args:
         log.d("Parsing and append to bucket...\n"
               "\t%s\n"
               "\tparams = %s\n"
-              "\toffset = %d\n",
+              "\toffset = %d",
               str(params_spec), params, params_offset)
 
         param_cursor = 0
@@ -317,7 +317,7 @@ class Args:
             log.d("[%d] Mandatory: checking validity: param_ok_hook('%s')", param_cursor, param)
 
             if not param_ok_hook(param):
-                raise ValueError("invalid parameter for feed argument '%s'".format(param))
+                raise ValueError("invalid parameter for feed argument '{}'".format(param))
 
             param_cursor += 1
 
@@ -333,7 +333,8 @@ class Args:
                 log.d("[%d] Optional: checking validity: param_ok_hook('%s')", param_cursor, param)
 
                 if not param_ok_hook(param):
-                    raise ValueError("invalid parameter for feed argument '%s'".format(param))
+                    log.d("Optional parameter not found; no problem")
+                    break
             else:
                 log.d("No more params, stopping optionals fetching")
                 break

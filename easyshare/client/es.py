@@ -14,8 +14,9 @@ from easyshare.shared.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import enable_colors
-from easyshare.utils.math import rangify
+from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
+from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.types import to_int, is_int, is_str
 from easyshare.args import Args as Args, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, ArgsParseError
 
@@ -35,16 +36,16 @@ CLI_COMMANDS = [k for k in values(Commands) if k not in NON_CLI_COMMANDS]
 
 
 class EsArgs(ArgsParser):
-    HELP =      ["-h", "--help"]
-    VERSION =   ["-V", "--version"]
+    HELP =          ["-h", "--help"]
+    VERSION =       ["-V", "--version"]
 
-    PORT =      ["-p", "--port"]
-    WAIT =      ["-w", "--wait"]
+    DISCOVER_PORT = ["-d", "--discover-port"]
+    WAIT =          ["-w", "--wait"]
 
-    VERBOSE =   ["-v", "--verbose"]
-    TRACE =     ["-t", "--trace"]
+    VERBOSE =       ["-v", "--verbose"]
+    TRACE =         ["-t", "--trace"]
 
-    NO_COLOR =  ["--no-color"]
+    NO_COLOR =      ["--no-color"]
 
     def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
         return [
@@ -52,7 +53,7 @@ class EsArgs(ArgsParser):
                       ParamsSpec(0, 0, lambda _: terminate("help"))),
             KwArgSpec(EsArgs.VERSION,
                       ParamsSpec(0, 0, lambda _: terminate("version"))),
-            KwArgSpec(EsArgs.PORT, INT_PARAM),
+            KwArgSpec(EsArgs.DISCOVER_PORT, INT_PARAM),
             KwArgSpec(EsArgs.WAIT, INT_PARAM),
             KwArgSpec(EsArgs.VERBOSE, INT_PARAM_OPT),
             KwArgSpec(EsArgs.TRACE, INT_PARAM_OPT),
@@ -75,14 +76,15 @@ def main():
         args = EsArgs().parse(sys.argv[1:])
     except ArgsParseError as err:
         log.exception("Exception occurred while parsing args")
-        abort("Parse of global arguments failed: {}".format(str(err)))
+        abort("Parse of arguments failed: {}".format(str(err)))
 
     # Eventually set verbosity before anything else
     # so that the rest of the startup (config parsing, ...)
     # can be logged
+    # Verbosity over VERBOSITY_MAX enables pyro logging too
     if args.has_kwarg(EsArgs.VERBOSE):
         log.set_verbosity(args.get_kwarg_param(EsArgs.VERBOSE,
-                                               default=logging.VERBOSITY_MAX))
+                                               default=logging.VERBOSITY_MAX + 1))
 
     log.i("{} v. {}".format(APP_NAME_CLIENT_SHORT, APP_VERSION))
     log.i("Starting with arguments\n%s", args)
@@ -90,6 +92,7 @@ def main():
     verbosity = 0
     tracing = 0
     no_colors = False
+    discover_port = DEFAULT_DISCOVER_PORT
 
     # Colors
     if args.has_kwarg(EsArgs.NO_COLOR):
@@ -113,6 +116,19 @@ def main():
             default=logging.VERBOSITY_MAX
         )
 
+    # Discover port
+    discover_port = args.get_kwarg_param(
+        EsArgs.DISCOVER_PORT,
+        default=discover_port
+    )
+
+    # Validation
+
+    # - ports
+
+    if not is_valid_port(discover_port):
+        abort("Invalid port number %d", discover_port)
+
     # Logging/Tracing/UI setup
 
     log.d("Colors: %s", not no_colors)
@@ -123,10 +139,11 @@ def main():
     enable_tracing(tracing)
     if verbosity:
         log.set_verbosity(verbosity)
+        enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
 
     # Initialize client
-    client = Client(discover_port=args.get_kwarg_param(EsArgs.PORT, DEFAULT_DISCOVER_PORT))
+    client = Client(discover_port=discover_port)
 
     # Check whether
     # 1. Run a command directly from the cli

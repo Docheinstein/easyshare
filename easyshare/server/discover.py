@@ -1,6 +1,6 @@
-import threading
 from typing import Callable
 
+from easyshare.consts.net import ADDR_ANY
 from easyshare.logging import get_logger
 from easyshare.shared.endpoint import Endpoint
 from easyshare.tracing import trace_in
@@ -9,20 +9,20 @@ from easyshare.utils.types import bytes_to_int
 
 log = get_logger()
 
-class DiscoverDaemon(threading.Thread):
+class DiscoverDaemon:
 
     def __init__(self,
-                 address: str,
                  port: int,
                  callback: Callable[[Endpoint, bytes], None]):
-        threading.Thread.__init__(self)
-        self.sock = SocketUdpIn(address=address, port=port)
+        self.sock = SocketUdpIn(
+            address=ADDR_ANY,
+            port=port
+        )
         self._callback = callback
 
-    def run(self) -> None:
-        log.i("Starting DISCOVER deamon")
-
+    def run(self):
         while True:
+            log.d("Waiting for DISCOVER request to handle...")
             data, client_endpoint = self.sock.recv()
 
             trace_in(
@@ -33,3 +33,6 @@ class DiscoverDaemon(threading.Thread):
 
             log.i("Received DISCOVER request from: %s", client_endpoint)
             self._callback(client_endpoint, data)
+
+    def endpoint(self):
+        return self.sock.endpoint()

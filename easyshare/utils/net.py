@@ -77,22 +77,22 @@ def _socket(mode: SocketMode, direction: SocketDirection,
             pending_connections: int = 1, reuse_addr: bool = True) -> Optional[socket.socket]:
 
     log.d("Creating raw_socket\n"
-        "\tmode:        %s\n"
-        "\tdirection:   %s\n"
-        "\taddress:     %s\n"
-        "\tport:        %s\n"  
-        "\ttimeout:     %s\n"  
-        "\tbroadcast:   %s\n"  
-        "\tno. allowed: %s\n"  
-        "\treuse_addr:  %s",
+        "\tmode:            %s\n"
+        "\tdirection:       %s\n"
+        "\taddress:         %s\n"
+        "\tport:            %s\n"  
+        "\ttimeout:         %s\n"
+        "\treuse_addr:      %s\n"
+        "\tout bcast:       %s\n"  
+        "\tin  no. allowed: %s",
           mode,
           direction,
           "<any>" if address == ADDR_ANY else address,
           "<any>" if port == PORT_ANY else port,
           timeout,
+          reuse_addr,
           broadcast,
           str(pending_connections),
-          reuse_addr
     )
 
     if mode == SocketMode.TCP:

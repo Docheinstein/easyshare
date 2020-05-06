@@ -1,5 +1,7 @@
 from typing import Any, TypeVar, Callable, Optional
 
+from easyshare import logging
+from easyshare.logging import get_logger
 from easyshare.tracing import is_tracing_enabled
 from Pyro5 import api as pyro
 
@@ -71,6 +73,11 @@ def trace_api(api: API) -> API:
     trace_api_wrapper.__name__ = api.__name__
 
     return trace_api_wrapper
+
+def enable_pyro_logging(enabled: bool = True):
+    pyro_log = get_logger("Pyro5", force_initialize=enabled)
+    pyro_log.set_verbosity(logging.VERBOSITY_MAX if enabled else logging.VERBOSITY_MIN)
+
 
 #
 # def pyro_expose(api: API) -> API:

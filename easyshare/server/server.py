@@ -19,6 +19,7 @@ from easyshare.server.services.sharing import SharingService
 from easyshare.server.sharing import Sharing
 from easyshare.server.client import ClientContext
 from easyshare.server.discover import DiscoverDaemon
+from easyshare.shared.common import DEFAULT_DISCOVER_PORT
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.exposed import IServer
 from easyshare.protocol.errors import ServerErrors
@@ -57,8 +58,8 @@ class Server(IServer):
                  ssl_context: ssl.SSLContext = None):
         self._name = name or socket.gethostname()
         self._port = port or PORT_ANY
-        self._discover_port = discover_port or PORT_ANY
-        self._address = address or ADDR_ANY
+        self._discover_port = discover_port or DEFAULT_DISCOVER_PORT
+        self._address = address or get_primary_ip()
         self._auth = auth
 
         self._sharings: Dict[str, Sharing] = {}
@@ -67,7 +68,6 @@ class Server(IServer):
         self._clients_lock = threading.Lock()
 
         self._discover_daemon = DiscoverDaemon(
-            address=self._address,
             port=self._discover_port,
             callback=self.handle_discover_request
         )
@@ -75,15 +75,19 @@ class Server(IServer):
         set_ssl_context(ssl_context)
         self._ssl_context = get_ssl_context()
 
-        init_pyro_daemon(self._address)
+        init_pyro_daemon(
+            address=self._address,
+            port=self._port,
+        )
         pyro_daemon = get_pyro_daemon()
 
         pyro_daemon.add_disconnection_callback(self._handle_client_disconnect)
         self._pyro_uri, _ = pyro_daemon.publish(self)
 
-        address, port = self._endpoint()
+        address, port = self.endpoint()
         log.i("Server real address: %s", address)
         log.i("Server real port: %d", port)
+        log.i("Server real discover address: %s", self._discover_daemon.sock.address())
         log.i("Server real discover port: %d", self._discover_daemon.sock.port())
 
         log.i("Server registered at URI: %s", self._pyro_uri)
@@ -96,7 +100,7 @@ class Server(IServer):
         log.i("<< DISCOVER %s", client_endpoint)
         log.i("Handling discover %s", str(data))
 
-        server_endpoint = self._endpoint()
+        server_endpoint = self.endpoint()
 
         response_data = {
             "uri": self._pyro_uri,
@@ -135,11 +139,25 @@ class Server(IServer):
         sock.send(json_to_bytes(response), client_endpoint[0], client_discover_response_port)
 
     def start(self):
-        log.i("Starting DISCOVER deamon")
-        self._discover_daemon.start()
+        th_discover = threading.Thread(target=self._discover_daemon.run, daemon=True)
+        th_pyro = threading.Thread(target=get_pyro_daemon().requestLoop, daemon=True)
 
-        log.i("Starting PYRO request loop")
-        get_pyro_daemon().requestLoop()
+        try:
+            log.i("Starting DISCOVER daemon")
+            th_discover.start()
+
+            log.i("Starting PYRO daemon")
+            th_pyro.start()
+
+            log.i("Ready to handle requests")
+
+            th_discover.join()
+            th_pyro.join()
+        except KeyboardInterrupt:
+            log.d("CTRL+C detected; quitting")
+            # Formally not a clean quit, but who cares we are exiting...
+
+        log.i("FINISH")
 
     @expose
     @trace_api
@@ -299,12 +317,18 @@ class Server(IServer):
         """
         return self._clients.get(self._current_request_endpoint())
 
-    def _endpoint(self) -> Endpoint:
+    def endpoint(self) -> Endpoint:
         """
         Returns the current endpoint (ip, port) the server (Pyro deamon) is bound to.
         :return: the current server endpoint
         """
         return get_pyro_daemon().sock.getsockname()
+
+    def name(self) -> str:
+        return self._name
+
+    def auth_type(self) -> str:
+        return self._auth.algo_type()
 
 
     def _handle_client_disconnect(self, pyroconn: socketutil.SocketConnection):
