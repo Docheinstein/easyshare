@@ -127,7 +127,7 @@ def main():
     # - ports
 
     if not is_valid_port(discover_port):
-        abort("Invalid port number %d", discover_port)
+        abort("Invalid port number {}".format(discover_port))
 
     # Logging/Tracing/UI setup
 

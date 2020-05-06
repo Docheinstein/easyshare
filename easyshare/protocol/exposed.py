@@ -102,6 +102,10 @@ class IServer(ABC):
         pass
 
     @abstractmethod
+    def info(self) -> Response:
+        pass
+
+    @abstractmethod
     def open(self, sharing_name: str) -> Response:
         """ Opens a sharing """
         pass

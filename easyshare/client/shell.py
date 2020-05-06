@@ -19,7 +19,7 @@ from easyshare.client.help import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
-from easyshare.utils.colors import styled, Attribute, Color
+from easyshare.utils.colors import styled, Style, Color
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.types import is_bool, is_int, is_str
@@ -272,7 +272,7 @@ class Shell:
 
         prompt = remote + sep + local + "> "
 
-        return styled(prompt, attrs=Attribute.BOLD)
+        return styled(prompt, attrs=Style.BOLD)
 
     @classmethod
     def _help(cls, _: Args) -> Union[int, str]:

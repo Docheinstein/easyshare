@@ -1,15 +1,19 @@
 import ssl
-from typing import Optional
+from typing import Optional, Dict, Callable
 
 import Pyro5
 import Pyro5.socketutil
 
 from easyshare.logging import get_logger
-
-_ssl_context: Optional[ssl.SSLContext] = None
+from easyshare.shared.endpoint import Endpoint
+from easyshare.socket.tcp import SocketTcpOut
+from easyshare.utils.ssl import parse_ssl_certificate, SSLCertificate, create_client_ssl_context
 
 log = get_logger(__name__)
 
+# CONTEXT
+
+_ssl_context: Optional[ssl.SSLContext] = None
 
 def get_ssl_context(*vargs, **kwargs) -> Optional[ssl.SSLContext]:
     log.d("get_ssl_context (%s)", "enabled" if _ssl_context else "disabled")
@@ -25,3 +29,36 @@ def set_ssl_context(ssl_context: Optional[ssl.SSLContext]):
     Pyro5.socketutil.get_ssl_context = get_ssl_context
 
     log.i("SSL: %s", "enabled" if _ssl_context else "disabled")
+
+
+# CERTS CACHE
+
+_ssl_certs_cache: Dict[Endpoint, dict] = {}
+
+
+def get_cached_or_fetch_ssl_certificate(
+        endpoint: Endpoint,
+        peercert_provider: Callable[..., Optional[bytes]]) -> Optional[SSLCertificate]:
+
+    if endpoint not in _ssl_certs_cache:
+        log.d("No cached SSL cert found for %s, fetching and parsing now", endpoint)
+        cert_bin = peercert_provider()
+        cert = None
+        try:
+            cert = parse_ssl_certificate(cert_bin)
+        except:
+            log.exception("Certificate parsing error occurred")
+        _ssl_certs_cache[endpoint] = cert
+    else:
+        log.d("Found cached SSL cert for %s", endpoint)
+
+    return _ssl_certs_cache[endpoint]
+
+
+def get_cached_or_fetch_ssl_certificate_for_endpoint(endpoint: Endpoint) -> Optional[SSLCertificate]:
+    return get_cached_or_fetch_ssl_certificate(
+        endpoint=endpoint,
+        peercert_provider=lambda: SocketTcpOut(
+            endpoint[0], endpoint[1], ssl_context=create_client_ssl_context()
+        ).ssl_certificate()
+    )

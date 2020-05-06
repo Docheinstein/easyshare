@@ -272,7 +272,14 @@ class Args:
 
     @staticmethod
     def _is_kwarg(s: str):
-        return s.startswith("-") and len(s) > 1
+        if not s.startswith("-") or len(s) <= 1:
+            return False
+        # Might be a negative number...
+        try:
+            to_int(s[1:], raise_exceptions=True)
+            return False # is a negative number
+        except Exception:
+            return True
 
 
     @staticmethod

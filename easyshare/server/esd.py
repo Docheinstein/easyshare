@@ -113,6 +113,7 @@ ESD_CONF_SPEC = {
         EsdConfKeys.G_PASSWORD: STR_VAL,
         EsdConfKeys.G_SSL: BOOL_VAL,
         EsdConfKeys.G_SSL_CERT: STR_VAL,
+        EsdConfKeys.G_SSL_PRIVKEY: STR_VAL,
 
         EsdConfKeys.G_VERBOSE: INT_VAL,
         EsdConfKeys.G_TRACE: INT_VAL,
@@ -335,8 +336,8 @@ def main():
 
     # - ports
     for p in [server_port, server_discover_port]:
-        if p and not is_valid_port(p):
-            abort("Invalid port number %d", p)
+        if p and not is_valid_port(p) and p != -1:
+            abort("Invalid port number {}".format(p))
 
     # Logging/Tracing/UI setup
 
@@ -416,7 +417,7 @@ def main():
     print("Server auth:    ", server.auth_type())
     print("Server address: ", server.endpoint()[0])
     print("Server port:    ", server.endpoint()[1])
-    print("Discover port:  ", server._discover_daemon.endpoint()[1])
+    print("Discover port:  ", server._discover_daemon.endpoint()[1] if server.is_discoverable() else "DISABLED")
     print("SSL:            ", True if get_ssl_context() else False)
 
 

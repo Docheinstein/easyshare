@@ -1,5 +1,5 @@
 import threading
-from typing import Optional, List, Set
+from typing import Optional, Set
 
 from easyshare.logging import get_logger
 from easyshare.shared.endpoint import Endpoint

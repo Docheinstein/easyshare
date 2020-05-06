@@ -21,7 +21,7 @@ class Color(Enum):
     GREY = "grey"
 
 
-class Attribute(Enum):
+class Style(Enum):
     BOLD = "bold"
     DARK = "dark"
     UNDERLINE = "underline"
@@ -38,7 +38,7 @@ def enable_colors(enabled: bool = True):
         colorama.init()
 
 
-def styled(s: str, fg: Color = None, bg: Color = None, attrs: Union[Attribute, List[Attribute]] = None) -> str:
+def styled(s: str, fg: Color = None, bg: Color = None, attrs: Union[Style, List[Style]] = None) -> str:
     attrs = attrs if is_list(attrs) else ([attrs] if attrs else None)
     return termcolor.colored(s,
                              color=fg.value if fg else None,
@@ -46,11 +46,11 @@ def styled(s: str, fg: Color = None, bg: Color = None, attrs: Union[Attribute, L
                              attrs=[a.value for a in list(attrs)] if attrs else None) if _colorful else s
 
 
-def fg(s: str, color: Color, attrs: Union[Attribute, List[Attribute]] = None) -> str:
+def fg(s: str, color: Color, attrs: Union[Style, List[Style]] = None) -> str:
     return styled(s, fg=color, attrs=attrs)
 
 
-def bg(s: str, color: Color, attrs: Union[Attribute, List[Attribute]] = None) -> str:
+def bg(s: str, color: Color, attrs: Union[Style, List[Style]] = None) -> str:
     return styled(s, bg=color, attrs=attrs)
 
 

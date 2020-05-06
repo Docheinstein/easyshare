@@ -8,9 +8,13 @@ from easyshare.utils.types import to_int
 log = get_logger(__name__)
 
 
-class ServerSpecifier:
-    # |----server specifier-----|
-    # <server_name>|<ip>[:<port>]
+class ServerLocation:
+    # |----server location---------|
+    # <server_name> OR <ip>[:<port>]
+
+    # e.g.  hostname
+    #       192.168.1.105
+    #       192.168.1.105:47294
 
     def __init__(self,
                  name: str = None,
@@ -21,26 +25,28 @@ class ServerSpecifier:
         self.port = port
 
     def __str__(self):
+        if not self.name and not self.ip:
+            return ""
+
         s = ""
-        if self.name or self.ip:
-            if self.name:
-                s += "@" + self.name
-            elif self.ip:
-                s += "@" + self.ip
-            if self.port:
-                s += ":" + str(self.port)
+        if self.name:
+            s = self.name
+        elif self.ip:
+            s = self.ip
+
+        if self.port:
+            s += ":" + str(self.port)
 
         return s
 
     @staticmethod
-    def parse(spec: str) -> Optional['ServerSpecifier']:
+    def parse(location: str) -> Optional['ServerLocation']:
 
-
-        if not spec:
-            log.d("ServerSpecifier.parse() -> None")
+        if not location:
+            log.d("ServerLocation.parse() -> None")
             return None
 
-        server_name_or_ip, _, server_port = spec.partition(":")
+        server_name_or_ip, _, server_port = location.partition(":")
 
         server_ip = None
         server_name = None
@@ -56,21 +62,25 @@ class ServerSpecifier:
         if not is_valid_port(server_port):
             server_port = None
 
-        server_spec = ServerSpecifier(
+        if not server_name and not server_ip:
+            log.w("Invalid server location for '%s'", location)
+            return None
+
+        server_location = ServerLocation(
             name=server_name,
             ip=server_ip,
             port=server_port
         )
 
-        log.d("ServerSpecifier.parse() -> %s", str(server_spec))
+        log.d("ServerLocation.parse() -> %s", str(server_location))
 
-        return server_spec
+        return server_location
 
 
-class SharingSpecifier:
-    # |----name-----|-----server specifier-------|
+class SharingLocation:
+    # |----name-----|-----server location--------|
     # <sharing_name>[@<server_name>|<ip>[:<port>]]
-    # |-------------sharing specifier------------|
+    # |-------------sharing location-------------|
     #
     # e.g.  shared
     #       shared@john-desktop
@@ -80,9 +90,9 @@ class SharingSpecifier:
 
     def __init__(self,
                  sharing_name: str,
-                 server_spec: ServerSpecifier = ServerSpecifier()):
+                 server_location: ServerLocation = ServerLocation()):
         self.name: str = sharing_name
-        self.server: ServerSpecifier = server_spec
+        self.server: ServerLocation = server_location
 
     def __str__(self):
         s = self.name
@@ -101,19 +111,35 @@ class SharingSpecifier:
         return self.server.port if self.server else None
 
     @staticmethod
-    def parse(spec: str) -> Optional['SharingSpecifier']:
-        if not spec:
-            log.d("SharingSpecifier.parse() -> None")
+    def parse(location: str) -> Optional['SharingLocation']:
+        if not location:
+            log.d("SharingLocation.parse() -> None")
             return None
 
-        sharing_name, _, server_specifier = spec.partition("@")
-        server_spec = ServerSpecifier.parse(server_specifier)
+        sharing_name, _, server_locationifier = location.partition("@")
+        server_location = ServerLocation.parse(server_locationifier)
 
-        sharing_spec = SharingSpecifier(
+        if not sharing_name:
+            log.w("Invalid sharing location for '%s'", location)
+            return None
+
+        sharing_location = SharingLocation(
             sharing_name=sharing_name,
-            server_spec=server_spec
+            server_location=server_location
         )
 
-        log.d("SharingSpecifier.parse() -> %s", str(sharing_spec))
+        log.d("SharingLocation.parse() -> %s", str(sharing_location))
 
-        return sharing_spec
+        return sharing_location
+
+
+if __name__ == "__main__":
+    print("1.", ServerLocation.parse("hostname"))
+    print("2.", ServerLocation.parse("192.168.1.105:"))
+    print("3.", ServerLocation.parse("192.168.1.105:8888"))
+    print()
+    print("1.", SharingLocation.parse("shared"))
+    print("2.", SharingLocation.parse("shared@hostname"))
+    print("3.", SharingLocation.parse("shared@192.168.1.105"))
+    print("4.", SharingLocation.parse("shared@192.168.1.105:8888"))
+

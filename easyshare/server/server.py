@@ -8,10 +8,10 @@ from typing import Dict, Optional
 
 from Pyro5.api import expose, oneway
 
-from easyshare.consts.net import PORT_ANY, ADDR_ANY
 from easyshare.logging import get_logger
 from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.response import create_success_response, create_error_response, Response
+from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.server.common import try_or_command_failed_response
 from easyshare.server.daemon import init_pyro_daemon, get_pyro_daemon
 from easyshare.server.services.rexec import RexecService
@@ -19,7 +19,7 @@ from easyshare.server.services.sharing import SharingService
 from easyshare.server.sharing import Sharing
 from easyshare.server.client import ClientContext
 from easyshare.server.discover import DiscoverDaemon
-from easyshare.shared.common import DEFAULT_DISCOVER_PORT
+from easyshare.shared.common import DEFAULT_DISCOVER_PORT, ESD_PYRO_UID, DEFAULT_SERVER_PORT
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.exposed import IServer
 from easyshare.protocol.errors import ServerErrors
@@ -57,8 +57,9 @@ class Server(IServer):
                  auth: Auth = AuthNone(),
                  ssl_context: ssl.SSLContext = None):
         self._name = name or socket.gethostname()
-        self._port = port or PORT_ANY
-        self._discover_port = discover_port or DEFAULT_DISCOVER_PORT
+        self._port = port if port is not None else DEFAULT_SERVER_PORT
+        self._discover_port = discover_port if discover_port is not None else DEFAULT_DISCOVER_PORT
+        self._enable_discover_server = is_valid_port(self._discover_port)
         self._address = address or get_primary_ip()
         self._auth = auth
 
@@ -67,10 +68,13 @@ class Server(IServer):
         self._clients: Dict[Endpoint, ClientContext] = {}
         self._clients_lock = threading.Lock()
 
-        self._discover_daemon = DiscoverDaemon(
-            port=self._discover_port,
-            callback=self.handle_discover_request
-        )
+        if self._enable_discover_server:
+            self._discover_daemon = DiscoverDaemon(
+                port=self._discover_port,
+                callback=self.handle_discover_request
+            )
+        else:
+            self._discover_daemon = None
 
         set_ssl_context(ssl_context)
         self._ssl_context = get_ssl_context()
@@ -82,15 +86,16 @@ class Server(IServer):
         pyro_daemon = get_pyro_daemon()
 
         pyro_daemon.add_disconnection_callback(self._handle_client_disconnect)
-        self._pyro_uri, _ = pyro_daemon.publish(self)
+        pyro_uri = str(pyro_daemon.register(self, ESD_PYRO_UID))
 
         address, port = self.endpoint()
         log.i("Server real address: %s", address)
         log.i("Server real port: %d", port)
-        log.i("Server real discover address: %s", self._discover_daemon.sock.address())
-        log.i("Server real discover port: %d", self._discover_daemon.sock.port())
+        if self.is_discoverable():
+            log.i("Server real discover address: %s", self._discover_daemon.sock.address())
+            log.i("Server real discover port: %d", self._discover_daemon.sock.port())
 
-        log.i("Server registered at URI: %s", self._pyro_uri)
+        log.i("Server registered at URI: %s", pyro_uri)
 
     def add_sharing(self, sharing: Sharing):
         log.i("+ SHARING %s", str(sharing))
@@ -100,19 +105,8 @@ class Server(IServer):
         log.i("<< DISCOVER %s", client_endpoint)
         log.i("Handling discover %s", str(data))
 
-        server_endpoint = self.endpoint()
 
-        response_data = {
-            "uri": self._pyro_uri,
-            "name": self._name,
-            "ip": server_endpoint[0],
-            "port": server_endpoint[1],
-            "sharings": [sh.info() for sh in self._sharings.values()],
-            "ssl": True if self._ssl_context else False,
-            "auth": True if (self._auth and self._auth.algo_security() > 0) else False
-        }
-
-        response = create_success_response(response_data)
+        response = create_success_response(self._server_info())
 
         client_discover_response_port = bytes_to_int(data)
 
@@ -139,20 +133,30 @@ class Server(IServer):
         sock.send(json_to_bytes(response), client_endpoint[0], client_discover_response_port)
 
     def start(self):
-        th_discover = threading.Thread(target=self._discover_daemon.run, daemon=True)
+        th_discover = None
+
         th_pyro = threading.Thread(target=get_pyro_daemon().requestLoop, daemon=True)
 
-        try:
-            log.i("Starting DISCOVER daemon")
-            th_discover.start()
+        if self.is_discoverable():
+            th_discover = threading.Thread(target=self._discover_daemon.run, daemon=True)
 
-            log.i("Starting PYRO daemon")
+
+        try:
+            if th_discover:
+                log.i("Starting DISCOVER daemon")
+                th_discover.start()
+            else:
+                log.w("NOT starting DISCOVER daemon")
+
             th_pyro.start()
+            log.i("Starting PYRO daemon")
 
             log.i("Ready to handle requests")
 
-            th_discover.join()
+            if th_discover:
+                th_discover.join()
             th_pyro.join()
+
         except KeyboardInterrupt:
             log.d("CTRL+C detected; quitting")
             # Formally not a clean quit, but who cares we are exiting...
@@ -216,6 +220,19 @@ class Server(IServer):
 
         return create_success_response([sh.info() for sh in self._sharings.values()])
 
+    @expose
+    @trace_api
+    @try_or_command_failed_response
+    # @require_client_connected
+    def info(self):
+        client_endpoint = self._current_request_endpoint()
+
+        log.i("<< INFO [%s]", client_endpoint)
+
+        return create_success_response(
+            self._server_info()
+        )
+
 
     @expose
     @trace_api
@@ -250,11 +267,14 @@ class Server(IServer):
 
     @expose
     @trace_api
+    @try_or_command_failed_response
+    # @require_client_connected
     def ping(self):
         return create_success_response("pong")
 
     @expose
     @trace_api
+    @try_or_command_failed_response
     def rexec(self, cmd: str) -> Response:
         client = self._current_request_client()
         if not client:
@@ -273,6 +293,23 @@ class Server(IServer):
 
         log.d("Rexec handler initialized; uri: %s", uri)
         return create_success_response(uri)
+
+    def _server_info(self) -> ServerInfo:
+        si = {
+            "name": self._name,
+            "ip": self.endpoint()[0],
+            "port": self.endpoint()[1],
+            "sharings": [sh.info() for sh in self._sharings.values()],
+            "ssl": True if self._ssl_context else False,
+            "discoverable": self._enable_discover_server,
+            "auth": True if (self._auth and self._auth.algo_security() > 0) else False
+        }
+
+        if self._enable_discover_server:
+            si["discover_port"] = self._discover_daemon.endpoint()[1]
+
+        return si
+
 
     def _add_client(self, endpoint: Endpoint) -> ClientContext:
         with self._clients_lock:
@@ -330,6 +367,8 @@ class Server(IServer):
     def auth_type(self) -> str:
         return self._auth.algo_type()
 
+    def is_discoverable(self) -> bool:
+        return self._enable_discover_server
 
     def _handle_client_disconnect(self, pyroconn: socketutil.SocketConnection):
         endpoint = pyroconn.sock.getpeername()

@@ -13,12 +13,13 @@ from Pyro5.errors import PyroError
 
 from easyshare.client.args import PositionalArgs, StopParseArgs, VariadicArgs, ArgsParser
 from easyshare.client.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK
-from easyshare.client.common import ServerSpecifier, SharingSpecifier
+from easyshare.client.common import ServerLocation, SharingLocation
 from easyshare.client.sharingconnection import SharingConnection
 from easyshare.client.discover import Discoverer
-from easyshare.client.errors import ClientErrors, print_error, errcode_string
+from easyshare.client.errors import ClientErrors, print_error
 from easyshare.client.serverconnection import ServerConnection
-from easyshare.client.ui import ssl_certificate_to_str, print_files_info_list, print_files_info_tree
+from easyshare.client.ui import print_files_info_list, print_files_info_tree, \
+    sharings_to_pretty_str, server_info_to_pretty_str
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
@@ -28,17 +29,16 @@ from easyshare.protocol.response import Response, is_error_response, is_success_
 from easyshare.protocol.serverinfo import ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.args import Args
-from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR
+from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR, DEFAULT_SERVER_PORT
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.progress import FileProgressor
 from easyshare.ssl import get_ssl_context
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint
-from easyshare.utils.colors import red
+from easyshare.utils.colors import red, styled, Style
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.pyro import TracedPyroProxy
-from easyshare.utils.ssl import parse_ssl_certificate, SSLCertificate, create_client_ssl_context
-from easyshare.utils.types import to_int, bool_to_str, bytes_to_str, is_int
+from easyshare.utils.types import bool_to_str, bytes_to_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached
 from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM
 
@@ -168,6 +168,7 @@ def ensure_data_response(resp: Response):
 API = TypeVar('API', bound=Callable[..., None])
 
 
+
 def provide_sharing_connection(api: API) -> API:
     def provide_sharing_connection_api_wrapper(client: 'Client', args: Args, _: SharingConnection = None):
         # Wraps api providing the connection parameters.
@@ -175,10 +176,10 @@ def provide_sharing_connection(api: API) -> API:
         # if it is established, or a temporary one that will be closed
         # just after the api call.
         # The connection is established treating the first arg of
-        # args as a 'ServerSpecifier'
+        # args as a 'ServerLocation'
         log.d("Checking if connection exists before invoking %s", api.__name__)
 
-        sharing_conn, server_conn = client._get_current_sharing_connection_or_create_from_sharing_spec_args(args)
+        sharing_conn, server_conn = client._get_current_sharing_connection_or_create_from_sharing_location_args(args)
 
         if not sharing_conn or not server_conn or \
                 not sharing_conn.is_connected() or not server_conn.is_connected():
@@ -198,18 +199,20 @@ def provide_sharing_connection(api: API) -> API:
     provide_sharing_connection_api_wrapper.__name__ = api.__name__
     return provide_sharing_connection_api_wrapper
 
-
-def provide_server_connection(api: API) -> API:
-    def provide_server_connection_api_wrapper(client: 'Client', args: Args, _: ServerConnection = None):
+def make_server_connection_api_wrapper(api, authenticate: bool):
+    def wrapper(client: 'Client', args: Args, _: ServerConnection = None):
         # Wraps api providing the connection parameters.
         # The provided connection is the client current connection,
         # if it is established, or a temporary one that will be closed
         # just after the api call.
         # The connection is established treating the first arg of
-        # args as a 'ServerSpecifier'
+        # args as a 'ServerLocation'
         log.d("Checking if server connection exists before invoking %s", api.__name__)
 
-        server_conn = client._get_current_server_connection_or_create_from_server_spec_args(args)
+        server_conn = client._get_current_server_connection_or_create_from_server_location_args(
+            args,
+            authenticate=authenticate
+        )
 
         if not server_conn:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -221,10 +224,15 @@ def provide_server_connection(api: API) -> API:
             log.d("Disconnecting temporary server connection")
             server_conn.disconnect()
 
-    provide_server_connection_api_wrapper.__name__ = api.__name__
+    wrapper.__name__ = api.__name__
 
-    return provide_server_connection_api_wrapper
+    return wrapper
 
+def provide_server_connection_authenticated(api: API) -> API:
+    return make_server_connection_api_wrapper(api, authenticate=True)
+
+def provide_server_connection(api: API) -> API:
+    return make_server_connection_api_wrapper(api, authenticate=False)
 
 # ==================================================================
 
@@ -242,8 +250,6 @@ class Client:
         self.sharing_connection: Optional[SharingConnection] = None
 
         self._discover_port = discover_port
-
-        self._certs_cache: Dict[Endpoint, dict] = {}
 
 
         def LOCAL(parser: ArgsParser) -> ArgsParser:
@@ -435,7 +441,7 @@ class Client:
         # Check which parser to use
         # The local commands and the connected remote commands use
         # the same parsers, while the unconnected remote commands
-        # need one more leading parameter (the remote sharing specifier)
+        # need one more leading parameter (the remote sharing location)
         parser_provider, parser_provider_args, executor = self._command_dispatcher[command]
 
         parser = parser_provider(*parser_provider_args)
@@ -577,7 +583,10 @@ class Client:
     def connect(self, args: Args, _):
         log.i(">> CONNECT")
 
-        newconn = self._create_server_connection_from_server_spec(ServerSpecifier.parse(args.get_varg()))
+        newconn = self._create_server_connection_from_server_location(
+            ServerLocation.parse(args.get_varg()),
+            authenticate=True
+        )
 
         if newconn and newconn.is_connected():
             log.i("Server connection established")
@@ -592,7 +601,7 @@ class Client:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
 
-    @provide_server_connection
+    @provide_server_connection_authenticated
     def disconnect(self, _: Optional[Args], connection: ServerConnection):
         if not connection or not connection.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -611,18 +620,18 @@ class Client:
 
         # Check whether we are connected to a server which owns the
         # sharing we are looking for, otherwise performs a scan
-        sharing_spec = SharingSpecifier.parse(args.get_varg())
+        sharing_location = SharingLocation.parse(args.get_varg())
 
-        if not sharing_spec:
+        if not sharing_location:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         if self.is_connected_to_server():
 
             new_server_conn = self.server_connection
 
-            local_sharing_info = Client._sharing_info_of_server_info_by_sharing_spec(
+            local_sharing_info = Client._sharing_info_of_server_info_by_sharing_location(
                 server_info=self.server_connection.server_info,
-                sharing_spec=sharing_spec,
+                sharing_location=sharing_location,
                 sharing_ftype=FTYPE_DIR)
 
             if local_sharing_info:
@@ -637,7 +646,7 @@ class Client:
         # Have we found the sharing yet or do we have to perform a scan?
         if not new_server_conn or not new_sharing_conn:
             # Performs a scan
-            new_sharing_conn, new_server_conn = self._create_sharing_connection_from_sharing_spec(sharing_spec)
+            new_sharing_conn, new_server_conn = self._create_sharing_connection_from_sharing_location(sharing_location)
 
         if new_sharing_conn and \
                 new_server_conn and \
@@ -667,7 +676,7 @@ class Client:
             log.e("Server or sharing connection establishment failed")
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-    @provide_server_connection
+    @provide_server_connection_authenticated
     def rexec(self, args: Args, connection: ServerConnection = None):
         popen_cmd = args.get_vargs(default=[])
         popen_cmd_args = args.get_unparsed_args(default=[])
@@ -758,7 +767,7 @@ class Client:
 
     @provide_server_connection
     def ping(self, args: Args, connection: ServerConnection = None):
-        if not connection or not connection.is_connected():
+        if not connection:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         count = args.get_kwarg_param(PingArgs.COUNT, default=None)
@@ -795,18 +804,22 @@ class Client:
             log.i("Handling DISCOVER response from %s\n%s", str(client), str(server_info))
             # Print as soon as they come
 
+            s = ""
+
             if not servers_found:
                 log.i("======================")
             else:
-                print("")
+                s += "\n"
 
-            print("{} ({}:{})".format(
-                server_info.get("name"),
-                server_info.get("ip"),
-                server_info.get("port")))
+            s += styled("{} ({}:{})".format(
+                    server_info.get("name"),
+                    server_info.get("ip"),
+                    server_info.get("port")), attrs=Style.BOLD) + "\n"
 
-            print(Client._sharings_string(server_info.get("sharings"),
-                                          details=show_details))
+            s += sharings_to_pretty_str(server_info.get("sharings"),
+                                        details=show_details)
+
+            print(s)
 
             servers_found += 1
 
@@ -818,7 +831,17 @@ class Client:
 
         log.i("======================")
 
-    def info(self, args: Args, _):
+    @provide_server_connection
+    def info(self, _: Args, connection: 'ServerConnection'):
+        if not connection:
+            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+
+        print(server_info_to_pretty_str(connection.server_info))
+        # Design choice:
+        # if info is performed while connected it shows the info
+        # of the current connection even if a parameter
+        # is provided
+
         # Can be done either
         # 1. If connected to a server: we already have the server info
         # 2. If not connected to a server: we have to fetch the server info
@@ -826,69 +849,34 @@ class Client:
         # Without parameter it means we are trying to see the info of the
         # current connection
         # With a parameter it means we are trying to see the info of a server
-        # The param should be a server specifier: <hostname>|<ip>[:<port>]
+        # The param should be a server location: <hostname>|<ip>[:<port>]
 
-        def print_server_info(info: ServerInfo):
 
-            SEP = "================================"
-
-            SEP_FIRST =            SEP + "\n\n"
-            SEP_MID =       "\n" + SEP + "\n\n"
-            SEP_LAST  =     "\n" + SEP
-
-            # Server info
-            s = SEP_FIRST + \
-                "SERVER INFO\n\n" + \
-                "Name:  {}\n".format(info.get("name")) + \
-                "IP:    {}\n".format(info.get("ip")) + \
-                "Port:  {}\n".format(info.get("port")) + \
-                "Auth:  {}\n".format(info.get("auth")) + \
-                "SSL:   {}\n".format(info.get("ssl")) + \
-                SEP_MID
-
-            # SSL?
-            if info.get("ssl"):
-                ssl_cert = self._get_cached_or_fetch_ssl_certificate_for_endpoint(
-                    (info.get("ip"), info.get("port")))
-
-                s += \
-                    "SSL CERTIFICATE\n\n" + \
-                    ssl_certificate_to_str(ssl_cert) + "\n" + \
-                    SEP_MID
-
-            # Sharings
-            s += \
-                "SHARINGS\n\n" + \
-                Client._sharings_string(info.get("sharings"), details=True) + "\n" + \
-                SEP_LAST
-
-            print(s)
-
-        server_spec = ServerSpecifier.parse(args.get_varg())
-
-        server_info: Optional[ServerInfo] = None
-
-        if not server_spec:
-            if self.is_connected_to_server():
-                log.d("Using server info of the current connection "
-                      "since server specifier not provided")
-                server_info = self.server_connection.server_info
-            else:
-                log.e("Server specifier must be provided (since not connected to a server)")
-                return ClientErrors.INVALID_COMMAND_SYNTAX
-
-        if server_spec and not server_info:
-            server_info = self._discover_server(server_spec)
-
-        if not server_info:
-            return ClientErrors.SERVER_NOT_FOUND
+        #
+        # server_location = ServerLocation.parse(args.get_varg())
+        #
+        # server_info: Optional[ServerInfo] = None
+        #
+        # if not server_location:
+        #     if self.is_connected_to_server():
+        #         log.d("Using server info of the current connection "
+        #               "since server location not provided")
+        #         server_info = self.server_connection.server_info
+        #     else:
+        #         log.e("Server location must be provided (since not connected to a server)")
+        #         return ClientErrors.INVALID_COMMAND_SYNTAX
+        #
+        # if server_location and not server_info:
+        #     server_info = self._discover_server(server_location)
+        #
+        # if not server_info:
+        #     return ClientErrors.SERVER_NOT_FOUND
 
         # Server info retrieved successfully
-        print_server_info(server_info)
 
     @provide_server_connection
     def list(self, args: Args, connection: ServerConnection = None):
-        if not connection or not connection.is_connected():
+        if not connection:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         show_details = ScanArgs.SHOW_DETAILS in args
@@ -898,7 +886,7 @@ class Client:
         resp = connection.list()
         ensure_data_response(resp)
 
-        print(Client._sharings_string(resp.get("data"),
+        print(sharings_to_pretty_str(resp.get("data"),
                                       details=show_details))
 
     # =================================================
@@ -1545,26 +1533,31 @@ class Client:
                 print_error(err)
 
 
-    def _create_sharing_connection_from_sharing_spec(self, sharing_spec: SharingSpecifier) -> \
+    def _create_sharing_connection_from_sharing_location(self, sharing_location: SharingLocation) -> \
             Tuple[SharingConnection, ServerConnection]:
 
-        if not sharing_spec:
+        if not sharing_location:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        log.d("Sharing specifier: %s", sharing_spec)
+        log.d("Sharing location: %s", sharing_location)
+
+        if sharing_location.server:
+
 
         # Discover the server to which connect
-        sharing_info, server_info = self._discover_sharing(
-            sharing_spec, ftype=FTYPE_DIR
-        )
-
-        if not sharing_info or not server_info:
-            raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
-
-        # Create the server connection: connect()
-
-        log.d("Creating new sharing connection for specifier: %s", sharing_spec)
-        server_conn = self._create_server_connection_from_server_info(server_info)
+        # sharing_info, server_info = self._discover_sharing(
+        #     sharing_location, ftype=FTYPE_DIR
+        # )
+        #
+        # if not sharing_info or not server_info:
+        #     raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
+        #
+        # # Create the server connection: connect()
+        #
+        # log.d("Creating new sharing connection for location: %s", sharing_location)
+        # server_conn = self._create_server_connection_from_server_info(server_info)
+        server_conn = self._create_server_connection_from_server_location(
+            sharing_location.server, authenticate=True)
 
         if not server_conn or not server_conn.is_connected():
             log.e("Cannot establish connection")
@@ -1607,48 +1600,149 @@ class Client:
         return sharing_conn
 
 
-    def _create_server_connection_from_server_spec(self, server_spec: ServerSpecifier) -> ServerConnection:
-        if not server_spec:
+    def _create_server_connection_from_server_location(
+            self, server_location: ServerLocation, authenticate: bool) -> ServerConnection:
+
+        if not server_location:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        log.d("Creating new server connection for specifier: %s", server_spec)
+        log.d("Creating new server connection for location: %s", server_location)
 
-        # Discover the server to which connect
-        server_info = self._discover_server(server_spec)
+        # There are different ways to connect to the server
+        # based on what's in server_location
+        # 1. <server_name>  => DISCOVER
+        # 2. <IP>           => Attempt to connect directly to the default port,
+        #                      but try DISCOVER on fail
+        # 3. <IP>:<PORT>    => Connect directly
 
-        return Client._create_server_connection_from_server_info(server_info)
+        just_directly = False
 
-    @staticmethod
-    def _create_server_connection_from_server_info(server_info: ServerInfo) -> ServerConnection:
-        if not server_info:
-            raise BadOutcome(ClientErrors.SERVER_NOT_FOUND)
+        server_conn = None
+        real_server_info = None
 
-        # Create the server connection: connect()
+        if server_location.ip:
+            auto_server_info = {"ip": server_location.ip}
 
-        log.i("Creating new connection with %s", server_info.get("uri"))
-        conn = ServerConnection(server_info)
+            if server_location.port:
+                log.d("Server IP and PORT are specified: trying to connect directly")
+                just_directly = True # Everything specified => won't perform a scan
+                auto_server_info["port"] = server_location.port
+            else:
+                log.d("Server IP is specified: trying to connect directly to the default port")
+                auto_server_info["port"] = DEFAULT_SERVER_PORT
 
+            while True: # actually two attempts are done: with/without SSL
+
+                # Create a connection
+                server_conn = ServerConnection(auto_server_info)
+
+                # Check if it is up
+                # (e.g. if the port was not specified in case 2. maybe the user
+                # want to perform a scan instead of connect to the default port,
+                # by checking if the connection is up we are able to figure out that)
+
+                try:
+                    resp = server_conn.info()
+                    ensure_data_response(resp)
+
+                    real_server_info = resp.get("data")
+                    log.d("Connection established is UP, retrieved server info\n%s",
+                          json_to_pretty_str(real_server_info))
+                    break
+                except Exception:
+                    log.w("Connection cannot be established directly %s SSL",
+                          "with" if auto_server_info.get("ssl") else "without")
+
+                if not auto_server_info.get("ssl"):
+                    log.d("Trying again enabling SSL before giving up")
+                    auto_server_info["ssl"] = True
+                else:
+                    log.e("Connection can't be directly established neither with nor without SSL")
+                    break
+
+
+        # If we have not retrieve the real server info, performs a scan
+
+        if real_server_info: # connection established directly
+            log.d("Connection has been established directly without perform a DISCOVER")
+            # Wraps the already established server conn in a ServerConnection
+            # associated with the right server info
+            server_conn = ServerConnection(real_server_info, server_conn)
+        elif not just_directly:
+            log.d("Will perform a DISCOVER for establish server connection")
+            real_server_info = self._discover_server(server_location)
+        else:
+            log.d("Connection not established directly and DISCOVER won't be "
+                  "performed since IP and PORT has been specified both")
+
+        if not real_server_info:
+            log.e("Connection can't be established")
+            raise BadOutcome(ClientErrors.CONNECTION_ERROR)
+
+        server_conn = ServerConnection(real_server_info)
+
+        # We have a valid TCP connection with the server
+        log.i("Connection established with %s:%d",
+              server_conn.server_info.get("ip"),
+              server_conn.server_info.get("port"))
+
+        # Check whether we have to do connect()
+        # (It might be unnecessary for public server api such as ping, info, list, ...)
+        if not authenticate:
+            return server_conn
+
+        log.d("Will perform authentication (if required by the server)")
         passwd = None
 
         # Ask the password if the sharing is protected by auth
-        if server_info.get("auth"):
-            log.i("Server '%s' is protected by password", server_info.get("name"))
+        if server_conn.server_info.get("auth"):
+            log.i("Server '%s' is protected by password", server_conn.server_info.get("name"))
             passwd = getpass()
         else:
-            log.i("Server '%s' is not protected", server_info.get("name"))
+            log.i("Server '%s' is not protected", server_conn.server_info.get("name"))
 
-        resp = conn.connect(passwd)
-
+        # Performs connect() (and authentication)
+        resp = server_conn.connect(passwd)
         ensure_success_response(resp)
 
-        log.i("Connection established with %s:%d",
-              server_info.get("ip"), server_info.get("port"))
-
-        return conn
+        return server_conn
 
 
+    # def _create_server_connection_smart(self, name: str, ip):
+    #
+    # @staticmethod
+    # def _create_server_connection_from_server_info(server_info: ServerInfo) -> ServerConnection:
+    #     if not server_info:
+    #         raise BadOutcome(ClientErrors.SERVER_NOT_FOUND)
+    #
+    #     log.i("Creating new connection by server info\n%s",
+    #           json_to_pretty_str(server_info))
+    #
+    #
+    #
+    #     return conn
 
-    def _get_current_sharing_connection_or_create_from_sharing_spec_args(self, args: Args) \
+    #
+    # @staticmethod
+    # def _connect_server_connection(connection: ServerConnection):
+    #     passwd = None
+    #
+    #     # Ask the password if the sharing is protected by auth
+    #     if connection.server_info.get("auth"):
+    #         log.i("Server '%s' is protected by password", connection.server_info.get("name"))
+    #         passwd = getpass()
+    #     else:
+    #         log.i("Server '%s' is not protected", connection.server_info.get("name"))
+    #
+    #     resp = connection.connect(passwd)
+    #
+    #     ensure_success_response(resp)
+    #
+    #     log.i("Connection established with %s:%d",
+    #           connection.server_info.get("ip"),
+    #           connection.server_info.get("port"))
+
+    def _get_current_sharing_connection_or_create_from_sharing_location_args(self, args: Args) \
             -> Tuple[SharingConnection, ServerConnection]:
 
         if self.is_connected_to_server() and self.is_connected_to_sharing():
@@ -1663,11 +1757,13 @@ class Client:
         if not vargs:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        sharing_spec = SharingSpecifier.parse(vargs.pop(0))
-        return self._create_sharing_connection_from_sharing_spec(sharing_spec)
+        sharing_location = SharingLocation.parse(vargs.pop(0))
+        return self._create_sharing_connection_from_sharing_location(sharing_location)
 
 
-    def _get_current_server_connection_or_create_from_server_spec_args(self, args: Args) -> ServerConnection:
+    def _get_current_server_connection_or_create_from_server_location_args(
+            self, args: Args, authenticate: bool) -> ServerConnection:
+
         if self.is_connected_to_server():
             log.i("Providing already established server connection")
             return self.server_connection
@@ -1680,12 +1776,12 @@ class Client:
         if not vargs:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        server_spec = ServerSpecifier.parse(vargs.pop(0))
-        return self._create_server_connection_from_server_spec(server_spec)
+        server_location = ServerLocation.parse(vargs.pop(0))
+        return self._create_server_connection_from_server_location(server_location, authenticate)
 
-    def _discover_server(self, server_spec: ServerSpecifier) -> Optional[ServerInfo]:
-        if not server_spec:
-            log.w("Null server spec, no server will be found")
+    def _discover_server(self, server_location: ServerLocation) -> Optional[ServerInfo]:
+        if not server_location:
+            log.w("Null server location, no server will be found")
             return None
 
         server_info: Optional[ServerInfo] = None
@@ -1696,9 +1792,9 @@ class Client:
 
             log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
 
-            if Client._server_info_satisfy_server_spec(
+            if Client._server_info_satisfy_server_location(
                     server_info=a_server_info,
-                    server_spec=server_spec):
+                    server_location=server_location):
 
                 server_info = a_server_info
                 return False    # Stop DISCOVER
@@ -1707,17 +1803,17 @@ class Client:
 
         Discoverer(
             server_discover_port=self._discover_port,
-            server_discover_addr=server_spec.ip or ADDR_BROADCAST,
+            server_discover_addr=server_location.ip or ADDR_BROADCAST,
             response_handler=response_handler).discover()
 
         return server_info
 
     def _discover_sharing(self,
-                          sharing_spec: SharingSpecifier,
+                          sharing_location: SharingLocation,
                           ftype: FileType = None) -> Tuple[Optional[SharingInfo], Optional[ServerInfo]]:
 
-        if not sharing_spec:
-            log.w("Null sharing spec, no sharing will be found")
+        if not sharing_location:
+            log.w("Null sharing location, no sharing will be found")
             return None, None
 
         sharing_info: Optional[SharingInfo] = None
@@ -1731,9 +1827,9 @@ class Client:
 
             log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
 
-            sharing_info = Client._sharing_info_of_server_info_by_sharing_spec(
+            sharing_info = Client._sharing_info_of_server_info_by_sharing_location(
                 server_info=a_server_info,
-                sharing_spec=sharing_spec,
+                sharing_location=sharing_location,
                 sharing_ftype=ftype
             )
 
@@ -1745,125 +1841,59 @@ class Client:
 
         Discoverer(
             server_discover_port=self._discover_port,
-            server_discover_addr=sharing_spec.server_ip or ADDR_BROADCAST,
+            server_discover_addr=sharing_location.server_ip or ADDR_BROADCAST,
             response_handler=response_handler).discover()
 
         return sharing_info, server_info
 
     @staticmethod
-    def _sharings_string(sharings: List[SharingInfo], details: bool = False) -> str:
-        s = ""
-
-        d_sharings = [sh for sh in sharings if sh.get("ftype") == FTYPE_DIR]
-        f_sharings = [sh for sh in sharings if sh.get("ftype") == FTYPE_FILE]
-
-        def sharing_string(sharing: SharingInfo):
-            ss = "  - " + sharing.get("name")
-
-            if details:
-                details_list = []
-                if sharing.get("auth"):
-                    details_list.append("auth required")
-                if sharing.get("read_only"):
-                    details_list.append("read only")
-                if details_list:
-                    ss += "  ({})".format(", ".join(details_list))
-            ss += "\n"
-            return ss
-
-        if d_sharings:
-            s += "  DIRECTORIES\n"
-            for dsh in d_sharings:
-                s += sharing_string(dsh)
-
-        if f_sharings:
-            s += "  FILES\n"
-            for fsh in f_sharings:
-                s += sharing_string(fsh)
-
-        return s.rstrip("\n")
-
-    def _get_cached_or_fetch_ssl_certificate(
-            self,
-            endpoint: Endpoint,
-            peercert_provider: Callable[..., Optional[bytes]]) -> Optional[SSLCertificate]:
-
-        if endpoint not in self._certs_cache:
-            log.d("No cached SSL cert found for %s, fetching and parsing now", endpoint)
-            cert_bin = peercert_provider()
-            cert = None
-            try:
-                cert = parse_ssl_certificate(cert_bin)
-            except:
-                log.exception("Certificate parsing error occurred")
-            self._certs_cache[endpoint] = cert
-        else:
-            log.d("Found cached SSL cert for %s", endpoint)
-
-        return self._certs_cache[endpoint]
-
-    def _get_cached_or_fetch_ssl_certificate_for_connection(self, conn: ServerConnection) -> Optional[SSLCertificate]:
-        return self._get_cached_or_fetch_ssl_certificate(
-            endpoint=(conn.server_info.get("ip"), conn.server_info.get("port")),
-            peercert_provider=lambda: conn.ssl_certificate()
-        )
-
-    def _get_cached_or_fetch_ssl_certificate_for_endpoint(self, endpoint: Endpoint) -> Optional[SSLCertificate]:
-        return self._get_cached_or_fetch_ssl_certificate(
-            endpoint=endpoint,
-            peercert_provider=lambda: SocketTcpOut(
-                endpoint[0], endpoint[1], ssl_context=create_client_ssl_context()
-            ).ssl_certificate()
-        )
-
-    @staticmethod
-    def _server_info_satisfy_server_spec(
+    def _server_info_satisfy_server_location(
         server_info: ServerInfo,
-        server_spec: ServerSpecifier) -> bool:
+        server_location: ServerLocation) -> bool:
 
-        if not server_spec:
+        if not server_location:
             # Satisfy since no constraints
             return True
 
         # Server name check (optional)
-        if server_spec.name and server_info.get("name") != server_spec.name:
+        if server_location.name and server_info.get("name") != server_location.name:
             log.d("Server info does not match the server name filter '%s'",
-                  server_spec.name)
+                  server_location.name)
             return False
 
         # Server ip check (optional)
-        if server_spec.ip and server_info.get("ip") != server_spec.ip:
+        if server_location.ip and server_info.get("ip") != server_location.ip:
             log.d("Server info does not match the ip filter '%s'",
-                  server_spec.ip)
+                  server_location.ip)
             return False
 
         # Server port check (optional)
-        if server_spec.port and server_info.get("port") != server_spec.port:
+        if server_location.port and server_info.get("port") != server_location.port:
             log.d("Server info does not match the port filter '%d'",
-                  server_spec.port)
+                  server_location.port)
             return False
 
-        log.d("server_info_satisfy_server_spec() OK")
+        log.d("server_info_satisfy_server_location() OK")
         return True
 
 
 
     @staticmethod
-    def _sharing_info_of_server_info_by_sharing_spec(
+    def _sharing_info_of_server_info_by_sharing_location(
             server_info: ServerInfo,
-            sharing_spec: SharingSpecifier,
+            sharing_location: SharingLocation,
             sharing_ftype: FileType) -> Optional[SharingInfo]:
 
             # Check server constraints
-            if not Client._server_info_satisfy_server_spec(server_info, sharing_spec.server):
+            if not Client._server_info_satisfy_server_location(server_info, sharing_location.server):
                 return None
 
             # Check among the server sharings
             for a_sharing_info in server_info.get("sharings"):
                 # Sharing name check (mandatory)
-                if sharing_spec.name and a_sharing_info.get("name") != sharing_spec.name:
+                if sharing_location.name and a_sharing_info.get("name") != sharing_location.name:
                     log.d("Ignoring sharing which does not match the sharing name filter '%s'",
-                          sharing_spec.name)
+                          sharing_location.name)
                     continue
 
                 # Ftype check (optional)
@@ -1873,10 +1903,10 @@ class Client:
                     continue
 
                 # FOUND
-                log.i("Server [%s:%d] satisfies sharing spec %s",
+                log.i("Server [%s:%d] satisfies sharing location %s",
                       server_info.get("ip"),
                       server_info.get("port"),
-                      sharing_spec)
+                      sharing_location)
 
                 return a_sharing_info
 

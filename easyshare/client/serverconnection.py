@@ -7,6 +7,7 @@ from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.exposed import IServer
 from easyshare.protocol.response import Response, is_success_response, create_error_response, is_error_response
 from easyshare.protocol.serverinfo import ServerInfo
+from easyshare.shared.common import esd_pyro_uri
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.utils.pyro import TracedPyroProxy
 from easyshare.utils.ssl import create_client_ssl_context
@@ -45,17 +46,23 @@ def handle_server_response(api):
 
 class ServerConnection:
 
-    def __init__(self, server_info: ServerInfo):
+    def __init__(self,
+                 server_info: ServerInfo,
+                 established_server_connection: Union[IServer, TracedPyroProxy] = None):
         log.d("Initializing new ServerConnection")
         self._connected = False
 
         self.server_info: ServerInfo = server_info
 
         # Create the proxy for the remote server
-        self.server: Union[IServer, TracedPyroProxy] = TracedPyroProxy(
-            server_info.get("uri"),
-            alias=server_info.get("name")
-        )
+        if established_server_connection:
+            log.d("Not creating connection since an established one as been provided")
+            self.server = established_server_connection
+        else:
+            self.server: Union[IServer, TracedPyroProxy] = TracedPyroProxy(
+                esd_pyro_uri(server_info.get("ip"), server_info.get("port")),
+                alias=server_info.get("name")
+            )
 
         if server_info.get("ssl"):
             if not get_ssl_context():
@@ -102,13 +109,19 @@ class ServerConnection:
 
 
     @handle_server_response
-    @require_server_connection
+    # @require_server_connection
+    def info(self) -> Response:
+        return self.server.info()
+
+
+    @handle_server_response
+    # @require_server_connection
     def list(self) -> Response:
         return self.server.list()
 
 
     @handle_server_response
-    @require_server_connection
+    # @require_server_connection
     def ping(self) -> Response:
         return self.server.ping()
 

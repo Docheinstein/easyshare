@@ -3,10 +3,13 @@ from typing import List
 
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo
-from easyshare.protocol.filetype import FTYPE_DIR
+from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE
+from easyshare.protocol.serverinfo import ServerInfo
+from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.common import DIR_COLOR, FILE_COLOR
 from easyshare.shared.tree import TreeNodeDict, TreeRenderPostOrder
-from easyshare.utils.colors import fg
+from easyshare.ssl import get_cached_or_fetch_ssl_certificate_for_endpoint
+from easyshare.utils.colors import fg, styled, Style
 from easyshare.utils.env import terminal_size
 from easyshare.utils.os import is_hidden, size_str
 from easyshare.utils.ssl import SSLCertificate
@@ -136,7 +139,7 @@ def print_files_info_tree(root: TreeNodeDict,
         ))
 
 
-def ssl_certificate_to_str(ssl_cert: SSLCertificate) -> str:
+def ssl_certificate_to_pretty_str(ssl_cert: SSLCertificate) -> str:
     if not ssl_cert:
         return ""
 
@@ -155,3 +158,74 @@ def ssl_certificate_to_str(ssl_cert: SSLCertificate) -> str:
         "Valid To:           {}\n\n".format(ssl_cert.get("valid_to")) + \
         "Issuer:             {}\n".format(", ".join([issuer.get("common_name"), issuer.get("organization")])) + \
         "Self Signed:        {}".format(ssl_cert.get("self_signed"))
+
+
+def server_info_to_pretty_str(info: ServerInfo) -> str:
+        SEP = "================================"
+
+        SEP_FIRST = SEP + "\n\n"
+        SEP_MID = "\n" + SEP + "\n\n"
+        SEP_LAST = "\n" + SEP
+
+        # Server info
+        s = SEP_FIRST + \
+            styled("SERVER INFO", attrs=Style.BOLD) + "\n\n" + \
+            "Name:           {}\n".format(info.get("name")) + \
+            "IP:             {}\n".format(info.get("ip")) + \
+            "Port:           {}\n".format(info.get("port")) + \
+            "Discoverable:   {}\n".format(info.get("discoverable")) + \
+            ("Discover Port:  {}\n".format(info.get("discover_port")) if info.get("discoverable") else "") + \
+            "Auth:           {}\n".format(info.get("auth")) + \
+            "SSL:            {}\n".format(info.get("ssl")) + \
+            SEP_MID
+
+        # SSL?
+        if info.get("ssl"):
+            ssl_cert = get_cached_or_fetch_ssl_certificate_for_endpoint(
+                (info.get("ip"), info.get("port"))
+            )
+
+            s += \
+                styled("SSL CERTIFICATE", attrs=Style.BOLD) + "\n\n" + \
+                ssl_certificate_to_pretty_str(ssl_cert) + "\n" + \
+                SEP_MID
+
+        # Sharings
+        s += \
+            styled("SHARINGS", attrs=Style.BOLD) + "\n\n" + \
+            sharings_to_pretty_str(info.get("sharings"), details=True) + "\n" + \
+            SEP_LAST
+
+        return s
+
+def sharings_to_pretty_str(sharings: List[SharingInfo], details: bool = False) -> str:
+    s = ""
+
+    d_sharings = [sh for sh in sharings if sh.get("ftype") == FTYPE_DIR]
+    f_sharings = [sh for sh in sharings if sh.get("ftype") == FTYPE_FILE]
+
+    def sharing_string(sharing: SharingInfo):
+        ss = "  - " + sharing.get("name")
+
+        if details:
+            details_list = []
+            if sharing.get("auth"):
+                details_list.append("auth required")
+            if sharing.get("read_only"):
+                details_list.append("read only")
+            if details_list:
+                ss += "  ({})".format(", ".join(details_list))
+        ss += "\n"
+        return ss
+
+    if d_sharings:
+        s += "  DIRECTORIES\n"
+        for dsh in d_sharings:
+            s += sharing_string(dsh)
+
+    if f_sharings:
+        s += "  FILES\n"
+        for fsh in f_sharings:
+            s += sharing_string(fsh)
+
+    return s.rstrip("\n")

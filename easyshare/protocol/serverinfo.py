@@ -7,10 +7,12 @@ try:
     from typing import TypedDict
 
     class ServerInfo(TypedDict):
-        uri: str
+        # uri: str
         name: str
         ip: str
         port: int
+        discoverable: bool
+        discover_port: int
         ssl: bool
         auth: bool
         sharings: List[SharingInfo]
