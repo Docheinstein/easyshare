@@ -45,10 +45,12 @@ def handle_sharing_response(api):
 
 class SharingConnection:
 
-    def __init__(self, sharing_uri: str, sharing_info: SharingInfo, server_info: ServerInfo = None):
+    def __init__(self, sharing_uri: str,
+                 sharing_info: SharingInfo, server_info: ServerInfo = None):
         log.d("Initializing new SharingConnection")
-        self.sharing_info: SharingInfo = sharing_info
-        self.server_info: ServerInfo = server_info
+
+        self.sharing_info = sharing_info
+        self.server_info = server_info
 
         self._connected = True  # Start as connected,
                                 # we already have opened the remote serving
@@ -59,16 +61,13 @@ class SharingConnection:
             sharing_uri,
             alias="{}{}{}".format(
                 sharing_info.get("name") if sharing_info else "",
-                "@" if server_info and sharing_info else "",
+                "@" if sharing_info and server_info else "",
                 server_info.get("name") if server_info else ""
             )
         )
 
     def is_connected(self) -> bool:
         return self._connected is True and self.service
-
-    def sharing_name(self) -> str:
-        return self.sharing_info.get("name")
 
     def rcwd(self) -> str:
         return self._rcwd

@@ -90,7 +90,7 @@ class SharingLocation:
 
     def __init__(self,
                  sharing_name: str,
-                 server_location: ServerLocation = ServerLocation()):
+                 server_location: ServerLocation = None):
         self.name: str = sharing_name
         self.server: ServerLocation = server_location
 
