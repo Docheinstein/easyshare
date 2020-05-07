@@ -5,7 +5,6 @@ from Pyro5.api import expose
 
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
-from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.exposed import ISharingService
 from easyshare.protocol.filetype import FTYPE_FILE
 from easyshare.protocol.response import Response, create_success_response, create_error_response
@@ -374,7 +373,7 @@ class SharingService(ISharingService, ClientSharingService):
     @trace_api
     @try_or_command_failed_response
     @check_service_owner
-    def put(self) -> Response:
+    def put(self, check: bool = False) -> Response:
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< PUT [%s]", str(client_endpoint))
@@ -385,6 +384,7 @@ class SharingService(ISharingService, ClientSharingService):
             return create_error_response(ServerErrors.NOT_ALLOWED)
 
         put = PutService(
+            check=check,
             sharing=self._sharing,
             sharing_rcwd=self._rcwd,
             client=self._client,

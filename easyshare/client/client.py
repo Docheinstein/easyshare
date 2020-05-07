@@ -132,14 +132,29 @@ class PingArgs(PositionalArgs):
             KwArgSpec(PingArgs.COUNT, INT_PARAM),
         ]
 
-class GetArguments:
+class GetArgs(VariadicArgs):
     YES_TO_ALL = ["-Y", "--yes"]
     NO_TO_ALL = ["-N", "--no"]
+    CHECK = ["-c", "--check"]
 
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return [
+            KwArgSpec(GetArgs.YES_TO_ALL, PRESENCE_PARAM),
+            KwArgSpec(GetArgs.NO_TO_ALL, PRESENCE_PARAM),
+            KwArgSpec(GetArgs.CHECK, PRESENCE_PARAM),
+        ]
 
-class PutArguments:
+class PutArgs(VariadicArgs):
     YES_TO_ALL = ["-Y", "--yes"]
     NO_TO_ALL = ["-N", "--no"]
+    CHECK = ["-c", "--check"]
+
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return [
+            KwArgSpec(PutArgs.YES_TO_ALL, PRESENCE_PARAM),
+            KwArgSpec(PutArgs.NO_TO_ALL, PRESENCE_PARAM),
+            KwArgSpec(PutArgs.CHECK, PRESENCE_PARAM),
+        ]
 
 
 # ==================================================================
@@ -370,12 +385,12 @@ class Client:
 
             Commands.GET: (
                 SHARING,
-                [VariadicArgs(0), VariadicArgs(1)],
+                [GetArgs(0), GetArgs(1)],
                 self.get),
 
             Commands.PUT: (
                 SHARING,
-                [VariadicArgs(0), VariadicArgs(1)],
+                [PutArgs(0), PutArgs(1)],
                 self.put),
 
 
@@ -1020,9 +1035,9 @@ class Client:
 
         overwrite_all: Optional[bool] = None
 
-        if GetArguments.YES_TO_ALL in args:
+        if GetArgs.YES_TO_ALL in args:
             overwrite_all = True
-        if GetArguments.NO_TO_ALL in args:
+        if GetArgs.NO_TO_ALL in args:
             overwrite_all = False
 
         log.i("Overwrite all mode: %s", bool_to_str(overwrite_all))
@@ -1163,7 +1178,8 @@ class Client:
 
         files = args.get_vargs()
 
-        resp = sharing_conn.put()
+        do_check = PutArgs.CHECK in args
+        resp = sharing_conn.put(check=do_check)
         ensure_data_response(resp)
 
         put_service_uri = resp.get("data").get("uri")
@@ -1226,9 +1242,9 @@ class Client:
 
         overwrite_all: Optional[bool] = None
 
-        if PutArguments.YES_TO_ALL in args:
+        if PutArgs.YES_TO_ALL in args:
             overwrite_all = True
-        if PutArguments.NO_TO_ALL in args:
+        if PutArgs.NO_TO_ALL in args:
             overwrite_all = False
 
         log.i("Overwrite all mode: %s", bool_to_str(overwrite_all))
@@ -1299,6 +1315,8 @@ class Client:
                         return
                     else:
                         log.d("Will overwrite file")
+                        put_next_resp = put_service.next(finfo, force=True)
+                        ensure_success_response(put_next_resp)
 
                 progressor = FileProgressor(
                     fsize,

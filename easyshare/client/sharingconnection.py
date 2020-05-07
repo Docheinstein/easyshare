@@ -136,8 +136,8 @@ class SharingConnection:
 
     @handle_sharing_response
     @require_sharing_connection
-    def put(self) -> Response:
-        return self.service.put()
+    def put(self, check: bool) -> Response:
+        return self.service.put(check)
 
     def _destroy_connection(self):
         log.d("Marking sharing connection as disconnected")

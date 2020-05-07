@@ -26,11 +26,13 @@ class PutService(IPutService, ClientSharingService):
     BUFFER_SIZE = 4096
 
     def __init__(self,
+                 check: bool,
                  sharing: Sharing,
                  sharing_rcwd,
                  client: ClientContext,
                  end_callback: Callable[[ClientService], None]):
         super().__init__(sharing, sharing_rcwd, client, end_callback)
+        self._check = check
         self._incomings = queue.Queue()
         self._transfer_acceptor_sock = SocketTcpAcceptor(ssl_context=get_ssl_context())
 
@@ -46,7 +48,7 @@ class PutService(IPutService, ClientSharingService):
     @trace_api
     @check_service_owner
     @try_or_command_failed_response
-    def next(self, finfo: FileInfo) -> Response:
+    def next(self, finfo: FileInfo, force: bool = False) -> Response:
         client_endpoint = pyro_client_endpoint()
 
         if not finfo:
@@ -84,8 +86,12 @@ class PutService(IPutService, ClientSharingService):
 
         # Check whether it already exists
         if os.path.isfile(real_path):
-            log.w("File already exists, asking whether overwrite it")
-            return create_success_response("ask_overwrite")
+            if not force:
+                log.w("File already exists, asking whether overwrite it")
+                return create_success_response("ask_overwrite")
+            else:
+                log.d("File already exists but overwriting it since force=True")
+
 
         self._incomings.put((real_path, fsize))
 
@@ -119,7 +125,7 @@ class PutService(IPutService, ClientSharingService):
         go_ahead = True
 
         while go_ahead:
-            log.d("blocking wait on next_servings")
+            log.d(" blocking wait on next_servings")
 
             # Recv files until the servings buffer is empty
             # Wait on the blocking queue for the next file to recv
@@ -142,7 +148,7 @@ class PutService(IPutService, ClientSharingService):
                 # r = random.random() * 0.001
                 # time.sleep(0.001 + r)
 
-                readlen = max(incoming_size - cur_pos, PutService.BUFFER_SIZE)
+                readlen = min(incoming_size - cur_pos, PutService.BUFFER_SIZE)
 
                 chunk = transfer_sock.recv(readlen)
 
@@ -161,6 +167,17 @@ class PutService(IPutService, ClientSharingService):
 
             log.i("Closing file %s", incoming_file)
             f.close()
+
+            if self._check:
+                written_size = os.path.getsize(incoming_file)
+                if written_size != incoming_size:
+                    log.e("File length mismatch expected=%s ; written=%d", incoming_size, written_size)
+                    # ....
+                    break
+                else:
+                    log.d("File check: OK")
+
+
 
         log.i("Transaction handler job finished")
 

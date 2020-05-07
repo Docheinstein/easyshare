@@ -420,16 +420,18 @@ def main():
     print("Server port:    ", server.endpoint()[1])
     print("Discover port:  ", server._discover_daemon.endpoint()[1] if server.is_discoverable() else "DISABLED")
     print("SSL:            ", True if get_ssl_context() else False)
-
+    print("------------------------")
 
     if sharings:
         # Add every sharing to the server
         for sharing in sharings.values():
             print("* " + sharing.name + " --> " + sharing.path)
             server.add_sharing(sharing)
+        print("------------------------")
     else:
         log.w("No sharings found, it will be an empty server")
 
+    print("STARTED")
     server.start()
 
 

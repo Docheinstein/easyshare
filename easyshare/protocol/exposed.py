@@ -14,7 +14,7 @@ class IGetService(ABC):
 
 class IPutService(ABC):
     @abstractmethod
-    def next(self, finfo: Union[FileInfo, None]) -> Response:
+    def next(self, finfo: Union[FileInfo, None], force: bool = False) -> Response:
         pass
 
 
@@ -83,7 +83,7 @@ class ISharingService(ABC):
         pass
 
     @abstractmethod
-    def put(self) -> Response:
+    def put(self, check: bool = False) -> Response:
         pass
 
 
