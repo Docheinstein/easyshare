@@ -11,4 +11,5 @@
 - server connection down detection => close and disconnect
 - test lock multiclient
 - rangify lists
-- -v optional
+- recap at the end of get/put
+- * for all files in get/put

@@ -7,7 +7,7 @@ from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 from Pyro5.errors import PyroError
 
 from easyshare import logging
-from easyshare.args import Args
+from easyshare.args import Args, ArgsParseError
 import readline as rl
 
 from easyshare.client.args import OptIntArg, ArgsParser, VariadicArgs
@@ -159,10 +159,10 @@ class Shell:
         parser, executor = self._shell_command_dispatcher[command]
 
         # Parse args using the parsed bound to the command
-        args = parser.parse(command_args)
-
-        if not args:
-            log.e("Command's arguments parse failed")
+        try:
+            args = parser.parse(command_args)
+        except ArgsParseError as err:
+            log.e("Command's arguments parse failed: %s", str(err))
             return ClientErrors.INVALID_COMMAND_SYNTAX
 
         log.i("Parsed command arguments\n%s", args)

@@ -3,7 +3,8 @@ import sys
 from typing import List, Optional, Callable
 
 from easyshare import logging
-from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError
+from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
+    ArgType
 from easyshare.client.args import ArgsParser, PositionalArgs
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.logging import get_logger
@@ -84,8 +85,8 @@ class EsdArgs(ArgsParser):
 
         ]
 
-    def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
-        return lambda argname, idx, args, positionals: not positionals
+    def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
+        return lambda argname, argtype, idx, args, positionals: argtype != ArgType.VARG
 
 class EsdConfKeys:
     G_NAME = "name"

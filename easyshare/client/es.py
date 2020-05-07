@@ -18,7 +18,8 @@ from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
 from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.types import to_int, is_int, is_str
-from easyshare.args import Args as Args, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, ArgsParseError
+from easyshare.args import Args as Args, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, \
+    ArgsParseError, ArgType
 
 log = get_logger()
 
@@ -60,8 +61,8 @@ class EsArgs(ArgsParser):
             KwArgSpec(EsArgs.NO_COLOR, PRESENCE_PARAM),
         ]
 
-    def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
-        return lambda argname, idx, args, positionals: not positionals
+    def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
+        return lambda argname, argtype, idx, args, positionals: argtype != ArgType.VARG
 
 # ==================================================================
 
@@ -152,12 +153,12 @@ def main():
     start_shell = True
 
     # 1. Run a command directly from the cli ?
-    vargs = args.get_vargs()
+    vargs = args.get_unparsed_args()
     command = vargs[0] if vargs else None
     if command:
         if command in CLI_COMMANDS or is_special_command(command):
             log.i("Found a valid CLI command '%s'", command)
-            command_args = args.get_unparsed_args([])
+            command_args = vargs[1:]
             outcome = client.execute_command(command, command_args)
 
             if is_int(outcome) and outcome > 0:

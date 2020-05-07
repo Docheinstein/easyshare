@@ -356,8 +356,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_COPY: ListRemoteAllCommandInfo,
     Commands.REMOTE_MOVE: ListRemoteAllCommandInfo,
     Commands.REMOTE_REMOVE: ListRemoteAllCommandInfo,
-    Commands.REMOTE_EXEC: ListRemoteAllCommandInfo,
-    Commands.REMOTE_EXEC_SHORT: ListRemoteAllCommandInfo,
+    Commands.REMOTE_EXEC: CommandInfo,
+    Commands.REMOTE_EXEC_SHORT: CommandInfo,
 
 
     Commands.SCAN: ScanCommandInfo,

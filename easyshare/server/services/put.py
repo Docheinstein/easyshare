@@ -1,8 +1,6 @@
 import os
 import queue
-import random
 import threading
-import time
 from typing import Callable
 
 from Pyro5.server import expose
@@ -131,25 +129,27 @@ class PutService(IPutService, ClientSharingService):
                 log.i("No more files: END")
                 break
 
-            next_path, next_size = next_incoming
+            incoming_file, incoming_size = next_incoming
 
             log.i("Next incoming: %s", next_incoming)
 
-            f = open(next_path, "wb")
+            f = open(incoming_file, "wb")
             cur_pos = 0
             # file_len = os.path.getsize(next_serving)
             #
             # Recv file
-            while cur_pos < next_size:
-                r = random.random() * 0.001
-                time.sleep(0.001 + r)
+            while cur_pos < incoming_size:
+                # r = random.random() * 0.001
+                # time.sleep(0.001 + r)
 
-                chunk = transfer_sock.recv(PutService.BUFFER_SIZE)
+                readlen = max(incoming_size - cur_pos, PutService.BUFFER_SIZE)
+
+                chunk = transfer_sock.recv(readlen)
 
                 # chunk = f.read(PutTransactionHandler.BUFFER_SIZE)
 
                 if not chunk:
-                    log.i("Finished %s", next_path)
+                    log.i("Finished %s", incoming_file)
                     break
 
                 log.i("Read chunk of %dB", len(chunk))
@@ -157,9 +157,9 @@ class PutService(IPutService, ClientSharingService):
 
                 f.write(chunk)
 
-                log.i("%d/%d (%.2f%%)", cur_pos, next_size, cur_pos / next_size * 100)
+                log.i("%d/%d (%.2f%%)", cur_pos, incoming_size, cur_pos / incoming_size * 100)
 
-            log.i("Closing file %s", next_path)
+            log.i("Closing file %s", incoming_file)
             f.close()
 
         log.i("Transaction handler job finished")

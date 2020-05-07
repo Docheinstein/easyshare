@@ -1,6 +1,6 @@
 from typing import List, Optional, Callable
 
-from easyshare.args import ParamsSpec, INT_PARAM, Args, NoopParamsSpec, INT_PARAM_OPT, KwArgSpec
+from easyshare.args import ParamsSpec, INT_PARAM, Args, NoopParamsSpec, INT_PARAM_OPT, KwArgSpec, ArgType
 
 
 class ArgsParser:
@@ -18,7 +18,7 @@ class ArgsParser:
     def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
         return None
 
-    def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
+    def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
         return None
 
 
@@ -50,12 +50,12 @@ class OptIntArg(ArgsParser):
 
 
 class StopParseArgs(ArgsParser):
-    def __init__(self, mandatory: int = 0, stop_after: int = 0):
+    def __init__(self, mandatory: int = 0, stop_after: int = None):
         self.mandatory = mandatory
-        self.stop_after = stop_after
+        self.stop_after = stop_after or mandatory
 
     def _vargs_spec(self) -> Optional[ParamsSpec]:
         return NoopParamsSpec(self.mandatory, 0)
 
-    def _continue_parsing_hook(self) -> Optional[Callable[[str, int, 'Args', List[str]], bool]]:
-        return lambda arg, idx, parsedargs, positionals: len(positionals) < self.stop_after
+    def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
+        return lambda arg, argtype, idx, parsedargs, positionals: len(positionals) < self.stop_after

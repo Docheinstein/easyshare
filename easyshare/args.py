@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import List, Any, Optional, Union, Tuple, Callable, Dict
 
 from easyshare.logging import get_logger
@@ -69,6 +70,12 @@ VARIADIC_PARAMS = NoopParamsSpec(0, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
 # ---
 
 
+class ArgType(Enum):
+    KWARG = object()
+    KWARG_PARAM = object()
+    VARG = object()
+
+
 class Args:
     def __init__(self, parsed: Dict, unparsed: List[Any] = None):
         self._parsed = parsed
@@ -122,8 +129,8 @@ class Args:
     def parse(args: List[str], *,
               vargs_spec: ParamsSpec = None,
               kwargs_specs: List[KwArgSpec] = None,
-              continue_parsing_hook: Optional[Callable[[str, int, 'Args', List[str]], bool]] = None) -> 'Args':
-            # continue_parsing_hook: argname, idx, args, positionals
+              continue_parsing_hook: Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]] = None) -> 'Args':
+            # continue_parsing_hook: argname, argtype, idx, args, positionals
 
         vargs_spec = vargs_spec or VARIADIC_PARAMS
         kwargs_specs = kwargs_specs or []
@@ -172,9 +179,13 @@ class Args:
                 log.d("Inspecting argument %s", arg)
 
                 # Check whether we can go further
+                if Args._is_long_kwarg(arg) or Args._is_kwarg(arg):
+                    argtype = ArgType.KWARG
+                else:
+                    argtype = ArgType.VARG
 
                 if continue_parsing_hook:
-                    cont = continue_parsing_hook(arg, cursor, ret, positionals)
+                    cont = continue_parsing_hook(arg, argtype, cursor, ret, positionals)
                     log.d("continue: %s", cont)
 
                     if not cont:
@@ -328,6 +339,10 @@ class Args:
 
             param_cursor += 1
 
+
+        # Remind were we are, for treat optionals parsing errors
+        pre_optionals_param_cursor = param_cursor
+
         # OPTIONALS
 
         while params_spec.optional_count == ParamsSpec.VARIADIC_PARAMETERS_COUNT \
@@ -353,12 +368,19 @@ class Args:
 
         # Provide the params to the parser, and add
         # the parsed value to the bucket
-        val = params_spec.parser(
-            params[params_offset:params_offset + param_cursor]
-        )
+        try:
+            val = params_spec.parser(
+                params[params_offset:params_offset + param_cursor]
+            )
+            log.i("> %s", "{}".format(val))
+            bucket += list_wrap(val)
 
-        log.i("> %s", "{}".format(val))
-        bucket += list_wrap(val)
+        except Exception:
+            log.w("Exception occurred while parsing optional argument; "
+                  "considering it as a differnt argument")
+
+            return pre_optionals_param_cursor
+
 
         return param_cursor
 

@@ -163,8 +163,9 @@ class GetService(IGetService, ClientSharingService):
 
             # Send file
             while cur_pos < file_len:
-                r = random.random() * 0.001
-                time.sleep(0.001 + r)
+                # r = random.random() * 0.001
+                # time.sleep(0.001 + r)
+
                 chunk = f.read(GetService.BUFFER_SIZE)
                 if not chunk:
                     log.i("Finished %s", next_serving)

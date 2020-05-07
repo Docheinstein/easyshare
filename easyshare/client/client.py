@@ -320,11 +320,11 @@ class Client:
                 Client.cp),
             Commands.LOCAL_EXEC: (
                 LOCAL,
-                [StopParseArgs(1, 1)],
+                [StopParseArgs(0)],
                 Client.exec),
             Commands.LOCAL_EXEC_SHORT: (
                 LOCAL,
-                [StopParseArgs(1, 1)],
+                [StopParseArgs(0)],
                 Client.exec),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (
@@ -361,11 +361,11 @@ class Client:
                 self.rcp),
             Commands.REMOTE_EXEC: (
                 SERVER,
-                [StopParseArgs(1, 1), StopParseArgs(2, 2)],
+                [StopParseArgs(0), StopParseArgs(1)],
                 self.rexec),
             Commands.REMOTE_EXEC_SHORT: (
                 SERVER,
-                [StopParseArgs(1, 1), StopParseArgs(2, 2)],
+                [StopParseArgs(0), StopParseArgs(1)],
                 self.rexec),
 
             Commands.GET: (
@@ -487,7 +487,7 @@ class Client:
     # === LOCAL COMMANDS ===
 
     @staticmethod
-    def cd(args: Args, _):
+    def cd(args: Args, _, _2):
         directory = pathify(args.get_varg(default="~"))
 
         log.i(">> CD %s", directory)
@@ -685,6 +685,12 @@ class Client:
 
         log.i("Server and sharing connection established")
         self.sharing_connection = new_sharing_conn
+
+        # Just mark that the server connection has been created due open()
+        # so that for symmetry close() will do disconnect() too
+        if new_server_conn != self.server_connection:
+            setattr(new_server_conn, "created_with_open", True)
+
         self.server_connection = new_server_conn
 
 
@@ -693,13 +699,12 @@ class Client:
         if not server_conn or not server_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        popen_cmd = args.get_vargs(default=[])
-        popen_cmd_args = args.get_unparsed_args(default=[])
-        popen_full_command = " ".join(popen_cmd + popen_cmd_args)
+        popen_args = args.get_unparsed_args(default=[])
+        popen_cmd = " ".join(popen_args)
 
-        log.i(">> REXEC %s", popen_full_command)
+        log.i(">> REXEC %s", popen_cmd)
 
-        rexec_resp = server_conn.rexec(popen_full_command)
+        rexec_resp = server_conn.rexec(popen_cmd)
         ensure_data_response(rexec_resp)
 
         rexec_uri = rexec_resp.get("data")
@@ -880,6 +885,13 @@ class Client:
         log.i(">> CLOSE")
 
         sharing_conn.close()
+
+        # noinspection PyUnresolvedReferences
+        if server_conn and server_conn.is_connected() and \
+                getattr(server_conn, "created_with_open", False):
+            log.d("Closing server connection too since opened due open")
+            server_conn.disconnect()
+
 
     @provide_sharing_connection
     def rpwd(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
@@ -1162,7 +1174,6 @@ class Client:
 
         log.i("Successfully PUTed")
 
-
         # Raw transfer socket
         transfer_socket = SocketTcpOut(
             sharing_conn.server_info.get("ip"),
@@ -1173,11 +1184,38 @@ class Client:
         if len(files) == 0:
             files = ["."]
 
-        files = sorted(files, reverse=True)
+        # files = sorted(files, reverse=True)
         sendfiles: List[dict] = []
 
         for f in files:
+            # STANDARD CASE
+            # e.g.  local:      ./to/something      [/tmp/to/something]
+            #       remote:     something
+            # -----------------------------
+            # SPECIAL CASE  .
+            # e.g.  local:      .                   [/tmp]
+            #                   (with content f1, f2)
+            #       remote:     tmp/f1, tmp/f2
+            # -----------------------------
+            # SPECIAL CASE [./././]*
+            # e.g.  local:      ./to/adir/*         [/tmp/to/adir]
+            #                   (with content f1, f2)
+            #       remote:     f1, f2
+
+            # if f == ".":
+            #     # Special case
+            #     dot_head, dot_trail = os.path.split(os.getcwd())
+            #     _, dot_head_trail = os.path.split(dot_head)
+            #     trail = os.path.join(dot_head_trail, dot_trail)
+            # else:
+            if f == ".":
+                f = os.getcwd()
+
+            f = f.replace("*", ".") # glob
+
+            # standard case
             _, trail = os.path.split(f)
+
             log.i("-> trail: %s", trail)
             sendfile = {
                 "local": f,
@@ -1283,8 +1321,8 @@ class Client:
                 cur_pos = 0
 
                 while cur_pos < fsize:
-                    r = random.random() * 0.001
-                    time.sleep(0.001 + r)
+                    # r = random.random() * 0.001
+                    # time.sleep(0.001 + r)
 
                     chunk = f.read(BUFFER_SIZE)
                     log.i("Read chunk of %dB", len(chunk))
@@ -1359,8 +1397,8 @@ class Client:
 
             log.i("Sending DONE")
 
-            put_next_resp = put_service.next(None)
-            ensure_success_response(put_next_resp)
+            put_next_end_resp = put_service.next(None)
+            ensure_success_response(put_next_end_resp)
 
     @staticmethod
     def _ls(args: Args,
