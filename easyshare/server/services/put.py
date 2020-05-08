@@ -1,12 +1,13 @@
 import os
 import queue
 import threading
+import zlib
 from typing import Callable
 
 from Pyro5.server import expose
 
 from easyshare.logging import get_logger
-from easyshare.protocol.errors import ServerErrors
+from easyshare.protocol.errors import ServerErrors, TransferOutcomes
 from easyshare.protocol.exposed import IPutService
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
@@ -19,6 +20,7 @@ from easyshare.server.sharing import Sharing
 from easyshare.socket.tcp import SocketTcpAcceptor
 from easyshare.ssl import get_ssl_context
 from easyshare.utils.pyro import trace_api, pyro_client_endpoint
+from easyshare.utils.types import bytes_to_int
 
 log = get_logger(__name__)
 
@@ -36,6 +38,9 @@ class PutService(IPutService, ClientSharingService):
         self._incomings = queue.Queue()
         self._transfer_acceptor_sock = SocketTcpAcceptor(ssl_context=get_ssl_context())
 
+        self._outcome_sync = threading.Semaphore(0)
+        self._outcome = None
+
 
     def transfer_port(self) -> int:
         return self._transfer_acceptor_sock.port()
@@ -43,6 +48,24 @@ class PutService(IPutService, ClientSharingService):
     def run(self):
         th = threading.Thread(target=self._run, daemon=True)
         th.start()
+
+    @expose
+    @trace_api
+    @check_service_owner
+    @try_or_command_failed_response
+    def outcome(self) -> Response:
+        log.d("Waiting for completion for outcome...")
+
+        self._outcome_sync.acquire()
+        outcome = self._outcome
+        self._outcome_sync.release()
+
+        log.i("Transaction outcome: %d", outcome)
+
+        self._notify_service_end()
+
+        return create_success_response(outcome)
+
 
     @expose
     @trace_api
@@ -100,9 +123,9 @@ class PutService(IPutService, ClientSharingService):
 
 
     def _run(self):
-
         if not self._transfer_acceptor_sock:
             log.e("Socket acceptor invalid")
+            self._finish(TransferOutcomes.ERROR)
             return
 
         log.d("Starting PutService")
@@ -141,20 +164,19 @@ class PutService(IPutService, ClientSharingService):
 
             f = open(incoming_file, "wb")
             cur_pos = 0
-            # file_len = os.path.getsize(next_serving)
-            #
+            crc = 0
+
             # Recv file
             while cur_pos < incoming_size:
-                # r = random.random() * 0.001
-                # time.sleep(0.001 + r)
-
                 readlen = min(incoming_size - cur_pos, PutService.BUFFER_SIZE)
 
                 chunk = transfer_sock.recv(readlen)
 
-                # chunk = f.read(PutTransactionHandler.BUFFER_SIZE)
+                if self._check:
+                    crc = zlib.crc32(chunk, crc)
 
                 if not chunk:
+                    # EOF
                     log.i("Finished %s", incoming_file)
                     break
 
@@ -166,27 +188,48 @@ class PutService(IPutService, ClientSharingService):
                 log.i("%d/%d (%.2f%%)", cur_pos, incoming_size, cur_pos / incoming_size * 100)
 
             log.i("Closing file %s", incoming_file)
+
             f.close()
 
+            # Eventually do CRC check
             if self._check:
+                # CRC check on the received bytes
+                expected_crc = bytes_to_int(transfer_sock.recv(4))
+                if expected_crc != crc:
+                    log.e("Wrong CRC; transfer failed. expected=%d | written=%d",
+                          expected_crc, crc)
+                    self._finish(TransferOutcomes.CHECK_FAILED)
+                    break
+                else:
+                    log.d("CRC check: OK")
+
+                # Length check on the written file
                 written_size = os.path.getsize(incoming_file)
                 if written_size != incoming_size:
                     log.e("File length mismatch expected=%s ; written=%d", incoming_size, written_size)
-                    # ....
+                    self._finish(TransferOutcomes.CHECK_FAILED)
                     break
                 else:
                     log.d("File check: OK")
 
 
-
         log.i("Transaction handler job finished")
+
+        if not self._outcome:
+            self._finish(0)
 
         transfer_sock.close()
 
-        self._notify_service_end()
+        # DO not self._notify_service_end()
+        # wait for outcome() call before unregister from the daemon
 
-    def abort(self):
-        log.i("aborting transaction")
-        with self._incomings.mutex:
-            self._incomings.queue.clear()
-            self._incomings.put(None)
+
+    def _finish(self, outcome):
+        self._outcome = outcome
+        self._outcome_sync.release()
+
+    # def abort(self):
+    #     log.i("aborting transaction")
+    #     with self._incomings.mutex:
+    #         self._incomings.queue.clear()
+    #         self._incomings.put(None)

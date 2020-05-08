@@ -1,6 +1,6 @@
 from typing import Union
 
-from easyshare.protocol.errors import ServerErrors
+from easyshare.protocol.errors import ServerErrors, TransferOutcomes
 from easyshare.utils.app import eprint
 from easyshare.utils.types import is_int, is_str
 
@@ -20,6 +20,7 @@ class ClientErrors:
 
 
 class ErrorsStrings:
+    SUCCESS = "Success"
     ERROR = "Error"
     INVALID_COMMAND_SYNTAX = "Invalid command syntax"
     INVALID_PARAMETER_VALUE = "Invalid parameter value"
@@ -39,6 +40,9 @@ class ErrorsStrings:
     UNEXPECTED_SERVER_RESPONSE = "Unexpected server response"
     IMPLEMENTATION_ERROR = "Implementation error"
     CONNECTION_ERROR = "Connection error"
+
+    TRANSFER_CHECK_FAILED = "Check failed"
+
 
 
 ERRORS_STRINGS_MAP = {
@@ -66,6 +70,10 @@ ERRORS_STRINGS_MAP = {
     ClientErrors.SERVER_NOT_FOUND: ErrorsStrings.SERVER_NOT_FOUND,
     ClientErrors.IMPLEMENTATION_ERROR: ErrorsStrings.IMPLEMENTATION_ERROR,
     ClientErrors.CONNECTION_ERROR: ErrorsStrings.CONNECTION_ERROR,
+
+    TransferOutcomes.SUCCESS: ErrorsStrings.SUCCESS,
+    TransferOutcomes.ERROR: ErrorsStrings.ERROR,
+    TransferOutcomes.CHECK_FAILED: ErrorsStrings.TRANSFER_CHECK_FAILED
 }
 
 

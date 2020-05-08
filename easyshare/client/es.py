@@ -168,7 +168,7 @@ def main():
 
             # Keep the shell opened only if we performed an 'open'
             # Otherwise close it after the action
-            start_shell = (command == Commands.OPEN)
+            start_shell = client.is_connected_to_server()
         else:
             log.w("Invalid CLI command '%s'; ignoring it and starting shell", command)
             log.w("Allowed CLI commands are: %s", ", ".join(CLI_COMMANDS))

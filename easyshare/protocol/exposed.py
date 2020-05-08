@@ -17,6 +17,10 @@ class IPutService(ABC):
     def next(self, finfo: Union[FileInfo, None], force: bool = False) -> Response:
         pass
 
+    @abstractmethod
+    def outcome(self) -> Response:
+        pass
+
 
 class IRexecService(ABC):
     class Event:

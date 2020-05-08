@@ -57,9 +57,9 @@ class SocketTcpOut(SocketTcp):
 
 class SocketTcpAcceptor(Socket):
 
-    def __init__(self, *,
+    def __init__(self,
                  address: str = ADDR_ANY,
-                 port: int = PORT_ANY,
+                 port: int = PORT_ANY, *,
                  ssl_context: Optional[ssl.SSLContext] = None):
         super().__init__(
             wrap_socket(

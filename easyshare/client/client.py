@@ -5,6 +5,7 @@ import select
 import sys
 import threading
 import time
+import zlib
 from getpass import getpass
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, NoReturn
@@ -38,7 +39,7 @@ from easyshare.utils.app import eprint
 from easyshare.utils.colors import red, styled, Style
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.pyro import TracedPyroProxy
-from easyshare.utils.types import bool_to_str, bytes_to_str
+from easyshare.utils.types import bool_to_str, bytes_to_str, int_to_bytes
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached
 from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM, ArgsParseError
 
@@ -1255,7 +1256,6 @@ class Client:
 
         with TracedPyroProxy(put_service_uri) as put_service:
 
-
             def send_file(local_path: str, remote_path: str):
                 nonlocal overwrite_all
 
@@ -1337,6 +1337,7 @@ class Client:
                 f = open(local_path, "rb")
 
                 cur_pos = 0
+                crc = 0
 
                 while cur_pos < fsize:
                     # r = random.random() * 0.001
@@ -1344,6 +1345,10 @@ class Client:
 
                     chunk = f.read(BUFFER_SIZE)
                     log.i("Read chunk of %dB", len(chunk))
+
+                    # CRC check update
+                    if do_check:
+                        crc = zlib.crc32(chunk, crc)
 
                     if not chunk:
                         log.i("Finished %s", local_path)
@@ -1356,6 +1361,11 @@ class Client:
                     progressor.update(cur_pos)
 
                 log.i("DONE %s", local_path)
+                log.d("- crc = %d", crc)
+
+                if do_check:
+                    transfer_socket.send(int_to_bytes(crc, 4))
+
                 f.close()
 
                 progressor.done()
@@ -1417,6 +1427,18 @@ class Client:
 
             put_next_end_resp = put_service.next(None)
             ensure_success_response(put_next_end_resp)
+
+            # Wait for completion
+            outcome_resp = put_service.outcome()
+            ensure_data_response(outcome_resp)
+
+            outcome = outcome_resp.get("data")
+            log.i("PUT outcome: %d", outcome)
+
+            if outcome > 0:
+                log.e("PUT reported an error: %d", outcome)
+                raise BadOutcome(outcome)
+
 
     @staticmethod
     def _ls(args: Args,
@@ -1612,7 +1634,7 @@ class Client:
         server_conn = self._create_server_connection(
             connect=True,
             server_name=sharing_location.server_name,
-            server_ip=sharing_location.server_name,
+            server_ip=sharing_location.server_ip,
             server_port=sharing_location.server_port,
             sharing_name=sharing_location.name,
             sharing_ftype=FTYPE_DIR,
