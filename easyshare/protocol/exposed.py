@@ -5,20 +5,25 @@ from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.response import Response
 
 
-class IGetService(ABC):
+class ITransferService(ABC):
+    @abstractmethod
+    def outcome(self) -> Response:
+        pass
+
+    @abstractmethod
+    def _run(self):
+        pass
+
+
+class IGetService(ITransferService):
     @abstractmethod
     def next(self) -> Response:
         pass
 
 
-
-class IPutService(ABC):
+class IPutService(ITransferService):
     @abstractmethod
     def next(self, finfo: Union[FileInfo, None], force: bool = False) -> Response:
-        pass
-
-    @abstractmethod
-    def outcome(self) -> Response:
         pass
 
 

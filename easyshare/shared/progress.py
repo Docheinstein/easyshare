@@ -9,9 +9,8 @@ from typing import Tuple
 from easyshare.logging import get_logger
 from easyshare.utils.colors import fg, Color, enable_colors
 from easyshare.utils.env import is_unicode_supported, terminal_size
-from easyshare.utils.os import M, size_str
-from easyshare.utils.time import duration_str
-
+from easyshare.utils.os import M, size_str, speed_str
+from easyshare.utils.time import duration_str, duration_str_human
 
 log = get_logger(__name__)
 
@@ -92,10 +91,10 @@ class ProgressBarRendererFactory:
 
 class FileProgressor:
 
-    SIZE_PREFIXES = ("B", "KB", "MB", "GB")
-    SPEED_PREFIXES = ("B/s", "KB/s", "MB/s", "GB/s")
+    # SIZE_PREFIXES = ("B", "KB", "MB", "GB")
+    # SPEED_PREFIXES = ("B/s", "KB/s", "MB/s", "GB/s")
 
-    TIME_FORMATS = ("{}h ", "{}m ", "{}s")
+    # TIME_FORMATS = ("{}h ", "{}m ", "{}s")
 
     # Config of the render of progress bar
 
@@ -247,16 +246,15 @@ class FileProgressor:
             W = self.description
             P = str(percentage) + "%"
             T = "{}/{}".format(
-                size_str(self.partial, prefixes=FileProgressor.SIZE_PREFIXES).rjust(FileProgressor.LEN_TH),
-                size_str(self.total, prefixes=FileProgressor.SIZE_PREFIXES).ljust(FileProgressor.LEN_TH)
+                size_str(self.partial).rjust(FileProgressor.LEN_TH),
+                size_str(self.total).ljust(FileProgressor.LEN_TH)
             )
             S = ""
 
             if time_instead_speed:
-                S = duration_str(round((t - self.first_t) * 1e-9),
-                                 fixed=False, formats=FileProgressor.TIME_FORMATS)
+                S = duration_str_human(round((t - self.first_t) * 1e-9),)
             elif self.speed_last_period_avg:
-                S = size_str(self.speed_last_period_avg, prefixes=FileProgressor.SPEED_PREFIXES)
+                S = speed_str(self.speed_last_period_avg)
 
             Wlen = len(W)
 

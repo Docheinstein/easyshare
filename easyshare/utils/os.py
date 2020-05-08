@@ -57,9 +57,11 @@ def abspath(s: str) -> str:
 def pathify(s: str) -> str:
     return os.path.expanduser(s)
 
+def speed_str(size: float) -> str:
+    return size_str(size, prefixes=("B/s", "KB/s", "MB/s", "GB/s"))
 
 def size_str(size: float,
-             prefixes=(" ", "K", "M", "G"),
+             prefixes=("B", "KB", "MB", "GB"),
              precisions=(0, 0, 1, 1)) -> str:
     i = len(UNITS) - 1
     while i >= 0:

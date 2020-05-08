@@ -101,7 +101,7 @@ def print_files_info_list(infos: List[FileInfo],
             file_str += s
 
         if show_size:
-            s = size_str(size).rjust(4) + "  "
+            s = size_str(size, prefixes=(" ", "M", "K", "G")).rjust(4) + "  "
             file_str += s
 
         file_str_styled = file_str
@@ -134,7 +134,7 @@ def print_files_info_tree(root: TreeNodeDict,
 
         print("{}{}{}".format(
             prefix,
-            "[{}]  ".format(size_str(size).rjust(4)) if show_size else "",
+            "[{}]  ".format(size_str(size, prefixes=(" ", "M", "K", "G")).rjust(4)) if show_size else "",
             fg(name, color=DIR_COLOR if ftype == FTYPE_DIR else FILE_COLOR),
         ))
 

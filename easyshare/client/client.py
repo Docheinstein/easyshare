@@ -39,8 +39,9 @@ from easyshare.utils.app import eprint
 from easyshare.utils.colors import red, styled, Style
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.pyro import TracedPyroProxy
+from easyshare.utils.time import duration_str, duration_str_human
 from easyshare.utils.types import bool_to_str, bytes_to_str, int_to_bytes
-from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached
+from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, size_str, speed_str
 from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM, ArgsParseError
 
 log = get_logger(__name__)
@@ -1189,13 +1190,16 @@ class Client:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         files = args.get_vargs()
+        sendfiles: List[dict] = []
+
+        if len(files) == 0:
+            files = ["."]
 
         do_check = PutArgs.CHECK in args
         resp = sharing_conn.put(check=do_check)
         ensure_data_response(resp)
 
         put_service_uid = resp.get("data").get("uid")
-        # put_service_port = resp.get("data").get("transfer_port")
 
         if not put_service_uid:
             raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
@@ -1214,12 +1218,6 @@ class Client:
             port=transfer_port(sharing_conn.server_info.get("port")),
             ssl_context=get_ssl_context(),
         )
-
-        if len(files) == 0:
-            files = ["."]
-
-        # files = sorted(files, reverse=True)
-        sendfiles: List[dict] = []
 
         for f in files:
             # STANDARD CASE
@@ -1269,12 +1267,18 @@ class Client:
 
         # Proxy
 
+        start_ns = time.monotonic_ns()
+        tot_bytes = 0
+        n_files = 0
+
         put_service: Union[TracedPyroProxy, IPutService]
 
         with TracedPyroProxy(put_service_uri) as put_service:
 
             def send_file(local_path: str, remote_path: str):
                 nonlocal overwrite_all
+                nonlocal tot_bytes
+                nonlocal n_files
 
                 fstat = os.lstat(local_path)
                 fsize = fstat.st_size
@@ -1297,7 +1301,7 @@ class Client:
 
                 log.d("doing a put_next")
 
-                put_next_resp = put_service.next(finfo)
+                put_next_resp = put_service.next(finfo, force=overwrite_all)
                 ensure_success_response(put_next_resp)
 
                 # Overwrite handling
@@ -1361,7 +1365,9 @@ class Client:
                     # time.sleep(0.001 + r)
 
                     chunk = f.read(BUFFER_SIZE)
-                    log.i("Read chunk of %dB", len(chunk))
+                    chunklen = len(chunk)
+
+                    log.i("Read chunk of %dB", chunklen)
 
                     # CRC check update
                     if do_check:
@@ -1374,7 +1380,8 @@ class Client:
 
                     transfer_socket.send(chunk)
 
-                    cur_pos += len(chunk)
+                    cur_pos += chunklen
+                    tot_bytes += chunklen
                     progressor.update(cur_pos)
 
                 log.i("DONE %s", local_path)
@@ -1384,6 +1391,7 @@ class Client:
                     transfer_socket.send(int_to_bytes(crc, 4))
 
                 f.close()
+                n_files += 1
 
                 progressor.done()
 
@@ -1450,12 +1458,22 @@ class Client:
             ensure_data_response(outcome_resp)
 
             outcome = outcome_resp.get("data")
+
+            end_ns = time.monotonic_ns()
+
             log.i("PUT outcome: %d", outcome)
 
             if outcome > 0:
                 log.e("PUT reported an error: %d", outcome)
                 raise BadOutcome(outcome)
 
+
+            delta_ns = (end_ns - start_ns)
+
+            print("Transfer OK")
+            print("Files        {}  ({})".format(n_files, size_str(tot_bytes)))
+            print("Time         {}".format(duration_str_human(round(delta_ns * 1e-9))))
+            print("Avg. speed   {}".format(speed_str(tot_bytes * 1e9 / delta_ns)))
 
     @staticmethod
     def _ls(args: Args,

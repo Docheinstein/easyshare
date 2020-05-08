@@ -16,4 +16,6 @@ class ServerErrors:
 class TransferOutcomes:
     SUCCESS = 0
     ERROR = 301
-    CHECK_FAILED = 302
+    CONNECTION_ESTABLISHMENT_ERROR = 302
+    TRANSFER_CLOSED = 303
+    CHECK_FAILED = 304

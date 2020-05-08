@@ -72,14 +72,13 @@ class SocketTcpAcceptor(Socket):
             )
         )
 
-    def accept(self, timeout: float = None) -> Tuple[Optional[SocketTcp], Optional[Endpoint]]:
-        try:
-            if timeout:
-                self.sock.settimeout(timeout)
-            newsock, endpoint = self.sock.accept()
-            # newsock is already ssl-protected if the acceptor was protected
-            return SocketTcpIn(newsock), endpoint
-        except socket.timeout:
-            log.w("accept() timed out (%ds)", timeout)
-            return None, None
+    def accept(self, timeout: float = None) -> Optional[SocketTcpIn]:
+        if timeout:
+            self.sock.settimeout(timeout)
 
+        newsock, endpoint = self.sock.accept()
+        sock = SocketTcpIn(newsock)
+
+        assert sock.remote_endpoint() == endpoint
+
+        return sock # sock is already ssl-protected if the acceptor was protected

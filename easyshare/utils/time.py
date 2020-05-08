@@ -1,4 +1,6 @@
 
+def duration_str_human(seconds: int) -> str:
+    return duration_str(seconds, fixed=False, formats=("{}h ", "{}m ", "{}s"))
 
 def duration_str(seconds: int, *,
                  fixed: bool = True,
