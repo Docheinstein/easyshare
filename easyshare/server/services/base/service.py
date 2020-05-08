@@ -16,7 +16,8 @@ class ClientService:
     def __init__(self, client: ClientContext,
                  end_callback: Callable[['ClientService'], None]):
         self.service_uri = None
-        self.service_uid = "esd_" + uuid()
+        # self.service_uid = "esd_" + uuid()
+        self.service_uid = None
         self.published = False
 
         self._client = client
@@ -31,7 +32,7 @@ class ClientService:
                 get_pyro_daemon().publish(self, uid=self.service_uid)
             self.published = True
             self._client.add_service(self.service_uid)
-            return self.service_uri
+            return self.service_uid
 
     def unpublish(self):
         with self._lock:

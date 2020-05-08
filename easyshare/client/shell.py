@@ -258,7 +258,7 @@ class Shell:
             remote = self._client.server_connection.server_info.get("name")
 
             if self._client.is_connected_to_sharing():
-                remote += ":{}:/{}".format(
+                remote += ".{}:/{}".format(
                 self._client.sharing_connection.sharing_info.get("name"),
                 self._client.sharing_connection.rcwd()
             )

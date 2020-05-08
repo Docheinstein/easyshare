@@ -1829,7 +1829,7 @@ class Client:
         open_resp = server_conn.open(sharing_name)
         ensure_data_response(open_resp)
 
-        sharing_uri = open_resp.get("data")
+        sharing_uid = open_resp.get("data")
 
         # Take out the sharing info from the server info
         for shinfo in server_conn.server_info.get("sharings"):
@@ -1837,7 +1837,7 @@ class Client:
                 log.d("Found the sharing info among server_info sharings")
 
                 sharing_conn = SharingConnection(
-                    sharing_uri,
+                    sharing_uid,
                     sharing_info=shinfo,
                     server_info=server_conn.server_info
                 )
@@ -1982,9 +1982,7 @@ class Client:
                     continue
 
                 # FOUND
-                log.i("Server [%s:%d] satisfies constraints",
-                      server_info.get("ip"),
-                      server_info.get("port"))
+                log.i("Server info satisfies constraints")
                 break
             else:
                 log.w("Server info constraints satisfied but the specified "

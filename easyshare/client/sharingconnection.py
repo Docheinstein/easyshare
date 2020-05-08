@@ -8,6 +8,7 @@ from easyshare.protocol.response import Response, create_error_response, is_succ
 from easyshare.protocol.exposed import ISharingService
 from easyshare.protocol.serverinfo import ServerInfoFull
 from easyshare.protocol.sharinginfo import SharingInfo
+from easyshare.shared.common import pyro_uri
 from easyshare.utils.pyro import TracedPyroProxy
 
 log = get_logger(__name__)
@@ -45,9 +46,9 @@ def handle_sharing_response(api):
 
 class SharingConnection:
 
-    def __init__(self, sharing_uri: str,
+    def __init__(self, sharing_uid: str,
                  sharing_info: SharingInfo,
-                 server_info: ServerInfoFull = None):
+                 server_info: ServerInfoFull):
         log.d("Initializing new SharingConnection")
 
         self.sharing_info = sharing_info
@@ -59,7 +60,7 @@ class SharingConnection:
 
         # Create the proxy for the remote sharing
         self.service: Union[ISharingService, TracedPyroProxy] = TracedPyroProxy(
-            sharing_uri,
+            pyro_uri(sharing_uid, server_info.get("ip"), server_info.get("port")),
             alias="{}{}{}".format(
                 sharing_info.get("name") if sharing_info else "",
                 "@" if sharing_info and server_info else "",
