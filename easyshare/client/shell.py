@@ -63,6 +63,8 @@ class Shell:
 
             Commands.HELP: (VariadicArgs(), self._help),
             Commands.EXIT: (VariadicArgs(), self._exit),
+            Commands.QUIT: (VariadicArgs(), self._exit),
+            Commands.QUIT_SHORT: (VariadicArgs(), self._exit),
         }
 
         rl.parse_and_bind("tab: complete")
@@ -306,9 +308,12 @@ class Shell:
     def _verbose(cls, args: Args) -> Union[int, str]:
         # Increase verbosity (or disable if is already max)
         root_log = get_logger()
+        pyro_log = pylogging.getLogger("Pyro5")
+
+        current_verbosity = root_log.verbosity + getattr(pyro_log, "enabled", 0)
 
         verbosity = args.get_varg(
-            default=(root_log.verbosity + 1) % (logging.VERBOSITY_MAX + 2)
+            default=(current_verbosity + 1) % (logging.VERBOSITY_MAX + 2)
         )
 
         verbosity = rangify(verbosity, logging.VERBOSITY_MIN, logging.VERBOSITY_MAX + 1)
@@ -318,13 +323,19 @@ class Shell:
         root_log.set_verbosity(verbosity)
 
         if verbosity > logging.VERBOSITY_MAX:
-            log.d("Enabling pyro logging to DEBUG")
-            pyro_log = pylogging.getLogger("Pyro4")
+            pyro_log.disabled = False
             pyro_log.setLevel(pylogging.DEBUG)
+        else:
+            pyro_log.disabled = True
+            pyro_log.setLevel(pylogging.CRITICAL)
+
+        setattr(pyro_log, "enabled", not pyro_log.disabled)
 
         print("Verbosity = {:d}{}".format(
             verbosity,
             VERBOSITY_EXPLANATION_MAP.get(verbosity, "")
         ))
+
+        print("Pyro logging:", "disabled" if pyro_log.disabled else "enabled")
 
         return 0

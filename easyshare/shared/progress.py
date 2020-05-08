@@ -1,4 +1,5 @@
 import math
+import os
 import time
 import random
 from abc import ABC, abstractmethod
@@ -115,8 +116,11 @@ class FileProgressor:
     # SPACES:         --              -  --         --      --
     #                 S0              S1 S2         S3      S4
 
-    PROGRESS_BAR_MIN_INNER_WIDTH = 10
+    PROGRESS_BAR_MIN_INNER_WIDTH = 16
     PROGRESS_BAR_MIN_OUTER_WIDTH = PROGRESS_BAR_MIN_INNER_WIDTH + 2
+
+    PROGRESS_BAR_MAX_INNER_WIDTH = 25
+    PROGRESS_BAR_MAX_OUTER_WIDTH = PROGRESS_BAR_MAX_INNER_WIDTH + 2
 
     S0 = 4
     S1 = 1
@@ -145,8 +149,7 @@ class FileProgressor:
 
     FMT_W = "{}" + (" " * S4)
     FMT_WP = "{}" + (" " * S0) + "{}" + (" " * S4)
-    FMT_WPT = "{}" + (" " * S0) + "{}" + (" " * S2) + "{}"\
-              + (" " * S4)
+    FMT_WPT = "{}" + (" " * S0) + "{}" + (" " * S2) + "{}" + (" " * S4)
     FMT_WPTS = "{}" + (" " * S0) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
 
     FMT_WPTSB = "{}" + (" " * S0) + "{}" + (" " * S1) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
@@ -261,14 +264,31 @@ class FileProgressor:
             if cols >= Wlen + FileProgressor.MIN_PTSB:
                 # Use as much space as possible for the bar
                 progress_bar_inner_width = \
-                    cols - (Wlen + FileProgressor.LEN_P +
-                            FileProgressor.LEN_T + FileProgressor.LEN_S +
-                            FileProgressor.S_WPTSB + 2 * len("|"))
+                    cols - (Wlen +
+                            FileProgressor.LEN_P +
+                            FileProgressor.LEN_T +
+                            FileProgressor.LEN_S +
+                            FileProgressor.S_WPTSB +
+                            2 * len("|"))
+
+                progress_bar_inner_width = min(
+                    progress_bar_inner_width,
+                    FileProgressor.PROGRESS_BAR_MAX_INNER_WIDTH
+                )
+
+
+                W_width = \
+                    cols - (FileProgressor.LEN_P +
+                            FileProgressor.LEN_T +
+                            FileProgressor.LEN_S +
+                            FileProgressor.S_WPTSB +
+                            progress_bar_inner_width +
+                            2 * len("|"))
 
                 progress_bar = self._progress_bar_string(progress_bar_inner_width, ratio)
 
                 progress_line = FileProgressor.FMT_WPTSB.format(
-                    W,
+                    W.ljust(W_width),
                     progress_bar,
                     P.rjust(FileProgressor.LEN_P),
                     T.rjust(FileProgressor.LEN_T),
@@ -290,14 +310,18 @@ class FileProgressor:
                     T.rjust(FileProgressor.LEN_T)
                 )
             # WP
-            elif cols >= Wlen + FileProgressor.MIN_P:
+            else:
+                if cols < Wlen + FileProgressor.MIN_P:
+                    W_width = cols - FileProgressor.MIN_P
+                    W_part_width = (W_width - len("...")) // 2
+                    W = W[:W_part_width] + "..." + W[-W_part_width:]
+                    assert cols >= len(W) + FileProgressor.MIN_P
+
                 progress_line = FileProgressor.FMT_WP.format(
                     W.ljust(cols - FileProgressor.MIN_P),
                     P.rjust(FileProgressor.LEN_P)
                 )
-            # W
-            else:
-                progress_line = FileProgressor.FMT_W.format(W)
+            # W: never
 
             print(progress_line, end="\r" if inline else "\n")
 
@@ -329,30 +353,33 @@ if __name__ == "__main__":
     enable_colors()
 
     def simulate_file_progression(name: str, tot: int,
-                                  fps=2, sfps=2,
                                   delta_b=4096, delta_t=0.001):
 
         prog = FileProgressor(tot,
                               description=name,
-                              ui_fps=fps,
-                              speed_fps=sfps,
+                              # ui_fps=fps,
+                              # speed_fps=sfps,
                               color_progress=Color.BLUE,
                               # progress_bar_style=ProgressBarStyle.ASCII,
-                              color_done=Color.GREEN)
+                              color_done=Color.GREEN
+                              )
         part = 0
 
         while part < tot:
-            bs = random.randint(delta_b, delta_b * 12)
+            bs = random.randint(delta_b - 1/2 * delta_b, delta_b + 1/2 * delta_b)
             t =  delta_t + random.random() * delta_t
 
             part += bs
             time.sleep(t)
+            part = min(part, tot)
 
             prog.update(part)
 
         prog.done()
 
 
-    simulate_file_progression("test.bin", 100 * M, fps=20, sfps=2,
-                              delta_b=409, delta_t=0.001)
-
+    for root, dirs, files in os.walk('.'):
+        for f in files:
+            fullpath = os.path.join(root, f)
+            size = os.path.getsize(fullpath)
+            simulate_file_progression(fullpath, size, delta_b=512, delta_t=0.03)

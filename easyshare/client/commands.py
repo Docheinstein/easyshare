@@ -3,6 +3,8 @@ SPECIAL_COMMAND_MARK = ":"
 class Commands:
     HELP = "help"
     EXIT = "exit"
+    QUIT = "quit"
+    QUIT_SHORT = "q"
 
     TRACE = "trace"
     TRACE_SHORT = "t"

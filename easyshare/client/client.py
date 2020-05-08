@@ -30,7 +30,7 @@ from easyshare.protocol.response import Response, is_error_response, is_success_
 from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.args import Args
-from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR, DEFAULT_SERVER_PORT, pyro_uri
+from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR, DEFAULT_SERVER_PORT, pyro_uri, transfer_port
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.progress import FileProgressor
 from easyshare.ssl import get_ssl_context
@@ -722,42 +722,54 @@ class Client:
         rexec_resp = server_conn.rexec(popen_cmd)
         ensure_data_response(rexec_resp)
 
-        rexec_uri = rexec_resp.get("data")
+        rexec_uid = rexec_resp.get("data")
 
-        log.d("Rexec handler URI: %s", rexec_uri)
+        rexec_service_uri = pyro_uri(rexec_uid,
+                                   self.server_connection.server_ip(),
+                                   self.server_connection.server_port())
+
+        log.d("Rexec handler URI: %s", rexec_uid)
 
         rexec_service: Union[TracedPyroProxy, IRexecService]
 
-        with TracedPyroProxy(rexec_uri) as rexec_service:
+        with TracedPyroProxy(rexec_service_uri) as rexec_service:
 
             retcode = None
 
             # --- STDOUT RECEIVER ---
 
             def rexec_stdout_receiver():
-                rexec_polling_proxy: Union[TracedPyroProxy, IRexecService]
+                try:
+                    rexec_polling_proxy: Union[TracedPyroProxy, IRexecService]
 
-                with TracedPyroProxy(rexec_uri) as rexec_polling_proxy:
-                    nonlocal retcode
+                    with TracedPyroProxy(rexec_service_uri) as rexec_polling_proxy:
+                        nonlocal retcode
 
-                    while retcode is None:
-                        resp = rexec_polling_proxy.recv()
-                        ensure_data_response(resp)
+                        while retcode is None:
+                            resp = rexec_polling_proxy.recv()
+                            ensure_data_response(resp)
 
-                        recv_data = resp.get("data")
+                            recv_data = resp.get("data")
 
-                        # log.d("REXEC recv: %s", str(recv))
-                        stdout = recv_data.get("stdout")
-                        stderr = recv_data.get("stderr")
-                        retcode = recv_data.get("retcode")
+                            # log.d("REXEC recv: %s", str(recv))
+                            stdout = recv_data.get("stdout")
+                            stderr = recv_data.get("stderr")
+                            retcode = recv_data.get("retcode")
 
-                        for line in stdout:
-                            print(line, end="", flush=True)
+                            try:
+                                for line in stdout:
+                                    print(line, end="", flush=True)
 
-                        for line in stderr:
-                            print(red(line), end="", flush=True)
+                                for line in stderr:
+                                    print(red(line), end="", flush=True)
+                            except OSError as oserr:
+                                # EWOULDBLOCK may arise something...
+                                log.w("Ignoring OSerror: %s", str(oserr))
 
-                    log.i("REXEC done (%d)", retcode)
+                        log.i("REXEC done (%d)", retcode)
+                except KeyboardInterrupt:
+                    log.d("rexec CTRL+C detected on stdout thread, ignoring")
+
 
 
             rexec_stdout_receiver_th = threading.Thread(
@@ -1183,9 +1195,9 @@ class Client:
         ensure_data_response(resp)
 
         put_service_uid = resp.get("data").get("uid")
-        put_service_port = resp.get("data").get("transfer_port")
+        # put_service_port = resp.get("data").get("transfer_port")
 
-        if not put_service_uid or not put_service_port:
+        if not put_service_uid:
             raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
         put_service_uri = pyro_uri(put_service_uid,
@@ -1199,7 +1211,7 @@ class Client:
         # Raw transfer socket
         transfer_socket = SocketTcpOut(
             address=sharing_conn.server_info.get("ip"),
-            port=put_service_port,
+            port=transfer_port(sharing_conn.server_info.get("port")),
             ssl_context=get_ssl_context(),
         )
 

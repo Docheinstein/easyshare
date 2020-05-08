@@ -367,9 +367,7 @@ class SharingService(ISharingService, ClientSharingService):
 
         return create_success_response({
             "uid": uid,
-            "transfer_port": get.transfer_port()
         })
-
 
 
     @expose
@@ -400,7 +398,6 @@ class SharingService(ISharingService, ClientSharingService):
 
         return create_success_response({
             "uid": uid,
-            "transfer_port": put.transfer_port()
         })
 
     @expose

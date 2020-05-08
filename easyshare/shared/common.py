@@ -33,6 +33,9 @@ ENV_EASYSHARE_VERBOSITY = "EASYSHARE_VERBOSITY"
 
 ESD_PYRO_UID = "esd"
 
+def transfer_port(server_port: int):
+    return server_port + 1
+
 def pyro_uri(uid: str, addr: str, port: int):
     # e.g.  PYRO:esd@192.168.1.105:7777
     return "PYRO:{}@{}:{}".format(uid, addr, port)

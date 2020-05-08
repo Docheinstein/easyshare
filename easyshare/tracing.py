@@ -41,5 +41,9 @@ def trace_in(message: str, ip: str, port: int, alias: str = None):
 
 def _trace(msg, *args, **kwargs):
     if _tracing:
-        print(msg, *args, **kwargs)
+        try:
+            print(msg, *args, **kwargs)
+        except OSError:
+            # EWOULDBLOCK may arise for large messages
+            pass
 

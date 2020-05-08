@@ -38,15 +38,12 @@ class PutService(IPutService, ClientSharingService):
         self._check = check
         self._incomings = queue.Queue()
         self._transfer_acceptor_sock = SocketTcpAcceptor(
-            port=port,ssl_context=get_ssl_context()
+            port=port,
+            ssl_context=get_ssl_context()
         )
         self._transfer_sock = None
         self._outcome_sync = threading.Semaphore(0)
         self._outcome = None
-
-
-    def transfer_port(self) -> int:
-        return self._transfer_acceptor_sock.port()
 
     def run(self):
         th = threading.Thread(target=self._run, daemon=True)

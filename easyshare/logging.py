@@ -46,7 +46,7 @@ LEVEL_TO_VERBOSITY = {
 class Logger(logging.Logger):
     @property
     def verbosity(self):
-        return 0
+        return
 
     def e(self, msg, *args, **kwargs):
         pass
@@ -117,8 +117,8 @@ def get_logger(name: str = ROOT_LOGGER_NAME, force_initialize: bool = False) -> 
     logger: logging.Logger = logging.getLogger(name)
     if name == ROOT_LOGGER_NAME or force_initialize:
         logger.addHandler(logging_handler)
-    verbosity = logger.getEffectiveLevel()
-    logger.verbosity = LEVEL_TO_VERBOSITY[rangify(verbosity, LEVEL_FATAL, LEVEL_DEBUG)]
+    level = logger.getEffectiveLevel()
+    logger.verbosity = LEVEL_TO_VERBOSITY[rangify(level, LEVEL_DEBUG, LEVEL_FATAL)]
     return logger
 
 
