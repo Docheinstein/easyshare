@@ -6,7 +6,7 @@ from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.response import Response, is_data_response
 from easyshare.shared.endpoint import Endpoint
-from easyshare.protocol.serverinfo import ServerInfo
+from easyshare.protocol.serverinfo import ServerInfoFull
 from easyshare.tracing import trace_out, trace_in
 from easyshare.socket.udp import SocketUdpIn, SocketUdpOut
 from easyshare.utils.json import bytes_to_json, json_to_pretty_str
@@ -22,7 +22,7 @@ class Discoverer:
     def __init__(
             self, *,
             server_discover_port: int,
-            response_handler: Callable[[Endpoint, ServerInfo], bool],
+            response_handler: Callable[[Endpoint, ServerInfoFull], bool],
             server_discover_addr: str = ADDR_BROADCAST):
 
         self.server_discover_addr = server_discover_addr

@@ -6,7 +6,7 @@ from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.response import Response, create_error_response, is_success_response, is_data_response, \
     is_error_response, create_success_response
 from easyshare.protocol.exposed import ISharingService
-from easyshare.protocol.serverinfo import ServerInfo
+from easyshare.protocol.serverinfo import ServerInfoFull
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.utils.pyro import TracedPyroProxy
 
@@ -46,7 +46,8 @@ def handle_sharing_response(api):
 class SharingConnection:
 
     def __init__(self, sharing_uri: str,
-                 sharing_info: SharingInfo, server_info: ServerInfo = None):
+                 sharing_info: SharingInfo,
+                 server_info: ServerInfoFull = None):
         log.d("Initializing new SharingConnection")
 
         self.sharing_info = sharing_info

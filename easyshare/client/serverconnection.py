@@ -1,12 +1,12 @@
 import ssl
-from typing import Union, Optional
+from typing import Union, Optional, cast
 
 from easyshare.client.errors import ClientErrors
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.exposed import IServer
 from easyshare.protocol.response import Response, is_success_response, create_error_response, is_error_response
-from easyshare.protocol.serverinfo import ServerInfo
+from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.shared.common import esd_pyro_uri
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.utils.pyro import TracedPyroProxy
@@ -44,15 +44,22 @@ def handle_server_response(api):
     return handle_server_response_api_wrapper
 
 
-class ServerConnection:
+class ServerConnectionMinimal:
 
     def __init__(self,
-                 server_info: ServerInfo,
+                 server_ip: str, server_port: int, server_ssl: bool, server_alias: str = None,
                  established_server_connection: Union[IServer, TracedPyroProxy] = None):
-        log.d("Initializing new ServerConnection")
-        self._connected = False
+        log.d("Initializing new ServerConnection %s:%d%s (SSL=%s)",
+              server_ip, server_port, "(" + server_alias + ")" if server_alias else "",
+              server_ssl
+              )
 
-        self.server_info: ServerInfo = server_info
+        self._connected = False
+        self._server_ip = server_ip
+        self._server_port = server_port
+        self._server_ssl = server_ssl
+
+        # self.server_info: ServerInfoFull = server_info
 
         # Create the proxy for the remote server
         if established_server_connection:
@@ -60,11 +67,11 @@ class ServerConnection:
             self.server = established_server_connection
         else:
             self.server: Union[IServer, TracedPyroProxy] = TracedPyroProxy(
-                esd_pyro_uri(server_info.get("ip"), server_info.get("port")),
-                alias=server_info.get("name")
+                esd_pyro_uri(server_ip, server_port),
+                alias=server_alias
             )
 
-        if server_info.get("ssl"):
+        if server_ssl:
             if not get_ssl_context():
                 # This is actually not really clean, since we are overwriting
                 # the global ssl_context of Pyro, but potentially we could have
@@ -83,6 +90,14 @@ class ServerConnection:
         return self.server._pyroConnection.sock.getpeercert(binary_form=True) if \
             isinstance(self.server._pyroConnection.sock, ssl.SSLSocket) else None
 
+    def server_ip(self) -> str:
+        return self._server_ip
+
+    def server_port(self) -> int:
+        return self._server_port
+
+    def server_ssl(self) -> bool:
+        return self._server_ssl
 
     @handle_server_response
     # NO @require_server_connection
@@ -107,18 +122,15 @@ class ServerConnection:
     def open(self, sharing_name) -> Response:
         return self.server.open(sharing_name)
 
-
     @handle_server_response
     # @require_server_connection
     def info(self) -> Response:
         return self.server.info()
 
-
     @handle_server_response
     # @require_server_connection
     def list(self) -> Response:
         return self.server.list()
-
 
     @handle_server_response
     # @require_server_connection
@@ -130,7 +142,6 @@ class ServerConnection:
     def rexec(self, cmd: str) -> Response:
         return self.server.rexec(cmd)
 
-
     def _destroy_connection(self):
         log.d("Marking server connection as disconnected")
         self._connected = False
@@ -141,3 +152,22 @@ class ServerConnection:
             self.server = None
         else:
             log.w("Server connection already invalid, nothing to release")
+
+
+class ServerConnection(ServerConnectionMinimal):
+
+    def __init__(self,
+                 server_ip: str, server_port: int,
+                 server_info: ServerInfo,
+                 established_server_connection: Union[IServer, TracedPyroProxy] = None):
+        super().__init__(
+            server_ip=server_ip,
+            server_port=server_port,
+            server_ssl=server_info.get("ssl"),
+            server_alias=server_info.get("name"),
+            established_server_connection=established_server_connection
+        )
+
+        self.server_info: ServerInfoFull = cast(ServerInfoFull, server_info)
+        self.server_info["ip"] = server_ip
+        self.server_info["port"] = server_port

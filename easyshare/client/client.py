@@ -8,7 +8,7 @@ import time
 import zlib
 from getpass import getpass
 from stat import S_ISDIR, S_ISREG
-from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, NoReturn
+from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, NoReturn, cast
 
 from Pyro5.errors import PyroError
 
@@ -18,7 +18,7 @@ from easyshare.client.common import ServerLocation, SharingLocation
 from easyshare.client.sharingconnection import SharingConnection
 from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors, print_error
-from easyshare.client.serverconnection import ServerConnection
+from easyshare.client.serverconnection import ServerConnection, ServerConnectionMinimal
 from easyshare.client.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str
 from easyshare.consts.net import ADDR_BROADCAST
@@ -27,7 +27,7 @@ from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
 from easyshare.protocol.exposed import IRexecService, IGetService, IPutService
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
-from easyshare.protocol.serverinfo import ServerInfo
+from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.args import Args
 from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR, DEFAULT_SERVER_PORT
@@ -834,10 +834,10 @@ class Client:
         servers_found = 0
 
         def response_handler(client: Endpoint,
-                             server_info: ServerInfo) -> bool:
+                             server_info_full: ServerInfoFull) -> bool:
             nonlocal servers_found
 
-            log.i("Handling DISCOVER response from %s\n%s", str(client), str(server_info))
+            log.i("Handling DISCOVER response from %s\n%s", str(client), str(server_info_full))
             # Print as soon as they come
 
             s = ""
@@ -848,11 +848,11 @@ class Client:
                 s += "\n"
 
             s += styled("{} ({}:{})".format(
-                    server_info.get("name"),
-                    server_info.get("ip"),
-                    server_info.get("port")), attrs=Style.BOLD) + "\n"
+                    server_info_full.get("name"),
+                    server_info_full.get("ip"),
+                    server_info_full.get("port")), attrs=Style.BOLD) + "\n"
 
-            s += sharings_to_pretty_str(server_info.get("sharings"),
+            s += sharings_to_pretty_str(server_info_full.get("sharings"),
                                         details=show_details)
 
             print(s)
@@ -1683,38 +1683,31 @@ class Client:
             server_name: str = None, server_ip: str = None, server_port: int = None,
             sharing_name: str = None, sharing_ftype: FileType = None) -> ServerConnection:
 
-            # self, server_location: ServerLocation, authenticate: bool,
-            # sharing_name_filter: str = None, sharing_ftype_filter: FileType = None)
-
-        # log.d("Creating new server connection for location: %s", server_location)
-
-        # There are different ways to connect to the server
-        # based on what's in server_location
-        # 1. <server_name>  => DISCOVER
-        # 2. <IP>           => Attempt to connect directly to the default port,
-        #                      but try DISCOVER on fail
-        # 3. <IP>:<PORT>    => Connect directly
+        server_port = server_port or DEFAULT_SERVER_PORT
 
         just_directly = False
-
         server_conn = None
         real_server_info = None
 
         if server_ip:
-            auto_server_info = {"ip": server_ip}
+            server_ssl = False
 
             if server_port:
                 log.d("Server IP and PORT are specified: trying to connect directly")
                 just_directly = True # Everything specified => won't perform a scan
-                auto_server_info["port"] = server_port
+                # auto_server_info["port"] = server_port
             else:
                 log.d("Server IP is specified: trying to connect directly to the default port")
-                auto_server_info["port"] = DEFAULT_SERVER_PORT
+                # auto_server_info["port"] = DEFAULT_SERVER_PORT
 
             while True: # actually two attempts are done: with/without SSL
 
                 # Create a connection
-                server_conn = ServerConnection(auto_server_info)
+                server_conn = ServerConnectionMinimal(
+                    server_ip=server_ip,
+                    server_port=server_port or DEFAULT_SERVER_PORT,
+                    server_ssl=server_ssl
+                )
 
                 # Check if it is up
                 # (e.g. if the port was not specified in case 2. maybe the user
@@ -1728,36 +1721,48 @@ class Client:
                     real_server_info = resp.get("data")
                     log.d("Connection established is UP, retrieved server info\n%s",
                           json_to_pretty_str(real_server_info))
+
+                    # Fill the uncomplete server info with the IP/port we used to connect
                     break
                 except Exception:
                     log.w("Connection cannot be established directly %s SSL",
-                          "with" if auto_server_info.get("ssl") else "without")
-                finally:
+                          "with" if server_ssl else "without")
                     # Invalidate connection
                     server_conn._destroy_connection()
                     server_conn = None
 
-                if not auto_server_info.get("ssl"):
+                if not server_ssl:
                     log.d("Trying again enabling SSL before giving up")
-                    auto_server_info["ssl"] = True
+                    server_ssl = True
                 else:
                     log.e("Connection can't be directly established neither with nor without SSL")
                     break
 
+            # Check whether the connection has been established
 
-        # If we have not retrieve the real server info, performs a scan
+            if real_server_info: # connection established directly
+                log.d("Connection has been established directly without perform a DISCOVER")
+                # Wraps the already established server conn in a ServerConnection
+                # associated with the right server info
 
-        if real_server_info: # connection established directly
-            log.d("Connection has been established directly without perform a DISCOVER")
-            # Wraps the already established server conn in a ServerConnection
-            # associated with the right server info
 
-            if self.server_info_satisfy_constraints(
-                    real_server_info,
-                    server_name=server_name, server_ip=server_ip, server_port=server_port,
-                    sharing_name=sharing_name, sharing_ftype=sharing_ftype):
-                log.d("Server connection satisfy the constraints: FOUND directly")
-                server_conn = ServerConnection(real_server_info, server_conn)
+                if self.server_info_satisfy_constraints(
+                        # DO not check server identity: this is needed for allow servers
+                        # behind NAT to be reached without know the real internal IP/port
+                        real_server_info,
+                        sharing_name=sharing_name, sharing_ftype=sharing_ftype):
+
+                    log.d("Server info satisfy the constraints: FOUND directly")
+                    server_conn = ServerConnection(
+                        server_ip=server_ip,
+                        server_port=server_port,
+                        server_info=real_server_info,
+                        established_server_connection=server_conn.server
+                    )
+            elif server_conn:
+                # Invalidate connection
+                server_conn._destroy_connection()
+                server_conn = None
 
         # Eventually performs the scan
         if not server_conn:
@@ -1771,12 +1776,17 @@ class Client:
                     sharing_name=sharing_name, sharing_ftype=sharing_ftype
                 )
 
-                if self.server_info_satisfy_constraints(
+                if self.server_info_satisfy_constraints_full(
                         real_server_info,
                         server_name=server_name, server_ip=server_ip, server_port=server_port,
                         sharing_name=sharing_name, sharing_ftype=sharing_ftype):
-                    log.d("Server connection satisfy the constraints: FOUND w/ discover")
-                    server_conn = ServerConnection(real_server_info)
+
+                    log.d("Server info satisfy the constraints: FOUND w/ discover")
+                    server_conn = ServerConnection(
+                        server_ip=real_server_info.get("ip"),
+                        server_port=real_server_info.get("port"),
+                        server_info=real_server_info
+                    )
 
         if not server_conn:
             log.e("Connection can't be established")
@@ -1784,8 +1794,8 @@ class Client:
 
         # We have a valid TCP connection with the server
         log.i("Connection established with %s:%d",
-              server_conn.server_info.get("ip"),
-              server_conn.server_info.get("port"))
+              server_conn.server_ip(),
+              server_conn.server_port())
 
         # Check whether we have to do connect()
         # (It might be unnecessary for public server api such as ping, info, list, ...)
@@ -1796,11 +1806,11 @@ class Client:
         passwd = None
 
         # Ask the password if the sharing is protected by auth
-        if server_conn.server_info.get("auth"):
-            log.i("Server '%s' is protected by password", server_conn.server_info.get("name"))
+        if real_server_info.get("auth"):
+            log.i("Server '%s' is protected by password", real_server_info.get("name"))
             passwd = getpass()
         else:
-            log.i("Server '%s' is not protected", server_conn.server_info.get("name"))
+            log.i("Server '%s' is not protected", real_server_info.get("name"))
 
         # Performs connect() (and authentication)
         resp = server_conn.connect(passwd)
@@ -1837,7 +1847,8 @@ class Client:
         raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
 
     def _discover_sharing(
-            self, sharing_location: SharingLocation, ftype: FileType = None) -> Tuple[Optional[SharingInfo], Optional[ServerInfo]]:
+            self, sharing_location: SharingLocation, ftype: FileType = None) -> \
+            Tuple[Optional[SharingInfo], Optional[ServerInfoFull]]:
         pass
         # call _discover and takes the info from its sharings
 
@@ -1845,18 +1856,18 @@ class Client:
             self,
             server_name: str = None, server_ip: str = None,
             server_port: int = None, sharing_name: str = None,
-            sharing_ftype: FileType = None) -> ServerInfo:
+            sharing_ftype: FileType = None) -> ServerInfoFull:
 
-        server_info: Optional[ServerInfo] = None
+        server_info: Optional[ServerInfoFull] = None
 
         def response_handler(client_endpoint: Endpoint,
-                             a_server_info: ServerInfo) -> bool:
+                             a_server_info: ServerInfoFull) -> bool:
 
             nonlocal server_info
 
             log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
 
-            if Client.server_info_satisfy_constraints(
+            if Client.server_info_satisfy_constraints_full(
                 a_server_info,
                 server_ip=server_ip,
                 server_port=server_port,
@@ -1876,14 +1887,13 @@ class Client:
 
         return server_info
 
+
     @staticmethod
     def server_info_satisfy_server_location(
             server_info: ServerInfo, server_location: ServerLocation):
         return Client.server_info_satisfy_constraints(
                 server_info,
-                server_name=server_location.name,
-                server_ip=server_location.ip,
-                server_port=server_location.port)
+                server_name=server_location.name)
 
     @staticmethod
     def server_info_satisfy_sharing_location(
@@ -1891,14 +1901,47 @@ class Client:
         return Client.server_info_satisfy_constraints(
                 server_info,
                 server_name=sharing_location.server_name,
-                server_ip=sharing_location.server_ip,
-                server_port=sharing_location.server_port,
                 sharing_name=sharing_location.name,
                 sharing_ftype=FTYPE_DIR)
 
     @staticmethod
     def server_info_satisfy_constraints(
             server_info: ServerInfo,
+            server_name: str = None,
+            sharing_name: str = None, sharing_ftype: FileType = None) -> bool:
+        server_info_full: ServerInfoFull = cast(ServerInfoFull, server_info)
+        server_info_full["ip"] = None
+        server_info_full["port"] = None
+
+        return Client.server_info_satisfy_constraints_full(
+            server_info_full,
+            server_name=server_name,
+            sharing_name=sharing_name,
+            sharing_ftype=sharing_ftype)
+
+    @staticmethod
+    def server_info_satisfy_server_location_full(
+            server_info_full: ServerInfoFull, server_location: ServerLocation):
+        return Client.server_info_satisfy_constraints_full(
+            server_info_full,
+            server_name=server_location.name,
+            server_ip=server_location.ip,
+            server_port=server_location.port)
+
+    @staticmethod
+    def server_info_satisfy_sharing_location_full(
+            server_info_full: ServerInfoFull, sharing_location: SharingLocation):
+        return Client.server_info_satisfy_constraints_full(
+            server_info_full,
+            server_name=sharing_location.server_name,
+            server_ip=sharing_location.server_ip,
+            server_port=sharing_location.server_port,
+            sharing_name=sharing_location.name,
+            sharing_ftype=FTYPE_DIR)
+
+    @staticmethod
+    def server_info_satisfy_constraints_full(
+            server_info: ServerInfoFull,
             server_name: str = None, server_ip: str = None, server_port: int = None,
             sharing_name: str = None, sharing_ftype: FileType = None) -> bool:
 

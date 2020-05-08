@@ -33,9 +33,14 @@ ENV_EASYSHARE_VERBOSITY = "EASYSHARE_VERBOSITY"
 
 ESD_PYRO_UID = "esd"
 
+def pyro_uri(uid: str, addr: str, port: int):
+    # e.g.  PYRO:esd@192.168.1.105:7777
+    return "PYRO:{}@{}:{}".format(uid, addr, port)
+
 def esd_pyro_uri(addr: str, port: int):
     # e.g.  PYRO:esd@192.168.1.105:7777
-    return "PYRO:{}@{}:{}".format(ESD_PYRO_UID, addr, port)
+    return pyro_uri(ESD_PYRO_UID, addr, port)
+
 
 def is_sharing_name(s: str):
     return satisfy(s, SHARING_NAME_ALPHABET)

@@ -4,14 +4,14 @@ import threading
 
 from Pyro5 import socketutil
 
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 
 from Pyro5.api import expose, oneway
 
 from easyshare.logging import get_logger
 from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.response import create_success_response, create_error_response, Response
-from easyshare.protocol.serverinfo import ServerInfo
+from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.server.common import try_or_command_failed_response
 from easyshare.server.daemon import init_pyro_daemon, get_pyro_daemon
 from easyshare.server.services.rexec import RexecService
@@ -106,7 +106,7 @@ class Server(IServer):
         log.i("Handling discover %s", str(data))
 
 
-        response = create_success_response(self._server_info())
+        response = create_success_response(self._server_info_full())
 
         client_discover_response_port = bytes_to_int(data)
 
@@ -139,7 +139,6 @@ class Server(IServer):
 
         if self.is_discoverable():
             th_discover = threading.Thread(target=self._discover_daemon.run, daemon=True)
-
 
         try:
             if th_discover:
@@ -297,19 +296,24 @@ class Server(IServer):
     def _server_info(self) -> ServerInfo:
         si = {
             "name": self._name,
-            "ip": self.endpoint()[0],
-            "port": self.endpoint()[1],
             "sharings": [sh.info() for sh in self._sharings.values()],
             "ssl": True if self._ssl_context else False,
-            "discoverable": self._enable_discover_server,
             "auth": True if (self._auth and self._auth.algo_security() > 0) else False
         }
 
-        if self._enable_discover_server:
-            si["discover_port"] = self._discover_daemon.endpoint()[1]
-
         return si
 
+
+    def _server_info_full(self) -> ServerInfoFull:
+        si: ServerInfoFull = cast(ServerInfoFull, self._server_info())
+        si["ip"] = self.endpoint()[0]
+        si["port"] = self.endpoint()[1]
+
+        si["discoverable"] = self._enable_discover_server
+
+        if self._enable_discover_server:
+            si["discover_port"] = self._discover_daemon.endpoint()[1]
+        return si
 
     def _add_client(self, endpoint: Endpoint) -> ClientContext:
         with self._clients_lock:

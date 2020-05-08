@@ -4,7 +4,7 @@ from typing import List
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE
-from easyshare.protocol.serverinfo import ServerInfo
+from easyshare.protocol.serverinfo import ServerInfoFull
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.common import DIR_COLOR, FILE_COLOR
 from easyshare.shared.tree import TreeNodeDict, TreeRenderPostOrder
@@ -160,7 +160,7 @@ def ssl_certificate_to_pretty_str(ssl_cert: SSLCertificate) -> str:
         "Self Signed:        {}".format(ssl_cert.get("self_signed"))
 
 
-def server_info_to_pretty_str(info: ServerInfo) -> str:
+def server_info_to_pretty_str(info: ServerInfoFull) -> str:
         SEP = "================================"
 
         SEP_FIRST = SEP + "\n\n"
@@ -173,8 +173,8 @@ def server_info_to_pretty_str(info: ServerInfo) -> str:
             "Name:           {}\n".format(info.get("name")) + \
             "IP:             {}\n".format(info.get("ip")) + \
             "Port:           {}\n".format(info.get("port")) + \
-            "Discoverable:   {}\n".format(info.get("discoverable")) + \
-            ("Discover Port:  {}\n".format(info.get("discover_port")) if info.get("discoverable") else "") + \
+            "Discoverable:   {}\n".format(info.get("discoverable", False)) + \
+            ("Discover Port:  {}\n".format(info.get("discover_port")) if info.get("discoverable", False) else "") + \
             "Auth:           {}\n".format(info.get("auth")) + \
             "SSL:            {}\n".format(info.get("ssl")) + \
             SEP_MID

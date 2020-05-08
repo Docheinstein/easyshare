@@ -85,8 +85,8 @@ class EsdArgs(ArgsParser):
 
         ]
 
-    def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
-        return lambda argname, argtype, idx, args, positionals: argtype != ArgType.VARG
+    # def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
+    #     return lambda argname, argtype, idx, args, positionals: argtype != ArgType.VARG
 
 class EsdConfKeys:
     G_NAME = "name"
@@ -354,19 +354,21 @@ def main():
 
     # Parse sharing arguments (only a sharing is allowed in the cli)
 
-    unparsed = g_args.get_unparsed_args()
-    if unparsed:
-        log.d("Found unparsed positional args: considering those sharing args")
+    vargs = g_args.get_vargs()
+    if vargs:
+        log.d("Found %d positional args: considering those sharing args", len(vargs))
 
         s_args = None
 
         try:
-            s_args = SharingArgs().parse(unparsed)
+            s_args = SharingArgs().parse(vargs)
         except ArgsParseError as err:
             log.exception("Exception occurred while parsing args")
             abort("Parse of sharing arguments failed: {}".format(str(err)))
 
         s_vargs = s_args.get_vargs()
+
+        log.d("Sharing len(args): %d", len(s_vargs))
 
         if s_vargs: # should always be valid actually
             s_path = s_vargs[0]

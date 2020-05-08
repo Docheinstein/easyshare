@@ -346,7 +346,7 @@ class Args:
         # OPTIONALS
 
         while params_spec.optional_count == ParamsSpec.VARIADIC_PARAMETERS_COUNT \
-                or param_cursor < params_spec.optional_count:
+                or param_cursor < params_spec.mandatory_count + params_spec.optional_count:
 
             # Check if it is there
             if params_offset + param_cursor < len(params):
