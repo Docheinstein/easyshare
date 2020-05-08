@@ -9,6 +9,7 @@ from easyshare.protocol.exposed import ISharingService
 from easyshare.protocol.serverinfo import ServerInfoFull
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.common import pyro_uri
+from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.pyro import TracedPyroProxy
 
 log = get_logger(__name__)
@@ -49,7 +50,8 @@ class SharingConnection:
     def __init__(self, sharing_uid: str,
                  sharing_info: SharingInfo,
                  server_info: ServerInfoFull):
-        log.d("Initializing new SharingConnection")
+        log.i("Initializing new SharingConnection")
+        log.d("Bound to server \n%s", json_to_pretty_str(server_info))
 
         self.sharing_info = sharing_info
         self.server_info = server_info

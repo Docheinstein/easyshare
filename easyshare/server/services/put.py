@@ -29,6 +29,7 @@ class PutService(IPutService, ClientSharingService):
 
     def __init__(self,
                  check: bool,
+                 port: int,
                  sharing: Sharing,
                  sharing_rcwd,
                  client: ClientContext,
@@ -36,8 +37,10 @@ class PutService(IPutService, ClientSharingService):
         super().__init__(sharing, sharing_rcwd, client, end_callback)
         self._check = check
         self._incomings = queue.Queue()
-        self._transfer_acceptor_sock = SocketTcpAcceptor(ssl_context=get_ssl_context())
-
+        self._transfer_acceptor_sock = SocketTcpAcceptor(
+            port=port,ssl_context=get_ssl_context()
+        )
+        self._transfer_sock = None
         self._outcome_sync = threading.Semaphore(0)
         self._outcome = None
 
@@ -73,6 +76,9 @@ class PutService(IPutService, ClientSharingService):
     @try_or_command_failed_response
     def next(self, finfo: FileInfo, force: bool = False) -> Response:
         client_endpoint = pyro_client_endpoint()
+
+        if not self._transfer_acceptor_sock and not self._transfer_sock:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
 
         if not finfo:
             log.i("<< PUT_NEXT DONE [%s]", str(client_endpoint))
@@ -130,20 +136,11 @@ class PutService(IPutService, ClientSharingService):
 
         log.d("Starting PutService")
 
+        self._wait_connection()
 
-        while True:
-            log.d("Waiting client connection...")
-            transfer_sock, client_endpoint = self._transfer_acceptor_sock.accept()
-
-            # Check that the new client endpoint matches the expect one
-            if client_endpoint[0] != self._client.endpoint[0]:
-                log.e("Unexpected client connected: forbidden")
-                transfer_sock.close()
-                continue
-
-            log.i("Received connection from valid client %s", client_endpoint)
-            self._transfer_acceptor_sock.close()
-            break
+        if not self._transfer_sock:
+            self._finish(TransferOutcomes.ERROR)
+            return
 
         go_ahead = True
 
@@ -170,7 +167,7 @@ class PutService(IPutService, ClientSharingService):
             while cur_pos < incoming_size:
                 readlen = min(incoming_size - cur_pos, PutService.BUFFER_SIZE)
 
-                chunk = transfer_sock.recv(readlen)
+                chunk = self._transfer_sock.recv(readlen)
 
                 if self._check:
                     crc = zlib.crc32(chunk, crc)
@@ -194,7 +191,7 @@ class PutService(IPutService, ClientSharingService):
             # Eventually do CRC check
             if self._check:
                 # CRC check on the received bytes
-                expected_crc = bytes_to_int(transfer_sock.recv(4))
+                expected_crc = bytes_to_int(self._transfer_sock.recv(4))
                 if expected_crc != crc:
                     log.e("Wrong CRC; transfer failed. expected=%d | written=%d",
                           expected_crc, crc)
@@ -210,19 +207,40 @@ class PutService(IPutService, ClientSharingService):
                     self._finish(TransferOutcomes.CHECK_FAILED)
                     break
                 else:
-                    log.d("File check: OK")
+                    log.d("File length check: OK")
 
 
         log.i("Transaction handler job finished")
+        self._transfer_sock.close()
 
-        if not self._outcome:
-            self._finish(0)
+        self._finish(0)
 
-        transfer_sock.close()
 
         # DO not self._notify_service_end()
         # wait for outcome() call before unregister from the daemon
 
+    def _wait_connection(self):
+        while True:
+            log.d("Waiting client connection...")
+            transfer_sock, client_endpoint = self._transfer_acceptor_sock.accept(5)
+
+            if transfer_sock:
+                # Check that the new client endpoint matches the expect one
+                if client_endpoint[0] == self._client.endpoint[0]:
+                    log.i("Received connection from valid client %s", client_endpoint)
+                    self._transfer_sock = transfer_sock
+                    break
+                else:
+                    log.e("Unexpected client connected: forbidden")
+                    transfer_sock.close()
+                    continue
+            else:
+                log.w("No connection received; closing service")
+                break
+
+        # Close the acceptor anyway
+        self._transfer_acceptor_sock.close()
+        self._transfer_acceptor_sock = None
 
     def _finish(self, outcome):
         self._outcome = outcome

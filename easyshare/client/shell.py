@@ -84,11 +84,15 @@ class Shell:
                       "Connected to server : %s%s\n"
                       "Connected to sharing: %s%s",
                       self._client.is_connected_to_server(),
-                      " ({})".format(self._client.server_connection.server_info.get("name"))
-                        if self._client.is_connected_to_server() else "",
+                      " ({}:{} {})".format(
+                          self._client.server_connection.server_info.get("ip"),
+                          self._client.server_connection.server_info.get("port"),
+                          self._client.server_connection.server_info.get("name") or ""
+                      ) if self._client.is_connected_to_server() else "",
                       self._client.is_connected_to_sharing(),
-                      " ({})".format(self._client.sharing_connection.server_info.get("name"))
-                        if self._client.is_connected_to_sharing() else "",
+                      " ({})".format(
+                          self._client.sharing_connection.sharing_info.get("name")
+                      ) if self._client.is_connected_to_sharing() else "",
                 )
 
                 self._prompt = self._build_prompt_string()

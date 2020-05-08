@@ -9,6 +9,7 @@ from easyshare.protocol.response import Response, is_success_response, create_er
 from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.shared.common import esd_pyro_uri
 from easyshare.ssl import get_ssl_context, set_ssl_context
+from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.pyro import TracedPyroProxy
 from easyshare.utils.ssl import create_client_ssl_context
 
@@ -49,7 +50,7 @@ class ServerConnectionMinimal:
     def __init__(self,
                  server_ip: str, server_port: int, server_ssl: bool, server_alias: str = None,
                  established_server_connection: Union[IServer, TracedPyroProxy] = None):
-        log.d("Initializing new ServerConnection %s:%d%s (SSL=%s)",
+        log.i("Initializing new ServerConnection %s:%d%s (SSL=%s)",
               server_ip, server_port, "(" + server_alias + ")" if server_alias else "",
               server_ssl
               )
@@ -171,3 +172,5 @@ class ServerConnection(ServerConnectionMinimal):
         self.server_info: ServerInfoFull = cast(ServerInfoFull, server_info)
         self.server_info["ip"] = server_ip
         self.server_info["port"] = server_port
+
+        log.d("Server connection info: \n%s", json_to_pretty_str(self.server_info))

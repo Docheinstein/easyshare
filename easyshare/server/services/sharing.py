@@ -16,7 +16,7 @@ from easyshare.server.common import try_or_command_failed_response
 from easyshare.server.services.put import PutService
 from easyshare.server.sharing import Sharing
 from easyshare.utils.json import json_to_pretty_str
-from easyshare.utils.os import ls, is_relpath, relpath, tree, cp, mv, rm
+from easyshare.utils.os import ls, tree, cp, mv, rm
 from easyshare.utils.pyro import pyro_client_endpoint, trace_api
 from easyshare.utils.types import is_str, is_list, is_bool
 
@@ -38,11 +38,13 @@ def check_write_permission(api):
 class SharingService(ISharingService, ClientSharingService):
 
     def __init__(self,
+                 server_port: int,
                  sharing: Sharing,
                  sharing_rcwd: str,
                  client: ClientContext,
                  end_callback: Callable[[ClientService], None]):
         super().__init__(sharing, sharing_rcwd, client, end_callback)
+        self._server_port = server_port
 
     @expose
     @trace_api
@@ -353,6 +355,7 @@ class SharingService(ISharingService, ClientSharingService):
 
         get = GetService(
             real_paths,
+            port=self._server_port + 1,
             sharing=self._sharing,
             sharing_rcwd=self._rcwd,
             client=self._client,
@@ -360,10 +363,10 @@ class SharingService(ISharingService, ClientSharingService):
         )
         get.run()
 
-        uri = get.publish()
+        uid = get.publish()
 
         return create_success_response({
-            "uri": uri,
+            "uid": uid,
             "transfer_port": get.transfer_port()
         })
 
@@ -385,6 +388,7 @@ class SharingService(ISharingService, ClientSharingService):
 
         put = PutService(
             check=check,
+            port=self._server_port + 1,
             sharing=self._sharing,
             sharing_rcwd=self._rcwd,
             client=self._client,
@@ -392,10 +396,10 @@ class SharingService(ISharingService, ClientSharingService):
         )
         put.run()
 
-        uri = put.publish()
+        uid = put.publish()
 
         return create_success_response({
-            "uri": uri,
+            "uid": uid,
             "transfer_port": put.transfer_port()
         })
 

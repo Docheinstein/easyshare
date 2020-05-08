@@ -30,7 +30,7 @@ from easyshare.protocol.response import Response, is_error_response, is_success_
 from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.args import Args
-from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR, DEFAULT_SERVER_PORT
+from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR, DEFAULT_SERVER_PORT, pyro_uri
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.progress import FileProgressor
 from easyshare.ssl import get_ssl_context
@@ -642,7 +642,6 @@ class Client:
     def open(self, args: Args, _1, _2):
         log.i(">> OPEN")
 
-
         new_server_conn: Optional[ServerConnection] = None
         new_sharing_conn: Optional[SharingConnection] = None
 
@@ -1183,18 +1182,24 @@ class Client:
         resp = sharing_conn.put(check=do_check)
         ensure_data_response(resp)
 
-        put_service_uri = resp.get("data").get("uri")
+        put_service_uid = resp.get("data").get("uid")
         put_service_port = resp.get("data").get("transfer_port")
 
-        if not put_service_uri or not put_service_port:
+        if not put_service_uid or not put_service_port:
             raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
+        put_service_uri = pyro_uri(put_service_uid,
+                                   self.server_connection.server_ip(),
+                                   self.server_connection.server_port())
+        log.d("Remote PutService URI: %s", put_service_uri)
+
+        # time.sleep(7)
         log.i("Successfully PUTed")
 
         # Raw transfer socket
         transfer_socket = SocketTcpOut(
-            sharing_conn.server_info.get("ip"),
-            put_service_port,
+            address=sharing_conn.server_info.get("ip"),
+            port=put_service_port,
             ssl_context=get_ssl_context(),
         )
 
@@ -1797,6 +1802,11 @@ class Client:
               server_conn.server_ip(),
               server_conn.server_port())
 
+        # We have a valid TCP connection with the server
+        log.d("-> same as %s:%d",
+              server_conn.server_info.get("ip"),
+              server_conn.server_info.get("port"))
+
         # Check whether we have to do connect()
         # (It might be unnecessary for public server api such as ping, info, list, ...)
         if not connect:
@@ -1909,7 +1919,8 @@ class Client:
             server_info: ServerInfo,
             server_name: str = None,
             sharing_name: str = None, sharing_ftype: FileType = None) -> bool:
-        server_info_full: ServerInfoFull = cast(ServerInfoFull, server_info)
+        # Make a shallow copy
+        server_info_full: ServerInfoFull = cast(ServerInfoFull, {**server_info})
         server_info_full["ip"] = None
         server_info_full["port"] = None
 

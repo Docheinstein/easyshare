@@ -251,6 +251,7 @@ class Server(IServer):
         log.i("<< OPEN %s [%s]", sharing_name, client)
 
         serving = SharingService(
+            server_port=self._port,
             sharing=sharing,
             sharing_rcwd="",
             client=client,

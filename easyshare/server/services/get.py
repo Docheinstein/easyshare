@@ -29,6 +29,7 @@ class GetService(IGetService, ClientSharingService):
 
     def __init__(self,
                  files: List[str],
+                 port: int,
                  sharing: Sharing,
                  sharing_rcwd,
                  client: ClientContext,

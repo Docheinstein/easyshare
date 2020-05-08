@@ -4,11 +4,14 @@ import ssl
 from typing import Tuple, Optional
 
 from easyshare.consts.net import PORT_ANY, ADDR_ANY
+from easyshare.logging import get_logger
 from easyshare.shared.endpoint import Endpoint
 from easyshare.socket.base import Socket, DEFAULT_SOCKET_BUFSIZE
 from easyshare.utils.net import socket_tcp_out, socket_tcp_in
 from easyshare.utils.ssl import wrap_socket
 
+
+log = get_logger(__name__)
 
 class SocketTcp(Socket):
     def send(self, data: bytes):
@@ -69,8 +72,14 @@ class SocketTcpAcceptor(Socket):
             )
         )
 
-    def accept(self) -> Tuple[SocketTcp, Endpoint]:
-        newsock, endpoint = self.sock.accept()
-        # newsock is already ssl-protected if the acceptor was protected
-        return SocketTcpIn(newsock), endpoint
+    def accept(self, timeout: float = None) -> Tuple[Optional[SocketTcp], Optional[Endpoint]]:
+        try:
+            if timeout:
+                self.sock.settimeout(timeout)
+            newsock, endpoint = self.sock.accept()
+            # newsock is already ssl-protected if the acceptor was protected
+            return SocketTcpIn(newsock), endpoint
+        except socket.timeout:
+            log.w("accept() timed out (%ds)", timeout)
+            return None, None
 
