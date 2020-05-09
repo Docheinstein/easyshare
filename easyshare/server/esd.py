@@ -4,7 +4,7 @@ from typing import List, Optional, Callable
 
 from easyshare import logging
 from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
-    ArgType
+    ArgType, NoopParamsSpec
 from easyshare.client.args import ArgsParser, PositionalArgs
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.logging import get_logger
@@ -60,6 +60,8 @@ class EsdArgs(ArgsParser):
     DISCOVER_PORT = ["-d", "--discover-port"]
     PASSWORD = ["-P", "--password"]
 
+    SSL_CERT = ["--ssl-cert"]
+    SSL_PRIVKEY = ["--ssl-privkey"]
     REXEC = ["-e", "--rexec"]
 
     VERBOSE =   ["-v", "--verbose"]
@@ -80,6 +82,8 @@ class EsdArgs(ArgsParser):
             KwArgSpec(EsdArgs.PORT, INT_PARAM),
             KwArgSpec(EsdArgs.DISCOVER_PORT, INT_PARAM),
             KwArgSpec(EsdArgs.PASSWORD, STR_PARAM),
+            KwArgSpec(EsdArgs.SSL_CERT, STR_PARAM),
+            KwArgSpec(EsdArgs.SSL_PRIVKEY, STR_PARAM),
 
             KwArgSpec(EsdArgs.REXEC, PRESENCE_PARAM),
 
@@ -321,6 +325,23 @@ def main():
         default=server_password
     )
 
+    # SSL cert
+    server_ssl_cert = g_args.get_kwarg_param(
+        EsdArgs.SSL_CERT,
+        default=server_ssl_cert
+    )
+
+    # SSL privkey
+    server_ssl_privkey = g_args.get_kwarg_param(
+        EsdArgs.SSL_PRIVKEY,
+        default=server_ssl_privkey
+    )
+
+    # SSL enabled: obviously we need both cert and privkey
+    # But for now set True if either one of the two is valid
+    # will report errors at the end
+    server_ssl_enabled = server_ssl_enabled or server_ssl_cert or server_ssl_privkey
+
     # Rexec
     if g_args.has_kwarg(EsdArgs.REXEC):
         server_rexec = True
@@ -396,7 +417,6 @@ def main():
 
             add_sharing(path=s_path, name=s_name, readonly=s_readonly)
 
-
     # SSL
 
     ssl_context = None
@@ -409,10 +429,13 @@ def main():
                 cert=server_ssl_cert, privkey=server_ssl_privkey)
         else:
             if not server_ssl_cert:
-                log.w("ssl=true, but ssl_cert has not been specified; disabling ssl")
-
+                log.w("ssl_cert not specified; SSL will be disabled")
             if not server_ssl_privkey:
-                log.w("ssl=true, but ssl_privkey has not been specified; disabling ssl")
+                log.w("ssl_privkey not specified; SSL will be disabled")
+            server_ssl_enabled = False
+
+    if not server_ssl_enabled:
+        log.w("Server will start in plaintext mode; please consider using SSL")
 
     # Configure server and add sharings to it
 
