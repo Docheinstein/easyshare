@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Union
 
 from easyshare.protocol.fileinfo import FileInfo
+from easyshare.protocol.overwrite import OverwritePolicy
 from easyshare.protocol.response import Response
 
 
@@ -22,8 +23,14 @@ class IGetService(ITransferService):
 
 
 class IPutService(ITransferService):
+    class OverwritePolicy:
+        PROMPT = 0
+        YES = 1
+        NO = 2
+        NEWERT = 3
     @abstractmethod
-    def next(self, finfo: Union[FileInfo, None], force: bool = False) -> Response:
+    def next(self, finfo: Union[FileInfo, None],
+             overwrite_policy: OverwritePolicy = OverwritePolicy.PROMPT) -> Response:
         pass
 
 

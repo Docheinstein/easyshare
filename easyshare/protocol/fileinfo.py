@@ -7,10 +7,11 @@ try:
     # From python 3.8
     from typing import TypedDict
 
-    class FileInfo(TypedDict):
+    class FileInfo(TypedDict, total=False):
         name: str
         ftype: FileType
         size: int
+        mtime: int
 
     class FileInfoTreeNode(FileInfo, TreeNodeDict, total=False):
         pass

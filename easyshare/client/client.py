@@ -1,6 +1,5 @@
 import fcntl
 import os
-import random
 import select
 import sys
 import threading
@@ -20,12 +19,13 @@ from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors, print_error
 from easyshare.client.serverconnection import ServerConnection, ServerConnectionMinimal
 from easyshare.client.ui import print_files_info_list, print_files_info_tree, \
-    sharings_to_pretty_str, server_info_to_pretty_str, ask_overwrite
+    sharings_to_pretty_str, server_info_to_pretty_str
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
 from easyshare.protocol.exposed import IRexecService, IGetService, IPutService
+from easyshare.protocol.overwrite import OverwritePolicy
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
@@ -138,29 +138,35 @@ class PingArgs(PositionalArgs):
         ]
 
 class GetArgs(VariadicArgs):
-    YES_TO_ALL = ["-y", "--yes"]
-    NO_TO_ALL = ["-n", "--no"]
+    OVERWRITE_YES = ["-y", "--yes"]
+    OVERWRITE_NO = ["-n", "--no"]
+    OVERWRITE_NEWER = ["-N", "--newer"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
 
     def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
         return [
-            KwArgSpec(GetArgs.YES_TO_ALL, PRESENCE_PARAM),
-            KwArgSpec(GetArgs.NO_TO_ALL, PRESENCE_PARAM),
+            KwArgSpec(GetArgs.OVERWRITE_YES, PRESENCE_PARAM),
+            KwArgSpec(GetArgs.OVERWRITE_NO, PRESENCE_PARAM),
+            KwArgSpec(GetArgs.OVERWRITE_NEWER, PRESENCE_PARAM),
             KwArgSpec(GetArgs.CHECK, PRESENCE_PARAM),
             KwArgSpec(GetArgs.QUIET, PRESENCE_PARAM),
         ]
 
 class PutArgs(VariadicArgs):
-    YES_TO_ALL = ["-y", "--yes"]
-    NO_TO_ALL = ["-n", "--no"]
+    OVERWRITE_YES = ["-y", "--yes"]
+    OVERWRITE_NO = ["-n", "--no"]
+    OVERWRITE_NEWER = ["-N", "--newer"]
+    NEWER = ["-N", "--newer"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
 
+
     def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
         return [
-            KwArgSpec(PutArgs.YES_TO_ALL, PRESENCE_PARAM),
-            KwArgSpec(PutArgs.NO_TO_ALL, PRESENCE_PARAM),
+            KwArgSpec(PutArgs.OVERWRITE_YES, PRESENCE_PARAM),
+            KwArgSpec(PutArgs.OVERWRITE_NO, PRESENCE_PARAM),
+            KwArgSpec(PutArgs.OVERWRITE_NEWER, PRESENCE_PARAM),
             KwArgSpec(PutArgs.CHECK, PRESENCE_PARAM),
             KwArgSpec(GetArgs.QUIET, PRESENCE_PARAM),
         ]
@@ -1058,14 +1064,22 @@ class Client:
         )
 
         # Overwrite preference
-        overwrite_all: Optional[bool] = None
 
-        if GetArgs.YES_TO_ALL in args:
-            overwrite_all = True
-        if GetArgs.NO_TO_ALL in args:
-            overwrite_all = False
+        if [GetArgs.OVERWRITE_YES in args, GetArgs.OVERWRITE_NO in args,
+            GetArgs.OVERWRITE_NEWER].count(True) > 1:
+            log.e("Only one between -n, -y and -N can be specified")
+            raise BadOutcome("Only one between -n, -y and -N can be specified")
 
-        log.i("Overwrite all mode: %s", bool_to_str(overwrite_all))
+        overwrite_policy = OverwritePolicy.PROMPT
+
+        if GetArgs.OVERWRITE_YES in args:
+            overwrite_policy = OverwritePolicy.YES
+        elif GetArgs.OVERWRITE_NO in args:
+            overwrite_policy = OverwritePolicy.NO
+        elif GetArgs.OVERWRITE_NEWER in args:
+            overwrite_policy = OverwritePolicy.NEWER
+
+        log.i("Overwrite policy: %s", str(overwrite_policy))
 
         # Stats
 
@@ -1090,7 +1104,7 @@ class Client:
                 # 1. Really transfer the file
                 # 2. Skip the file
 
-                will_transfer = overwrite_all is True
+                will_transfer = overwrite_policy == OverwritePolicy.NO
                 will_seek = not will_transfer
 
                 log.i("Action: %s", "transfer" if will_transfer else "seek")
@@ -1111,6 +1125,7 @@ class Client:
                 fname = next_file.get("name")
                 fsize = next_file.get("size")
                 ftype = next_file.get("ftype")
+                fmtime = next_file.get("mtime")
 
                 log.i("NEXT: %s of type %s", fname, ftype)
 
@@ -1118,8 +1133,8 @@ class Client:
                 if ftype == FTYPE_DIR:
                     log.i("Creating dirs %s", fname)
                     os.makedirs(fname, exist_ok=True)
-                    if not quiet:
-                        progressor.done()
+                    # if not quiet:
+                    #     progressor.done()
                     continue  # No FTYPE_FILE => neither skip nor transfer for next()
 
                 if ftype != FTYPE_FILE:
@@ -1139,17 +1154,34 @@ class Client:
                     # Overwrite handling
 
                     timer.stop() # Don't take the user time into account
-                    current_overwrite_decision, overwrite_all = \
-                        ask_overwrite(fname, current_default=overwrite_all)
+                    current_overwrite_decision, overwrite_policy = \
+                        Client._ask_overwrite(fname, current_policy=overwrite_policy)
                     timer.start()
 
-                    log.d("Overwrite decision: %s", current_overwrite_decision)
+                    log.d("Overwrite decision: %s", str(current_overwrite_decision))
 
-                    if will_seek and current_overwrite_decision is False:
-                        log.d("Would have seek, have to tell server to skip %s", fname)
-                        get_next_resp = get_service.next(skip=True)
-                        ensure_success_response(get_next_resp)
-                        continue
+                    if will_seek:
+                        do_skip = False
+
+                        if current_overwrite_decision == OverwritePolicy.NO:
+                            # Skip
+                            do_skip = True
+                        elif current_overwrite_decision == OverwritePolicy.NEWER:
+                            # Check whether skip or not based on the last modified time
+                            log.d("Checking whether skip based on mtime")
+                            stat = os.lstat(fname)
+                            do_skip = stat.st_mtime_ns >= fmtime
+                            log.d("Local mtime: %d | Remote mtime: %d => skip: %s",
+                                  stat.st_mtime_ns, fmtime, do_skip)
+
+                        if do_skip:
+                            log.d("Would have seek, have to tell server to skip %s", fname)
+                            get_next_resp = get_service.next(skip=True)
+                            ensure_success_response(get_next_resp)
+                            continue
+                        else:
+                            log.d("Not skipping")
+
 
                 # Eventually tell the server to begin the transfer
                 # We have to call it now because the server can't know
@@ -1325,18 +1357,25 @@ class Client:
             log.i("Adding sendfile %s", json_to_pretty_str(sendfile))
             sendfiles.append(sendfile)
 
-        overwrite_all: Optional[bool] = None
+        # Overwrite preference
 
-        if PutArgs.YES_TO_ALL in args:
-            overwrite_all = True
-        if PutArgs.NO_TO_ALL in args:
-            overwrite_all = False
+        if [GetArgs.OVERWRITE_YES in args, GetArgs.OVERWRITE_NO in args,
+            GetArgs.OVERWRITE_NEWER].count(True) > 1:
+            log.e("Only one between -n, -y and -N can be specified")
+            raise BadOutcome("Only one between -n, -y and -N can be specified")
 
-        log.i("Overwrite all mode: %s", bool_to_str(overwrite_all))
+        overwrite_policy = OverwritePolicy.PROMPT
+
+        if PutArgs.OVERWRITE_YES in args:
+            overwrite_policy = OverwritePolicy.YES
+        elif PutArgs.OVERWRITE_NO in args:
+            overwrite_policy = OverwritePolicy.NO
+        elif PutArgs.OVERWRITE_NEWER in args:
+            overwrite_policy = OverwritePolicy.NEWER
+
+        log.i("Overwrite policy: %s", str(overwrite_policy))
 
         # Stats
-
-        progressor = None
 
         timer = Timer(start=True)
         tot_bytes = 0
@@ -1349,9 +1388,11 @@ class Client:
         with TracedPyroProxy(put_service_uri) as put_service:
 
             def send_file(local_path: str, remote_path: str):
-                nonlocal overwrite_all
+                nonlocal overwrite_policy
                 nonlocal tot_bytes
                 nonlocal n_files
+
+                progressor = None
 
                 fstat = os.lstat(local_path)
                 fsize = fstat.st_size
@@ -1367,33 +1408,56 @@ class Client:
                 finfo = {
                     "name": remote_path,
                     "ftype": ftype,
-                    "size": fsize
+                    "size": fsize,
+                    "mtime": fstat.st_mtime_ns
                 }
 
                 log.i("send_file finfo: %s", json_to_pretty_str(finfo))
 
                 log.d("doing a put_next")
 
-                put_next_resp = put_service.next(finfo, force=overwrite_all)
-                ensure_success_response(put_next_resp)
+                put_next_resp = put_service.next(finfo,
+                                                 overwrite_policy=overwrite_policy)
+                ensure_data_response(put_next_resp)
 
-                # Overwrite handling
+                # Possible responses:
+                # "accepted" => add the file to the transfer socket
+                # "refused"  => do not add the file to the transfer socket
+                # "ask_overwrite" => ask to the user and tell it to the server
+                #                    we got this response only if the overwrite
+                #                    policy told to the server is PROMPT
 
-                if is_data_response(put_next_resp) and \
-                        put_next_resp.get("data") == "ask_overwrite":
+                # First of all handle the ask_overwrite, and contact the server
+                # again for tell the response
+                if put_next_resp.get("data") == "ask_overwrite":
+                    # Ask the user what to do
 
                     timer.stop() # Don't take the user time into account
-                    current_overwrite_decision, overwrite_all =\
-                        ask_overwrite(remote_path, current_default=overwrite_all)
+                    current_overwrite_decision, overwrite_policy =\
+                        Client._ask_overwrite(remote_path, current_policy=overwrite_policy)
                     timer.start()
 
-                    if current_overwrite_decision is False:
+                    if current_overwrite_decision == OverwritePolicy.NO:
                         log.i("Skipping " + remote_path)
                         return
-                    else:
-                        log.d("Will overwrite file")
-                        put_next_resp = put_service.next(finfo, force=True)
-                        ensure_success_response(put_next_resp)
+
+                    # If overwrite policy is NEWER or YES we have to tell it
+                    # to the server so that it will take the right action
+                    put_next_resp = put_service.next(finfo,
+                                                     overwrite_policy=current_overwrite_decision)
+                    ensure_success_response(put_next_resp)
+
+                # The current put_next_resp is either the original one
+                # or the one got after the ask_overwrite response we sent
+                # to the server.
+                # By the way, it should not contain an ask_overwrite
+                # since we specified a policy among YES/NEWER
+                if put_next_resp.get("data") == "refused":
+                    log.i("Skipping " + remote_path)
+                    return
+
+                if put_next_resp.get("data") != "accepted":
+                    raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
                 local_path_pretty = os.path.normpath(local_path)
                 if local_path.startswith(os.getcwd()):
@@ -1409,8 +1473,8 @@ class Client:
 
                 if ftype == FTYPE_DIR:
                     log.d("Sent a DIR, nothing else to do")
-                    if not quiet:
-                        progressor.done()
+                    # if not quiet:
+                    #     progressor.done()
                     return
 
                 log.i("Opening %s locally", local_path)
@@ -2093,6 +2157,48 @@ class Client:
                 return False # Not found
 
         return True
+
+    @staticmethod
+    def _ask_overwrite(fname: str, current_policy: OverwritePolicy) \
+            -> Tuple[OverwritePolicy, OverwritePolicy]:  # cur_decision, new_default
+
+        log.d("ask_overwrite - default policy: %s", str(current_policy))
+        # Ask whether overwrite just once or forever
+        cur_decision = current_policy
+        new_default = current_policy
+
+        # Ask until we get a valid answer
+        while cur_decision == OverwritePolicy.PROMPT:
+
+            overwrite_answer = input(
+                "{} already exists, overwrite it?\n"
+                "y  : yes (default)\n"
+                "n  : no\n"
+                "N  : only if newer\n"
+                "yy : yes - to all\n"
+                "nn : no - to all\n"
+                "NN : only if newer - to all\n".format(fname)
+            )
+
+            if not overwrite_answer or overwrite_answer == "y":
+                cur_decision = OverwritePolicy.YES
+            elif overwrite_answer == "n":
+                cur_decision = OverwritePolicy.NO
+            elif overwrite_answer == "N":
+                cur_decision = OverwritePolicy.NEWER
+            elif overwrite_answer == "yy":
+                cur_decision = OverwritePolicy.YES
+                new_default = OverwritePolicy.YES
+            elif overwrite_answer == "nn":
+                cur_decision = OverwritePolicy.NO
+                new_default = OverwritePolicy.NO
+            elif overwrite_answer == "NN":
+                cur_decision = OverwritePolicy.NEWER
+                new_default = OverwritePolicy.NEWER
+            else:
+                log.w("Invalid answer, asking again")
+
+        return cur_decision, new_default
 
     def destroy_connection(self):
         try:

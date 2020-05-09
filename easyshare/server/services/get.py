@@ -17,7 +17,6 @@ from easyshare.server.client import ClientContext
 from easyshare.server.common import try_or_command_failed_response
 from easyshare.server.services.base.service import check_service_owner, ClientService
 
-from easyshare.server.services.base.sharingservice import ClientSharingService
 from easyshare.server.services.base.transfer import TransferService
 from easyshare.server.sharing import Sharing
 from easyshare.utils.pyro import trace_api, pyro_client_endpoint
@@ -93,10 +92,12 @@ class GetService(IGetService, TransferService):
                         log.d("Actually adding file to the transfer queue")
                         self._active_servings.put(next_file_path)
 
+                stat = os.lstat(next_file_path)
                 return create_success_response({
                     "name": trail,
                     "ftype": FTYPE_FILE,
-                    "size": os.path.getsize(next_file_path)
+                    "size": stat.st_size,
+                    "mtime": stat.st_mtime_ns
                 })
 
             # Case: DIR

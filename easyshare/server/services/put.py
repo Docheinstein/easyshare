@@ -10,6 +10,7 @@ from easyshare.protocol.errors import ServerErrors, TransferOutcomes
 from easyshare.protocol.exposed import IPutService
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
+from easyshare.protocol.overwrite import OverwritePolicy
 from easyshare.protocol.response import Response, create_error_response, create_success_response
 from easyshare.server.client import ClientContext
 from easyshare.server.common import try_or_command_failed_response
@@ -37,7 +38,9 @@ class PutService(IPutService, TransferService):
     @trace_api
     @check_service_owner
     @try_or_command_failed_response
-    def next(self, finfo: FileInfo, force: bool = False) -> Response:
+    def next(self, finfo: FileInfo,
+             overwrite_policy: OverwritePolicy = OverwritePolicy.PROMPT) -> Response:
+
         if self._outcome:
             log.e("Transfer already closed")
             return create_error_response(TransferOutcomes.TRANSFER_CLOSED)
@@ -55,13 +58,14 @@ class PutService(IPutService, TransferService):
         fname = finfo.get("name")
         ftype = finfo.get("ftype")
         fsize = finfo.get("size")
+        fmtime = finfo.get("mtime")
 
         real_path = self._real_path_from_rcwd(fname)
 
         if ftype == FTYPE_DIR:
             log.i("Creating dirs %s", real_path)
             os.makedirs(real_path, exist_ok=True)
-            return create_success_response()
+            return create_success_response("accepted")
 
         if ftype == FTYPE_FILE:
             parent_dirs, _ = os.path.split(real_path)
@@ -73,16 +77,29 @@ class PutService(IPutService, TransferService):
 
         # Check whether it already exists
         if os.path.isfile(real_path):
-            if not force:
-                log.w("File already exists, asking whether overwrite it")
-                return create_success_response("ask_overwrite")
-            else:
-                log.d("File already exists but overwriting it since force=True")
+            log.w("File already exists; deciding what to do based on overwrite policy: %s",
+                  overwrite_policy)
 
+            # Take a decision based on the overwrite policy
+            if overwrite_policy == OverwritePolicy.PROMPT:
+                log.d("Overwrite policy is PROMPT, asking the client whether overwrite")
+                return create_success_response("ask_overwrite")
+
+            if overwrite_policy == OverwritePolicy.NEWER:
+                log.d("Overwrite policy is NEWER, checking mtime")
+                stat = os.lstat(real_path)
+                if stat.st_mtime_ns >= fmtime:
+                    # Our version is newer, won't accept the file
+                    return create_success_response("refused")
+                else:
+                    log.d("Our version is older, will accept file")
+
+            elif overwrite_policy == OverwritePolicy.YES:
+                log.d("Overwrite policy is PROMPT, overwriting it unconditionally")
 
         self._incomings.put((real_path, fsize))
 
-        return create_success_response()
+        return create_success_response("accepted")
 
 
     def _run(self):
