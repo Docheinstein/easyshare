@@ -178,7 +178,7 @@ if __name__ == "__main__":
     try:
 
         cfg = Conf.parse(
-            path="/home/stefano/Develop/Python/easyshare/res/esd.conf",
+            path="/easyshare/res/esd.conf",
             sections_parsers={
                 None: {
                     "port": INT_VAL,

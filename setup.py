@@ -24,7 +24,8 @@ setup(
     entry_points={
         "console_scripts": [
             "es = easyshare.es.__main__:main",
-            "esd = easyshare.esd.__main__:main"
+            "esd = easyshare.esd.__main__:main",
+            "es-tools = easyshare.tools.__main__:main"
         ]
     },
 
