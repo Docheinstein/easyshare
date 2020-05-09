@@ -12,13 +12,13 @@ from easyshare.logging import get_logger
 from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.response import create_success_response, create_error_response, Response
 from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
-from easyshare.server.common import try_or_command_failed_response
-from easyshare.server.daemon import init_pyro_daemon, get_pyro_daemon
-from easyshare.server.services.rexec import RexecService
-from easyshare.server.services.sharing import SharingService
-from easyshare.server.sharing import Sharing
-from easyshare.server.client import ClientContext
-from easyshare.server.discover import DiscoverDaemon
+from easyshare.esd.common import try_or_command_failed_response
+from easyshare.esd.daemon import init_pyro_daemon, get_pyro_daemon
+from easyshare.esd.services.rexec import RexecService
+from easyshare.esd.services.sharing import SharingService
+from easyshare.esd.sharing import Sharing
+from easyshare.esd.client import ClientContext
+from easyshare.esd.discover import DiscoverDaemon
 from easyshare.shared.common import DEFAULT_DISCOVER_PORT, ESD_PYRO_UID, DEFAULT_SERVER_PORT
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.exposed import IServer
@@ -119,7 +119,7 @@ class Server(IServer):
 
         log.i("Client response port is %d", client_discover_response_port)
 
-        # Respond to the port the client says in the paylod
+        # Respond to the port the es says in the paylod
         # (not necessary the one from which the request come)
         sock = SocketUdpOut()
 
@@ -208,7 +208,7 @@ class Server(IServer):
             log.i("Client disconnected gracefully")
         else:
             # Should not happen due @require_client_connected
-            log.w("disconnect() failed; client not found")
+            log.w("disconnect() failed; es not found")
 
 
     @expose
@@ -327,7 +327,7 @@ class Server(IServer):
         with self._clients_lock:
             ctx = ClientContext(endpoint)
 
-            log.i("Adding client %s", ctx)
+            log.i("Adding es %s", ctx)
 
             print(green("Client connected: {}:{}".format(ctx.endpoint[0], ctx.endpoint[1])))
 
@@ -344,7 +344,7 @@ class Server(IServer):
 
             print(red("Client disconnected: {}:{}".format(ctx.endpoint[0], ctx.endpoint[1])))
 
-            log.i("Removing client %s", ctx)
+            log.i("Removing es %s", ctx)
 
             daemon = get_pyro_daemon()
 
@@ -357,24 +357,24 @@ class Server(IServer):
 
     def _current_request_endpoint(self) -> Optional[Endpoint]:
         """
-        Returns the endpoint (ip, port) of the client that is making
+        Returns the endpoint (ip, port) of the es that is making
         the request right now (provided by the underlying Pyro deamon)
-        :return: the endpoint of the current client
+        :return: the endpoint of the current es
         """
         return pyro_client_endpoint()
 
     def _current_request_client(self) -> Optional[ClientContext]:
         """
-        Returns the client that belongs to the current request endpoint (ip, port)
+        Returns the es that belongs to the current request endpoint (ip, port)
         if exists among the known clients; otherwise returns None.
-        :return: the client of the current request
+        :return: the es of the current request
         """
         return self._clients.get(self._current_request_endpoint())
 
     def endpoint(self) -> Endpoint:
         """
-        Returns the current endpoint (ip, port) the server (Pyro deamon) is bound to.
-        :return: the current server endpoint
+        Returns the current endpoint (ip, port) the esd (Pyro deamon) is bound to.
+        :return: the current esd endpoint
         """
         return get_pyro_daemon().sock.getsockname()
 
@@ -389,5 +389,5 @@ class Server(IServer):
 
     def _handle_client_disconnect(self, pyroconn: socketutil.SocketConnection):
         endpoint = pyroconn.sock.getpeername()
-        log.d("Cleaning up client %s resources", endpoint)
+        log.d("Cleaning up es %s resources", endpoint)
         self._del_client(endpoint)

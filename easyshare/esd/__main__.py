@@ -5,12 +5,12 @@ from typing import List, Optional, Callable
 from easyshare import logging
 from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
     ArgType, NoopParamsSpec
-from easyshare.client.args import ArgsParser, PositionalArgs
+from easyshare.es.args import ArgsParser, PositionalArgs
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.logging import get_logger
 from easyshare.passwd.auth import AuthFactory
-from easyshare.server.server import Server
-from easyshare.server.sharing import Sharing
+from easyshare.esd.server import Server
+from easyshare.esd.sharing import Sharing
 from easyshare.shared.args import Args
 from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup
 from easyshare.ssl import get_ssl_context
@@ -115,7 +115,7 @@ class EsdConfKeys:
     S_READONLY = "readonly"
 
 ESD_CONF_SPEC = {
-    # global server settings
+    # global esd settings
     None: {
         EsdConfKeys.G_NAME: STR_VAL,
         EsdConfKeys.G_ADDRESS: STR_VAL,
@@ -370,9 +370,9 @@ def main():
 
     # Validation
 
-    # - server name
+    # - esd name
     if not satisfy(server_name, SERVER_NAME_ALPHABET):
-        abort("Invalid server name: '{}'".format(server_name))
+        abort("Invalid esd name: '{}'".format(server_name))
 
     # - ports
     for p in [server_port, server_discover_port]:
@@ -437,14 +437,14 @@ def main():
     if not server_ssl_enabled:
         log.w("Server will start in plaintext mode; please consider using SSL")
 
-    # Configure server and add sharings to it
+    # Configure esd and add sharings to it
 
     auth = AuthFactory.parse(server_password)
 
-    log.i("Required server name: %s", server_name)
-    log.i("Required server address: %s", server_address)
-    log.i("Required server port: %s", str(server_port))
-    log.i("Required server discover port: %s", str(server_discover_port))
+    log.i("Required esd name: %s", server_name)
+    log.i("Required esd address: %s", server_address)
+    log.i("Required esd port: %s", str(server_port))
+    log.i("Required esd discover port: %s", str(server_discover_port))
     log.i("Required auth: %s", auth.algo_type())
 
 
@@ -468,13 +468,13 @@ def main():
     print("------------------------")
 
     if sharings:
-        # Add every sharing to the server
+        # Add every sharing to the esd
         for sharing in sharings.values():
             print("* " + sharing.name + " --> " + sharing.path)
             server.add_sharing(sharing)
         print("------------------------")
     else:
-        log.w("No sharings found, it will be an empty server")
+        log.w("No sharings found, it will be an empty esd")
 
     print("STARTED")
     server.start()

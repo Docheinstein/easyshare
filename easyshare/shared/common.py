@@ -9,7 +9,7 @@ from easyshare.utils.types import to_int
 
 APP_NAME = "easyshare"
 APP_NAME_SERVER = "easyshare deamon"
-APP_NAME_CLIENT = "easyshare client"
+APP_NAME_CLIENT = "easyshare es"
 APP_NAME_SERVER_SHORT = "esd"
 APP_NAME_CLIENT_SHORT = "es"
 APP_VERSION = "0.1"

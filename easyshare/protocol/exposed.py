@@ -106,7 +106,7 @@ class ISharingService(ABC):
 class IServer(ABC):
     @abstractmethod
     def connect(self, password: str) -> Response:
-        """ New client"""
+        """ New es"""
         pass
 
     @abstractmethod

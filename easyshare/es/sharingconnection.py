@@ -1,6 +1,6 @@
 from typing import Union, List
 
-from easyshare.client.errors import ClientErrors
+from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.response import Response, create_error_response, is_success_response, is_data_response, \
@@ -51,7 +51,7 @@ class SharingConnection:
                  sharing_info: SharingInfo,
                  server_info: ServerInfoFull):
         log.i("Initializing new SharingConnection")
-        log.d("Bound to server \n%s", json_to_pretty_str(server_info))
+        log.d("Bound to esd \n%s", json_to_pretty_str(server_info))
 
         self.sharing_info = sharing_info
         self.server_info = server_info

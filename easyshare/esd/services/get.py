@@ -10,12 +10,12 @@ from easyshare.protocol.errors import TransferOutcomes
 from easyshare.protocol.exposed import IGetService
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import Response, create_success_response, create_error_response
-from easyshare.server.client import ClientContext
-from easyshare.server.common import try_or_command_failed_response
-from easyshare.server.services.base.service import check_service_owner, ClientService
+from easyshare.esd.client import ClientContext
+from easyshare.esd.common import try_or_command_failed_response
+from easyshare.esd.services.base.service import check_service_owner, ClientService
 
-from easyshare.server.services.base.transfer import TransferService
-from easyshare.server.sharing import Sharing
+from easyshare.esd.services.base.transfer import TransferService
+from easyshare.esd.sharing import Sharing
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.os import relpath
 from easyshare.utils.pyro import trace_api, pyro_client_endpoint
@@ -56,7 +56,7 @@ class GetService(IGetService, TransferService):
             # Get next file (or dir)
             # Do not pop it now: either transfer os skip must be specified
             # for a regular file before being popped out
-            # (In this way we can handle cases in which the client don't
+            # (In this way we can handle cases in which the es don't
             # want to receive the file (because of overwrite, or anything else)
             next_file = self._next_servings[len(self._next_servings) - 1]
 
@@ -65,7 +65,7 @@ class GetService(IGetService, TransferService):
             next_file_client_prefix = next_file_client_prefix or ""
 
             log.i("Next file local path:          %s", next_file_local_path)
-            log.i("Next file client prefix: %s", next_file_client_prefix)
+            log.i("Next file es prefix: %s", next_file_client_prefix)
 
             # Check domain validity
             if not self._is_real_path_allowed(next_file_local_path):
@@ -84,7 +84,7 @@ class GetService(IGetService, TransferService):
                 # Eventually add a starting prefix (for wrap into a folder)
                 next_file_client_path = relpath(os.path.join(next_file_client_prefix, trail))
 
-            log.d("File path for client is: %s", next_file_client_path)
+            log.d("File path for es is: %s", next_file_client_path)
 
             # Case: FILE
             if os.path.isfile(next_file_local_path):
@@ -140,7 +140,7 @@ class GetService(IGetService, TransferService):
         log.i("No remaining files")
         self._active_servings.put(None)
 
-        # Notify the client about it
+        # Notify the es about it
         return create_success_response()
 
 

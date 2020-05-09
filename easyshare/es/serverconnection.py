@@ -1,7 +1,7 @@
 import ssl
 from typing import Union, Optional, cast
 
-from easyshare.client.errors import ClientErrors
+from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.exposed import IServer
@@ -19,7 +19,7 @@ log = get_logger(__name__)
 
 def require_server_connection(api):
     def require_server_connection_api_wrapper(conn: 'ServerConnection', *vargs, **kwargs) -> Response:
-        log.d("Checking server connection validity before invoking %s", api.__name__)
+        log.d("Checking esd connection validity before invoking %s", api.__name__)
         if not conn.is_connected():
             log.w("@require_server_connection : invalid connection")
             return create_error_response(ClientErrors.NOT_CONNECTED)
@@ -63,7 +63,7 @@ class ServerConnectionMinimal:
 
         # self.server_info: ServerInfoFull = server_info
 
-        # Create the proxy for the remote server
+        # Create the proxy for the remote esd
         if established_server_connection:
             log.d("Not creating connection since an established one as been provided")
             self.server = established_server_connection
@@ -77,8 +77,8 @@ class ServerConnectionMinimal:
             if not get_ssl_context():
                 # This is actually not really clean, since we are overwriting
                 # the global ssl_context of Pyro, but potentially we could have
-                # a 'Connection' to a SSL server and a 'Connection' to a non SSL server.
-                # In practice this never happens because the client is implemented
+                # a 'Connection' to a SSL esd and a 'Connection' to a non SSL esd.
+                # In practice this never happens because the es is implemented
                 # as an interactive shell, thus supports just one connection at a time
                 set_ssl_context(create_client_ssl_context())
         else:
@@ -145,11 +145,11 @@ class ServerConnectionMinimal:
         return self.server.rexec(cmd)
 
     def _destroy_connection(self):
-        log.d("Marking server connection as disconnected")
+        log.d("Marking esd connection as disconnected")
         self._connected = False
 
         if self.server:
-            log.d("Releasing pyro resources of the server connection")
+            log.d("Releasing pyro resources of the esd connection")
             self.server._pyroRelease()
             self.server = None
         else:

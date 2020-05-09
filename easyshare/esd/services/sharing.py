@@ -8,13 +8,13 @@ from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.exposed import ISharingService
 from easyshare.protocol.filetype import FTYPE_FILE
 from easyshare.protocol.response import Response, create_success_response, create_error_response
-from easyshare.server.client import ClientContext
-from easyshare.server.services.base.service import check_service_owner, ClientService
-from easyshare.server.services.base.sharingservice import ClientSharingService
-from easyshare.server.services.get import GetService
-from easyshare.server.common import try_or_command_failed_response
-from easyshare.server.services.put import PutService
-from easyshare.server.sharing import Sharing
+from easyshare.esd.client import ClientContext
+from easyshare.esd.services.base.service import check_service_owner, ClientService
+from easyshare.esd.services.base.sharingservice import ClientSharingService
+from easyshare.esd.services.get import GetService
+from easyshare.esd.common import try_or_command_failed_response
+from easyshare.esd.services.put import PutService
+from easyshare.esd.sharing import Sharing
 from easyshare.shared.common import transfer_port
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.os import ls, tree, cp, mv, rm
@@ -265,7 +265,7 @@ class SharingService(ISharingService, ClientSharingService):
         response_data = None
 
         if errors:
-            log.e("Reporting %d errors to the client", len(errors))
+            log.e("Reporting %d errors to the es", len(errors))
 
             if len(sources) == 1:
                 # Only a request with a fail: global fail
@@ -324,7 +324,7 @@ class SharingService(ISharingService, ClientSharingService):
         response_data = None
 
         if errors:
-            log.e("Reporting %d errors to the client", len(errors))
+            log.e("Reporting %d errors to the es", len(errors))
 
             if len(paths) == 1:
                 # Only a request with a fail: global fail
@@ -415,7 +415,7 @@ class SharingService(ISharingService, ClientSharingService):
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< CLOSE [%s]", str(client_endpoint))
-        log.i("Deallocating client resources...")
+        log.i("Deallocating es resources...")
 
         # TODO remove gets/puts
 

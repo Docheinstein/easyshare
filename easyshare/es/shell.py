@@ -10,12 +10,12 @@ from easyshare import logging
 from easyshare.args import Args, ArgsParseError
 import readline as rl
 
-from easyshare.client.args import OptIntArg, ArgsParser, VariadicArgs
-from easyshare.client.client import Client
-from easyshare.client.commands import Commands, is_special_command, matches_special_command
-from easyshare.client.ui import print_tabulated, StyledString
-from easyshare.client.errors import print_error, ClientErrors
-from easyshare.client.help import SuggestionsIntent, COMMANDS_INFO
+from easyshare.es.args import OptIntArg, ArgsParser, VariadicArgs
+from easyshare.es.client import Client
+from easyshare.es.commands import Commands, is_special_command, matches_special_command
+from easyshare.es.ui import print_tabulated, StyledString
+from easyshare.es.errors import print_error, ClientErrors
+from easyshare.es.help import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
@@ -57,15 +57,17 @@ class Shell:
 
         self._shell_command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args], None]]] = {
             Commands.TRACE: (OptIntArg(), self._trace),
-            Commands.TRACE_SHORT: (OptIntArg(), self._trace),
             Commands.VERBOSE: (OptIntArg(), self._verbose),
-            Commands.VERBOSE_SHORT: (OptIntArg(), self._verbose),
 
             Commands.HELP: (VariadicArgs(), self._help),
             Commands.EXIT: (VariadicArgs(), self._exit),
             Commands.QUIT: (VariadicArgs(), self._exit),
-            Commands.QUIT_SHORT: (VariadicArgs(), self._exit),
         }
+
+        self._shell_command_dispatcher[Commands.TRACE_SHORT] = self._shell_command_dispatcher[Commands.TRACE]
+        self._shell_command_dispatcher[Commands.VERBOSE_SHORT] = self._shell_command_dispatcher[Commands.VERBOSE]
+        self._shell_command_dispatcher[Commands.QUIT_SHORT] = self._shell_command_dispatcher[Commands.QUIT]
+
 
         rl.parse_and_bind("tab: complete")
         rl.parse_and_bind("set completion-query-items 50")
@@ -83,7 +85,7 @@ class Shell:
         while True:
             try:
                 log.d("========================\n"
-                      "Connected to server : %s%s\n"
+                      "Connected to esd : %s%s\n"
                       "Connected to sharing: %s%s",
                       self._client.is_connected_to_server(),
                       " ({}:{} {})".format(

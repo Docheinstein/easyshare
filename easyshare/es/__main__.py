@@ -1,13 +1,12 @@
-import os
 import sys
 from typing import Optional, List, Callable
 
 from easyshare import logging
-from easyshare.client.args import ArgsParser
-from easyshare.client.client import Client
-from easyshare.client.commands import Commands, is_special_command
-from easyshare.client.errors import errcode_string
-from easyshare.client.shell import Shell
+from easyshare.es.args import ArgsParser
+from easyshare.es.client import Client
+from easyshare.es.commands import Commands, is_special_command
+from easyshare.es.errors import errcode_string
+from easyshare.es.shell import Shell
 from easyshare.logging import get_logger
 from easyshare.shared.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, ENV_EASYSHARE_VERBOSITY, \
     easyshare_setup
@@ -143,7 +142,7 @@ def main():
         enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
 
-    # Initialize client
+    # Initialize es
     client = Client(discover_port=discover_port)
 
     # Check whether

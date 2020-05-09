@@ -9,7 +9,7 @@ log = get_logger(__name__)
 
 
 class ServerLocation:
-    # |----server location---------|
+    # |----esd location---------|
     # <server_name> OR <ip>[:<port>]
 
     # e.g.  hostname
@@ -63,7 +63,7 @@ class ServerLocation:
             server_port = None
 
         if not server_name and not server_ip:
-            log.w("Invalid server location for '%s'", location)
+            log.w("Invalid esd location for '%s'", location)
             return None
 
         server_location = ServerLocation(
@@ -78,7 +78,7 @@ class ServerLocation:
 
 
 class SharingLocation:
-    # |----name-----|-----server location--------|
+    # |----name-----|-----esd location--------|
     # <sharing_name>[@<server_name>|<ip>[:<port>]]
     # |-------------sharing location-------------|
     #

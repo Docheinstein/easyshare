@@ -3,9 +3,9 @@ from typing import Callable, Optional, Union
 
 from easyshare.logging import get_logger
 from easyshare.protocol.response import create_error_response
-from easyshare.server.client import ClientContext
-from easyshare.server.services.base.service import ClientService
-from easyshare.server.sharing import Sharing
+from easyshare.esd.client import ClientContext
+from easyshare.esd.services.base.service import ClientService
+from easyshare.esd.sharing import Sharing
 from easyshare.utils.os import relpath, is_relpath
 from easyshare.utils.str import unprefix
 from easyshare.utils.types import is_int, is_str
@@ -30,28 +30,28 @@ class ClientSharingService(ClientService):
     def _real_path_from_rcwd(self, path: str) -> Optional[str]:
         """
         Returns the path of the location composed by the 'path' of the
-        sharing the client is currently on and the 'path' itself.
+        sharing the es is currently on and the 'path' itself.
         The method allows:
             * 'path' starting with a leading / (absolute w.r.t the sharing path)
             * 'path' not starting with a leading / (relative w.r.t the rpwd)
 
         e.g.
             (ABSOLUTE)
-            client sharing path =  /home/stefano/Applications
-            client rpwd =                                     InsideAFolder
+            es sharing path =  /home/stefano/Applications
+            es rpwd =                                     InsideAFolder
             path                =  /AnApp
                                 => /home/stefano/Applications/AnApp
 
             (RELATIVE)
-            client sharing path =  /home/stefano/Applications
-            client rpwd =                                     InsideAFolder
+            es sharing path =  /home/stefano/Applications
+            es rpwd =                                     InsideAFolder
             path                =  AnApp
                                 => /home/stefano/Applications/InsideAFolder/AnApp
 
         """
 
         if is_relpath(path):
-            # It refers to a subdirectory starting from the client's current directory
+            # It refers to a subdirectory starting from the es's current directory
             path = os.path.join(self._rcwd, path)
 
         # Take the trail part (without leading /)
@@ -64,12 +64,12 @@ class ClientSharingService(ClientService):
         """
         Returns the trailing part of the 'path' by stripping the path of the
         sharing from the string's beginning.
-        The path is relative w.r.t the rpwd of the sharing path the client
+        The path is relative w.r.t the rpwd of the sharing path the es
         is currently on.
         e.g.
-            client sharing path = /home/stefano/Applications
-            client rpwd         =                            AnApp
-            (client path        = /home/stefano/Applications/AnApp          )
+            es sharing path = /home/stefano/Applications
+            es rpwd         =                            AnApp
+            (es path        = /home/stefano/Applications/AnApp          )
             path                = /home/stefano/Applications/AnApp/afile.mp4
                                 =>                                 afile.mp4
         """
@@ -78,26 +78,26 @@ class ClientSharingService(ClientService):
 
     def _is_real_path_allowed(self, path: str) -> bool:
         """
-        Returns whether the given path is legal for the given client, based
+        Returns whether the given path is legal for the given es, based
         on the its sharing and rpwd.
 
         e.g. ALLOWED
-            client sharing path = /home/stefano/Applications
-            client rpwd         =                            AnApp
+            es sharing path = /home/stefano/Applications
+            es rpwd         =                            AnApp
             path                = /home/stefano/Applications/AnApp/AFile.mp4
 
         e.g. NOT ALLOWED
-            client sharing path = /home/stefano/Applications
-            client rpwd         =                            AnApp
+            es sharing path = /home/stefano/Applications
+            es rpwd         =                            AnApp
             path                = /home/stefano/Applications/AnotherApp/AFile.mp4
 
-            client sharing path = /home/stefano/Applications
-            client rpwd         =                           AnApp
+            es sharing path = /home/stefano/Applications
+            es rpwd         =                           AnApp
             path                = /tmp/afile.mp4
 
         :param path: the path to check
-        :param client: the client
-        :return: whether the path is allowed for the client
+        :param es: the es
+        :return: whether the path is allowed for the es
         """
         normalized_path = os.path.normpath(path)
 

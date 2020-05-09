@@ -26,6 +26,7 @@ class Commands:
 
     REMOTE_CURRENT_DIRECTORY = "rpwd"
     REMOTE_LIST_DIRECTORY = "rls"
+    REMOTE_LIST_DIRECTORY_ENHANCED = "rl"
     REMOTE_TREE_DIRECTORY = "rtree"
     REMOTE_CHANGE_DIRECTORY = "rcd"
     REMOTE_CREATE_DIRECTORY = "rmkdir"
@@ -36,16 +37,21 @@ class Commands:
     REMOTE_EXEC_SHORT = SPECIAL_COMMAND_MARK * 2
 
     SCAN = "scan"
+    SCAN_SHORT = "s"
     LIST = "list"
 
     CONNECT = "connect"
     DISCONNECT = "disconnect"
 
     OPEN = "open"
+    OPEN_SHORT = "o"
     CLOSE = "close"
+    CLOSE_SHORT = "c"
 
     GET = "get"
+    GET_SHORT = "g"
     PUT = "put"
+    PUT_SHORT = "p"
 
     INFO = "info"
     PING = "ping"

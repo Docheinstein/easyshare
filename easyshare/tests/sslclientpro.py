@@ -1,6 +1,6 @@
 import ssl
 
-from easyshare.client.ui import ssl_certificate_to_pretty_str
+from easyshare.es.ui import ssl_certificate_to_pretty_str
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.ssl import create_client_ssl_context, parse_ssl_certificate
 from easyshare.utils.types import str_to_bytes

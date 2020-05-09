@@ -33,11 +33,11 @@ class ErrorsStrings:
     INVALID_TRANSACTION = "Invalid transaction"
     NOT_ALLOWED = "Not allowed"
     AUTHENTICATION_FAILED = "Authentication failed"
-    INTERNAL_SERVER_ERROR = "Internal server error"
+    INTERNAL_SERVER_ERROR = "Internal esd error"
     NOT_WRITABLE = "Forbidden: sharing is readonly"
 
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
-    UNEXPECTED_SERVER_RESPONSE = "Unexpected server response"
+    UNEXPECTED_SERVER_RESPONSE = "Unexpected esd response"
     IMPLEMENTATION_ERROR = "Implementation error"
     CONNECTION_ERROR = "Connection error"
 

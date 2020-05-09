@@ -2,9 +2,9 @@ import os
 from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
-from easyshare.client.commands import Commands
-from easyshare.client.ui import StyledString
-from easyshare.client.client import Client
+from easyshare.es.commands import Commands
+from easyshare.es.ui import StyledString
+from easyshare.es.client import Client
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE
@@ -176,7 +176,7 @@ class ListRemoteCommandInfo(ListCommandArgsInfo, ABC):
     @classmethod
     def list(cls, token: str, line: str, client: 'Client') -> List[FileInfo]:
         if not client or not client.is_connected_to_sharing():
-            log.w("Cannot list suggestions on a non connected client")
+            log.w("Cannot list suggestions on a non connected es")
             return []
 
         log.i("List remotely on token = '%s', line = '%s'", token, line)

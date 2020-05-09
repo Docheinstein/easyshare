@@ -12,11 +12,11 @@ from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.overwrite import OverwritePolicy
 from easyshare.protocol.response import Response, create_error_response, create_success_response
-from easyshare.server.client import ClientContext
-from easyshare.server.common import try_or_command_failed_response
-from easyshare.server.services.base.service import check_service_owner, ClientService
-from easyshare.server.services.base.transfer import TransferService
-from easyshare.server.sharing import Sharing
+from easyshare.esd.client import ClientContext
+from easyshare.esd.common import try_or_command_failed_response
+from easyshare.esd.services.base.service import check_service_owner, ClientService
+from easyshare.esd.services.base.transfer import TransferService
+from easyshare.esd.sharing import Sharing
 from easyshare.utils.pyro import trace_api, pyro_client_endpoint
 from easyshare.utils.types import bytes_to_int
 
@@ -82,7 +82,7 @@ class PutService(IPutService, TransferService):
 
             # Take a decision based on the overwrite policy
             if overwrite_policy == OverwritePolicy.PROMPT:
-                log.d("Overwrite policy is PROMPT, asking the client whether overwrite")
+                log.d("Overwrite policy is PROMPT, asking the es whether overwrite")
                 return create_success_response("ask_overwrite")
 
             if overwrite_policy == OverwritePolicy.NEWER:

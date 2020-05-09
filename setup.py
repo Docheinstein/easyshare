@@ -21,11 +21,12 @@ setup(
     include_package_data=True,
 
     # Scripts to install to the user executable path.
-    # Note that this might be something like /home/user/.local/bin
-    # which in Debian distributions is not included in $PATH.
-    # If you want to use just "compress" or "uncompress", you should add that
-    # path to your $PATH.
-    # scripts=["scripts/compress", "scripts/uncompress"],
+    entry_points={
+        "console_scripts": [
+            "es = easyshare.es.__main__:main",
+            "esd = easyshare.esd.__main__:main"
+        ]
+    },
 
     # Tests
     # test_suite="tests",

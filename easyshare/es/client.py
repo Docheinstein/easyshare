@@ -11,14 +11,14 @@ from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, NoRetu
 
 from Pyro5.errors import PyroError
 
-from easyshare.client.args import PositionalArgs, StopParseArgs, VariadicArgs, ArgsParser
-from easyshare.client.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK
-from easyshare.client.common import ServerLocation, SharingLocation
-from easyshare.client.sharingconnection import SharingConnection
-from easyshare.client.discover import Discoverer
-from easyshare.client.errors import ClientErrors, print_error
-from easyshare.client.serverconnection import ServerConnection, ServerConnectionMinimal
-from easyshare.client.ui import print_files_info_list, print_files_info_tree, \
+from easyshare.es.args import PositionalArgs, StopParseArgs, VariadicArgs, ArgsParser
+from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK
+from easyshare.es.common import ServerLocation, SharingLocation
+from easyshare.es.sharingconnection import SharingConnection
+from easyshare.es.discover import Discoverer
+from easyshare.es.errors import ClientErrors, print_error
+from easyshare.es.serverconnection import ServerConnection, ServerConnectionMinimal
+from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
@@ -29,7 +29,7 @@ from easyshare.protocol.overwrite import OverwritePolicy
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
-from easyshare.server.services.base.transfer import TransferService
+from easyshare.esd.services.base.transfer import TransferService
 from easyshare.shared.args import Args
 from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR, DEFAULT_SERVER_PORT, pyro_uri, transfer_port
 from easyshare.shared.endpoint import Endpoint
@@ -204,7 +204,7 @@ API = TypeVar('API', bound=Callable[..., None])
 def provide_sharing_connection(api: API) -> API:
     def provide_sharing_connection_api_wrapper(client: 'Client', args: Args, _1: ServerConnection, _2: SharingConnection):
         # Wraps api providing the connection parameters.
-        # The provided connection is the client current connection,
+        # The provided connection is the es current connection,
         # if it is established, or a temporary one that will be closed
         # just after the api call.
         # The connection is established treating the first arg of
@@ -226,7 +226,7 @@ def provide_sharing_connection(api: API) -> API:
             sharing_conn.close()
 
         if server_conn != client.server_connection:
-            log.d("Closing temporary server connection")
+            log.d("Closing temporary esd connection")
             server_conn.disconnect()
 
     provide_sharing_connection_api_wrapper.__name__ = api.__name__
@@ -235,12 +235,12 @@ def provide_sharing_connection(api: API) -> API:
 def make_server_connection_api_wrapper(api, connect: bool):
     def wrapper(client: 'Client', args: Args, _1: ServerConnection, _2: SharingConnection):
         # Wraps api providing the connection parameters.
-        # The provided connection is the client current connection,
+        # The provided connection is the es current connection,
         # if it is established, or a temporary one that will be closed
         # just after the api call.
         # The connection is established treating the first arg of
         # args as a 'ServerLocation'
-        log.d("Checking if server connection exists before invoking %s", api.__name__)
+        log.d("Checking if esd connection exists before invoking %s", api.__name__)
 
         server_conn = client._get_current_server_connection_or_create_from_server_location_args(
             args,
@@ -254,7 +254,7 @@ def make_server_connection_api_wrapper(api, connect: bool):
         api(client, args, server_conn, None)
 
         if server_conn != client.server_connection:
-            log.d("Disconnecting temporary server connection")
+            log.d("Disconnecting temporary esd connection")
             server_conn.disconnect()
 
     wrapper.__name__ = api.__name__
@@ -355,10 +355,6 @@ class Client:
                 LOCAL,
                 [StopParseArgs(0)],
                 Client.exec),
-            Commands.LOCAL_EXEC_SHORT: (
-                LOCAL,
-                [StopParseArgs(0)],
-                Client.exec),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (
                 SHARING,
@@ -368,6 +364,10 @@ class Client:
                 SHARING,
                 [LsArgs(0), LsArgs(1)],
                 self.rls),
+            Commands.REMOTE_LIST_DIRECTORY_ENHANCED: (
+                SHARING,
+                [PositionalArgs(0, 1), PositionalArgs(1, 1)],
+                self.rl),
             Commands.REMOTE_TREE_DIRECTORY: (
                 SHARING,
                 [TreeArgs(0), TreeArgs(1)],
@@ -393,10 +393,6 @@ class Client:
                 [VariadicArgs(2), VariadicArgs(3)],
                 self.rcp),
             Commands.REMOTE_EXEC: (
-                SERVER,
-                [StopParseArgs(0), StopParseArgs(1)],
-                self.rexec),
-            Commands.REMOTE_EXEC_SHORT: (
                 SERVER,
                 [StopParseArgs(0), StopParseArgs(1)],
                 self.rexec),
@@ -450,6 +446,14 @@ class Client:
                 [PingArgs(0), PingArgs(1)],
                 self.ping),
         }
+
+        self._command_dispatcher[Commands.GET_SHORT] = self._command_dispatcher[Commands.GET]
+        self._command_dispatcher[Commands.PUT_SHORT] = self._command_dispatcher[Commands.PUT]
+        self._command_dispatcher[Commands.OPEN_SHORT] = self._command_dispatcher[Commands.OPEN]
+        self._command_dispatcher[Commands.CLOSE_SHORT] = self._command_dispatcher[Commands.CLOSE]
+        self._command_dispatcher[Commands.SCAN_SHORT] = self._command_dispatcher[Commands.SCAN]
+        self._command_dispatcher[Commands.LOCAL_EXEC_SHORT] = self._command_dispatcher[Commands.LOCAL_EXEC]
+        self._command_dispatcher[Commands.REMOTE_EXEC_SHORT] = self._command_dispatcher[Commands.REMOTE_EXEC]
 
     def has_command(self, command: str) -> bool:
         return command in self._command_dispatcher or \
@@ -624,7 +628,7 @@ class Client:
                     self.server_connection.server_info,
                     server_location
             ):
-                log.w("Current connection already satisfy server location constraints")
+                log.w("Current connection already satisfy esd location constraints")
                 return
 
         # Actually create the connection
@@ -639,7 +643,7 @@ class Client:
         log.i("Server connection established")
 
         if self.is_connected_to_server():
-            log.i("Disconnecting current server connection before set the new one")
+            log.i("Disconnecting current esd connection before set the new one")
             self.server_connection.disconnect()
 
         self.server_connection = new_server_conn
@@ -662,7 +666,7 @@ class Client:
         new_server_conn: Optional[ServerConnection] = None
         new_sharing_conn: Optional[SharingConnection] = None
 
-        # Check whether we are connected to a server which owns the
+        # Check whether we are connected to a esd which owns the
         # sharing we are looking for, otherwise performs a scan
         sharing_location = SharingLocation.parse(args.get_varg())
 
@@ -678,7 +682,7 @@ class Client:
             ):
                 # The sharing is among the sharings of this connection
                 log.d("The sharing we are looking for is among the sharings"
-                      " of the already established server connection")
+                      " of the already established esd connection")
 
                 # Check whether we are already connected to it, just in case
                 if self.is_connected_to_sharing() and \
@@ -686,7 +690,7 @@ class Client:
                     log.w("Current sharing connection already satisfy the sharing constraints")
                     return
 
-                # Do an open() with this server connection
+                # Do an open() with this esd connection
                 new_sharing_conn = Client.create_sharing_connection_from_server_connection(
                     self.server_connection,
                     sharing_name=sharing_location.name
@@ -711,14 +715,14 @@ class Client:
             self.sharing_connection.close()
 
         if new_server_conn != self.server_connection and self.is_connected_to_server():
-            log.i("Closing current server connection before set the new one")
+            log.i("Closing current esd connection before set the new one")
             self.server_connection.disconnect()
 
 
         log.i("Server and sharing connection established")
         self.sharing_connection = new_sharing_conn
 
-        # Just mark that the server connection has been created due open()
+        # Just mark that the esd connection has been created due open()
         # so that for symmetry close() will do disconnect() too
         if new_server_conn != self.server_connection:
             setattr(new_server_conn, "created_with_open", True)
@@ -933,7 +937,7 @@ class Client:
         # noinspection PyUnresolvedReferences
         if server_conn and server_conn.is_connected() and \
                 getattr(server_conn, "created_with_open", False):
-            log.d("Closing server connection too since opened due open")
+            log.d("Closing esd connection too since opened due open")
             server_conn.disconnect()
 
 
@@ -974,6 +978,13 @@ class Client:
             return resp.get("data")
 
         Client._ls(args, data_provider=rls_provider, data_provider_name="RLS")
+
+    def rl(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+        # Just call rls -la
+        # Reuse the parsed args for keep the (optional) path
+        args._parsed[LsArgs.SHOW_ALL[0]] = True
+        args._parsed[LsArgs.SHOW_DETAILS[0]] = True
+        self.rls(args, server_conn, sharing_conn)
 
     @provide_sharing_connection
     def rtree(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
@@ -1100,7 +1111,7 @@ class Client:
                 # The first next() fetch never implies a new file to be put
                 # on the transfer socket.
                 # We have to check whether we want to eventually overwrite
-                # the file, and then tell the server next() if
+                # the file, and then tell the esd next() if
                 # 1. Really transfer the file
                 # 2. Skip the file
 
@@ -1175,7 +1186,7 @@ class Client:
                                   stat.st_mtime_ns, fmtime, do_skip)
 
                         if do_skip:
-                            log.d("Would have seek, have to tell server to skip %s", fname)
+                            log.d("Would have seek, have to tell esd to skip %s", fname)
                             get_next_resp = get_service.next(skip=True)
                             ensure_success_response(get_next_resp)
                             continue
@@ -1183,11 +1194,11 @@ class Client:
                             log.d("Not skipping")
 
 
-                # Eventually tell the server to begin the transfer
-                # We have to call it now because the server can't know
+                # Eventually tell the esd to begin the transfer
+                # We have to call it now because the esd can't know
                 # in advance if we want or not overwrite the file
                 if will_seek:
-                    log.d("Would have seek, have to tell server to transfer %s", fname)
+                    log.d("Would have seek, have to tell esd to transfer %s", fname)
                     get_next_resp = get_service.next(transfer=True)
                     ensure_success_response(get_next_resp)
                 # else: file already put into the transer socket
@@ -1423,11 +1434,11 @@ class Client:
                 # Possible responses:
                 # "accepted" => add the file to the transfer socket
                 # "refused"  => do not add the file to the transfer socket
-                # "ask_overwrite" => ask to the user and tell it to the server
+                # "ask_overwrite" => ask to the user and tell it to the esd
                 #                    we got this response only if the overwrite
-                #                    policy told to the server is PROMPT
+                #                    policy told to the esd is PROMPT
 
-                # First of all handle the ask_overwrite, and contact the server
+                # First of all handle the ask_overwrite, and contact the esd
                 # again for tell the response
                 if put_next_resp.get("data") == "ask_overwrite":
                     # Ask the user what to do
@@ -1442,14 +1453,14 @@ class Client:
                         return
 
                     # If overwrite policy is NEWER or YES we have to tell it
-                    # to the server so that it will take the right action
+                    # to the esd so that it will take the right action
                     put_next_resp = put_service.next(finfo,
                                                      overwrite_policy=current_overwrite_decision)
                     ensure_success_response(put_next_resp)
 
                 # The current put_next_resp is either the original one
                 # or the one got after the ask_overwrite response we sent
-                # to the server.
+                # to the esd.
                 # By the way, it should not contain an ask_overwrite
                 # since we specified a policy among YES/NEWER
                 if put_next_resp.get("data") == "refused":
@@ -1774,11 +1785,11 @@ class Client:
             self, args: Args, connect: bool) -> ServerConnection:
 
         if self.is_connected_to_server():
-            log.i("Providing already established server connection")
+            log.i("Providing already established esd connection")
             return self.server_connection
 
         # Create temporary connection
-        log.i("No established server connection; creating a new one")
+        log.i("No established esd connection; creating a new one")
 
         vargs = args.get_vargs()
 
@@ -1880,10 +1891,10 @@ class Client:
                     ensure_data_response(resp)
 
                     real_server_info = resp.get("data")
-                    log.d("Connection established is UP, retrieved server info\n%s",
+                    log.d("Connection established is UP, retrieved esd info\n%s",
                           json_to_pretty_str(real_server_info))
 
-                    # Fill the uncomplete server info with the IP/port we used to connect
+                    # Fill the uncomplete esd info with the IP/port we used to connect
                     break
                 except Exception:
                     log.w("Connection cannot be established directly %s SSL",
@@ -1903,12 +1914,12 @@ class Client:
 
             if real_server_info: # connection established directly
                 log.d("Connection has been established directly without perform a DISCOVER")
-                # Wraps the already established server conn in a ServerConnection
-                # associated with the right server info
+                # Wraps the already established esd conn in a ServerConnection
+                # associated with the right esd info
 
 
                 if self.server_info_satisfy_constraints(
-                        # DO not check server identity: this is needed for allow servers
+                        # DO not check esd identity: this is needed for allow servers
                         # behind NAT to be reached without know the real internal IP/port
                         real_server_info,
                         sharing_name=sharing_name, sharing_ftype=sharing_ftype):
@@ -1931,7 +1942,7 @@ class Client:
                 log.d("Connection not established directly and DISCOVER won't be "
                       "performed since IP and PORT has been specified both")
             else:
-                log.d("Will perform a DISCOVER for establish server connection")
+                log.d("Will perform a DISCOVER for establish esd connection")
                 real_server_info = self._discover_server(
                     server_name=server_name, server_ip=server_ip, server_port=server_port,
                     sharing_name=sharing_name, sharing_ftype=sharing_ftype
@@ -1953,22 +1964,22 @@ class Client:
             log.e("Connection can't be established")
             raise BadOutcome(ClientErrors.CONNECTION_ERROR)
 
-        # We have a valid TCP connection with the server
+        # We have a valid TCP connection with the esd
         log.i("Connection established with %s:%d",
               server_conn.server_ip(),
               server_conn.server_port())
 
-        # We have a valid TCP connection with the server
+        # We have a valid TCP connection with the esd
         log.d("-> same as %s:%d",
               server_conn.server_info.get("ip"),
               server_conn.server_info.get("port"))
 
         # Check whether we have to do connect()
-        # (It might be unnecessary for public server api such as ping, info, list, ...)
+        # (It might be unnecessary for public esd api such as ping, info, list, ...)
         if not connect:
             return server_conn
 
-        log.d("Will perform authentication (if required by the server)")
+        log.d("Will perform authentication (if required by the esd)")
         passwd = None
 
         # Ask the password if the sharing is protected by auth
@@ -1997,7 +2008,7 @@ class Client:
 
         sharing_uid = open_resp.get("data")
 
-        # Take out the sharing info from the server info
+        # Take out the sharing info from the esd info
         for shinfo in server_conn.server_info.get("sharings"):
             if shinfo.get("name") == sharing_name:
                 log.d("Found the sharing info among server_info sharings")
@@ -2117,19 +2128,19 @@ class Client:
 
         # Server name
         if server_name and server_name != server_info.get("name"):
-            log.d("Server info does not match the server name filter '%s'",
+            log.d("Server info does not match the esd name filter '%s'",
                   server_name)
             return False
 
         # Server IP
         if server_ip and server_ip != server_info.get("ip"):
-            log.d("Server info does not match the server ip filter '%s'",
+            log.d("Server info does not match the esd ip filter '%s'",
                   server_ip)
             return False
 
         # Server  port
         if server_port and server_port != server_info.get("port"):
-            log.d("Server info does not match the server port filter '%s'",
+            log.d("Server info does not match the esd port filter '%s'",
                   server_ip)
             return False
 
@@ -2221,9 +2232,9 @@ class Client:
 
         log.d("Sharing location: %s", sharing_location)
 
-        if sharing_location.server:
+        if sharing_location.esd:
 
-        # Discover the server to which connect
+        # Discover the esd to which connect
         # sharing_info, server_info = self._discover_sharing(
         #     sharing_location, ftype=FTYPE_DIR
         # )
@@ -2231,12 +2242,12 @@ class Client:
         # if not sharing_info or not server_info:
         #     raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
         #
-        # # Create the server connection: connect()
+        # # Create the esd connection: connect()
         #
         # log.d("Creating new sharing connection for location: %s", sharing_location)
         # server_conn = self._create_server_connection_from_server_info(server_info)
         server_conn = self._create_server_connection_from_server_location(
-            sharing_location.server, authenticate=True)
+            sharing_location.esd, authenticate=True)
 
         if not server_conn or not server_conn.is_connected():
             log.e("Cannot establish connection")
@@ -2286,9 +2297,9 @@ class Client:
         if not server_location:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        log.d("Creating new server connection for location: %s", server_location)
+        log.d("Creating new esd connection for location: %s", server_location)
 
-        # There are different ways to connect to the server
+        # There are different ways to connect to the esd
         # based on what's in server_location
         # 1. <server_name>  => DISCOVER
         # 2. <IP>           => Attempt to connect directly to the default port,
@@ -2326,7 +2337,7 @@ class Client:
                     ensure_data_response(resp)
 
                     real_server_info = resp.get("data")
-                    log.d("Connection established is UP, retrieved server info\n%s",
+                    log.d("Connection established is UP, retrieved esd info\n%s",
                           json_to_pretty_str(real_server_info))
                     break
                 except Exception:
@@ -2341,15 +2352,15 @@ class Client:
                     break
 
 
-        # If we have not retrieve the real server info, performs a scan
+        # If we have not retrieve the real esd info, performs a scan
 
         if real_server_info: # connection established directly
             log.d("Connection has been established directly without perform a DISCOVER")
-            # Wraps the already established server conn in a ServerConnection
-            # associated with the right server info
+            # Wraps the already established esd conn in a ServerConnection
+            # associated with the right esd info
             server_conn = ServerConnection(real_server_info, server_conn)
         elif not just_directly:
-            log.d("Will perform a DISCOVER for establish server connection")
+            log.d("Will perform a DISCOVER for establish esd connection")
             real_server_info = self._discover_server(server_location)
             server_conn = ServerConnection(real_server_info)
         else:
@@ -2361,17 +2372,17 @@ class Client:
             raise BadOutcome(ClientErrors.CONNECTION_ERROR)
 
 
-        # We have a valid TCP connection with the server
+        # We have a valid TCP connection with the esd
         log.i("Connection established with %s:%d",
               server_conn.server_info.get("ip"),
               server_conn.server_info.get("port"))
 
         # Check whether we have to do connect()
-        # (It might be unnecessary for public server api such as ping, info, list, ...)
+        # (It might be unnecessary for public esd api such as ping, info, list, ...)
         if not authenticate:
             return server_conn
 
-        log.d("Will perform authentication (if required by the server)")
+        log.d("Will perform authentication (if required by the esd)")
         passwd = None
 
         # Ask the password if the sharing is protected by auth
@@ -2407,7 +2418,7 @@ class Client:
 
     def _discover_server(self, server_location: ServerLocation) -> Optional[ServerInfo]:
         if not server_location:
-            log.w("Null server location, no server will be found")
+            log.w("Null esd location, no esd will be found")
             return None
 
         server_info: Optional[ServerInfo] = None
@@ -2483,7 +2494,7 @@ class Client:
 
         # Server name check (optional)
         if server_location.name and server_info.get("name") != server_location.name:
-            log.d("Server info does not match the server name filter '%s'",
+            log.d("Server info does not match the esd name filter '%s'",
                   server_location.name)
             return False
 
@@ -2510,11 +2521,11 @@ class Client:
             sharing_location: SharingLocation,
             sharing_ftype: FileType) -> Optional[SharingInfo]:
 
-            # Check server constraints
-            if not Client._server_info_satisfy_server_location(server_info, sharing_location.server):
+            # Check esd constraints
+            if not Client._server_info_satisfy_server_location(server_info, sharing_location.esd):
                 return None
 
-            # Check among the server sharings
+            # Check among the esd sharings
             for a_sharing_info in server_info.get("sharings"):
                 # Sharing name check (mandatory)
                 if sharing_location.name and a_sharing_info.get("name") != sharing_location.name:

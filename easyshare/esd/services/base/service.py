@@ -4,8 +4,8 @@ from typing import Callable
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors
 from easyshare.protocol.response import create_error_response
-from easyshare.server.client import ClientContext
-from easyshare.server.daemon import get_pyro_daemon
+from easyshare.esd.client import ClientContext
+from easyshare.esd.daemon import get_pyro_daemon
 from easyshare.utils.pyro import pyro_client_endpoint
 from easyshare.utils.str import uuid
 
@@ -50,8 +50,8 @@ class ClientService:
             self._end_callback(self)
 
     def _is_request_allowed(self):
-        # Check whether the client that tries to access this publication
-        # has the same IP of the original client the first time it access
+        # Check whether the es that tries to access this publication
+        # has the same IP of the original es the first time it access
         # and has the same IP and PORT for the rest of the time
         # log.d("Checking publication owner (original_owner: %s | current_owner: %s)", self._client, self._real_client_endpoint)
         #
@@ -59,7 +59,7 @@ class ClientService:
         #
         # if not self._real_client_endpoint:
         #     # First request: the port could be different from the original
-        #     # one but the client IP must remain the same
+        #     # one but the es IP must remain the same
         #     allowed = self._client.endpoint[0] == current_client_endpoint[0]
         #     log.d("First request, allowed: %s", allowed)
         #     if allowed:
