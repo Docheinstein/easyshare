@@ -39,9 +39,10 @@ from easyshare.utils.app import eprint
 from easyshare.utils.colors import red, styled, Style
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.pyro import TracedPyroProxy
+from easyshare.utils.str import unprefix
 from easyshare.utils.time import duration_str, duration_str_human
 from easyshare.utils.types import bool_to_str, bytes_to_str, int_to_bytes
-from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, size_str, speed_str
+from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, size_str, speed_str, relpath
 from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM, ArgsParseError
 
 log = get_logger(__name__)
@@ -1339,9 +1340,13 @@ class Client:
                         put_next_resp = put_service.next(finfo, force=True)
                         ensure_success_response(put_next_resp)
 
+                local_path_pretty = os.path.normpath(local_path)
+                if local_path.startswith(os.getcwd()):
+                    local_path_pretty = relpath(unprefix(local_path_pretty, os.getcwd()))
+
                 progressor = FileProgressor(
                     fsize,
-                    description="PUT " + local_path,
+                    description="PUT " + local_path_pretty,
                     color_progress=PROGRESS_COLOR,
                     color_done=DONE_COLOR
                 )

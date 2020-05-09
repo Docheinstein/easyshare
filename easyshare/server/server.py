@@ -26,6 +26,7 @@ from easyshare.protocol.errors import ServerErrors
 from easyshare.ssl import set_ssl_context, get_ssl_context
 from easyshare.tracing import trace_out
 from easyshare.socket.udp import SocketUdpOut
+from easyshare.utils.colors import red, green
 from easyshare.utils.json import json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port
 from easyshare.utils.pyro import pyro_client_endpoint, trace_api
@@ -322,6 +323,8 @@ class Server(IServer):
 
             log.i("Adding client %s", ctx)
 
+            print(green("Client connected: {}:{}".format(ctx.endpoint[0], ctx.endpoint[1])))
+
             self._clients[endpoint] = ctx
 
         return ctx
@@ -333,6 +336,8 @@ class Server(IServer):
             if not ctx:
                 return False
 
+            print(red("Client disconnected: {}:{}".format(ctx.endpoint[0], ctx.endpoint[1])))
+
             log.i("Removing client %s", ctx)
 
             daemon = get_pyro_daemon()
@@ -340,6 +345,7 @@ class Server(IServer):
             with ctx.lock:
                 for service_id in ctx.services:
                     daemon.unpublish(service_id)
+
 
         return True
 

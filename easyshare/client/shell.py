@@ -336,6 +336,4 @@ class Shell:
             VERBOSITY_EXPLANATION_MAP.get(verbosity, "")
         ))
 
-        print("Pyro logging:", "disabled" if pyro_log.disabled else "enabled")
-
         return 0
