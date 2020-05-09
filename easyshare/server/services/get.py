@@ -1,10 +1,7 @@
 import os
 import queue
-import random
-import threading
-import time
 import zlib
-from typing import List, Callable
+from typing import List, Callable, Tuple
 
 from Pyro5.server import expose
 
@@ -19,6 +16,8 @@ from easyshare.server.services.base.service import check_service_owner, ClientSe
 
 from easyshare.server.services.base.transfer import TransferService
 from easyshare.server.sharing import Sharing
+from easyshare.utils.json import json_to_pretty_str
+from easyshare.utils.os import relpath
 from easyshare.utils.pyro import trace_api, pyro_client_endpoint
 from easyshare.utils.types import int_to_bytes
 
@@ -27,7 +26,7 @@ log = get_logger(__name__)
 
 class GetService(IGetService, TransferService):
     def __init__(self,
-                 files: List[str],
+                 files: List[Tuple[str, str]], # local path, remote prefix
                  check: bool,
                  port: int,
                  sharing: Sharing,
@@ -59,75 +58,84 @@ class GetService(IGetService, TransferService):
             # for a regular file before being popped out
             # (In this way we can handle cases in which the client don't
             # want to receive the file (because of overwrite, or anything else)
-            next_file_path = self._next_servings[len(self._next_servings) - 1]
+            next_file = self._next_servings[len(self._next_servings) - 1]
 
-            log.i("Next file path: %s", next_file_path)
+            next_file_local_path, next_file_client_prefix = next_file[0], next_file[1]
+
+            next_file_client_prefix = next_file_client_prefix or ""
+
+            log.i("Next file local path:          %s", next_file_local_path)
+            log.i("Next file client prefix: %s", next_file_client_prefix)
 
             # Check domain validity
-            if not self._is_real_path_allowed(next_file_path):
+            if not self._is_real_path_allowed(next_file_local_path):
                 log.e("Path is invalid (out of sharing domain)")
+                self._next_servings.pop()
                 continue
 
-            if self._sharing.path == next_file_path:
+            if self._sharing.path == next_file_local_path:
                 # Getting (file) sharing
                 sharing_path_head, _ = os.path.split(self._sharing.path)
                 log.d("sharing_path_head: %s", sharing_path_head)
-                trail = self._trailing_path(sharing_path_head, next_file_path)
+                next_file_client_path = self._trailing_path(sharing_path_head, next_file_local_path)
             else:
-                trail = self._trailing_path_from_rcwd(next_file_path)
+                trail = self._trailing_path_from_rcwd(next_file_local_path)
+                log.d("Trail: %s", trail)
+                # Eventually add a starting prefix (for wrap into a folder)
+                next_file_client_path = relpath(os.path.join(next_file_client_prefix, trail))
 
-            log.d("Trail: %s", trail)
+            log.d("File path for client is: %s", next_file_client_path)
 
             # Case: FILE
-            if os.path.isfile(next_file_path):
-                log.i("NEXT FILE: %s", next_file_path)
+            if os.path.isfile(next_file_local_path):
+                log.i("NEXT FILE: %s", next_file_local_path)
 
                 # Pop only if transfer or skip is specified
                 if transfer or skip:
                     log.d("Popping file out (transfer OR skip specified for FTYPE_FILE)")
-                    next_file_path = self._next_servings.pop()
+                    self._next_servings.pop()
                     if transfer:
                         # Actually put the file on the queue of the files
                         # to be send through the transfer socket
                         log.d("Actually adding file to the transfer queue")
-                        self._active_servings.put(next_file_path)
+                        self._active_servings.put(next_file_local_path)
 
-                stat = os.lstat(next_file_path)
+                stat = os.lstat(next_file_local_path)
                 return create_success_response({
-                    "name": trail,
+                    "name": next_file_client_path,
                     "ftype": FTYPE_FILE,
                     "size": stat.st_size,
                     "mtime": stat.st_mtime_ns
                 })
 
             # Case: DIR
-            elif os.path.isdir(next_file_path):
+            elif os.path.isdir(next_file_local_path):
                 # Pop it now
                 self._next_servings.pop()
 
                 # Directory found
-                dir_files = sorted(os.listdir(next_file_path), reverse=True)
+                dir_files = sorted(os.listdir(next_file_local_path), reverse=True)
 
                 if dir_files:
 
                     log.i("Found a filled directory: adding all inner files to remaining_files")
                     for f in dir_files:
-                        f_path = os.path.join(next_file_path, f)
+                        f_path = os.path.join(next_file_local_path, f)
                         log.i("Adding %s", f_path)
-                        self._next_servings.append(f_path)
+                        self._next_servings.append((f_path, next_file_client_prefix))
                 else:
                     log.i("Found an empty directory")
                     log.d("Returning an info for the empty directory")
 
                     return create_success_response({
-                        "name": trail,
+                        "name": next_file_client_path,
                         "ftype": FTYPE_DIR,
                     })
             # Case: UNKNOWN (non-existing/link/special files/...)
             else:
                 # Pop it now
                 self._next_servings.pop()
-                log.w("Not file nor dir? skipping %s", next_file_path)
+                log.w("Not file nor dir? skipping %s", next_file_local_path)
 
         log.i("No remaining files")
         self._active_servings.put(None)

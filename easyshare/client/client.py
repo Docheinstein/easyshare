@@ -1629,7 +1629,7 @@ class Client:
         print_files_info_list(
             ls_result,
             show_file_type=LsArgs.SHOW_DETAILS in args,
-            show_hidden=LsArgs.SHOW_ALL in args,
+            show_hidden=show_hidden,
             show_size=LsArgs.SHOW_SIZE in args or LsArgs.SHOW_DETAILS in args,
             compact=LsArgs.SHOW_DETAILS not in args
         )

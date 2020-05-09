@@ -27,6 +27,9 @@ class StyledString:
 
 
 def print_tabulated(strings: List[StyledString], max_columns: int = None):
+    if not strings:
+        return
+
     log.d("len(strings) %d", len(strings))
 
     term_cols, _ = terminal_size()
@@ -71,6 +74,8 @@ def print_files_info_list(infos: List[FileInfo],
                           show_size: bool = False,
                           show_hidden: bool = False,
                           compact: bool = True):
+    if not infos:
+        return
 
     sstrings: List[StyledString] = []
 
@@ -157,7 +162,7 @@ def ssl_certificate_to_pretty_str(ssl_cert: SSLCertificate) -> str:
         "Valid From:         {}\n".format(ssl_cert.get("valid_from")) + \
         "Valid To:           {}\n\n".format(ssl_cert.get("valid_to")) + \
         "Issuer:             {}\n".format(", ".join([issuer.get("common_name"), issuer.get("organization")])) + \
-        "Self Signed:        {}".format(ssl_cert.get("self_signed"))
+        "Signing:            {}".format("signed" if ssl_cert.get("self_signed") else "self signed (insecure)")
 
 
 def server_info_to_pretty_str(info: ServerInfoFull) -> str:

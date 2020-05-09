@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Callable, Union
+from typing import List, Optional, Callable, Union, Tuple
 
 from Pyro5.api import expose
 
@@ -346,16 +346,22 @@ class SharingService(ISharingService, ClientSharingService):
         if not paths:
             paths = ["."]
 
-        # Compute real path for each name
-        real_paths = []
-        for f in paths:
-            real_paths.append(self._real_path_from_rcwd(f))
 
-        normalized_files = sorted(real_paths, reverse=True)
-        log.i("Normalized paths:\n%s", normalized_files)
+        # Compute real path for each name
+        real_paths: List[Tuple[str, str]] = []
+        for f in paths:
+            if f == ".":
+                # get the sharing, wrapped into a folder with this sharing name
+                real_paths.append((self._current_real_path(), self._sharing.name))  # no prefixes
+            else:
+                f = f.replace("*", ".")  # glob
+                real_paths.append((self._real_path_from_rcwd(f), ""))  # no prefixes
+
+        normalized_paths = sorted(real_paths, reverse=True)
+        log.i("Normalized paths:\n%s", normalized_paths)
 
         get = GetService(
-            real_paths,
+            normalized_paths,
             check=check,
             port=transfer_port(self._server_port),
             sharing=self._sharing,
