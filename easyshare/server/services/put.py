@@ -7,6 +7,7 @@ from Pyro5.server import expose
 
 from easyshare.logging import get_logger
 from easyshare.protocol.errors import ServerErrors, TransferOutcomes
+from easyshare.protocol.exposed import IPutService
 from easyshare.protocol.fileinfo import FileInfo
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
 from easyshare.protocol.response import Response, create_error_response, create_success_response
@@ -20,7 +21,7 @@ from easyshare.utils.types import bytes_to_int
 
 log = get_logger(__name__)
 
-class PutService(TransferService):
+class PutService(IPutService, TransferService):
     def __init__(self,
                  check: bool,
                  port: int,
@@ -37,11 +38,11 @@ class PutService(TransferService):
     @check_service_owner
     @try_or_command_failed_response
     def next(self, finfo: FileInfo, force: bool = False) -> Response:
-        client_endpoint = pyro_client_endpoint()
-
         if self._outcome:
             log.e("Transfer already closed")
             return create_error_response(TransferOutcomes.TRANSFER_CLOSED)
+
+        client_endpoint = pyro_client_endpoint()
 
         if not finfo:
             log.i("<< PUT_NEXT DONE [%s]", str(client_endpoint))
@@ -96,24 +97,19 @@ class PutService(TransferService):
                 log.i("No more files: transfer completed")
                 break
 
-            incoming_file, incoming_size = next_incoming
-
             log.i("Next incoming file to handle: %s", next_incoming)
+            incoming_file, incoming_file_len = next_incoming
 
             f = open(incoming_file, "wb")
-
             cur_pos = 0
             crc = 0
 
             # Recv file
-            while cur_pos < incoming_size:
-                readlen = min(incoming_size - cur_pos, PutService.BUFFER_SIZE)
+            while cur_pos < incoming_file_len:
+                readlen = min(incoming_file_len - cur_pos, TransferService.BUFFER_SIZE)
 
+                # Read from the remote
                 chunk = self._transfer_sock.recv(readlen)
-
-                if self._check:
-                    # Eventually update the CRC
-                    crc = zlib.crc32(chunk, crc)
 
                 if not chunk:
                     # EOF
@@ -123,12 +119,15 @@ class PutService(TransferService):
                 log.d("Received chunk of %dB", len(chunk))
                 cur_pos += len(chunk)
 
+                if self._check:
+                    # Eventually update the CRC
+                    crc = zlib.crc32(chunk, crc)
+
                 f.write(chunk)
 
-                log.d("%d/%d (%.2f%%)", cur_pos, incoming_size, cur_pos / incoming_size * 100)
+                log.d("%d/%d (%.2f%%)", cur_pos, incoming_file_len, cur_pos / incoming_file_len * 100)
 
             log.i("Closing file %s", incoming_file)
-
             f.close()
 
             # Eventually do CRC check
@@ -145,14 +144,14 @@ class PutService(TransferService):
 
                 # Length check on the written file
                 written_size = os.path.getsize(incoming_file)
-                if written_size != incoming_size:
+                if written_size != incoming_file_len:
                     log.e("File length mismatch; transfer failed. expected=%s ; written=%d",
-                          incoming_size, written_size)
+                          incoming_file_len, written_size)
                     self._finish(TransferOutcomes.CHECK_FAILED)
                     break
                 else:
                     log.d("File length check: OK")
 
-        log.i("Transaction handler job finished")
+        log.i("PUT finished")
 
         self._success()

@@ -10,8 +10,8 @@ from easyshare import logging
 from easyshare.logging import get_logger
 from easyshare.utils.colors import fg, Color, enable_colors
 from easyshare.utils.env import is_unicode_supported, terminal_size
-from easyshare.utils.os import M, size_str, speed_str
-from easyshare.utils.time import duration_str, duration_str_human
+from easyshare.utils.os import size_str, speed_str
+from easyshare.utils.time import duration_str_human
 
 log = get_logger(__name__)
 
@@ -92,46 +92,29 @@ class ProgressBarRendererFactory:
 
 class FileProgressor:
 
-    # SIZE_PREFIXES = ("B", "KB", "MB", "GB")
-    # SPEED_PREFIXES = ("B/s", "KB/s", "MB/s", "GB/s")
-
-    # TIME_FORMATS = ("{}h ", "{}m ", "{}s")
-
     # Config of the render of progress bar
 
     # We will put stuff based on how many space we have.
     # In order of priority we have to show:
-    # W    . What
-    # WP   . Percentage
-    # WPT  . Transferred (Partial / Total)
-    # WPTS . Speed
-    # WPTSB. Bar (taking up as much space as possible)
+    # D    . Description
+    # DP   . Percentage
+    # DPT  . Transferred (Partial / Total)
+    # DPTS . Speed
+    # DPTSB. Bar (taking up as much space as possible)
 
-    # W    . "test.bin"
-    # WP   . "test.bin  5%"                                   | S0,S4
-    # WPT  . "test.bin  5%  10MB/52MB                         | S0,S2,S4
-    # WPTS . "test.bin  5%  10MB/52MB  10KB/s                 | S0,S2,S3,S4
-    # WPTSB. "test.bin  [====        ] 5%  10MB/52MB  10KB/s  | S0,S1,S2,S3,S4
+    # D    . "test.bin"
+    # DP   . "test.bin  5%"                                   | S0,S4
+    # DPT  . "test.bin  5%  10MB/52MB                         | S0,S2,S4
+    # DPTS . "test.bin  5%  10MB/52MB  10KB/s                 | S0,S2,S3,S4
+    # DPTSB. "test.bin  [====        ] 5%  10MB/52MB  10KB/s  | S0,S1,S2,S3,S4
     #
     # SPACES:         --              -  --         --      --
     #                 S0              S1 S2         S3      S4
 
-    PROGRESS_BAR_MIN_INNER_WIDTH = 16
+    # ----------
+
+    PROGRESS_BAR_MIN_INNER_WIDTH = 10
     PROGRESS_BAR_MIN_OUTER_WIDTH = PROGRESS_BAR_MIN_INNER_WIDTH + 2
-    #
-    # PROGRESS_BAR_MAX_INNER_WIDTH = 25
-    # PROGRESS_BAR_MAX_OUTER_WIDTH = PROGRESS_BAR_MAX_INNER_WIDTH + 2
-
-# ----------
-
-
-    #  easyshare/server/services/base/__pycache__/transfer.cpython-38.pyc
-
-    # 80 cols                                  |-------16-----|
-    # easyshare.../transfer.cpython-38.pyc    [========        ] 5%  10MB/52MB  10KB/s
-
-    # 100 cols                                              |-----------24---------|
-    # easyshare/server/serv.../transfer.cpython-38.pyc     [================        ] 5%  10MB/52MB  10KB/s
 
     S0 = 4
     S1 = 1
@@ -158,12 +141,12 @@ class FileProgressor:
     MIN_PTS = S_DPTS + LEN_P + LEN_T + LEN_S
     MIN_PTSB = S_DPTSB + LEN_P + LEN_T + LEN_S + PROGRESS_BAR_MIN_OUTER_WIDTH
 
-    FMT_D = "{}" + (" " * S4)
-    FMT_DP = "{}" + (" " * S0) + "{}" + (" " * S4)
-    FMT_DPT = "{}" + (" " * S0) + "{}" + (" " * S2) + "{}" + (" " * S4)
-    FMT_DPTS = "{}" + (" " * S0) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
+    # FMT_D = "{}" + (" " * S4)
+    FMT_P = (" " * S0) + "{}" + (" " * S4)
+    FMT_PT = (" " * S0) + "{}" + (" " * S2) + "{}" + (" " * S4)
+    FMT_PTS = (" " * S0) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
 
-    FMT_DPTSB = "{}" + (" " * S0) + "{}" + (" " * S1) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
+    FMT_PTSB = (" " * S0) + "{}" + (" " * S1) + "{}" + (" " * S2) + "{}" + (" " * S3) + "{}" + (" " * S4)
 
     def __init__(self,
                  total: int, *,
@@ -266,11 +249,12 @@ class FileProgressor:
             elif self._speed_last_period_avg:
                 S = speed_str(self._speed_last_period_avg)
 
-
-            # Make D fill D_width; eventually strip some part of the description
+            # Assign a fixed space to the description part (2/5) and
+            # the remaining (3/5) to the other stuff
             D_space = cols * 2 // 5
             remaining_space = cols - D_space
 
+            # Make D fill D_width; eventually strip some part of the description
             E_width = len("...")
             if len(D) > D_space:
                 # Not enough space, we have to strip something
@@ -282,14 +266,13 @@ class FileProgressor:
                     D = D_head[:D_space - len(D_tail) - E_width] + "..." + D_tail
                 else:
                     # Quite problematic, we have to strip a part of the tail
-                    D = "..." + D_tail[-len(D_tail) - D_space - E_width:]
+                    D = "..." + D_tail[-(D_space - E_width):]
 
-            # assert len(D) <= D_space
-
-            log.d("cols                 %d", cols)
-            log.d("D                    %s", D)
-            log.d("D_space              %d", D_space)
-            log.d("remaining_space      %d", remaining_space)
+            # assert len(D) <= D_space, f"D = {D} | {len(D)} != {D_space}"
+            # log.d("cols                 %d", cols)
+            # log.d("D                    %s", D)
+            # log.d("D_space              %d", D_space)
+            # log.d("remaining_space      %d", remaining_space)
 
             if remaining_space >= FileProgressor.MIN_PTSB:
                 # DPTSB
@@ -304,92 +287,49 @@ class FileProgressor:
                     )
                 progress_bar = self._progress_bar_string(progress_bar_inner_width, ratio)
 
-                progress_line = FileProgressor.FMT_DPTSB.format(
-                            D.ljust(D_space),
-                            progress_bar,
-                            P.rjust(FileProgressor.LEN_P),
-                            T.rjust(FileProgressor.LEN_T),
-                            S.rjust(FileProgressor.LEN_S)
-                        )
+                remaining_space_filling = FileProgressor.FMT_PTSB.format(
+                    progress_bar,
+                    P.rjust(FileProgressor.LEN_P),
+                    T.rjust(FileProgressor.LEN_T),
+                    S.rjust(FileProgressor.LEN_S)
+                )
 
+                # log.d("len(progress_bar_in) %d", progress_bar_inner_width)
+                # log.d("len(progress_bar)    %d", progress_bar_inner_width + 2)
+                # log.d("P                    %d", len(P.rjust(FileProgressor.LEN_P)))
+                # log.d("T                    %d", len(T.rjust(FileProgressor.LEN_T)))
+                # log.d("S                    %d", len(S.rjust(FileProgressor.LEN_S)))
 
-                log.d("len(progress_bar)    %d", len(progress_bar))
-                log.d("len(progress_bar_in) %d", progress_bar_inner_width)
-                log.d("P                    %d", len(P.rjust(FileProgressor.LEN_P)))
-                log.d("T                    %d", len(T.rjust(FileProgressor.LEN_T)))
-                log.d("S                    %d", len(S.rjust(FileProgressor.LEN_S)))
 
             elif remaining_space >= FileProgressor.MIN_PTS:
-                progress_line = FileProgressor.FMT_DPTS.format(
-                    D.ljust(D_space),
+                remaining_space_filling = FileProgressor.FMT_PTS.format(
                     P.rjust(FileProgressor.LEN_P),
                     T.rjust(FileProgressor.LEN_T),
                     S.rjust(FileProgressor.LEN_S)
                 )
             # DPT
             elif remaining_space >= FileProgressor.MIN_PT:
-                progress_line = FileProgressor.FMT_DPT.format(
-                    D.ljust(D_space),
+                remaining_space_filling = FileProgressor.FMT_PT.format(
                     P.rjust(FileProgressor.LEN_P),
-                    T.rjust(FileProgressor.LEN_T)
+                    T.rjust(FileProgressor.LEN_T),
                 )
             # DP
             elif remaining_space >= FileProgressor.MIN_P:
-                progress_line = FileProgressor.FMT_DP.format(
-                    D.ljust(D_space),
-                    P.rjust(FileProgressor.LEN_P)
+                remaining_space_filling = FileProgressor.FMT_P.format(
+                    P.rjust(FileProgressor.LEN_P),
                 )
             # D
             else:
-                progress_line = FileProgressor.FMT_D.format(
-                    D.ljust(D_space)
-                )
+                remaining_space_filling = ""
 
-            if len(progress_line) >= cols:
-                log.d("Available: %d", cols)
-                log.d("Would use: %d", len(progress_line))
-                # assert len(progress_line) < cols
+            progress_line = \
+                D.ljust(D_space) + remaining_space_filling.rjust(remaining_space)
+
+            # assert len(D.ljust(D_space)) == D_space
+            # assert len(remaining_space_filling.rjust(remaining_space)) == remaining_space
+            # assert len(progress_line) == cols
 
             print(progress_line, end="\r" if inline else "\n")
-
-            #
-            # # WPTSB
-            # if cols >= Wlen + FileProgressor.MIN_PTSB:
-            #
-            #     progress_bar_inner_width = \
-            #         cols - (Wlen +
-            #                 FileProgressor.LEN_P +
-            #                 FileProgressor.LEN_T +
-            #                 FileProgressor.LEN_S +
-            #                 FileProgressor.S_WPTSB +
-            #                 2 * len("|"))
-            #
-            #     progress_bar_inner_width = min(
-            #         progress_bar_inner_width,
-            #         FileProgressor.PROGRESS_BAR_MAX_INNER_WIDTH
-            #     )
-            #
-            #
-            #     W_width = \
-            #         cols - (FileProgressor.LEN_P +
-            #                 FileProgressor.LEN_T +
-            #                 FileProgressor.LEN_S +
-            #                 FileProgressor.S_WPTSB +
-            #                 progress_bar_inner_width +
-            #                 2 * len("|"))
-            #
-            #     progress_bar = self._progress_bar_string(progress_bar_inner_width, ratio)
-            #
-            #     progress_line = FileProgressor.FMT_WPTSB.format(
-            #         W.ljust(W_width),
-            #         progress_bar,
-            #         P.rjust(FileProgressor.LEN_P),
-            #         T.rjust(FileProgressor.LEN_T),
-            #         S.rjust(FileProgressor.LEN_S)
-            #     )
-            # # WPTS
-            #
-
 
     def done(self):
         self.update(self.total, force=True, inline=False, time_instead_speed=True)
@@ -417,7 +357,7 @@ class FileProgressor:
 
 if __name__ == "__main__":
     enable_colors()
-    # get_logger(__name__, force_initialize=True).set_verbosity(logging.VERBOSITY_DEBUG)
+    get_logger(__name__, force_initialize=True).set_verbosity(logging.VERBOSITY_ERROR)
 
     def simulate_file_progression(name: str, tot: int,
                                   delta_b=4096, delta_t=0.001):
@@ -426,9 +366,9 @@ if __name__ == "__main__":
                               description=name,
                               # ui_fps=fps,
                               # speed_fps=sfps,
-                              color_progress=Color.BLUE,
+                              # color_progress=Color.BLUE,
                               # progress_bar_style=ProgressBarStyle.ASCII,
-                              color_done=Color.GREEN
+                              # color_done=Color.GREEN
                               )
         part = 0
 

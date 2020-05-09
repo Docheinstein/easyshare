@@ -15,6 +15,7 @@ from easyshare.server.services.get import GetService
 from easyshare.server.common import try_or_command_failed_response
 from easyshare.server.services.put import PutService
 from easyshare.server.sharing import Sharing
+from easyshare.shared.common import transfer_port
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.os import ls, tree, cp, mv, rm
 from easyshare.utils.pyro import pyro_client_endpoint, trace_api
@@ -337,7 +338,7 @@ class SharingService(ISharingService, ClientSharingService):
     @trace_api
     @try_or_command_failed_response
     @check_service_owner
-    def get(self, paths: List[str]) -> Response:
+    def get(self, paths: List[str], check: bool = False) -> Response:
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< GET %s [%s]", str(paths), str(client_endpoint))
@@ -355,7 +356,8 @@ class SharingService(ISharingService, ClientSharingService):
 
         get = GetService(
             real_paths,
-            port=self._server_port + 1,
+            check=check,
+            port=transfer_port(self._server_port),
             sharing=self._sharing,
             sharing_rcwd=self._rcwd,
             client=self._client,
@@ -386,7 +388,7 @@ class SharingService(ISharingService, ClientSharingService):
 
         put = PutService(
             check=check,
-            port=self._server_port + 1,
+            port=transfer_port(self._server_port),
             sharing=self._sharing,
             sharing_rcwd=self._rcwd,
             client=self._client,

@@ -20,7 +20,7 @@ from easyshare.client.discover import Discoverer
 from easyshare.client.errors import ClientErrors, print_error
 from easyshare.client.serverconnection import ServerConnection, ServerConnectionMinimal
 from easyshare.client.ui import print_files_info_list, print_files_info_tree, \
-    sharings_to_pretty_str, server_info_to_pretty_str
+    sharings_to_pretty_str, server_info_to_pretty_str, ask_overwrite
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
@@ -29,10 +29,12 @@ from easyshare.protocol.exposed import IRexecService, IGetService, IPutService
 from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
+from easyshare.server.services.base.transfer import TransferService
 from easyshare.shared.args import Args
 from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR, DEFAULT_SERVER_PORT, pyro_uri, transfer_port
 from easyshare.shared.endpoint import Endpoint
 from easyshare.shared.progress import FileProgressor
+from easyshare.shared.timer import Timer
 from easyshare.ssl import get_ssl_context
 from easyshare.socket.tcp import SocketTcpOut
 from easyshare.utils.app import eprint
@@ -41,7 +43,7 @@ from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.pyro import TracedPyroProxy
 from easyshare.utils.str import unprefix
 from easyshare.utils.time import duration_str, duration_str_human
-from easyshare.utils.types import bool_to_str, bytes_to_str, int_to_bytes
+from easyshare.utils.types import bool_to_str, bytes_to_str, int_to_bytes, bytes_to_int
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, size_str, speed_str, relpath
 from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM, ArgsParseError
 
@@ -136,27 +138,31 @@ class PingArgs(PositionalArgs):
         ]
 
 class GetArgs(VariadicArgs):
-    YES_TO_ALL = ["-Y", "--yes"]
-    NO_TO_ALL = ["-N", "--no"]
+    YES_TO_ALL = ["-y", "--yes"]
+    NO_TO_ALL = ["-n", "--no"]
     CHECK = ["-c", "--check"]
+    QUIET = ["-q", "--quiet"]
 
     def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
         return [
             KwArgSpec(GetArgs.YES_TO_ALL, PRESENCE_PARAM),
             KwArgSpec(GetArgs.NO_TO_ALL, PRESENCE_PARAM),
             KwArgSpec(GetArgs.CHECK, PRESENCE_PARAM),
+            KwArgSpec(GetArgs.QUIET, PRESENCE_PARAM),
         ]
 
 class PutArgs(VariadicArgs):
-    YES_TO_ALL = ["-Y", "--yes"]
-    NO_TO_ALL = ["-N", "--no"]
+    YES_TO_ALL = ["-y", "--yes"]
+    NO_TO_ALL = ["-n", "--no"]
     CHECK = ["-c", "--check"]
+    QUIET = ["-q", "--quiet"]
 
     def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
         return [
             KwArgSpec(PutArgs.YES_TO_ALL, PRESENCE_PARAM),
             KwArgSpec(PutArgs.NO_TO_ALL, PRESENCE_PARAM),
             KwArgSpec(PutArgs.CHECK, PRESENCE_PARAM),
+            KwArgSpec(GetArgs.QUIET, PRESENCE_PARAM),
         ]
 
 
@@ -175,11 +181,14 @@ def ensure_success_response(resp: Response):
     if not is_success_response(resp):
         raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
-def ensure_data_response(resp: Response):
+def ensure_data_response(resp: Response, *data_fields):
     if is_error_response(resp):
         raise BadOutcome(resp.get("error"))
     if not is_data_response(resp):
         raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+    for data_field in data_fields:
+        if data_field not in resp.get("data"):
+            raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
 
 API = TypeVar('API', bound=Callable[..., None])
@@ -823,12 +832,12 @@ class Client:
 
         i = 1
         while not count or i <= count:
-            start = time.monotonic_ns()
+            timer = Timer(start=True)
             resp = server_conn.ping()
-            end = time.monotonic_ns()
+            timer.stop()
 
             if is_data_response(resp) and resp.get("data") == "pong":
-                print("[{}] OK      time={:.1f}ms".format(i, (end - start) * 1e-6))
+                print("[{}] OK      time={:.1f}ms".format(i, timer.elapsed_ms()))
             else:
                 print("[{}] FAIL")
 
@@ -1029,24 +1038,26 @@ class Client:
 
         files = args.get_vargs()
 
-        resp = sharing_conn.get(files)
-        ensure_data_response(resp)
+        do_check = PutArgs.CHECK in args
+        quiet = PutArgs.QUIET in args
 
-        get_service_uri = resp.get("data").get("uri")
-        get_transfer_port = resp.get("data").get("transfer_port")
+        resp = sharing_conn.get(files, check=do_check)
+        ensure_data_response(resp, "uid")
 
-        if not get_service_uri or not get_transfer_port:
-            raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-
-        log.i("Successfully GETed")
+        # Compute the remote daemon URI from the uid of the get() response
+        get_service_uri = pyro_uri(resp.get("data").get("uid"),
+                                   self.server_connection.server_ip(),
+                                   self.server_connection.server_port())
+        log.d("Remote GetService URI: %s", get_service_uri)
 
         # Raw transfer socket
         transfer_socket = SocketTcpOut(
-            sharing_conn.server_info.get("ip"),
-            get_transfer_port,
+            address=sharing_conn.server_info.get("ip"),
+            port=transfer_port(sharing_conn.server_info.get("port")),
             ssl_context=get_ssl_context(),
         )
 
+        # Overwrite preference
         overwrite_all: Optional[bool] = None
 
         if GetArgs.YES_TO_ALL in args:
@@ -1055,7 +1066,15 @@ class Client:
             overwrite_all = False
 
         log.i("Overwrite all mode: %s", bool_to_str(overwrite_all))
-        
+
+        # Stats
+
+        progressor = None
+
+        timer = Timer(start=True)
+        tot_bytes = 0
+        n_files = 0
+
         # Proxy
 
         get_service: Union[TracedPyroProxy, IGetService]
@@ -1064,9 +1083,23 @@ class Client:
 
             while True:
                 log.i("Fetching another file info")
-                get_next_resp = get_service.next()
+                # The first next() fetch never implies a new file to be put
+                # on the transfer socket.
+                # We have to check whether we want to eventually overwrite
+                # the file, and then tell the server next() if
+                # 1. Really transfer the file
+                # 2. Skip the file
 
-                log.i("get_next_info()\n%s", get_next_resp)
+                will_transfer = overwrite_all is True
+                will_seek = not will_transfer
+
+                log.i("Action: %s", "transfer" if will_transfer else "seek")
+                get_next_resp = get_service.next(
+                    # Transfer immediately since we won't ask to the user
+                    # whether overwrite or not
+                    transfer=will_transfer
+                )
+
                 ensure_success_response(get_next_resp)  # it might be without data
 
                 next_file: FileInfo = get_next_resp.get("data")
@@ -1081,23 +1114,17 @@ class Client:
 
                 log.i("NEXT: %s of type %s", fname, ftype)
 
-                progressor = FileProgressor(
-                    fsize,
-                    description="GET " + fname,
-                    color_progress=PROGRESS_COLOR,
-                    color_done=DONE_COLOR
-                )
-
                 # Case: DIR
                 if ftype == FTYPE_DIR:
                     log.i("Creating dirs %s", fname)
                     os.makedirs(fname, exist_ok=True)
-                    progressor.done()
-                    continue
+                    if not quiet:
+                        progressor.done()
+                    continue  # No FTYPE_FILE => neither skip nor transfer for next()
 
                 if ftype != FTYPE_FILE:
                     log.w("Cannot handle this ftype")
-                    continue
+                    continue  # No FTYPE_FILE => neither skip nor transfer for next()
 
                 # Case: FILE
                 parent_dirs, _ = os.path.split(fname)
@@ -1105,50 +1132,50 @@ class Client:
                     log.i("Creating parent dirs %s", parent_dirs)
                     os.makedirs(parent_dirs, exist_ok=True)
 
-                # Check wheter it already exists
+                # Check whether it already exists
                 if os.path.isfile(fname):
                     log.w("File already exists, asking whether overwrite it (if needed)")
 
-                    # Ask whether overwrite just once or forever
-                    current_overwrite_decision = overwrite_all
+                    # Overwrite handling
 
-                    # Ask until we get a valid answer
-                    while current_overwrite_decision is None:
+                    timer.stop() # Don't take the user time into account
+                    current_overwrite_decision, overwrite_all = \
+                        ask_overwrite(fname, current_default=overwrite_all)
+                    timer.start()
 
-                        overwrite_answer = input(
-                            "{} already exists, overwrite it? [Y : yes / yy : yes to all / n : no / nn : no to all] "
-                                .format(fname)
-                        ).lower()
+                    log.d("Overwrite decision: %s", current_overwrite_decision)
 
-                        if not overwrite_answer or overwrite_answer == "y":
-                            current_overwrite_decision = True
-                        elif overwrite_answer == "n":
-                            current_overwrite_decision = False
-                        elif overwrite_answer == "yy":
-                            current_overwrite_decision = overwrite_all = True
-                        elif overwrite_answer == "nn":
-                            current_overwrite_decision = overwrite_all = False
-                        else:
-                            log.w("Invalid answer, asking again")
-
-                    if current_overwrite_decision is False:
-                        log.i("Skipping " + fname)
+                    if will_seek and current_overwrite_decision is False:
+                        log.d("Would have seek, have to tell server to skip %s", fname)
+                        get_next_resp = get_service.next(skip=True)
+                        ensure_success_response(get_next_resp)
                         continue
-                    else:
-                        log.d("Will overwrite file")
 
-                log.i("Opening file '{}' locally".format(fname))
-                file = open(fname, "wb")
-                log.i("Opened {}".format(fname))
+                # Eventually tell the server to begin the transfer
+                # We have to call it now because the server can't know
+                # in advance if we want or not overwrite the file
+                if will_seek:
+                    log.d("Would have seek, have to tell server to transfer %s", fname)
+                    get_next_resp = get_service.next(transfer=True)
+                    ensure_success_response(get_next_resp)
+                # else: file already put into the transer socket
 
-                # Really get it
+                if not quiet:
+                    progressor = FileProgressor(
+                        fsize,
+                        description="GET " + fname,
+                        color_progress=PROGRESS_COLOR,
+                        color_done=DONE_COLOR
+                    )
 
-                BUFFER_SIZE = 4096
+                log.i("Opening %s locally", fname)
+                f = open(fname, "wb")
 
-                read = 0
+                cur_pos = 0
+                expected_crc = 0
 
-                while read < fsize:
-                    recv_size = min(BUFFER_SIZE, fsize - read)
+                while cur_pos < fsize:
+                    recv_size = min(TransferService.BUFFER_SIZE, fsize - cur_pos)
                     log.i("Waiting chunk... (expected size: %dB)", recv_size)
 
                     chunk = transfer_socket.recv(recv_size)
@@ -1159,30 +1186,76 @@ class Client:
 
                     chunk_len = len(chunk)
 
-                    log.i("Read chunk of %dB", chunk_len)
+                    log.i("Received chunk of %dB", chunk_len)
 
-                    written_chunk_len = file.write(chunk)
+                    written_chunk_len = f.write(chunk)
 
                     if chunk_len != written_chunk_len:
-                        log.w("Written less bytes than expected: something will go wrong")
-                        exit(-1)
+                        log.e("Written less bytes than expected; file will probably be corrupted")
+                        return # Really don't know how to recover from this disaster
 
-                    read += written_chunk_len
-                    log.i("%d/%d (%.2f%%)", read, fsize, read / fsize * 100)
-                    progressor.update(read)
+                    cur_pos += chunk_len
+                    tot_bytes += chunk_len
 
-                progressor.done()
+                    if do_check:
+                        # Eventually update the CRC
+                        expected_crc = zlib.crc32(chunk, expected_crc)
+
+                    if not quiet:
+                        progressor.update(cur_pos)
+
+
                 log.i("DONE %s", fname)
-                file.close()
+                log.d("- crc = %d", expected_crc)
 
-                if os.path.getsize(fname) == fsize:
-                    log.d("File OK (length match)")
-                else:
-                    log.e("File length mismatch. %d != %d",
-                      os.path.getsize(fname), fsize)
+                f.close()
 
-        log.i("GET transaction finished, closing socket")
-        transfer_socket.close()
+                # Eventually do CRC check
+                if do_check:
+                    # CRC check on the received bytes
+                    crc = bytes_to_int(transfer_socket.recv(4))
+                    if expected_crc != crc:
+                        log.e("Wrong CRC; transfer failed. expected=%d | written=%d",
+                              expected_crc, crc)
+                        return # Really don't know how to recover from this disaster
+                    else:
+                        log.d("CRC check: OK")
+
+                    # Length check on the written file
+                    written_size = os.path.getsize(fname)
+                    if written_size != fsize:
+                        log.e("File length mismatch; transfer failed. expected=%s ; written=%d",
+                              fsize, written_size)
+                        return # Really don't know how to recover from this disaster
+                    else:
+                        log.d("File length check: OK")
+
+                n_files += 1
+                if not quiet:
+                    progressor.done()
+
+            # Wait for completion
+            outcome_resp = get_service.outcome()
+            ensure_data_response(outcome_resp)
+            outcome = outcome_resp.get("data")
+
+            timer.stop()
+            elapsed_s = timer.elapsed_s()
+
+            transfer_socket.close()
+
+            log.i("GET outcome: %d", outcome)
+
+            if outcome > 0:
+                log.e("GET reported an error: %d", outcome)
+                raise BadOutcome(outcome)
+
+
+            print("GET outcome: OK")
+            print("Files        {}  ({})".format(n_files, size_str(tot_bytes)))
+            print("Time         {}".format(duration_str_human(round(elapsed_s))))
+            print("Avg. speed   {}".format(speed_str(tot_bytes / elapsed_s)))
+
 
     @provide_sharing_connection
     def put(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
@@ -1197,21 +1270,16 @@ class Client:
             files = ["."]
 
         do_check = PutArgs.CHECK in args
+        quiet = PutArgs.QUIET in args
+
         resp = sharing_conn.put(check=do_check)
-        ensure_data_response(resp)
+        ensure_data_response(resp, "uid")
 
-        put_service_uid = resp.get("data").get("uid")
-
-        if not put_service_uid:
-            raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-
-        put_service_uri = pyro_uri(put_service_uid,
+        # Compute the remote daemon URI from the uid of the get() response
+        put_service_uri = pyro_uri(resp.get("data").get("uid"),
                                    self.server_connection.server_ip(),
                                    self.server_connection.server_port())
         log.d("Remote PutService URI: %s", put_service_uri)
-
-        # time.sleep(7)
-        log.i("Successfully PUTed")
 
         # Raw transfer socket
         transfer_socket = SocketTcpOut(
@@ -1266,11 +1334,15 @@ class Client:
 
         log.i("Overwrite all mode: %s", bool_to_str(overwrite_all))
 
-        # Proxy
+        # Stats
 
-        start_ns = time.monotonic_ns()
+        progressor = None
+
+        timer = Timer(start=True)
         tot_bytes = 0
         n_files = 0
+
+        # Proxy
 
         put_service: Union[TracedPyroProxy, IPutService]
 
@@ -1310,27 +1382,10 @@ class Client:
                 if is_data_response(put_next_resp) and \
                         put_next_resp.get("data") == "ask_overwrite":
 
-                    # Ask whether overwrite just once or forever
-                    current_overwrite_decision = overwrite_all
-
-                    # Ask until we get a valid answer
-                    while current_overwrite_decision is None:
-
-                        overwrite_answer = input(
-                            "{} already exists, overwrite it? [Y : yes / yy : yes to all / n : no / nn : no to all] "
-                                .format(remote_path)
-                        ).lower()
-
-                        if not overwrite_answer or overwrite_answer == "y":
-                            current_overwrite_decision = True
-                        elif overwrite_answer == "n":
-                            current_overwrite_decision = False
-                        elif overwrite_answer == "yy":
-                            current_overwrite_decision = overwrite_all = True
-                        elif overwrite_answer == "nn":
-                            current_overwrite_decision = overwrite_all = False
-                        else:
-                            log.w("Invalid answer, asking again")
+                    timer.stop() # Don't take the user time into account
+                    current_overwrite_decision, overwrite_all =\
+                        ask_overwrite(remote_path, current_default=overwrite_all)
+                    timer.start()
 
                     if current_overwrite_decision is False:
                         log.i("Skipping " + remote_path)
@@ -1344,21 +1399,21 @@ class Client:
                 if local_path.startswith(os.getcwd()):
                     local_path_pretty = relpath(unprefix(local_path_pretty, os.getcwd()))
 
-                progressor = FileProgressor(
-                    fsize,
-                    description="PUT " + local_path_pretty,
-                    color_progress=PROGRESS_COLOR,
-                    color_done=DONE_COLOR
-                )
+                if not quiet:
+                    progressor = FileProgressor(
+                        fsize,
+                        description="PUT " + local_path_pretty,
+                        color_progress=PROGRESS_COLOR,
+                        color_done=DONE_COLOR
+                    )
 
                 if ftype == FTYPE_DIR:
                     log.d("Sent a DIR, nothing else to do")
-                    progressor.done()
+                    if not quiet:
+                        progressor.done()
                     return
 
-                log.d("Actually sending the file")
-
-                BUFFER_SIZE = 4096
+                log.i("Opening %s locally", local_path)
 
                 f = open(local_path, "rb")
 
@@ -1369,10 +1424,10 @@ class Client:
                     # r = random.random() * 0.001
                     # time.sleep(0.001 + r)
 
-                    chunk = f.read(BUFFER_SIZE)
-                    chunklen = len(chunk)
+                    chunk = f.read(TransferService.BUFFER_SIZE)
+                    chunk_len = len(chunk)
 
-                    log.i("Read chunk of %dB", chunklen)
+                    log.i("Read chunk of %dB", chunk_len)
 
                     # CRC check update
                     if do_check:
@@ -1385,9 +1440,10 @@ class Client:
 
                     transfer_socket.send(chunk)
 
-                    cur_pos += chunklen
-                    tot_bytes += chunklen
-                    progressor.update(cur_pos)
+                    cur_pos += chunk_len
+                    tot_bytes += chunk_len
+                    if not quiet:
+                        progressor.update(cur_pos)
 
                 log.i("DONE %s", local_path)
                 log.d("- crc = %d", crc)
@@ -1396,9 +1452,10 @@ class Client:
                     transfer_socket.send(int_to_bytes(crc, 4))
 
                 f.close()
-                n_files += 1
 
-                progressor.done()
+                n_files += 1
+                if not quiet:
+                    progressor.done()
 
 
             while sendfiles:
@@ -1461,10 +1518,12 @@ class Client:
             # Wait for completion
             outcome_resp = put_service.outcome()
             ensure_data_response(outcome_resp)
-
             outcome = outcome_resp.get("data")
 
-            end_ns = time.monotonic_ns()
+            timer.stop()
+            elapsed_s = timer.elapsed_s()
+
+            transfer_socket.close()
 
             log.i("PUT outcome: %d", outcome)
 
@@ -1472,13 +1531,11 @@ class Client:
                 log.e("PUT reported an error: %d", outcome)
                 raise BadOutcome(outcome)
 
-
-            delta_ns = (end_ns - start_ns)
-
-            print("Transfer OK")
+            print("PUT outcome: OK")
             print("Files        {}  ({})".format(n_files, size_str(tot_bytes)))
-            print("Time         {}".format(duration_str_human(round(delta_ns * 1e-9))))
-            print("Avg. speed   {}".format(speed_str(tot_bytes * 1e9 / delta_ns)))
+            print("Time         {}".format(duration_str_human(round(elapsed_s))))
+            print("Avg. speed   {}".format(speed_str(tot_bytes / elapsed_s)))
+
 
     @staticmethod
     def _ls(args: Args,

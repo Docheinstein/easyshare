@@ -135,8 +135,8 @@ class SharingConnection:
 
     @handle_sharing_response
     @require_sharing_connection
-    def get(self, files: List[str]) -> Response:
-        return self.service.get(files)
+    def get(self, files: List[str], check: bool) -> Response:
+        return self.service.get(files, check)
 
     @handle_sharing_response
     @require_sharing_connection

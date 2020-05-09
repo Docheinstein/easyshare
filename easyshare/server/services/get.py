@@ -3,63 +3,64 @@ import queue
 import random
 import threading
 import time
+import zlib
 from typing import List, Callable
 
 from Pyro5.server import expose
 
 from easyshare.logging import get_logger
+from easyshare.protocol.errors import TransferOutcomes
 from easyshare.protocol.exposed import IGetService
 from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
-from easyshare.protocol.response import Response, create_success_response
+from easyshare.protocol.response import Response, create_success_response, create_error_response
 from easyshare.server.client import ClientContext
 from easyshare.server.common import try_or_command_failed_response
 from easyshare.server.services.base.service import check_service_owner, ClientService
 
 from easyshare.server.services.base.sharingservice import ClientSharingService
+from easyshare.server.services.base.transfer import TransferService
 from easyshare.server.sharing import Sharing
-from easyshare.socket.tcp import SocketTcpAcceptor
-from easyshare.ssl import get_ssl_context
 from easyshare.utils.pyro import trace_api, pyro_client_endpoint
+from easyshare.utils.types import int_to_bytes
 
 log = get_logger(__name__)
 
 
-class GetService(IGetService, ClientSharingService):
-    BUFFER_SIZE = 4096
-
+class GetService(IGetService, TransferService):
     def __init__(self,
                  files: List[str],
+                 check: bool,
                  port: int,
                  sharing: Sharing,
                  sharing_rcwd,
                  client: ClientContext,
                  end_callback: Callable[[ClientService], None]):
-        super().__init__(sharing, sharing_rcwd, client, end_callback)
+        super().__init__(port, sharing, sharing_rcwd, client, end_callback)
+        self._check = check
         self._next_servings = files
         self._active_servings = queue.Queue()
-        self._transfer_acceptor_sock = SocketTcpAcceptor(ssl_context=get_ssl_context())
-
-
-    def transfer_port(self) -> int:
-        return self._transfer_acceptor_sock.port()
-
-    def run(self):
-        th = threading.Thread(target=self._run, daemon=True)
-        th.start()
 
     @expose
     @trace_api
     @check_service_owner
     @try_or_command_failed_response
-    def next(self) -> Response:
+    def next(self, transfer: bool = False, skip: bool = False) -> Response:
+        if self._outcome:
+            log.e("Transfer already closed")
+            return create_error_response(TransferOutcomes.TRANSFER_CLOSED)
+
         client_endpoint = pyro_client_endpoint()
 
-        log.i("<< GET_NEXT [%s]", str(client_endpoint))
+        log.i("<< GET_NEXT mode = %s [%s]", str(client_endpoint),
+              "transfer" if transfer else ("skip" if skip else "seek"))
 
         while len(self._next_servings) > 0:
-
             # Get next file (or dir)
-            next_file_path = self._next_servings.pop()
+            # Do not pop it now: either transfer os skip must be specified
+            # for a regular file before being popped out
+            # (In this way we can handle cases in which the client don't
+            # want to receive the file (because of overwrite, or anything else)
+            next_file_path = self._next_servings[len(self._next_servings) - 1]
 
             log.i("Next file path: %s", next_file_path)
 
@@ -80,10 +81,17 @@ class GetService(IGetService, ClientSharingService):
 
             # Case: FILE
             if os.path.isfile(next_file_path):
-
                 log.i("NEXT FILE: %s", next_file_path)
 
-                self._active_servings.put(next_file_path)
+                # Pop only if transfer or skip is specified
+                if transfer or skip:
+                    log.d("Popping file out (transfer OR skip specified for FTYPE_FILE)")
+                    next_file_path = self._next_servings.pop()
+                    if transfer:
+                        # Actually put the file on the queue of the files
+                        # to be send through the transfer socket
+                        log.d("Actually adding file to the transfer queue")
+                        self._active_servings.put(next_file_path)
 
                 return create_success_response({
                     "name": trail,
@@ -93,6 +101,9 @@ class GetService(IGetService, ClientSharingService):
 
             # Case: DIR
             elif os.path.isdir(next_file_path):
+                # Pop it now
+                self._next_servings.pop()
+
                 # Directory found
                 dir_files = sorted(os.listdir(next_file_path), reverse=True)
 
@@ -113,6 +124,8 @@ class GetService(IGetService, ClientSharingService):
                     })
             # Case: UNKNOWN (non-existing/link/special files/...)
             else:
+                # Pop it now
+                self._next_servings.pop()
                 log.w("Not file nor dir? skipping %s", next_file_path)
 
         log.i("No remaining files")
@@ -123,81 +136,55 @@ class GetService(IGetService, ClientSharingService):
 
 
     def _run(self):
-        if not self._transfer_acceptor_sock:
-            log.e("Socket acceptor invalid")
-            return
-
-        log.d("Starting GetService")
-
         while True:
-            log.d("Waiting client connection...")
-            transfer_sock, client_endpoint = self._transfer_acceptor_sock.accept()
-            self._transfer_acceptor_sock.close()
-
-            # Check that the new client endpoint matches the expect one
-            if client_endpoint[0] != self._client.endpoint[0]:
-                log.e("Unexpected client connected: forbidden")
-                transfer_sock.close()
-                continue
-
-            log.i("Received connection from valid client %s", client_endpoint)
-            break
-
-        go_ahead = True
-
-        while go_ahead:
-            log.d("blocking wait on next_servings")
+            log.d("Blocking and waiting for a file to handle...")
 
             # Send files until the servings buffer is empty
             # Wait on the blocking queue for the next file to send
             next_serving = self._active_servings.get()
 
             if not next_serving:
-                log.i("No more files: END")
+                log.i("No more files: transfer completed")
                 break
 
-            log.i("Next serving: %s", next_serving)
+            log.i("Next outgoing file to handle: %s", next_serving)
+            file_len = os.path.getsize(next_serving)
 
             f = open(next_serving, "rb")
             cur_pos = 0
-            file_len = os.path.getsize(next_serving)
+            crc = 0
 
             # Send file
             while cur_pos < file_len:
-                # r = random.random() * 0.001
-                # time.sleep(0.001 + r)
+                readlen = min(file_len - cur_pos, TransferService.BUFFER_SIZE)
 
-                chunk = f.read(GetService.BUFFER_SIZE)
+                # Read from file
+                chunk = f.read(readlen)
+
                 if not chunk:
-                    log.i("Finished %s", next_serving)
+                    # EOF
+                    log.i("Finished to handle: %s", next_serving)
                     break
 
                 log.i("Read chunk of %dB", len(chunk))
                 cur_pos += len(chunk)
 
-                try:
-                    log.d("sending chunk...")
-                    transfer_sock.send(chunk)
-                    log.d("sending chunk DONE")
-                except Exception as ex:
-                    log.e("send error %s", ex)
-                    # Abort transaction
-                    go_ahead = False
-                    break
+                if self._check:
+                    # Eventually update the CRC
+                    crc = zlib.crc32(chunk, crc)
 
-                log.i("%d/%d (%.2f%%)", cur_pos, file_len, cur_pos / file_len * 100)
+                log.d("%d/%d (%.2f%%)", cur_pos, file_len, cur_pos / file_len * 100)
+
+                self._transfer_sock.send(chunk)
 
             log.i("Closing file %s", next_serving)
             f.close()
 
-        log.i("Transaction handler job finished")
+            # Eventually send the CRC in-band
+            if self._check:
+                log.d("Sending CRC: %d", crc)
+                self._transfer_sock.send(int_to_bytes(crc, 4))
 
-        transfer_sock.close()
+        log.i("GET finished")
 
-        self._notify_service_end()
-
-    def abort(self):
-        log.i("aborting transaction")
-        with self._active_servings.mutex:
-            self._active_servings.queue.clear()
-            self._active_servings.put(None)
+        self._success()

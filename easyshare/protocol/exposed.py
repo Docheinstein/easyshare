@@ -17,7 +17,7 @@ class ITransferService(ABC):
 
 class IGetService(ITransferService):
     @abstractmethod
-    def next(self) -> Response:
+    def next(self, transfer: bool = False, skip: bool = False) -> Response:
         pass
 
 
@@ -88,7 +88,7 @@ class ISharingService(ABC):
         pass
 
     @abstractmethod
-    def get(self, files: List[str]) -> Response:
+    def get(self, files: List[str], check: bool) -> Response:
         pass
 
     @abstractmethod

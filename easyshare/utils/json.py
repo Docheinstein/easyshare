@@ -1,19 +1,20 @@
 import json
+from typing import Union
 
 from easyshare.utils.types import str_to_bytes
 
 
-def json_to_str(d: dict, pretty=False) -> str:
+def json_to_str(d: Union[dict, list], pretty=False) -> str:
     if pretty:
         return json.dumps(d, indent=4)
     return json.dumps(d, separators=(",", ":"))
 
 
-def json_to_pretty_str(d: dict, pretty=False) -> str:
+def json_to_pretty_str(d: Union[dict, list]) -> str:
     return json_to_str(d, pretty=True)
 
 
-def json_to_bytes(d: dict) -> bytes:
+def json_to_bytes(d: Union[dict, list]) -> bytes:
     return str_to_bytes(json_to_str(d))
 
 

@@ -1,5 +1,5 @@
 from math import ceil
-from typing import List
+from typing import List, Optional, Tuple
 
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo
@@ -229,3 +229,33 @@ def sharings_to_pretty_str(sharings: List[SharingInfo], details: bool = False) -
             s += sharing_string(fsh)
 
     return s.rstrip("\n")
+
+
+def ask_overwrite(fname: str, current_default: Optional[bool]) \
+        -> Tuple[bool, bool]: # decision, new_default
+
+    # Ask whether overwrite just once or forever
+    decision = current_default
+
+    # Ask until we get a valid answer
+    while decision is None:
+
+        overwrite_answer = input(
+            "{} already exists, overwrite it? [Y : yes / yy : yes to all / n : no / nn : no to all] "
+                .format(fname)
+        ).lower()
+
+        if not overwrite_answer or overwrite_answer == "y":
+            decision = True
+        elif overwrite_answer == "n":
+            decision = False
+        elif overwrite_answer == "yy":
+            decision = True
+            current_default = True
+        elif overwrite_answer == "nn":
+            decision = False
+            current_default = False
+        else:
+            log.w("Invalid answer, asking again")
+
+    return decision, current_default
