@@ -50,5 +50,5 @@ def is_error_response(resp: Response, error_code=None) -> bool:
         resp and \
         is_dict(resp) and \
         resp.get("success") is False and \
-        is_int(resp.get("error")) or is_str(resp.get("error")) and \
-        (not error_code or resp.get("error") == error_code)
+        (is_int(resp.get("error")) or is_str(resp.get("error"))) and \
+        (error_code is None or resp.get("error") == error_code)

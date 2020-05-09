@@ -60,6 +60,8 @@ class EsdArgs(ArgsParser):
     DISCOVER_PORT = ["-d", "--discover-port"]
     PASSWORD = ["-P", "--password"]
 
+    REXEC = ["-e", "--rexec"]
+
     VERBOSE =   ["-v", "--verbose"]
     TRACE =     ["-t", "--trace"]
     NO_COLOR =  ["--no-color"]
@@ -79,6 +81,8 @@ class EsdArgs(ArgsParser):
             KwArgSpec(EsdArgs.DISCOVER_PORT, INT_PARAM),
             KwArgSpec(EsdArgs.PASSWORD, STR_PARAM),
 
+            KwArgSpec(EsdArgs.REXEC, PRESENCE_PARAM),
+
             KwArgSpec(EsdArgs.VERBOSE, INT_PARAM_OPT),
             KwArgSpec(EsdArgs.TRACE, INT_PARAM_OPT),
             KwArgSpec(EsdArgs.NO_COLOR, PRESENCE_PARAM),
@@ -97,6 +101,7 @@ class EsdConfKeys:
     G_SSL = "ssl"
     G_SSL_CERT = "ssl_cert"
     G_SSL_PRIVKEY = "ssl_privkey"
+    G_REXEC = "rexec"
 
     G_VERBOSE =   "verbose"
     G_TRACE =     "trace"
@@ -106,6 +111,7 @@ class EsdConfKeys:
     S_READONLY = "readonly"
 
 ESD_CONF_SPEC = {
+    # global server settings
     None: {
         EsdConfKeys.G_NAME: STR_VAL,
         EsdConfKeys.G_ADDRESS: STR_VAL,
@@ -115,11 +121,13 @@ ESD_CONF_SPEC = {
         EsdConfKeys.G_SSL: BOOL_VAL,
         EsdConfKeys.G_SSL_CERT: STR_VAL,
         EsdConfKeys.G_SSL_PRIVKEY: STR_VAL,
+        EsdConfKeys.G_REXEC: BOOL_VAL,
 
         EsdConfKeys.G_VERBOSE: INT_VAL,
         EsdConfKeys.G_TRACE: INT_VAL,
         EsdConfKeys.G_NO_COLOR: BOOL_VAL,
     },
+    # sharings
     "^\\[([a-zA-Z0-9_]+)\\]$": {
         EsdConfKeys.S_PATH: STR_VAL,
         EsdConfKeys.S_READONLY: BOOL_VAL,
@@ -171,6 +179,7 @@ def main():
     server_ssl_enabled = False
     server_ssl_cert = None
     server_ssl_privkey = None
+    server_rexec = False
 
     # Config file
 
@@ -252,6 +261,11 @@ def main():
                 default=server_ssl_cert and server_ssl_privkey
             )
 
+            server_rexec = cfg.get_global_value(
+                EsdConfKeys.G_REXEC,
+                default=server_rexec and server_rexec
+            )
+
             no_colors = cfg.get_global_value(
                 EsdConfKeys.G_NO_COLOR,
                 default=no_colors
@@ -306,6 +320,10 @@ def main():
         EsdArgs.PASSWORD,
         default=server_password
     )
+
+    # Rexec
+    if g_args.has_kwarg(EsdArgs.REXEC):
+        server_rexec = True
 
     # Colors
     if g_args.has_kwarg(EsdArgs.NO_COLOR):
@@ -413,15 +431,17 @@ def main():
         port=server_port,
         discover_port=server_discover_port,
         auth=AuthFactory.parse(server_password),
-        ssl_context=ssl_context
+        ssl_context=ssl_context,
+        rexec=server_rexec
     )
 
-    print("Server name:    ", server.name())
-    print("Server auth:    ", server.auth_type())
-    print("Server address: ", server.endpoint()[0])
-    print("Server port:    ", server.endpoint()[1])
-    print("Discover port:  ", server._discover_daemon.endpoint()[1] if server.is_discoverable() else "DISABLED")
-    print("SSL:            ", True if get_ssl_context() else False)
+    print("Server name:      ", server.name())
+    print("Server auth:      ", server.auth_type())
+    print("Server address:   ", server.endpoint()[0])
+    print("Server port:      ", server.endpoint()[1])
+    print("Discover port:    ", server._discover_daemon.endpoint()[1] if server.is_discoverable() else "DISABLED")
+    print("SSL:              ", True if get_ssl_context() else False)
+    print("Remote execution  ", server_rexec)
     print("------------------------")
 
     if sharings:

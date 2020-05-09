@@ -56,13 +56,15 @@ class Server(IServer):
                  port: int = None,
                  discover_port: int = None,
                  auth: Auth = AuthNone(),
-                 ssl_context: ssl.SSLContext = None):
+                 ssl_context: ssl.SSLContext = None,
+                 rexec = False):
         self._name = name or socket.gethostname()
         self._port = port if port is not None else DEFAULT_SERVER_PORT
         self._discover_port = discover_port if discover_port is not None else DEFAULT_DISCOVER_PORT
         self._enable_discover_server = is_valid_port(self._discover_port)
         self._address = address or get_primary_ip()
         self._auth = auth
+        self._rexec_enabled = rexec
 
         self._sharings: Dict[str, Sharing] = {}
 
@@ -277,6 +279,10 @@ class Server(IServer):
     @trace_api
     @try_or_command_failed_response
     def rexec(self, cmd: str) -> Response:
+        if not self._rexec_enabled:
+            log.e("Client attempted remote command execution; denying since rexec is disabled")
+            return create_error_response(ServerErrors.NOT_ALLOWED)
+
         client = self._current_request_client()
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)

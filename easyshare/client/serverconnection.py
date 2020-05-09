@@ -37,6 +37,7 @@ def handle_server_response(api):
         resp = api(conn, *vargs, **kwargs)
         log.d("Handling '%s' response", api.__name__)
         if is_error_response(resp, ServerErrors.NOT_CONNECTED):
+            log.e("Detected NOT_CONNECTED response, destroying connection")
             conn._destroy_connection()
         return resp
 
