@@ -1,4 +1,6 @@
 import os
+import sys
+
 from setuptools import setup, find_packages
 
 
@@ -6,6 +8,7 @@ def read(file_name):
     with open(os.path.join(os.path.dirname(__file__), file_name)) as f:
         return f.read()
 
+print("setup.py prefix:", sys.prefix)
 
 setup(
     name="easyshare",
@@ -28,6 +31,10 @@ setup(
             "es-tools = easyshare.tools.__main__:main"
         ]
     },
+
+    data_files=[
+        ("share/man/man1", ["docs/es/build/man/es.1", "docs/esd/build/man/esd.1"])
+    ],
 
     # Tests
     # test_suite="tests",
