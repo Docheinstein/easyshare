@@ -1,16 +1,17 @@
 import ssl
 from typing import Union, Optional, cast, List
 
+from easyshare.common import ESD_PYRO_UID
 from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
 from easyshare.protocol import ServerErrors, SharingInfo, ISharingService, create_success_response
 from easyshare.protocol import IServer
 from easyshare.protocol import Response, is_success_response, create_error_response, is_error_response
 from easyshare.protocol import ServerInfoFull, ServerInfo
-from easyshare.common import esd_pyro_uri, pyro_uri, ESD_PYRO_UID
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.utils.json import j
 from easyshare.utils.pyro.client import TracedPyroProxy
+from easyshare.utils.pyro.common import pyro_uri
 from easyshare.utils.ssl import create_client_ssl_context
 
 
@@ -225,7 +226,7 @@ class SharingConnection:
                  sharing_info: SharingInfo,
                  server_info: ServerInfoFull):
         log.i("Initializing new SharingConnection")
-        log.d("Bound to esd \n%s", j(server_info))
+        log.d("Bound to server info:\n%s", j(server_info))
 
         self.sharing_info = sharing_info
         self.server_info = server_info

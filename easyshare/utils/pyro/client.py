@@ -4,6 +4,7 @@ from Pyro5 import api as pyro
 
 from easyshare.tracing import trace_out, is_tracing_enabled, trace_in
 from easyshare.utils.inspection import func_args_to_str
+from easyshare.utils.json import j
 
 
 class TracedPyroProxy(pyro.Proxy):

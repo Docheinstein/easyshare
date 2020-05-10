@@ -16,7 +16,7 @@ def scrypt(plain: Union[str, bytes], salt: Union[b64, bytes],
     salt_b = salt if is_bytes(salt) else b64_to_bytes(salt)
 
     if not plain_b or not salt_b:
-        return None
+        raise ValueError("scrypt failed: 'plain' and 'salt' must be specified")
 
     # print("scrypt plain: ", plain)
     # print("scrypt plain_b: ", plain_b)
@@ -54,7 +54,7 @@ def b64_to_bytes(s: b64) -> bytes:
     return b64decode(s)
 
 
-if __name__ == "__main__":
+def main():
     plain = "hello"
 
     salt_b, hash_b = scrypt_new(plain, salt_length=16)
@@ -67,3 +67,5 @@ if __name__ == "__main__":
 
     assert hash_b == hash_b3
 
+if __name__ == "__main__":
+    main()

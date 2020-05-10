@@ -1,16 +1,15 @@
 import os
 import shlex
-import logging as pylogging
+import readline as rl
 
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
 from Pyro5.errors import PyroError
 
-from easyshare import logging
-from easyshare.args import Args, ArgsParseError
-import readline as rl
+from easyshare import logging, helps
+from easyshare.args import Args, ArgsParseError, VariadicArgs, OptIntArg, ArgsParser
 
-from easyshare.es.args import OptIntArg, ArgsParser, VariadicArgs
+
 from easyshare.es.client import Client
 from easyshare.es.commands import Commands, matches_special_command
 from easyshare.es.ui import print_tabulated, StyledString
@@ -18,11 +17,11 @@ from easyshare.es.errors import print_error, ClientErrors
 from easyshare.es.help import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.tracing import is_tracing_enabled, enable_tracing
-from easyshare.utils.app import eprint
+from easyshare.utils.app import eprint, terminate
 from easyshare.colors import styled, Style
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
-from easyshare.utils.pyro import is_pyro_logging_enabled, enable_pyro_logging
+from easyshare.utils.pyro.common import enable_pyro_logging, is_pyro_logging_enabled
 from easyshare.utils.types import is_bool, is_int, is_str
 
 log = get_logger(__name__)
@@ -59,7 +58,6 @@ class Shell:
         self._shell_command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args], None]]] = {
             Commands.TRACE: (OptIntArg(), self._trace),
             Commands.VERBOSE: (OptIntArg(), self._verbose),
-
             Commands.HELP: (VariadicArgs(), self._help),
             Commands.EXIT: (VariadicArgs(), self._exit),
             Commands.QUIT: (VariadicArgs(), self._exit),
@@ -283,16 +281,28 @@ class Shell:
 
         return styled(prompt, attrs=Style.BOLD)
 
-    @classmethod
-    def _help(cls, _: Args) -> Union[int, str]:
-        return 0
+    @staticmethod
+    def _help(args: Args) -> NoReturn:
+        cmd = args.get_varg()
+        if not cmd:
+            # terminate(read_resource_string(RESOURCES_PKG, "helps/help.txt"))
+            terminate(helps.HELP)
 
-    @classmethod
+        # Show the help of cmd if found on helps.py
+        cmd_help = getattr(helps, cmd.upper(), None)
+
+        if not cmd_help:
+            eprint("Help not found for command {}".format(cmd))
+            return
+
+        terminate(cmd_help)
+
+    @staticmethod
     def _exit(cls, _: Args) -> NoReturn:
         exit(0)
 
-    @classmethod
-    def _trace(cls, args: Args) -> Union[int, str]:
+    @staticmethod
+    def _trace(args: Args) -> Union[int, str]:
         # Toggle tracing if no parameter is provided
         enable = args.get_varg(default=not is_tracing_enabled())
 
@@ -307,8 +317,8 @@ class Shell:
 
         return 0
 
-    @classmethod
-    def _verbose(cls, args: Args) -> Union[int, str]:
+    @staticmethod
+    def _verbose(args: Args) -> Union[int, str]:
         # Increase verbosity (or disable if is already max)
         root_log = get_logger()
 

@@ -81,7 +81,7 @@ def to_bytes(o: Any, default=None, raise_exceptions=False) -> Optional[bytes]:
     except:
         pass
 
-    if is_bool(val):
+    if is_bytes(val):
         return val
 
     if raise_exceptions:

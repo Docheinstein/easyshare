@@ -2,23 +2,22 @@ import sys
 from typing import Optional, List, Callable
 
 from easyshare import logging
-from easyshare.es.args import ArgsParser
 from easyshare.es.client import Client
 from easyshare.es.commands import Commands, is_special_command
 from easyshare.es.errors import errcode_string
 from easyshare.es.shell import Shell
 from easyshare.logging import get_logger
-from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup
+from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup, APP_INFO
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.colors import enable_colors
 from easyshare.utils.env import is_stdout_terminal
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
-from easyshare.utils.pyro import enable_pyro_logging
+from easyshare.utils.pyro.common import enable_pyro_logging
 from easyshare.utils.types import is_int, is_str
-from easyshare.args import Args as Args, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, \
-    ArgsParseError, ArgType
+from easyshare.args import Args as Args, KwArg, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, \
+    ArgsParseError, ArgType, ArgsParser, ActionParam
 
 log = get_logger()
 
@@ -27,9 +26,14 @@ log = get_logger()
 NON_CLI_COMMANDS = [
     Commands.TRACE, Commands.TRACE_SHORT,       # trace
     Commands.VERBOSE, Commands.VERBOSE_SHORT,   # verbose
-    Commands.LOCAL_CHANGE_DIRECTORY,            # cd
-    Commands.REMOTE_CHANGE_DIRECTORY,           # rcd
-    Commands.CLOSE                              # close
+    Commands.EXIT,                              # exit
+    Commands.QUIT, Commands.QUIT_SHORT          # quit
+
+    # Commands.LOCAL_CHANGE_DIRECTORY,            # cd
+    # Commands.REMOTE_CHANGE_DIRECTORY,           # rcd
+    # Commands.CLOSE                              # close
+
+    # ^ Not really useful, but who cares ^
 ]
 
 CLI_COMMANDS = [k for k in values(Commands) if k not in NON_CLI_COMMANDS]
@@ -40,24 +44,20 @@ class EsArgs(ArgsParser):
     VERSION =       ["-V", "--version"]
 
     DISCOVER_PORT = ["-d", "--discover-port"]
-    WAIT =          ["-w", "--wait"]
 
     VERBOSE =       ["-v", "--verbose"]
     TRACE =         ["-t", "--trace"]
 
     NO_COLOR =      ["--no-color"]
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            KwArgSpec(EsArgs.HELP,
-                      ParamsSpec(0, 0, lambda _: terminate("help"))),
-            KwArgSpec(EsArgs.VERSION,
-                      ParamsSpec(0, 0, lambda _: terminate("version"))),
-            KwArgSpec(EsArgs.DISCOVER_PORT, INT_PARAM),
-            KwArgSpec(EsArgs.WAIT, INT_PARAM),
-            KwArgSpec(EsArgs.VERBOSE, INT_PARAM_OPT),
-            KwArgSpec(EsArgs.TRACE, INT_PARAM_OPT),
-            KwArgSpec(EsArgs.NO_COLOR, PRESENCE_PARAM),
+            (EsArgs.HELP, ActionParam(lambda _: terminate("help"))),
+            (EsArgs.VERSION, ActionParam(lambda _: terminate(APP_INFO))),
+            (EsArgs.DISCOVER_PORT, INT_PARAM),
+            (EsArgs.VERBOSE, INT_PARAM_OPT),
+            (EsArgs.TRACE, INT_PARAM_OPT),
+            (EsArgs.NO_COLOR, PRESENCE_PARAM),
         ]
 
     def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
@@ -84,7 +84,7 @@ def main():
     # Verbosity over VERBOSITY_MAX enables pyro logging too
     if args.has_kwarg(EsArgs.VERBOSE):
         log.set_verbosity(args.get_kwarg_param(EsArgs.VERBOSE,
-                                               default=logging.VERBOSITY_MAX + 1))
+                                               default=logging.VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_CLIENT_SHORT, APP_VERSION))
     log.i("Starting with arguments\n%s", args)
@@ -93,6 +93,7 @@ def main():
     tracing = 0
     no_colors = False
     discover_port = DEFAULT_DISCOVER_PORT
+
 
     # Colors
     if args.has_kwarg(EsArgs.NO_COLOR):
@@ -147,13 +148,15 @@ def main():
         enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
 
-    # Initialize es
+    # Initialize the client
     client = Client(discover_port=discover_port)
+
+    # Initialize the shell as well
+    shell = Shell(client)
 
     # Check whether
     # 1. Run a command directly from the cli
     # 2. Start an interactive session
-
     start_shell = True
 
     # 1. Run a command directly from the cli ?
@@ -163,7 +166,15 @@ def main():
         if command in CLI_COMMANDS or is_special_command(command):
             log.i("Found a valid CLI command '%s'", command)
             command_args = vargs[1:]
-            outcome = client.execute_command(command, command_args)
+
+            outcome = None
+
+            if shell.has_command(command):
+                outcome = shell.execute_shell_command(command, command_args)
+            elif client.has_command(command):
+                outcome = client.execute_command(command, command_args)
+            else:
+                abort("Unknown CLI command '{}'".format(command))
 
             if is_int(outcome) and outcome > 0:
                 abort(errcode_string(outcome))
@@ -174,16 +185,16 @@ def main():
             # Otherwise close it after the action
             start_shell = client.is_connected_to_server()
         else:
-            log.w("Invalid CLI command '%s'; ignoring it and starting shell", command)
-            log.w("Allowed CLI commands are: %s", ", ".join(CLI_COMMANDS))
-
-            start_shell = False
+            log.e("Allowed CLI commands are: %s", ", ".join(CLI_COMMANDS))
+            abort("Unknown CLI command '{}'".format(command))
 
     # 2. Start an interactive session ?
+    # Actually the shell is started if
+    # a) A CLI command opened a connection (open, connect)
+    # b) No command has been specified
     if start_shell:
         # Start the shell
         log.i("Starting interactive shell")
-        shell = Shell(client)
         shell.input_loop()
 
 

@@ -14,7 +14,7 @@ class ArgsParseError(Exception):
     pass
 
 
-class ParamsSpec(ABC):
+class Params(ABC):
     VARIADIC_PARAMETERS_COUNT = -1
 
     def __init__(self,
@@ -29,17 +29,19 @@ class ParamsSpec(ABC):
         return "{} : {} mandatory, {} optional".format(
             self.__class__.__name__,
             self.mandatory_count,
-            "*" if self.optional_count == ParamsSpec.VARIADIC_PARAMETERS_COUNT else self.optional_count
+            "*" if self.optional_count == Params.VARIADIC_PARAMETERS_COUNT else self.optional_count
         )
 
+# aliases, params_spec
+KwArg = Tuple[Union[str, List[str]], Params]
 
-class KwArgSpec:
-    def __init__(self,
-                 aliases: Union[str, List[str]],
-                 params_spec: ParamsSpec):
-
-        self.aliases: List[str] = list_wrap(aliases)
-        self.params_spec: ParamsSpec = params_spec
+# class KwArgSpec:
+#     def __init__(self,
+#                  aliases: Union[str, List[str]],
+#                  params_spec: ParamsSpec):
+#
+#         self.aliases: List[str] = list_wrap(aliases)
+#         self.params_spec: ParamsSpec = params_spec
 
 
 class ArgType(Enum):
@@ -99,8 +101,8 @@ class Args:
 
     @staticmethod
     def parse(args: List[str], *,
-              vargs_spec: ParamsSpec = None,
-              kwargs_specs: List[KwArgSpec] = None,
+              vargs_spec: Params = None,
+              kwargs_specs: List[KwArg] = None,
               continue_parsing_hook: Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]] = None) -> 'Args':
             # continue_parsing_hook: argname, argtype, idx, args, positionals
 
@@ -112,13 +114,15 @@ class Args:
 
         ret = Args(parsed, unparsed)
 
-        def get_bucket(kw_arg_name: str) -> Tuple[Optional[List], Optional[KwArgSpec]]:
+        def get_bucket(kw_arg_name: str) -> Tuple[Optional[List], Optional[KwArg]]:
             nonlocal parsed
 
             log.d("get_bucket (%s)", kw_arg_name)
 
             for arg_spec in kwargs_specs:
-                if kw_arg_name in arg_spec.aliases:
+                arg_spec_aliases, arg_spec_param_spec = arg_spec
+
+                if kw_arg_name in arg_spec_aliases:
 
                     # Found an alias that matches the argument name
                     log.i("%s", kw_arg_name)
@@ -127,7 +131,7 @@ class Args:
                     # if not allocate a new list using this arg_name
                     # Check for every alias
                     bck = None
-                    for a_arg_alias in arg_spec.aliases:
+                    for a_arg_alias in arg_spec_aliases:
                         if a_arg_alias in parsed:
                             bck = parsed.get(a_arg_alias)
                             break
@@ -175,14 +179,14 @@ class Args:
                 if Args._is_long_kwarg(arg):
                     # Long format kwarg
 
-                    bucket, argpec = get_bucket(arg)
+                    bucket, kwargspec = get_bucket(arg)
 
                     if bucket is not None:
                         cursor += Args._append_to_bucket(
                             bucket,
                             params=args,
                             params_offset=cursor + 1,
-                            params_spec=argpec.params_spec,
+                            params_spec=kwargspec[1],
                             param_ok_hook=lambda p: not Args._is_kwarg(p))
                     else:
                         log.w("Unknown argument: '%s'", arg)
@@ -204,7 +208,7 @@ class Args:
                         # e.g "-h"
 
                         # Check whether this is a known argument
-                        bucket, argpec = get_bucket(c_arg_name)
+                        bucket, kwargspec = get_bucket(c_arg_name)
                         if bucket is not None:
                             # We can feed the parser only if we are on the
                             # last param of the chain, otherwise params_count
@@ -213,7 +217,7 @@ class Args:
                                 bucket,
                                 params=args,
                                 params_offset=cursor + 1,
-                                params_spec=argpec.params_spec,
+                                params_spec=kwargspec[1],
                                 param_ok_hook=lambda s: not Args._is_kwarg(s) and is_last_of_chain)
                         else:
                             log.w("Unknown argument in chain: '%s'", c_arg_name)
@@ -278,7 +282,7 @@ class Args:
     @staticmethod
     def _append_to_bucket(bucket: List[str],
                           params: List[str],
-                          params_spec: ParamsSpec,
+                          params_spec: Params,
                           params_offset: int = 0,
                           param_ok_hook: Callable[[str], bool] = lambda p: True):
 
@@ -317,7 +321,7 @@ class Args:
 
         # OPTIONALS
 
-        while params_spec.optional_count == ParamsSpec.VARIADIC_PARAMETERS_COUNT \
+        while params_spec.optional_count == Params.VARIADIC_PARAMETERS_COUNT \
                 or param_cursor < params_spec.mandatory_count + params_spec.optional_count:
 
             # Check if it is there
@@ -361,28 +365,31 @@ class Args:
 # ============ ParamsSpec HELPERS =============
 # =============================================
 
-class IntParamsSpec(ParamsSpec):
+class IntParams(Params):
     def __init__(self, mandatory_count: int, optional_count: int = 0):
         super().__init__(mandatory_count, optional_count,
                          lambda ps: [to_int(p, raise_exceptions=True) for p in ps])
 
 
-class NoopParamsSpec(ParamsSpec):
+class NoopParams(Params):
     def __init__(self, mandatory_count: int, optional_count: int = 0):
         super().__init__(mandatory_count, optional_count,
                          lambda ps: ps)
 
+class ActionParam(Params):
+    def __init__(self, action: Callable[[List[str]], Any]):
+        super().__init__(0, 0, action)
 
-STR_PARAM = NoopParamsSpec(1, 0)
-STR_PARAM_OPT = NoopParamsSpec(0, 1)
 
-INT_PARAM = IntParamsSpec(1, 0)
-INT_PARAM_OPT = IntParamsSpec(0, 1)
+STR_PARAM = NoopParams(1, 0)
+STR_PARAM_OPT = NoopParams(0, 1)
 
-PRESENCE_PARAM = ParamsSpec(0, 0, lambda ps: True)
+INT_PARAM = IntParams(1, 0)
+INT_PARAM_OPT = IntParams(0, 1)
 
-VARIADIC_PARAMS = NoopParamsSpec(0, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
+PRESENCE_PARAM = Params(0, 0, lambda ps: True)
 
+VARIADIC_PARAMS = NoopParams(0, Params.VARIADIC_PARAMETERS_COUNT)
 
 # =============================================
 # ============ ArgsParser HELPERS =============
@@ -397,10 +404,10 @@ class ArgsParser:
             continue_parsing_hook=self._continue_parsing_hook(),
         )
 
-    def _vargs_spec(self) -> Optional[ParamsSpec]:
+    def _vargs_spec(self) -> Optional[Params]:
         return None
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return None
 
     def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
@@ -411,8 +418,8 @@ class VariadicArgs(ArgsParser):
     def __init__(self, mandatory: int = 0):
         self.mandatory = mandatory
 
-    def _vargs_spec(self) -> Optional[ParamsSpec]:
-        return NoopParamsSpec(self.mandatory, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
+    def _vargs_spec(self) -> Optional[Params]:
+        return NoopParams(self.mandatory, Params.VARIADIC_PARAMETERS_COUNT)
 
 
 class PositionalArgs(ArgsParser):
@@ -420,17 +427,17 @@ class PositionalArgs(ArgsParser):
         self.mandatory = mandatory
         self.optional = optional
 
-    def _vargs_spec(self) -> Optional[ParamsSpec]:
-        return NoopParamsSpec(self.mandatory, self.optional)
+    def _vargs_spec(self) -> Optional[Params]:
+        return NoopParams(self.mandatory, self.optional)
 
 
 class IntArg(ArgsParser):
-    def _vargs_spec(self) -> Optional[ParamsSpec]:
+    def _vargs_spec(self) -> Optional[Params]:
         return INT_PARAM
 
 
 class OptIntArg(ArgsParser):
-    def _vargs_spec(self) -> Optional[ParamsSpec]:
+    def _vargs_spec(self) -> Optional[Params]:
         return INT_PARAM_OPT
 
 
@@ -439,8 +446,8 @@ class StopParseArgs(ArgsParser):
         self.mandatory = mandatory
         self.stop_after = stop_after or mandatory
 
-    def _vargs_spec(self) -> Optional[ParamsSpec]:
-        return NoopParamsSpec(self.mandatory, 0)
+    def _vargs_spec(self) -> Optional[Params]:
+        return NoopParams(self.mandatory, 0)
 
     def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
         return lambda arg, argtype, idx, parsedargs, positionals: len(positionals) < self.stop_after

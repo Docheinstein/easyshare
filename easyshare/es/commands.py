@@ -54,6 +54,7 @@ class Commands:
     PUT_SHORT = "p"
 
     INFO = "info"
+    INFO_SHORT = "i"
     PING = "ping"
 
 

@@ -7,7 +7,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol import Response, create_error_response, ServerErrors
 from easyshare.tracing import trace_in, trace_out
 from easyshare.utils.inspection import func_args_to_str
-
+from easyshare.utils.json import j
 
 log = get_logger(__name__)
 

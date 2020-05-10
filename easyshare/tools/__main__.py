@@ -1,8 +1,17 @@
 import pkgutil
+import sys
+
 from getpass import getpass
 
+from easyshare import logging
+from easyshare.args import Args, ArgsParseError, ActionParam
 from easyshare.auth import AuthScrypt
-from easyshare.utils.app import abort
+from easyshare.common import APP_INFO
+from easyshare.logging import get_logger, init_logging
+from easyshare.utils.app import abort, terminate
+
+
+log = get_logger("easyshare.tools", force_initialize=True)
 
 
 def generate_password():
@@ -23,9 +32,23 @@ def generate_esd_conf():
 
 
 def main():
+    init_logging()
+    log.set_verbosity(logging.VERBOSITY_MAX)
+
+    try:
+        Args.parse(
+            sys.argv[1:],
+            kwargs_specs= [
+                (["-v", "--version"], ActionParam(lambda _: terminate(APP_INFO))),
+            ]
+        )
+    except ArgsParseError:
+        log.exception("Arguments parsing error")
+        abort("Invalid command syntax")
+
     TOOLS = {
         "1": (generate_password, "PASSWORD GENERATOR"),
-        "2": (generate_esd_conf, "ESD CONFIG GENERATOR")
+        "2": (generate_esd_conf, "ESD CONFIG GENERATOR (esd.conf)")
     }
 
     try:
@@ -37,9 +60,9 @@ def main():
             )
             if choice in TOOLS:
                 func, funcname = TOOLS[choice]
-                RULER_HALF = ((40 - len(funcname)) // 2) * "="
+                half_ruler = ((50 - len(funcname)) // 2) * "="
 
-                print("\n{} {} {}\n".format(RULER_HALF, funcname, RULER_HALF))
+                print("\n{} {} {}\n".format(half_ruler, funcname, half_ruler))
                 func()
                 break
             else:

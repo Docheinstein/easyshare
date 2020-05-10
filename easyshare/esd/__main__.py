@@ -2,21 +2,22 @@ import socket
 import sys
 from typing import List, Optional
 
+from easyshare.esd.common import Sharing
+
 from easyshare import logging
-from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError
-from easyshare.es.args import ArgsParser, PositionalArgs
+from easyshare.args import KwArg, Params, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
+    PositionalArgs, ArgsParser, ActionParam
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.logging import get_logger
 from easyshare.auth import AuthFactory
 from easyshare.esd.server import Server
-from easyshare.esd.sharing import Sharing
 from easyshare.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup
 from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.colors import enable_colors
 from easyshare.utils.net import is_valid_port
-from easyshare.utils.pyro import enable_pyro_logging
+from easyshare.utils.pyro.common import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfy
 
@@ -40,9 +41,9 @@ class SharingArgs(PositionalArgs):
     def __init__(self):
         super().__init__(1, 1)
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            KwArgSpec(SharingArgs.READ_ONLY, PRESENCE_PARAM),
+            (SharingArgs.READ_ONLY, PRESENCE_PARAM),
         ]
 
 class EsdArgs(ArgsParser):
@@ -65,28 +66,26 @@ class EsdArgs(ArgsParser):
     TRACE =     ["-t", "--trace"]
     NO_COLOR =  ["--no-color"]
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            KwArgSpec(EsdArgs.HELP,
-                      ParamsSpec(0, 0, lambda _: terminate("help"))),
-            KwArgSpec(EsdArgs.VERSION,
-                      ParamsSpec(0, 0, lambda _: terminate("version"))),
+            (EsdArgs.HELP, ActionParam(lambda _: terminate("help"))),
+            (EsdArgs.VERSION, ActionParam(lambda _: terminate("version"))),
 
-            KwArgSpec(EsdArgs.CONFIG, STR_PARAM),
+            (EsdArgs.CONFIG, STR_PARAM),
 
-            KwArgSpec(EsdArgs.NAME, STR_PARAM),
-            KwArgSpec(EsdArgs.ADDRESS, STR_PARAM),
-            KwArgSpec(EsdArgs.PORT, INT_PARAM),
-            KwArgSpec(EsdArgs.DISCOVER_PORT, INT_PARAM),
-            KwArgSpec(EsdArgs.PASSWORD, STR_PARAM),
-            KwArgSpec(EsdArgs.SSL_CERT, STR_PARAM),
-            KwArgSpec(EsdArgs.SSL_PRIVKEY, STR_PARAM),
+            (EsdArgs.NAME, STR_PARAM),
+            (EsdArgs.ADDRESS, STR_PARAM),
+            (EsdArgs.PORT, INT_PARAM),
+            (EsdArgs.DISCOVER_PORT, INT_PARAM),
+            (EsdArgs.PASSWORD, STR_PARAM),
+            (EsdArgs.SSL_CERT, STR_PARAM),
+            (EsdArgs.SSL_PRIVKEY, STR_PARAM),
 
-            KwArgSpec(EsdArgs.REXEC, PRESENCE_PARAM),
+            (EsdArgs.REXEC, PRESENCE_PARAM),
 
-            KwArgSpec(EsdArgs.VERBOSE, INT_PARAM_OPT),
-            KwArgSpec(EsdArgs.TRACE, INT_PARAM_OPT),
-            KwArgSpec(EsdArgs.NO_COLOR, PRESENCE_PARAM),
+            (EsdArgs.VERBOSE, INT_PARAM_OPT),
+            (EsdArgs.TRACE, INT_PARAM_OPT),
+            (EsdArgs.NO_COLOR, PRESENCE_PARAM),
 
         ]
 
@@ -160,7 +159,7 @@ def main():
     # Verbosity over VERBOSITY_MAX enables pyro logging too
     if g_args.has_kwarg(EsdArgs.VERBOSE):
         log.set_verbosity(g_args.get_kwarg_param(EsdArgs.VERBOSE,
-                                                 default=logging.VERBOSITY_MAX + 1))
+                                                 default=logging.VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_SERVER_SHORT, APP_VERSION))
     log.i("Starting with arguments\n%s", g_args)

@@ -7,17 +7,14 @@ from Pyro5 import socketutil
 from typing import Dict, Optional, cast
 
 from Pyro5.api import expose, oneway
+from easyshare.esd.common import ClientContext, Sharing
+from easyshare.esd.services import SharingService, RexecService
 
 from easyshare.logging import get_logger
 from easyshare.auth import Auth, AuthNone
 from easyshare.protocol import create_success_response, create_error_response, Response
 from easyshare.protocol import ServerInfoFull, ServerInfo
-from easyshare.esd.common import try_or_command_failed_response
 from easyshare.esd.daemon import init_pyro_daemon, get_pyro_daemon
-from easyshare.esd.services.rexec import RexecService
-from easyshare.esd.services.sharing import SharingService
-from easyshare.esd.sharing import Sharing
-from easyshare.esd.client import ClientContext
 from easyshare.esd.discover import DiscoverDaemon
 from easyshare.common import DEFAULT_DISCOVER_PORT, ESD_PYRO_UID, DEFAULT_SERVER_PORT
 from easyshare.endpoint import Endpoint
@@ -29,7 +26,7 @@ from easyshare.sockets import SocketUdpOut
 from easyshare.colors import red, green
 from easyshare.utils.json import json_to_bytes, j
 from easyshare.utils.net import get_primary_ip, is_valid_port
-from easyshare.utils.pyro import pyro_client_endpoint, trace_api
+from easyshare.utils.pyro.server import pyro_client_endpoint, try_or_command_failed_response, trace_api
 from easyshare.utils.types import bytes_to_int
 
 # ==================================================================

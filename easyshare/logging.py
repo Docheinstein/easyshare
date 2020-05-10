@@ -119,6 +119,12 @@ def get_logger(name: str = ROOT_LOGGER_NAME, force_initialize: bool = False) -> 
     return logger
 
 
+def get_logger_exuberant(name: str = ROOT_LOGGER_NAME, verbosity: int = VERBOSITY_MAX):
+    init_logging()
+    logger = get_logger(name, force_initialize=True)
+    logger.set_verbosity(verbosity)
+    return logger
+
 if __name__ == "__main__":
     log = get_logger(__name__)
     log.e("Hello")

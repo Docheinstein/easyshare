@@ -1,6 +1,5 @@
 import os
 import string
-from typing import Tuple
 
 from easyshare import logging
 from easyshare.logging import get_logger, init_logging
@@ -20,6 +19,14 @@ APP_NAME_CLIENT = "easyshare es"
 APP_NAME_SERVER_SHORT = "esd"
 APP_NAME_CLIENT_SHORT = "es"
 APP_VERSION = "0.1"
+
+APP_INFO = "{} {}".format(APP_NAME, APP_VERSION)
+
+# =====================
+# ===== RESOURCES =====
+# =====================
+
+RESOURCES_PKG = "easyshare.res"
 
 
 # =====================
@@ -91,10 +98,3 @@ def easyshare_setup():
     root_log = get_logger(logging.ROOT_LOGGER_NAME)
     root_log.set_verbosity(starting_verbosity)
     root_log.d("Starting with verbosity = %d", starting_verbosity)
-
-
-# =====================
-# ======= MISC ========
-# =====================
-
-Endpoint = Tuple[str, int]

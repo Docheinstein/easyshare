@@ -11,7 +11,8 @@ from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, cast
 
 from Pyro5.errors import PyroError
 
-from easyshare.common import pyro_uri, Endpoint, transfer_port, DEFAULT_SERVER_PORT
+from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR
+from easyshare.endpoint import Endpoint
 from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK
 from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connections import ServerConnection, SharingConnection, ServerConnectionMinimal
@@ -37,11 +38,12 @@ from easyshare.utils.app import eprint
 from easyshare.colors import red, styled, Style
 from easyshare.utils.json import j
 from easyshare.utils.pyro.client import TracedPyroProxy
+from easyshare.utils.pyro.common import pyro_uri
 from easyshare.utils.str import unprefix
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, relpath
-from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM, ArgsParseError, PositionalArgs, \
+from easyshare.args import Args as Args, KwArg, INT_PARAM, PRESENCE_PARAM, ArgsParseError, PositionalArgs, \
     VariadicArgs, ArgsParser, StopParseArgs
 
 log = get_logger(__name__)
@@ -62,14 +64,14 @@ class LsArgs(PositionalArgs):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            KwArgSpec(LsArgs.SORT_BY_SIZE, PRESENCE_PARAM),
-            KwArgSpec(LsArgs.REVERSE, PRESENCE_PARAM),
-            KwArgSpec(LsArgs.GROUP, PRESENCE_PARAM),
-            KwArgSpec(LsArgs.SHOW_ALL, PRESENCE_PARAM),
-            KwArgSpec(LsArgs.SHOW_DETAILS, PRESENCE_PARAM),
-            KwArgSpec(LsArgs.SHOW_SIZE, PRESENCE_PARAM),
+            (LsArgs.SORT_BY_SIZE, PRESENCE_PARAM),
+            (LsArgs.REVERSE, PRESENCE_PARAM),
+            (LsArgs.GROUP, PRESENCE_PARAM),
+            (LsArgs.SHOW_ALL, PRESENCE_PARAM),
+            (LsArgs.SHOW_DETAILS, PRESENCE_PARAM),
+            (LsArgs.SHOW_SIZE, PRESENCE_PARAM),
         ]
 
 
@@ -87,15 +89,15 @@ class TreeArgs(PositionalArgs):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            KwArgSpec(TreeArgs.SORT_BY_SIZE, PRESENCE_PARAM),
-            KwArgSpec(TreeArgs.REVERSE, PRESENCE_PARAM),
-            KwArgSpec(TreeArgs.GROUP, PRESENCE_PARAM),
-            KwArgSpec(TreeArgs.SHOW_ALL, PRESENCE_PARAM),
-            KwArgSpec(TreeArgs.SHOW_DETAILS, PRESENCE_PARAM),
-            KwArgSpec(TreeArgs.SHOW_SIZE, PRESENCE_PARAM),
-            KwArgSpec(TreeArgs.MAX_DEPTH, INT_PARAM),
+            (TreeArgs.SORT_BY_SIZE, PRESENCE_PARAM),
+            (TreeArgs.REVERSE, PRESENCE_PARAM),
+            (TreeArgs.GROUP, PRESENCE_PARAM),
+            (TreeArgs.SHOW_ALL, PRESENCE_PARAM),
+            (TreeArgs.SHOW_DETAILS, PRESENCE_PARAM),
+            (TreeArgs.SHOW_SIZE, PRESENCE_PARAM),
+            (TreeArgs.MAX_DEPTH, INT_PARAM),
         ]
 
 
@@ -105,9 +107,9 @@ class ScanArgs(PositionalArgs):
     def __init__(self):
         super().__init__(0, 0)
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            KwArgSpec(ScanArgs.SHOW_DETAILS, PRESENCE_PARAM),
+            (ScanArgs.SHOW_DETAILS, PRESENCE_PARAM),
         ]
 
 
@@ -117,9 +119,9 @@ class ListArgs(PositionalArgs):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 0)
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            KwArgSpec(ListArgs.SHOW_DETAILS, PRESENCE_PARAM),
+            (ListArgs.SHOW_DETAILS, PRESENCE_PARAM),
         ]
 
 
@@ -129,9 +131,9 @@ class PingArgs(PositionalArgs):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 0)
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            KwArgSpec(PingArgs.COUNT, INT_PARAM),
+            (PingArgs.COUNT, INT_PARAM),
         ]
 
 class GetArgs(VariadicArgs):
@@ -141,13 +143,13 @@ class GetArgs(VariadicArgs):
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            KwArgSpec(GetArgs.OVERWRITE_YES, PRESENCE_PARAM),
-            KwArgSpec(GetArgs.OVERWRITE_NO, PRESENCE_PARAM),
-            KwArgSpec(GetArgs.OVERWRITE_NEWER, PRESENCE_PARAM),
-            KwArgSpec(GetArgs.CHECK, PRESENCE_PARAM),
-            KwArgSpec(GetArgs.QUIET, PRESENCE_PARAM),
+            (GetArgs.OVERWRITE_YES, PRESENCE_PARAM),
+            (GetArgs.OVERWRITE_NO, PRESENCE_PARAM),
+            (GetArgs.OVERWRITE_NEWER, PRESENCE_PARAM),
+            (GetArgs.CHECK, PRESENCE_PARAM),
+            (GetArgs.QUIET, PRESENCE_PARAM),
         ]
 
 class PutArgs(VariadicArgs):
@@ -159,13 +161,13 @@ class PutArgs(VariadicArgs):
     QUIET = ["-q", "--quiet"]
 
 
-    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+    def _kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            KwArgSpec(PutArgs.OVERWRITE_YES, PRESENCE_PARAM),
-            KwArgSpec(PutArgs.OVERWRITE_NO, PRESENCE_PARAM),
-            KwArgSpec(PutArgs.OVERWRITE_NEWER, PRESENCE_PARAM),
-            KwArgSpec(PutArgs.CHECK, PRESENCE_PARAM),
-            KwArgSpec(GetArgs.QUIET, PRESENCE_PARAM),
+            (PutArgs.OVERWRITE_YES, PRESENCE_PARAM),
+            (PutArgs.OVERWRITE_NO, PRESENCE_PARAM),
+            (PutArgs.OVERWRITE_NEWER, PRESENCE_PARAM),
+            (PutArgs.CHECK, PRESENCE_PARAM),
+            (GetArgs.QUIET, PRESENCE_PARAM),
         ]
 
 
@@ -450,6 +452,7 @@ class Client:
         self._command_dispatcher[Commands.OPEN_SHORT] = self._command_dispatcher[Commands.OPEN]
         self._command_dispatcher[Commands.CLOSE_SHORT] = self._command_dispatcher[Commands.CLOSE]
         self._command_dispatcher[Commands.SCAN_SHORT] = self._command_dispatcher[Commands.SCAN]
+        self._command_dispatcher[Commands.INFO_SHORT] = self._command_dispatcher[Commands.INFO]
         self._command_dispatcher[Commands.LOCAL_EXEC_SHORT] = self._command_dispatcher[Commands.LOCAL_EXEC]
         self._command_dispatcher[Commands.REMOTE_EXEC_SHORT] = self._command_dispatcher[Commands.REMOTE_EXEC]
 
@@ -2219,331 +2222,3 @@ class Client:
         finally:
             self.server_connection = None
             self.sharing_connection = None
-
-
-"""
-    def _create_sharing_connection_from_sharing_location(self, sharing_location: SharingLocation) -> \
-            Tuple[SharingConnection, ServerConnection]:
-
-        if not sharing_location:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
-
-        log.d("Sharing location: %s", sharing_location)
-
-        if sharing_location.esd:
-
-        # Discover the esd to which connect
-        # sharing_info, server_info = self._discover_sharing(
-        #     sharing_location, ftype=FTYPE_DIR
-        # )
-        #
-        # if not sharing_info or not server_info:
-        #     raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
-        #
-        # # Create the esd connection: connect()
-        #
-        # log.d("Creating new sharing connection for location: %s", sharing_location)
-        # server_conn = self._create_server_connection_from_server_info(server_info)
-        server_conn = self._create_server_connection_from_server_location(
-            sharing_location.esd, authenticate=True)
-
-        if not server_conn or not server_conn.is_connected():
-            log.e("Cannot establish connection")
-            raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
-
-        # Create the sharing connection: open()
-        sharing_conn = Client._create_sharing_connection_from_server_connection(
-            server_conn=server_conn,
-            sharing_info=sharing_info
-        )
-
-        return sharing_conn, server_conn
-
-    @staticmethod
-    def _create_sharing_connection_from_server_connection(
-            server_conn: ServerConnection,
-            sharing_info: SharingInfo) -> Optional[SharingConnection]:
-
-        if not server_conn or not server_conn.is_connected():
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
-
-        # Create the sharing connection: open()
-
-        open_resp = server_conn.open(sharing_info.get("name"))
-
-        if is_error_response(open_resp):
-            raise BadOutcome(open_resp.get("error"))
-
-        if not is_data_response(open_resp):
-            raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-
-        sharing_uri = open_resp.get("data")
-
-        sharing_conn = SharingConnection(
-            sharing_uri,
-            sharing_info=sharing_info,
-            server_info=server_conn.server_info
-        )
-
-        return sharing_conn
-
-
-    def _create_server_connection_from_server_location(
-            self, server_location: ServerLocation,
-            authenticate: bool) -> ServerConnection:
-
-        if not server_location:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
-
-        log.d("Creating new esd connection for location: %s", server_location)
-
-        # There are different ways to connect to the esd
-        # based on what's in server_location
-        # 1. <server_name>  => DISCOVER
-        # 2. <IP>           => Attempt to connect directly to the default port,
-        #                      but try DISCOVER on fail
-        # 3. <IP>:<PORT>    => Connect directly
-
-        just_directly = False
-
-        server_conn = None
-        real_server_info = None
-
-        if server_location.ip:
-            auto_server_info = {"ip": server_location.ip}
-
-            if server_location.port:
-                log.d("Server IP and PORT are specified: trying to connect directly")
-                just_directly = True # Everything specified => won't perform a scan
-                auto_server_info["port"] = server_location.port
-            else:
-                log.d("Server IP is specified: trying to connect directly to the default port")
-                auto_server_info["port"] = DEFAULT_SERVER_PORT
-
-            while True: # actually two attempts are done: with/without SSL
-
-                # Create a connection
-                server_conn = ServerConnection(auto_server_info)
-
-                # Check if it is up
-                # (e.g. if the port was not specified in case 2. maybe the user
-                # want to perform a scan instead of connect to the default port,
-                # by checking if the connection is up we are able to figure out that)
-
-                try:
-                    resp = server_conn.info()
-                    ensure_data_response(resp)
-
-                    real_server_info = resp.get("data")
-                    log.d("Connection established is UP, retrieved esd info\n%s",
-                          j(real_server_info))
-                    break
-                except Exception:
-                    log.w("Connection cannot be established directly %s SSL",
-                          "with" if auto_server_info.get("ssl") else "without")
-
-                if not auto_server_info.get("ssl"):
-                    log.d("Trying again enabling SSL before giving up")
-                    auto_server_info["ssl"] = True
-                else:
-                    log.e("Connection can't be directly established neither with nor without SSL")
-                    break
-
-
-        # If we have not retrieve the real esd info, performs a scan
-
-        if real_server_info: # connection established directly
-            log.d("Connection has been established directly without perform a DISCOVER")
-            # Wraps the already established esd conn in a ServerConnection
-            # associated with the right esd info
-            server_conn = ServerConnection(real_server_info, server_conn)
-        elif not just_directly:
-            log.d("Will perform a DISCOVER for establish esd connection")
-            real_server_info = self._discover_server(server_location)
-            server_conn = ServerConnection(real_server_info)
-        else:
-            log.d("Connection not established directly and DISCOVER won't be "
-                  "performed since IP and PORT has been specified both")
-
-        if not real_server_info:
-            log.e("Connection can't be established")
-            raise BadOutcome(ClientErrors.CONNECTION_ERROR)
-
-
-        # We have a valid TCP connection with the esd
-        log.i("Connection established with %s:%d",
-              server_conn.server_info.get("ip"),
-              server_conn.server_info.get("port"))
-
-        # Check whether we have to do connect()
-        # (It might be unnecessary for public esd api such as ping, info, list, ...)
-        if not authenticate:
-            return server_conn
-
-        log.d("Will perform authentication (if required by the esd)")
-        passwd = None
-
-        # Ask the password if the sharing is protected by auth
-        if server_conn.server_info.get("auth"):
-            log.i("Server '%s' is protected by password", server_conn.server_info.get("name"))
-            passwd = getpass()
-        else:
-            log.i("Server '%s' is not protected", server_conn.server_info.get("name"))
-
-        # Performs connect() (and authentication)
-        resp = server_conn.connect(passwd)
-        ensure_success_response(resp)
-
-        return server_conn
-
-    def _get_current_sharing_connection_or_create_from_sharing_location_args(self, args: Args) \
-            -> Tuple[SharingConnection, ServerConnection]:
-
-        if self.is_connected_to_server() and self.is_connected_to_sharing():
-            log.i("Providing already established sharing connection")
-            return self.sharing_connection, self.server_connection
-
-        # Create temporary connection
-        log.i("No established sharing connection; creating a new one")
-
-        vargs = args.get_vargs()
-
-        if not vargs:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
-
-        sharing_location = SharingLocation.parse(vargs.pop(0))
-        return self._create_sharing_connection_from_sharing_location(sharing_location)
-
-    def _discover_server(self, server_location: ServerLocation) -> Optional[ServerInfo]:
-        if not server_location:
-            log.w("Null esd location, no esd will be found")
-            return None
-
-        server_info: Optional[ServerInfo] = None
-
-        def response_handler(client_endpoint: Endpoint,
-                             a_server_info: ServerInfo) -> bool:
-            nonlocal server_info
-
-            log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
-
-            if Client._server_info_satisfy_server_location(
-                    server_info=a_server_info,
-                    server_location=server_location):
-
-                server_info = a_server_info
-                return False    # Stop DISCOVER
-
-            return True         # Continue DISCOVER
-
-        Discoverer(
-            server_discover_port=self._discover_port,
-            server_discover_addr=server_location.ip or ADDR_BROADCAST,
-            response_handler=response_handler).discover()
-
-        return server_info
-
-    def _discover_sharing(self,
-                          sharing_location: SharingLocation,
-                          ftype: FileType = None) -> Tuple[Optional[SharingInfo], Optional[ServerInfo]]:
-
-        if not sharing_location:
-            log.w("Null sharing location, no sharing will be found")
-            return None, None
-
-        sharing_info: Optional[SharingInfo] = None
-        server_info: Optional[ServerInfo] = None
-
-        def response_handler(client_endpoint: Endpoint,
-                             a_server_info: ServerInfo) -> bool:
-
-            nonlocal sharing_info
-            nonlocal server_info
-
-            log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
-
-            sharing_info = Client._sharing_info_of_server_info_by_sharing_location(
-                server_info=a_server_info,
-                sharing_location=sharing_location,
-                sharing_ftype=ftype
-            )
-
-            if sharing_info:
-                server_info = a_server_info
-                return False    # Stop DISCOVER
-
-            return True         # Continue DISCOVER
-
-        Discoverer(
-            server_discover_port=self._discover_port,
-            server_discover_addr=sharing_location.server_ip or ADDR_BROADCAST,
-            response_handler=response_handler).discover()
-
-        return sharing_info, server_info
-
-    @staticmethod
-    def _server_info_satisfy_server_location(
-        server_info: ServerInfo,
-        server_location: ServerLocation) -> bool:
-
-        if not server_location:
-            # Satisfy since no constraints
-            return True
-
-        # Server name check (optional)
-        if server_location.name and server_info.get("name") != server_location.name:
-            log.d("Server info does not match the esd name filter '%s'",
-                  server_location.name)
-            return False
-
-        # Server ip check (optional)
-        if server_location.ip and server_info.get("ip") != server_location.ip:
-            log.d("Server info does not match the ip filter '%s'",
-                  server_location.ip)
-            return False
-
-        # Server port check (optional)
-        if server_location.port and server_info.get("port") != server_location.port:
-            log.d("Server info does not match the port filter '%d'",
-                  server_location.port)
-            return False
-
-        log.d("server_info_satisfy_server_location() OK")
-        return True
-
-
-
-    @staticmethod
-    def _sharing_info_of_server_info_by_sharing_location(
-            server_info: ServerInfo,
-            sharing_location: SharingLocation,
-            sharing_ftype: FileType) -> Optional[SharingInfo]:
-
-            # Check esd constraints
-            if not Client._server_info_satisfy_server_location(server_info, sharing_location.esd):
-                return None
-
-            # Check among the esd sharings
-            for a_sharing_info in server_info.get("sharings"):
-                # Sharing name check (mandatory)
-                if sharing_location.name and a_sharing_info.get("name") != sharing_location.name:
-                    log.d("Ignoring sharing which does not match the sharing name filter '%s'",
-                          sharing_location.name)
-                    continue
-
-                # Ftype check (optional)
-                if sharing_ftype and a_sharing_info.get("ftype") != sharing_ftype:
-                    log.d("Ignoring sharing which does not match the ftype filter '%s'", sharing_ftype)
-                    log.w("Found a sharing with the right name but wrong ftype, wrong command maybe?")
-                    continue
-
-                # FOUND
-                log.i("Server [%s:%d] satisfies sharing location %s",
-                      server_info.get("ip"),
-                      server_info.get("port"),
-                      sharing_location)
-
-                return a_sharing_info
-
-            return None
-"""

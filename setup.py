@@ -43,7 +43,7 @@ setup(
     author="Stefano Dottore",
     author_email="docheinstein@gmail.com",
     description="FTP/SMB like protocol",
-    long_description=read('README.rst'),
+    long_description=read('README.MD'),
     license="MIT",
     keywords="easyshare",
     url="https://github.com/Docheinstein/easyshare",
