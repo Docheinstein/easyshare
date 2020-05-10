@@ -2,11 +2,9 @@ import os
 import socket
 import ssl
 import tempfile
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from easyshare.logging import get_logger
-from easyshare.utils.json import json_to_pretty_str
-from easyshare.utils.types import is_list
 
 log = get_logger(__name__)
 
@@ -36,7 +34,7 @@ try:
 
 except:
     SSLCertificatePart = Dict[str, str]
-    SSLCertificate = Dict[str, SSLCertificatePart]
+    SSLCertificate = Dict[str, Union[SSLCertificatePart], str, bool]
 
 
 
@@ -68,8 +66,8 @@ def create_client_ssl_context() -> Optional[ssl.SSLContext]:
     return ssl_context
 
 
-def wrap_socket(sock: socket.socket, ssl_context: ssl.SSLContext,
-                server_side: bool = False, server_hostname: str = None):
+def sslify_socket(sock: socket.socket, ssl_context: ssl.SSLContext,
+                  server_side: bool = False, server_hostname: str = None):
     ssock = sock
     if ssl_context:
         if server_side:
@@ -81,6 +79,22 @@ def wrap_socket(sock: socket.socket, ssl_context: ssl.SSLContext,
     return ssock
 
 
+
+_SSL_CERT_PARSING_MAP = {
+    "serialNumber": "serial",
+    "notBefore": "valid_from",
+    "notAfter": "valid_to",
+
+    "countryName": "country",
+    "stateOrProvinceName": "state",
+    "localityName": "locality",
+    "organizationName": "organization",
+    "organizationalUnitName": "organization_unit",
+    "commonName": "common_name",
+    "emailAddress": "email",
+}
+
+
 def parse_ssl_certificate(cert_der: bytes) -> Optional[SSLCertificate]:
     # Takes a dict certificate as given by_test_decode_cert and parse
     # it to a 'SSLCertificate'
@@ -90,36 +104,22 @@ def parse_ssl_certificate(cert_der: bytes) -> Optional[SSLCertificate]:
 
     cert = {}
 
-    PARSING_MAP = {
-        "serialNumber": "serial",
-        "notBefore": "valid_from",
-        "notAfter": "valid_to",
-
-        "countryName": "country",
-        "stateOrProvinceName": "state",
-        "localityName": "locality",
-        "organizationName": "organization",
-        "organizationalUnitName": "organization_unit",
-        "commonName": "common_name",
-        "emailAddress": "email",
-    }
-
     def parse_part(part_list: list, part_dict: dict):
         for field in part_list:
             for subfield in field:
                 if len(subfield) == 2:
                     subfield_k, subfield_v = subfield[0], subfield[1]
-                    if subfield_k in PARSING_MAP:
-                        part_dict[PARSING_MAP[subfield_k]] = subfield_v
+                    if subfield_k in _SSL_CERT_PARSING_MAP:
+                        part_dict[_SSL_CERT_PARSING_MAP[subfield_k]] = subfield_v
 
-    # print("Parsing", json_to_pretty_str(d))
+    # print("Parsing", j(d))
 
     for rootfield_k, rootfield_v in d.items():
         if rootfield_k == "subject" or rootfield_k == "issuer":
             cert[rootfield_k] = {}
             parse_part(rootfield_v, cert[rootfield_k])
-        elif rootfield_k in PARSING_MAP:
-            cert[PARSING_MAP[rootfield_k]] = rootfield_v
+        elif rootfield_k in _SSL_CERT_PARSING_MAP:
+            cert[_SSL_CERT_PARSING_MAP[rootfield_k]] = rootfield_v
 
     # Check wheter is self signed (issuer its the same as the subject)
     self_signed = (cert.get("subject", 1) == cert.get("issuer", 2))
@@ -135,6 +135,9 @@ def _parse_ssl_certificate_der(cert_der: bytes) -> Optional[Dict]:
 
 
 def _parse_ssl_certificate_pem(cert_pem: str) -> Optional[Dict]:
+    # Uses '_test_decode_cert', an internal API of cpython
+    # which takes a file as an input, so we have to create a temporary file
+    # and fill it with the pem content
     with tempfile.NamedTemporaryFile(mode="w") as tmpf:
         tmpf.write(cert_pem)
         tmpf.flush()

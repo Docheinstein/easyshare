@@ -11,41 +11,38 @@ from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, cast
 
 from Pyro5.errors import PyroError
 
-from easyshare.es.args import PositionalArgs, StopParseArgs, VariadicArgs, ArgsParser
+from easyshare.common import pyro_uri, Endpoint, transfer_port, DEFAULT_SERVER_PORT
 from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK
 from easyshare.es.common import ServerLocation, SharingLocation
-from easyshare.es.sharingconnection import SharingConnection
+from easyshare.es.connections import ServerConnection, SharingConnection, ServerConnectionMinimal
 from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, print_error
-from easyshare.es.serverconnection import ServerConnection, ServerConnectionMinimal
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str
-from easyshare.consts.net import ADDR_BROADCAST
+from easyshare.consts import ADDR_BROADCAST
+from easyshare.esd.services import TransferService
 from easyshare.logging import get_logger
-from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
-from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE, FileType
-from easyshare.protocol.exposed import IRexecService, IGetService, IPutService
-from easyshare.protocol.overwrite import OverwritePolicy
-from easyshare.protocol.response import Response, is_error_response, is_success_response, is_data_response
-from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
-from easyshare.protocol.sharinginfo import SharingInfo
-from easyshare.esd.services.base.transfer import TransferService
-from easyshare.args import Args
-from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR, DEFAULT_SERVER_PORT, pyro_uri, transfer_port
-from easyshare.shared.endpoint import Endpoint
+from easyshare.protocol import FileInfo, FileInfoTreeNode
+from easyshare.protocol import FTYPE_DIR, FTYPE_FILE, FileType
+from easyshare.protocol import IRexecService, IGetService, IPutService
+from easyshare.protocol import OverwritePolicy
+from easyshare.protocol import Response, is_error_response, is_success_response, is_data_response
+from easyshare.protocol import ServerInfoFull, ServerInfo
+from easyshare.protocol import SharingInfo
 from easyshare.progress import FileProgressor
 from easyshare.timer import Timer
 from easyshare.ssl import get_ssl_context
-from easyshare.socket import SocketTcpOut
+from easyshare.sockets import SocketTcpOut
 from easyshare.utils.app import eprint
-from easyshare.utils.colors import red, styled, Style
-from easyshare.utils.json import json_to_pretty_str
-from easyshare.utils.pyro import TracedPyroProxy
+from easyshare.colors import red, styled, Style
+from easyshare.utils.json import j
+from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.str import unprefix
-from easyshare.utils.time import duration_str_human
+from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
-from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, size_str, speed_str, relpath
-from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM, ArgsParseError
+from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, relpath
+from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM, ArgsParseError, PositionalArgs, \
+    VariadicArgs, ArgsParser, StopParseArgs
 
 log = get_logger(__name__)
 
@@ -173,6 +170,7 @@ class PutArgs(VariadicArgs):
 
 
 # ==================================================================
+
 
 # ==================================================================
 
@@ -1365,7 +1363,7 @@ class Client:
                 "local": f,
                 "remote": trail
             }
-            log.i("Adding sendfile %s", json_to_pretty_str(sendfile))
+            log.i("Adding sendfile %s", j(sendfile))
             sendfiles.append(sendfile)
 
         # Overwrite preference
@@ -1423,7 +1421,7 @@ class Client:
                     "mtime": fstat.st_mtime_ns
                 }
 
-                log.i("send_file finfo: %s", json_to_pretty_str(finfo))
+                log.i("send_file finfo: %s", j(finfo))
 
                 log.d("doing a put_next")
 
@@ -1573,7 +1571,7 @@ class Client:
                                 "local": f_path_local,
                                 "remote": f_path_remote
                             }
-                            log.i("Adding sendfile %s", json_to_pretty_str(sendfile))
+                            log.i("Adding sendfile %s", j(sendfile))
 
                             sendfiles.append(sendfile)
                     else:
@@ -1892,7 +1890,7 @@ class Client:
 
                     real_server_info = resp.get("data")
                     log.d("Connection established is UP, retrieved esd info\n%s",
-                          json_to_pretty_str(real_server_info))
+                          j(real_server_info))
 
                     # Fill the uncomplete esd info with the IP/port we used to connect
                     break
@@ -2338,7 +2336,7 @@ class Client:
 
                     real_server_info = resp.get("data")
                     log.d("Connection established is UP, retrieved esd info\n%s",
-                          json_to_pretty_str(real_server_info))
+                          j(real_server_info))
                     break
                 except Exception:
                     log.w("Connection cannot be established directly %s SSL",

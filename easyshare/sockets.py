@@ -4,11 +4,11 @@ import ssl
 from abc import ABC
 from typing import Optional, Union, Tuple
 
-from easyshare.consts.net import ADDR_BROADCAST, ADDR_ANY, PORT_ANY
+from easyshare.consts import ADDR_BROADCAST, ADDR_ANY, PORT_ANY
 from easyshare.logging import get_logger
-from easyshare.shared.endpoint import Endpoint
+from easyshare.endpoint import Endpoint
 from easyshare.utils.net import socket_udp_in, socket_udp_out, socket_tcp_out, socket_tcp_in
-from easyshare.utils.ssl import wrap_socket
+from easyshare.utils.ssl import sslify_socket
 
 log = get_logger(__name__)
 
@@ -92,7 +92,7 @@ class SocketTcpIn(SocketTcp):
                  sock: socket.socket,
                  ssl_context: Optional[ssl.SSLContext] = None):
         super().__init__(
-            wrap_socket(
+            sslify_socket(
                 sock,
                 ssl_context=ssl_context,
                 server_side=True
@@ -106,7 +106,7 @@ class SocketTcpOut(SocketTcp):
                  timeout: float = None,
                  ssl_context: Optional[ssl.SSLContext] = None):
         super().__init__(
-            wrap_socket(
+            sslify_socket(
                 socket_tcp_out(address=address, port=port, timeout=timeout),
                 ssl_context=ssl_context,
                 server_hostname=address
@@ -120,7 +120,7 @@ class SocketTcpAcceptor(Socket):
                  port: int = PORT_ANY, *,
                  ssl_context: Optional[ssl.SSLContext] = None):
         super().__init__(
-            wrap_socket(
+            sslify_socket(
                 socket_tcp_in(address, port),
                 ssl_context=ssl_context,
                 server_hostname=address

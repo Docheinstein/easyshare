@@ -60,9 +60,3 @@ def leftof(s: str, sep: str, from_end=False) -> str:
     else:
         before_or_ori, _, _ = s.partition(sep)
         return before_or_ori
-
-
-# def strip(s: str, chars: str) -> str:
-#     if not s:
-#         return s
-#     return s.strip(chars)

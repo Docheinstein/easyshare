@@ -10,8 +10,8 @@ from Pyro5.api import expose, oneway
 
 from easyshare.logging import get_logger
 from easyshare.auth import Auth, AuthNone
-from easyshare.protocol.response import create_success_response, create_error_response, Response
-from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
+from easyshare.protocol import create_success_response, create_error_response, Response
+from easyshare.protocol import ServerInfoFull, ServerInfo
 from easyshare.esd.common import try_or_command_failed_response
 from easyshare.esd.daemon import init_pyro_daemon, get_pyro_daemon
 from easyshare.esd.services.rexec import RexecService
@@ -19,15 +19,15 @@ from easyshare.esd.services.sharing import SharingService
 from easyshare.esd.sharing import Sharing
 from easyshare.esd.client import ClientContext
 from easyshare.esd.discover import DiscoverDaemon
-from easyshare.shared.common import DEFAULT_DISCOVER_PORT, ESD_PYRO_UID, DEFAULT_SERVER_PORT
-from easyshare.shared.endpoint import Endpoint
-from easyshare.protocol.exposed import IServer
-from easyshare.protocol.errors import ServerErrors
+from easyshare.common import DEFAULT_DISCOVER_PORT, ESD_PYRO_UID, DEFAULT_SERVER_PORT
+from easyshare.endpoint import Endpoint
+from easyshare.protocol import IServer
+from easyshare.protocol import ServerErrors
 from easyshare.ssl import set_ssl_context, get_ssl_context
 from easyshare.tracing import trace_out
-from easyshare.socket import SocketUdpOut
-from easyshare.utils.colors import red, green
-from easyshare.utils.json import json_to_bytes, json_to_pretty_str
+from easyshare.sockets import SocketUdpOut
+from easyshare.colors import red, green
+from easyshare.utils.json import json_to_bytes, j
 from easyshare.utils.net import get_primary_ip, is_valid_port
 from easyshare.utils.pyro import pyro_client_endpoint, trace_api
 from easyshare.utils.types import bytes_to_int
@@ -125,10 +125,10 @@ class Server(IServer):
 
         log.d("Sending DISCOVER response back to %s:%d\n%s",
               client_endpoint[0], client_discover_response_port,
-              json_to_pretty_str(response))
+              j(response))
 
         trace_out(
-            "DISCOVER {}".format(json_to_pretty_str(response)),
+            "DISCOVER {}".format(j(response)),
             ip=client_endpoint[0],
             port=client_discover_response_port
         )

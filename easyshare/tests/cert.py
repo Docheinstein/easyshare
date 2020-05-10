@@ -1,4 +1,4 @@
-from easyshare.socket import SocketTcpOut
+from easyshare.sockets import SocketTcpOut
 from easyshare.utils.json import json_to_str
 import socket
 import ssl

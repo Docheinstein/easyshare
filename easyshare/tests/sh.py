@@ -1,11 +1,5 @@
-import fcntl
-import os
-import select
-import sys
-
-from easyshare.utils.colors import red
+from easyshare.colors import red
 from easyshare.utils.os import run_detached, stdin_read_nonblocking
-from easyshare.utils.types import bytes_to_str
 
 
 def rprint(s, *args, **kwargs):

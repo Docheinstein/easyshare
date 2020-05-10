@@ -1,6 +1,6 @@
 from typing import Union
 
-from easyshare.protocol.errors import ServerErrors, TransferOutcomes
+from easyshare.protocol import ServerErrors, TransferOutcomes
 from easyshare.utils.app import eprint
 from easyshare.utils.types import is_int, is_str
 

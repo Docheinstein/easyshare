@@ -8,15 +8,3 @@ def keys(obj: object) -> list:
 
 def values(obj: object) -> list:
     return [v for k, v in obj.__dict__.items() if "__" not in k]
-
-
-
-
-if __name__ == "__main__":
-    class CC:
-        SORT = "ciao"
-
-        def amethod(self):
-            pass
-
-    print(items(CC))

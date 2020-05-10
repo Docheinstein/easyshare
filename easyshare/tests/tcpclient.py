@@ -1,4 +1,4 @@
-from easyshare.socket import SocketTcpOut
+from easyshare.sockets import SocketTcpOut
 from easyshare.utils.net import get_primary_ip
 from easyshare.utils.types import str_to_bytes, bytes_to_str
 

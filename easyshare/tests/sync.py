@@ -2,7 +2,7 @@ import random
 import threading
 import time
 
-from easyshare.utils.colors import green, red
+from easyshare.colors import red
 
 SLEEP_FACTOR = 0
 

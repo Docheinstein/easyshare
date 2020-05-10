@@ -8,10 +8,10 @@ from typing import Tuple
 
 from easyshare import logging
 from easyshare.logging import get_logger
-from easyshare.utils.colors import fg, Color, enable_colors
+from easyshare.colors import fg, Color, enable_colors
 from easyshare.utils.env import is_unicode_supported, terminal_size
 from easyshare.utils.os import size_str, speed_str
-from easyshare.utils.time import duration_str_human
+from easyshare.utils.measures import duration_str_human
 
 log = get_logger(__name__)
 

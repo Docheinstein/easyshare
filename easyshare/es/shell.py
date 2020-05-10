@@ -12,16 +12,17 @@ import readline as rl
 
 from easyshare.es.args import OptIntArg, ArgsParser, VariadicArgs
 from easyshare.es.client import Client
-from easyshare.es.commands import Commands, is_special_command, matches_special_command
+from easyshare.es.commands import Commands, matches_special_command
 from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.es.errors import print_error, ClientErrors
 from easyshare.es.help import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
-from easyshare.utils.colors import styled, Style, Color
+from easyshare.colors import styled, Style
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
+from easyshare.utils.pyro import is_pyro_logging_enabled, enable_pyro_logging
 from easyshare.utils.types import is_bool, is_int, is_str
 
 log = get_logger(__name__)
@@ -310,9 +311,8 @@ class Shell:
     def _verbose(cls, args: Args) -> Union[int, str]:
         # Increase verbosity (or disable if is already max)
         root_log = get_logger()
-        pyro_log = pylogging.getLogger("Pyro5")
 
-        current_verbosity = root_log.verbosity + getattr(pyro_log, "enabled", 0)
+        current_verbosity = root_log.verbosity + is_pyro_logging_enabled()
 
         verbosity = args.get_varg(
             default=(current_verbosity + 1) % (logging.VERBOSITY_MAX + 2)
@@ -323,15 +323,7 @@ class Shell:
         log.i(">> VERBOSE (%d)", verbosity)
 
         root_log.set_verbosity(verbosity)
-
-        if verbosity > logging.VERBOSITY_MAX:
-            pyro_log.disabled = False
-            pyro_log.setLevel(pylogging.DEBUG)
-        else:
-            pyro_log.disabled = True
-            pyro_log.setLevel(pylogging.CRITICAL)
-
-        setattr(pyro_log, "enabled", not pyro_log.disabled)
+        enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
         print("Verbosity = {:d}{}".format(
             verbosity,

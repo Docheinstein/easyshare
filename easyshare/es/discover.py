@@ -2,14 +2,14 @@ import select
 from datetime import datetime
 from typing import Callable
 
-from easyshare.consts.net import ADDR_BROADCAST
+from easyshare.consts import ADDR_BROADCAST
 from easyshare.logging import get_logger
-from easyshare.protocol.response import Response, is_data_response
-from easyshare.shared.endpoint import Endpoint
-from easyshare.protocol.serverinfo import ServerInfoFull
+from easyshare.protocol import Response, is_data_response
+from easyshare.endpoint import Endpoint
+from easyshare.protocol import ServerInfoFull
 from easyshare.tracing import trace_out, trace_in
-from easyshare.socket import SocketUdpIn, SocketUdpOut
-from easyshare.utils.json import bytes_to_json, json_to_pretty_str
+from easyshare.sockets import SocketUdpIn, SocketUdpOut
+from easyshare.utils.json import bytes_to_json, j
 from easyshare.utils.types import int_to_bytes
 
 log = get_logger(__name__)
@@ -81,7 +81,7 @@ class Discoverer:
             resp: Response = bytes_to_json(raw_resp)
 
             trace_in(
-                "DISCOVER\n{}".format(json_to_pretty_str(resp)),
+                "DISCOVER\n{}".format(j(resp)),
                 ip=endpoint[0],
                 port=endpoint[1]
             )

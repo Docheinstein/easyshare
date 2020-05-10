@@ -1,6 +1,6 @@
 import ssl
 
-from easyshare.socket import SocketTcpAcceptor
+from easyshare.sockets import SocketTcpAcceptor
 from easyshare.utils.types import str_to_bytes, bytes_to_str
 
 # Create cert and private key with:

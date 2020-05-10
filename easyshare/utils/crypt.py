@@ -5,6 +5,7 @@ from typing import Union, Optional, Tuple
 
 from easyshare.utils.types import to_bytes, str_to_bytes, is_bytes
 
+
 b64 = str
 
 

@@ -1,12 +1,18 @@
 import os
 import string
+from typing import Tuple
 
 from easyshare import logging
 from easyshare.logging import get_logger, init_logging
-from easyshare.utils.colors import Color, enable_colors
+from easyshare.colors import Color, enable_colors
 from easyshare.utils.env import is_stdout_terminal
 from easyshare.utils.str import satisfy
 from easyshare.utils.types import to_int
+
+
+# =====================
+# === APP META DATA ===
+# =====================
 
 APP_NAME = "easyshare"
 APP_NAME_SERVER = "easyshare deamon"
@@ -15,36 +21,49 @@ APP_NAME_SERVER_SHORT = "esd"
 APP_NAME_CLIENT_SHORT = "es"
 APP_VERSION = "0.1"
 
-DEFAULT_DISCOVER_PORT = 12019   # UDP
-DEFAULT_SERVER_PORT =   12020   # TCP
 
-SERVER_NAME_ALPHABET = string.ascii_letters + "_-"
-SHARING_NAME_ALPHABET = string.ascii_letters + "_-."
-
-AUTH_FMT = "{}${}${}"   # type$salt$hash
+# =====================
+# ======= COLORS ======
+# =====================
 
 DIR_COLOR = Color.BLUE
-# FILE_COLOR = Color.GREEN
 FILE_COLOR = None
 
 PROGRESS_COLOR = Color.BLUE
 DONE_COLOR = Color.GREEN
 
+
+# =====================
+# ==== ENVIRONMENT ====
+# =====================
+
 ENV_EASYSHARE_VERBOSITY = "EASYSHARE_VERBOSITY"
 
-ESD_PYRO_UID = "esd"
+
+# =====================
+# ==== RAW NETWORK ====
+# =====================
+
+DEFAULT_DISCOVER_PORT = 12019   # UDP
+DEFAULT_SERVER_PORT =   12020   # TCP
 
 def transfer_port(server_port: int):
     return server_port + 1
 
-def pyro_uri(uid: str, addr: str, port: int):
-    # e.g.  PYRO:esd@192.168.1.105:7777
-    return "PYRO:{}@{}:{}".format(uid, addr, port)
 
-def esd_pyro_uri(addr: str, port: int):
-    # e.g.  PYRO:esd@192.168.1.105:7777
-    return pyro_uri(ESD_PYRO_UID, addr, port)
+# =====================
+# ==== PYRO NETWORK ====
+# =====================
 
+ESD_PYRO_UID = "esd"
+
+
+# =====================
+# === SHARING/SERVER ==
+# =====================
+
+SERVER_NAME_ALPHABET = string.ascii_letters + "_-"
+SHARING_NAME_ALPHABET = string.ascii_letters + "_-."
 
 def is_sharing_name(s: str):
     return satisfy(s, SHARING_NAME_ALPHABET)
@@ -53,6 +72,10 @@ def is_sharing_name(s: str):
 def is_server_name(s: str):
     return satisfy(s, SERVER_NAME_ALPHABET)
 
+
+# =====================
+# ======== SETUP ======
+# =====================
 
 def easyshare_setup():
     enable_colors(is_stdout_terminal())  # disable colors when redirection is involved
@@ -68,3 +91,10 @@ def easyshare_setup():
     root_log = get_logger(logging.ROOT_LOGGER_NAME)
     root_log.set_verbosity(starting_verbosity)
     root_log.d("Starting with verbosity = %d", starting_verbosity)
+
+
+# =====================
+# ======= MISC ========
+# =====================
+
+Endpoint = Tuple[str, int]

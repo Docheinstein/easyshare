@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from easyshare.utils.colors import styled, Color
+from easyshare.colors import styled, Color
 from easyshare.utils.math import rangify
 
 ROOT_LOGGER_NAME = "easyshare"

@@ -1,4 +1,4 @@
-from easyshare.utils.colors import magenta, cyan
+from easyshare.colors import magenta, cyan
 
 
 _tracing = False

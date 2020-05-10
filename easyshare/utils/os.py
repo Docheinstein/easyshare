@@ -8,19 +8,24 @@ import threading
 from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
+from easyshare.consts import K, M, G
 from easyshare.logging import get_logger
-from easyshare.protocol.fileinfo import FileInfo, FileInfoTreeNode
-from easyshare.protocol.filetype import FTYPE_FILE, FTYPE_DIR
+from easyshare.protocol import FileInfo, FileInfoTreeNode
+from easyshare.protocol import FTYPE_FILE, FTYPE_DIR
 from easyshare.utils.types import is_str, is_list
 
 log = get_logger(__name__)
 
-G = 1000000000
-M = 1000000
-K = 1000
-UNITS = (1, K, M, G)
 
-if os.name == 'nt':
+def is_windows():
+    return os.name == "nt"
+
+
+def is_unix():
+    return os.name == "posix"
+
+
+if is_windows():
     import win32api, win32con
 
 
@@ -56,20 +61,6 @@ def abspath(s: str) -> str:
 
 def pathify(s: str) -> str:
     return os.path.expanduser(s)
-
-def speed_str(size: float) -> str:
-    return size_str(size, prefixes=("B/s", "KB/s", "MB/s", "GB/s"))
-
-def size_str(size: float,
-             prefixes=("B", "KB", "MB", "GB"),
-             precisions=(0, 0, 1, 1)) -> str:
-    i = len(UNITS) - 1
-    while i >= 0:
-        u = UNITS[i]
-        if size > u:
-            return ("{:0." + str(precisions[i]) + "f}{}").format(size / u, prefixes[i])
-        i -= 1
-    return "0{}".format(prefixes[0])
 
 
 def tree(path: str,
@@ -327,6 +318,5 @@ def run_detached(cmd: str,
 
     return popen_proc, proc_handler
 
-
 if __name__ == "__main__":
-    pass
+    print("OS: ", "windows" if is_windows() else ("unix" if is_unix() else "unknown"))

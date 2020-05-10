@@ -3,7 +3,7 @@ import re
 from typing import Dict, Optional, List, Any, Callable, Union
 
 from easyshare.logging import get_logger
-from easyshare.utils.json import json_to_pretty_str
+from easyshare.utils.json import j
 from easyshare.utils.types import to_int
 
 log = get_logger()
@@ -24,7 +24,7 @@ class Conf:
         self.data = data
 
     def __str__(self):
-        return json_to_pretty_str(self.data)
+        return j(self.data)
 
 
     @staticmethod

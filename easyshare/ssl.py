@@ -5,8 +5,8 @@ import Pyro5
 import Pyro5.socketutil
 
 from easyshare.logging import get_logger
-from easyshare.shared.endpoint import Endpoint
-from easyshare.socket import SocketTcpOut
+from easyshare.endpoint import Endpoint
+from easyshare.sockets import SocketTcpOut
 from easyshare.utils.ssl import parse_ssl_certificate, SSLCertificate, create_client_ssl_context
 
 log = get_logger(__name__)
@@ -16,6 +16,7 @@ log = get_logger(__name__)
 _ssl_context: Optional[ssl.SSLContext] = None
 
 def get_ssl_context(*vargs, **kwargs) -> Optional[ssl.SSLContext]:
+    # ^ the signature must be generic for allow calls from pyro ^
     log.d("get_ssl_context (%s)", "enabled" if _ssl_context else "disabled")
     return _ssl_context
 

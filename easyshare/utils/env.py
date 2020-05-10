@@ -1,9 +1,21 @@
 import os
 import shutil
 import sys
-from stat import S_ISREG, S_ISFIFO, S_ISCHR
+from stat import S_ISCHR
 from typing import Tuple
 
+from easyshare.logging import get_logger
+
+
+log = get_logger(__name__)
+
+
+def is_terminal(fileno: int):
+    return S_ISCHR(os.fstat(fileno).st_mode)
+
+
+def is_stdout_terminal():
+    return is_terminal(sys.stdout.fileno())
 
 
 def terminal_size(fallback=(80, 24)) -> Tuple[int, int]:
@@ -30,9 +42,5 @@ def is_unicode_supported(stream=sys.stdout) -> bool:
             return False
 
 
-def is_terminal(fileno: int):
-    return S_ISCHR(os.fstat(fileno).st_mode)
-
-
-def is_stdout_terminal():
-    return is_terminal(sys.stdout.fileno())
+if __name__ == "__main__":
+    print(terminal_size())

@@ -4,8 +4,8 @@ from typing import List, Tuple
 
 class Timer:
     class Event(Enum):
-        Start = 0
-        Stop = 1
+        START = 0
+        STOP = 1
 
     def __init__(self, start: bool = True):
         self._events:List[Tuple[Timer.Event, int]] = []
@@ -13,15 +13,17 @@ class Timer:
             self.start()
 
     def elapsed(self) -> int:
+        # Compute the elapsed time by summing the delta between consecutive
+        # Event.START and Event.STOP
         deltas_sum = 0
         i = 0
         while i < len(self._events):
             ev_start, t_start = self._events[i]
-            if ev_start == Timer.Event.Start:
+            if ev_start == Timer.Event.START:
                 i += 1
                 while i < len(self._events):
                     ev_stop, t_stop = self._events[i]
-                    if ev_stop == Timer.Event.Stop:
+                    if ev_stop == Timer.Event.STOP:
                         deltas_sum += t_stop - t_start
                         break
                     i += 1
@@ -39,17 +41,17 @@ class Timer:
         return self.elapsed() * 1e-9
 
     def start(self):
-        self._events.append((Timer.Event.Start, time.monotonic_ns()))
+        self._events.append((Timer.Event.START, time.monotonic_ns()))
 
     def stop(self) -> int:
-        self._events.append((Timer.Event.Stop, time.monotonic_ns()))
+        self._events.append((Timer.Event.STOP, time.monotonic_ns()))
         return self.elapsed()
 
     def resume(self):
-        self._events.append((Timer.Event.Start, time.monotonic_ns()))
+        self._events.append((Timer.Event.START, time.monotonic_ns()))
 
     def pause(self):
-        self._events.append((Timer.Event.Stop, time.monotonic_ns()))
+        self._events.append((Timer.Event.STOP, time.monotonic_ns()))
 
     def __str__(self):
         s = ""

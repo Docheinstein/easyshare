@@ -10,11 +10,11 @@ from easyshare.logging import get_logger
 from easyshare.auth import AuthFactory
 from easyshare.esd.server import Server
 from easyshare.esd.sharing import Sharing
-from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup
+from easyshare.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup
 from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
-from easyshare.utils.colors import enable_colors
+from easyshare.colors import enable_colors
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context

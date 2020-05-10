@@ -6,11 +6,11 @@ from easyshare.es.commands import Commands
 from easyshare.es.ui import StyledString
 from easyshare.es.client import Client
 from easyshare.logging import get_logger
-from easyshare.protocol.fileinfo import FileInfo
-from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE
-from easyshare.protocol.response import is_data_response
-from easyshare.shared.common import DIR_COLOR, FILE_COLOR
-from easyshare.utils.colors import fg
+from easyshare.protocol import FileInfo
+from easyshare.protocol import FTYPE_DIR, FTYPE_FILE
+from easyshare.protocol import is_data_response
+from easyshare.common import DIR_COLOR, FILE_COLOR
+from easyshare.colors import fg
 from easyshare.utils.os import ls
 from easyshare.utils.str import rightof
 

@@ -2,16 +2,17 @@ from math import ceil
 from typing import List
 
 from easyshare.logging import get_logger
-from easyshare.protocol.fileinfo import FileInfo
-from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE
-from easyshare.protocol.serverinfo import ServerInfoFull
-from easyshare.protocol.sharinginfo import SharingInfo
-from easyshare.shared.common import DIR_COLOR, FILE_COLOR
-from easyshare.utils.tree import TreeNodeDict, TreeRenderPostOrder
+from easyshare.protocol import FileInfo
+from easyshare.protocol import FTYPE_DIR, FTYPE_FILE
+from easyshare.protocol import ServerInfoFull
+from easyshare.protocol import SharingInfo
+from easyshare.common import DIR_COLOR, FILE_COLOR
+from easyshare.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.ssl import get_cached_or_fetch_ssl_certificate_for_endpoint
-from easyshare.utils.colors import fg, styled, Style
+from easyshare.colors import fg, styled, Style
 from easyshare.utils.env import terminal_size
-from easyshare.utils.os import is_hidden, size_str
+from easyshare.utils.measures import size_str
+from easyshare.utils.os import is_hidden
 from easyshare.utils.ssl import SSLCertificate
 
 

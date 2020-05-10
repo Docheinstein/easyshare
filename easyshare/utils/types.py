@@ -1,5 +1,7 @@
-# CHECKERS
 from typing import Union, Any, Optional, List
+
+
+# CHECKERS
 
 
 def is_int(o: object) -> bool:
@@ -32,28 +34,59 @@ def is_valid_list(o: object) -> bool:
 
 # CONVERTERS
 
-# def to_int(o: Any, default=None) -> Optional[int]:
-#     try:
-#         return int(o)
-#     except Exception:
-#         return default
 
+def to_int(o: Any, default=None, raise_exceptions=False) -> Optional[int]:
+    val = None
+    try:
+        val = int(o)
+    except:
+        pass
 
-def to_bool(o: Any, default=None) -> Optional[bool]:
-    if is_bool(o):
-        return o
-    if is_int(o):
-        return o != 0
-    if is_str(o):
-        return str_to_bool(o)
+    if is_int(val):
+        return val
+
+    if raise_exceptions:
+        raise ValueError("Conversion to integer failed")
+
+    return default
+
+def to_bool(o: Any, default=None, raise_exceptions=False) -> Optional[bool]:
+    val = None
+    try:
+        if is_bool(o):
+            val = o
+        elif is_int(o):
+            val = o != 0
+        elif is_str(o):
+            val = str_to_bool(o)
+    except:
+        pass
+
+    if is_bool(val):
+        return val
+
+    if raise_exceptions:
+        raise ValueError("Conversion to boolean failed")
+
     return default
 
 
-def to_bytes(o: Any, default=None) -> Optional[bytes]:
-    if is_bytes(o):
-        return o
-    if is_str(o):
-        return str_to_bytes(o)
+def to_bytes(o: Any, default=None, raise_exceptions=False) -> Optional[bytes]:
+    val = None
+    try:
+        if is_bytes(o):
+            val = o
+        elif is_str(o):
+            val = str_to_bytes(o)
+    except:
+        pass
+
+    if is_bool(val):
+        return val
+
+    if raise_exceptions:
+        raise ValueError("Conversion to bytes failed")
+
     return default
 
 
@@ -93,15 +126,7 @@ def int_to_bytes(i: int, length,  byteorder="big"):
     return i.to_bytes(length, byteorder)
 
 
-#
-
-def to_int(o: Any, raise_exceptions=False, default=None) -> Optional[int]:
-    try:
-        return int(o)
-    except Exception as ex:
-        if raise_exceptions:
-            raise ex
-        return default
+# MISC
 
 
 def list_wrap(o: Any) -> List[Any]:

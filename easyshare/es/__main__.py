@@ -8,16 +8,15 @@ from easyshare.es.commands import Commands, is_special_command
 from easyshare.es.errors import errcode_string
 from easyshare.es.shell import Shell
 from easyshare.logging import get_logger
-from easyshare.shared.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, ENV_EASYSHARE_VERBOSITY, \
-    easyshare_setup
+from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
-from easyshare.utils.colors import enable_colors
+from easyshare.colors import enable_colors
 from easyshare.utils.env import is_stdout_terminal
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
 from easyshare.utils.pyro import enable_pyro_logging
-from easyshare.utils.types import to_int, is_int, is_str
+from easyshare.utils.types import is_int, is_str
 from easyshare.args import Args as Args, KwArgSpec, ParamsSpec, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, \
     ArgsParseError, ArgType
 

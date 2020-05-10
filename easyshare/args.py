@@ -3,7 +3,7 @@ from enum import Enum
 from typing import List, Any, Optional, Union, Tuple, Callable, Dict
 
 from easyshare.logging import get_logger
-from easyshare.utils.json import json_to_pretty_str
+from easyshare.utils.json import j
 from easyshare.utils.str import unprefix
 from easyshare.utils.types import to_int, list_wrap, is_int
 
@@ -42,34 +42,6 @@ class KwArgSpec:
         self.params_spec: ParamsSpec = params_spec
 
 
-# -- helpers --
-
-class IntParamsSpec(ParamsSpec):
-    def __init__(self, mandatory_count: int, optional_count: int = 0):
-        super().__init__(mandatory_count, optional_count,
-                         lambda ps: [to_int(p, raise_exceptions=True) for p in ps])
-
-
-class NoopParamsSpec(ParamsSpec):
-    def __init__(self, mandatory_count: int, optional_count: int = 0):
-        super().__init__(mandatory_count, optional_count,
-                         lambda ps: ps)
-
-
-STR_PARAM = NoopParamsSpec(1, 0)
-STR_PARAM_OPT = NoopParamsSpec(0, 1)
-
-INT_PARAM = IntParamsSpec(1, 0)
-INT_PARAM_OPT = IntParamsSpec(0, 1)
-
-PRESENCE_PARAM = ParamsSpec(0, 0, lambda ps: True)
-
-VARIADIC_PARAMS = NoopParamsSpec(0, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
-
-
-# ---
-
-
 class ArgType(Enum):
     KWARG = object()
     KWARG_PARAM = object()
@@ -82,7 +54,7 @@ class Args:
         self._unparsed = unparsed
 
     def __str__(self):
-        return json_to_pretty_str({
+        return j({
             "parsed": self._parsed,
             "unparsed": self._unparsed
         })
@@ -384,7 +356,95 @@ class Args:
 
         return param_cursor
 
-    #
+
+# =============================================
+# ============ ParamsSpec HELPERS =============
+# =============================================
+
+class IntParamsSpec(ParamsSpec):
+    def __init__(self, mandatory_count: int, optional_count: int = 0):
+        super().__init__(mandatory_count, optional_count,
+                         lambda ps: [to_int(p, raise_exceptions=True) for p in ps])
+
+
+class NoopParamsSpec(ParamsSpec):
+    def __init__(self, mandatory_count: int, optional_count: int = 0):
+        super().__init__(mandatory_count, optional_count,
+                         lambda ps: ps)
+
+
+STR_PARAM = NoopParamsSpec(1, 0)
+STR_PARAM_OPT = NoopParamsSpec(0, 1)
+
+INT_PARAM = IntParamsSpec(1, 0)
+INT_PARAM_OPT = IntParamsSpec(0, 1)
+
+PRESENCE_PARAM = ParamsSpec(0, 0, lambda ps: True)
+
+VARIADIC_PARAMS = NoopParamsSpec(0, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
+
+
+# =============================================
+# ============ ArgsParser HELPERS =============
+# =============================================
+
+class ArgsParser:
+    def parse(self, args: List[str]) -> Optional[Args]:
+        return Args.parse(
+            args=args,
+            vargs_spec=self._vargs_spec(),
+            kwargs_specs=self._kwargs_specs(),
+            continue_parsing_hook=self._continue_parsing_hook(),
+        )
+
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return None
+
+    def _kwargs_specs(self) -> Optional[List[KwArgSpec]]:
+        return None
+
+    def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
+        return None
+
+
+class VariadicArgs(ArgsParser):
+    def __init__(self, mandatory: int = 0):
+        self.mandatory = mandatory
+
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return NoopParamsSpec(self.mandatory, ParamsSpec.VARIADIC_PARAMETERS_COUNT)
+
+
+class PositionalArgs(ArgsParser):
+    def __init__(self, mandatory: int, optional: int = 0):
+        self.mandatory = mandatory
+        self.optional = optional
+
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return NoopParamsSpec(self.mandatory, self.optional)
+
+
+class IntArg(ArgsParser):
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return INT_PARAM
+
+
+class OptIntArg(ArgsParser):
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return INT_PARAM_OPT
+
+
+class StopParseArgs(ArgsParser):
+    def __init__(self, mandatory: int = 0, stop_after: int = None):
+        self.mandatory = mandatory
+        self.stop_after = stop_after or mandatory
+
+    def _vargs_spec(self) -> Optional[ParamsSpec]:
+        return NoopParamsSpec(self.mandatory, 0)
+
+    def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
+        return lambda arg, argtype, idx, parsedargs, positionals: len(positionals) < self.stop_after
+
 # if __name__ == "__main__":
 #     def main():
 #         args = Args.parse(

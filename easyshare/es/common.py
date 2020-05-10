@@ -1,7 +1,7 @@
 from typing import Optional
 
 from easyshare.logging import get_logger
-from easyshare.shared.common import is_server_name
+from easyshare.common import is_server_name
 from easyshare.utils.net import is_valid_ip, is_valid_port
 from easyshare.utils.types import to_int
 
