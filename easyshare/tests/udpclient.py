@@ -1,4 +1,4 @@
-from easyshare.socket.udp import SocketUdpOut
+from easyshare.socket import SocketUdpOut
 from easyshare.utils.net import get_primary_ip
 from easyshare.utils.types import str_to_bytes, bytes_to_str
 

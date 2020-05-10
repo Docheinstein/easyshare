@@ -14,7 +14,7 @@ from easyshare.esd.common import try_or_command_failed_response
 from easyshare.esd.services.base.service import check_service_owner, ClientService
 from easyshare.esd.services.base.sharingservice import ClientSharingService
 from easyshare.esd.sharing import Sharing
-from easyshare.socket.tcp import SocketTcpAcceptor, SocketTcpIn
+from easyshare.socket import SocketTcpAcceptor, SocketTcpIn
 from easyshare.ssl import get_ssl_context
 from easyshare.utils.pyro import trace_api
 

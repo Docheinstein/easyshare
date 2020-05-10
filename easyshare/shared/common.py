@@ -2,8 +2,9 @@ import os
 import string
 
 from easyshare import logging
-from easyshare.logging import get_logger
-from easyshare.utils.colors import Color
+from easyshare.logging import get_logger, init_logging
+from easyshare.utils.colors import Color, enable_colors
+from easyshare.utils.env import is_stdout_terminal
 from easyshare.utils.str import satisfy
 from easyshare.utils.types import to_int
 
@@ -54,6 +55,10 @@ def is_server_name(s: str):
 
 
 def easyshare_setup():
+    enable_colors(is_stdout_terminal())  # disable colors when redirection is involved
+
+    init_logging()
+
     # EASYSHARE_VERBOSITY
     starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
     starting_verbosity = to_int(starting_verbosity,

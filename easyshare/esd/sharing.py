@@ -1,11 +1,10 @@
 import os
-from typing import Optional, List
+from typing import Optional
 
 from easyshare.logging import get_logger
-from easyshare.passwd.auth import Auth, AuthNone
 from easyshare.protocol.filetype import FileType, FTYPE_DIR, FTYPE_FILE
 from easyshare.protocol.sharinginfo import SharingInfo
-from easyshare.utils.json import json_to_str, json_to_pretty_str
+from easyshare.utils.json import json_to_pretty_str
 
 log = get_logger()
 

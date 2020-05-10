@@ -6,7 +6,7 @@ import Pyro5.socketutil
 
 from easyshare.logging import get_logger
 from easyshare.shared.endpoint import Endpoint
-from easyshare.socket.tcp import SocketTcpOut
+from easyshare.socket import SocketTcpOut
 from easyshare.utils.ssl import parse_ssl_certificate, SSLCertificate, create_client_ssl_context
 
 log = get_logger(__name__)

@@ -385,7 +385,7 @@ if __name__ == "__main__":
         prog.done()
 
 
-    for root, dirs, files in os.walk('.'):
+    for root, dirs, files in os.walk('shared'):
         for f in files:
             fullpath = os.path.join(root, f)
             size = os.path.getsize(fullpath)

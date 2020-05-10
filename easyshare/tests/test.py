@@ -2,7 +2,7 @@ import string
 import sys
 from enum import Enum
 
-from easyshare.shared.args import Args
+from easyshare.args import Args
 from easyshare.utils import str
 from easyshare.utils.os import ls
 

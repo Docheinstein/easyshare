@@ -2,7 +2,7 @@ import threading
 import time
 
 from easyshare.consts.net import ADDR_ANY
-from easyshare.socket.tcp import SocketTcpAcceptor, SocketTcpIn
+from easyshare.socket import SocketTcpAcceptor, SocketTcpIn
 from easyshare.utils.types import bytes_to_str, str_to_bytes
 
 s = SocketTcpAcceptor(ADDR_ANY, 5555)

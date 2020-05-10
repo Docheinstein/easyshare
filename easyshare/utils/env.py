@@ -1,5 +1,7 @@
+import os
 import shutil
 import sys
+from stat import S_ISREG, S_ISFIFO, S_ISCHR
 from typing import Tuple
 
 
@@ -26,3 +28,11 @@ def is_unicode_supported(stream=sys.stdout) -> bool:
             return encoding.lower().startswith("utf-") or encoding == "U8"
         except:
             return False
+
+
+def is_terminal(fileno: int):
+    return S_ISCHR(os.fstat(fileno).st_mode)
+
+
+def is_stdout_terminal():
+    return is_terminal(sys.stdout.fileno())

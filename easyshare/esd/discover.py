@@ -4,7 +4,7 @@ from easyshare.consts.net import ADDR_ANY
 from easyshare.logging import get_logger
 from easyshare.shared.endpoint import Endpoint
 from easyshare.tracing import trace_in
-from easyshare.socket.udp import SocketUdpIn
+from easyshare.socket import SocketUdpIn
 from easyshare.utils.types import bytes_to_int
 
 log = get_logger()

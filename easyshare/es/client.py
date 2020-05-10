@@ -7,7 +7,7 @@ import time
 import zlib
 from getpass import getpass
 from stat import S_ISDIR, S_ISREG
-from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, NoReturn, cast
+from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, cast
 
 from Pyro5.errors import PyroError
 
@@ -30,20 +30,20 @@ from easyshare.protocol.response import Response, is_error_response, is_success_
 from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.esd.services.base.transfer import TransferService
-from easyshare.shared.args import Args
+from easyshare.args import Args
 from easyshare.shared.common import PROGRESS_COLOR, DONE_COLOR, DEFAULT_SERVER_PORT, pyro_uri, transfer_port
 from easyshare.shared.endpoint import Endpoint
-from easyshare.shared.progress import FileProgressor
-from easyshare.shared.timer import Timer
+from easyshare.progress import FileProgressor
+from easyshare.timer import Timer
 from easyshare.ssl import get_ssl_context
-from easyshare.socket.tcp import SocketTcpOut
+from easyshare.socket import SocketTcpOut
 from easyshare.utils.app import eprint
 from easyshare.utils.colors import red, styled, Style
 from easyshare.utils.json import json_to_pretty_str
 from easyshare.utils.pyro import TracedPyroProxy
 from easyshare.utils.str import unprefix
-from easyshare.utils.time import duration_str, duration_str_human
-from easyshare.utils.types import bool_to_str, bytes_to_str, int_to_bytes, bytes_to_int
+from easyshare.utils.time import duration_str_human
+from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, size_str, speed_str, relpath
 from easyshare.args import Args as Args, KwArgSpec, INT_PARAM, PRESENCE_PARAM, ArgsParseError
 

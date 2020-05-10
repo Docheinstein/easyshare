@@ -13,6 +13,7 @@ from easyshare.shared.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.utils.colors import enable_colors
+from easyshare.utils.env import is_stdout_terminal
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
 from easyshare.utils.pyro import enable_pyro_logging
@@ -135,7 +136,12 @@ def main():
     log.d("Tracing: %s", tracing)
     log.d("Verbosity: %s", verbosity)
 
+    if not no_colors and not is_stdout_terminal():
+        log.w("Disabling colors since detected non-terminal output file")
+        no_colors = True
+
     enable_colors(not no_colors)
+
     enable_tracing(tracing)
     if verbosity:
         log.set_verbosity(verbosity)

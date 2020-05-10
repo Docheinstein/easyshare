@@ -1,4 +1,4 @@
-from easyshare.socket.udp import SocketUdpIn
+from easyshare.socket import SocketUdpIn
 from easyshare.utils.types import bytes_to_str, str_to_bytes
 
 s = SocketUdpIn(port=6666)

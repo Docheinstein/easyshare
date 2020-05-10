@@ -1,6 +1,6 @@
 import ssl
 
-from easyshare.socket.tcp import SocketTcpAcceptor
+from easyshare.socket import SocketTcpAcceptor
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.types import bytes_to_str
 

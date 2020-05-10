@@ -1,6 +1,6 @@
 import ssl
 
-from easyshare.socket.tcp import SocketTcpOut
+from easyshare.socket import SocketTcpOut
 
 
 from easyshare.utils.types import  str_to_bytes

@@ -9,7 +9,7 @@ from typing import Dict, Optional, cast
 from Pyro5.api import expose, oneway
 
 from easyshare.logging import get_logger
-from easyshare.passwd.auth import Auth, AuthNone
+from easyshare.auth import Auth, AuthNone
 from easyshare.protocol.response import create_success_response, create_error_response, Response
 from easyshare.protocol.serverinfo import ServerInfoFull, ServerInfo
 from easyshare.esd.common import try_or_command_failed_response
@@ -25,7 +25,7 @@ from easyshare.protocol.exposed import IServer
 from easyshare.protocol.errors import ServerErrors
 from easyshare.ssl import set_ssl_context, get_ssl_context
 from easyshare.tracing import trace_out
-from easyshare.socket.udp import SocketUdpOut
+from easyshare.socket import SocketUdpOut
 from easyshare.utils.colors import red, green
 from easyshare.utils.json import json_to_bytes, json_to_pretty_str
 from easyshare.utils.net import get_primary_ip, is_valid_port

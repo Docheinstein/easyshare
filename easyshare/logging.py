@@ -40,9 +40,6 @@ LEVEL_TO_VERBOSITY = {
 }
 
 
-# Aliases
-
-
 class Logger(logging.Logger):
     @property
     def verbosity(self):
@@ -89,34 +86,34 @@ class LoggerFormatter(logging.Formatter):
                "%(message)s"
 
 
-def _set_verbosity(logger: logging.Logger, verbosity: int):
-    if verbosity not in VERBOSITY_TO_LEVEL:
-        verbosity = rangify(verbosity, VERBOSITY_MIN, VERBOSITY_MAX)
+_log_handler = logging.StreamHandler(sys.stdout)
+_log_handler.setFormatter(LoggerFormatter())
 
-    logger.setLevel(VERBOSITY_TO_LEVEL[verbosity])
-    logger.verbosity = verbosity
+def init_logging():
+    def set_verbosity(logger: logging.Logger, verbosity: int):
+        if verbosity not in VERBOSITY_TO_LEVEL:
+            verbosity = rangify(verbosity, VERBOSITY_MIN, VERBOSITY_MAX)
 
+        logger.setLevel(VERBOSITY_TO_LEVEL[verbosity])
+        logger.verbosity = verbosity
 
-logging.addLevelName(LEVEL_ERROR,   styled("[ERROR]", fg=Color.RED))
-logging.addLevelName(LEVEL_WARNING, styled("[WARN] ", fg=Color.YELLOW))
-logging.addLevelName(LEVEL_INFO,    styled("[INFO] ", fg=Color.BLUE))
-logging.addLevelName(LEVEL_DEBUG,   styled("[DEBUG]", fg=Color.GREEN))
+    # Aliases
+    logging.addLevelName(LEVEL_ERROR, styled("[ERROR]", fg=Color.RED))
+    logging.addLevelName(LEVEL_WARNING, styled("[WARN] ", fg=Color.YELLOW))
+    logging.addLevelName(LEVEL_INFO, styled("[INFO] ", fg=Color.BLUE))
+    logging.addLevelName(LEVEL_DEBUG, styled("[DEBUG]", fg=Color.GREEN))
 
-
-logging.Logger.e = logging.Logger.error
-logging.Logger.w = logging.Logger.warning
-logging.Logger.i = logging.Logger.info
-logging.Logger.d = logging.Logger.debug
-logging.Logger.set_verbosity = _set_verbosity
-
-logging_handler = logging.StreamHandler(sys.stdout)
-logging_handler.setFormatter(LoggerFormatter())
+    logging.Logger.e = logging.Logger.error
+    logging.Logger.w = logging.Logger.warning
+    logging.Logger.i = logging.Logger.info
+    logging.Logger.d = logging.Logger.debug
+    logging.Logger.set_verbosity = set_verbosity
 
 
 def get_logger(name: str = ROOT_LOGGER_NAME, force_initialize: bool = False) -> Logger:
     logger: logging.Logger = logging.getLogger(name)
     if name == ROOT_LOGGER_NAME or force_initialize:
-        logger.addHandler(logging_handler)
+        logger.addHandler(_log_handler)
     level = logger.getEffectiveLevel()
     logger.verbosity = LEVEL_TO_VERBOSITY[rangify(level, LEVEL_DEBUG, LEVEL_FATAL)]
     return logger

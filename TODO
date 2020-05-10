@@ -11,5 +11,3 @@
 - help for command completion
 - better error handling and server errors (err+errcode?)
 - pyro logging on pyro utils?
-- esp or es-tools
-- setup py

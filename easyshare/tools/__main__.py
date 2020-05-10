@@ -1,8 +1,7 @@
+import pkgutil
 from getpass import getpass
 
-import pkg_resources
-
-from easyshare.passwd.auth import AuthScrypt
+from easyshare.auth import AuthScrypt
 from easyshare.utils.app import abort
 
 
@@ -18,8 +17,9 @@ def generate_password():
     print(auth)
 
 def generate_esd_conf():
-    esd_conf = pkg_resources.resource_string("easyshare", "res/esd.conf")
-    print(str(esd_conf, encoding="UTF-8"))
+    esd_conf_b = pkgutil.get_data("easyshare.res", "esd.conf")
+    esd_conf_s = str(esd_conf_b, encoding="UTF-8")
+    print(esd_conf_s)
 
 
 def main():

@@ -8,7 +8,7 @@ from easyshare.protocol.response import Response, is_data_response
 from easyshare.shared.endpoint import Endpoint
 from easyshare.protocol.serverinfo import ServerInfoFull
 from easyshare.tracing import trace_out, trace_in
-from easyshare.socket.udp import SocketUdpIn, SocketUdpOut
+from easyshare.socket import SocketUdpIn, SocketUdpOut
 from easyshare.utils.json import bytes_to_json, json_to_pretty_str
 from easyshare.utils.types import int_to_bytes
 

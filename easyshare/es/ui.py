@@ -1,5 +1,5 @@
 from math import ceil
-from typing import List, Optional, Tuple
+from typing import List
 
 from easyshare.logging import get_logger
 from easyshare.protocol.fileinfo import FileInfo
@@ -7,7 +7,7 @@ from easyshare.protocol.filetype import FTYPE_DIR, FTYPE_FILE
 from easyshare.protocol.serverinfo import ServerInfoFull
 from easyshare.protocol.sharinginfo import SharingInfo
 from easyshare.shared.common import DIR_COLOR, FILE_COLOR
-from easyshare.shared.tree import TreeNodeDict, TreeRenderPostOrder
+from easyshare.utils.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.ssl import get_cached_or_fetch_ssl_certificate_for_endpoint
 from easyshare.utils.colors import fg, styled, Style
 from easyshare.utils.env import terminal_size

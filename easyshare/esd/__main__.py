@@ -1,17 +1,15 @@
 import socket
 import sys
-from typing import List, Optional, Callable
+from typing import List, Optional
 
 from easyshare import logging
-from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
-    ArgType, NoopParamsSpec
+from easyshare.args import KwArgSpec, ParamsSpec, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError
 from easyshare.es.args import ArgsParser, PositionalArgs
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.logging import get_logger
-from easyshare.passwd.auth import AuthFactory
+from easyshare.auth import AuthFactory
 from easyshare.esd.server import Server
 from easyshare.esd.sharing import Sharing
-from easyshare.shared.args import Args
 from easyshare.shared.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup
 from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
@@ -21,9 +19,8 @@ from easyshare.utils.net import is_valid_port
 from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfy
-from easyshare.utils.asserts import assert_true
+
 # ==================================================================
-from easyshare.utils.types import to_int
 
 log = get_logger()
 
@@ -143,8 +140,6 @@ ESD_CONF_SPEC = {
 
 
 def main():
-    import logging as pylogging
-
     easyshare_setup()
 
     if len(sys.argv) <= 1:
