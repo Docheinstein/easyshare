@@ -399,18 +399,18 @@ class ArgsParser:
     def parse(self, args: List[str]) -> Optional[Args]:
         return Args.parse(
             args=args,
-            vargs_spec=self._vargs_spec(),
-            kwargs_specs=self._kwargs_specs(),
-            continue_parsing_hook=self._continue_parsing_hook(),
+            vargs_spec=self.vargs_spec(),
+            kwargs_specs=self.kwargs_specs(),
+            continue_parsing_hook=self.continue_parsing_hook(),
         )
 
-    def _vargs_spec(self) -> Optional[Params]:
+    def vargs_spec(self) -> Optional[Params]:
         return None
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return None
 
-    def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
+    def continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
         return None
 
 
@@ -418,7 +418,7 @@ class VariadicArgs(ArgsParser):
     def __init__(self, mandatory: int = 0):
         self.mandatory = mandatory
 
-    def _vargs_spec(self) -> Optional[Params]:
+    def vargs_spec(self) -> Optional[Params]:
         return NoopParams(self.mandatory, Params.VARIADIC_PARAMETERS_COUNT)
 
 
@@ -427,17 +427,17 @@ class PositionalArgs(ArgsParser):
         self.mandatory = mandatory
         self.optional = optional
 
-    def _vargs_spec(self) -> Optional[Params]:
+    def vargs_spec(self) -> Optional[Params]:
         return NoopParams(self.mandatory, self.optional)
 
 
 class IntArg(ArgsParser):
-    def _vargs_spec(self) -> Optional[Params]:
+    def vargs_spec(self) -> Optional[Params]:
         return INT_PARAM
 
 
 class OptIntArg(ArgsParser):
-    def _vargs_spec(self) -> Optional[Params]:
+    def vargs_spec(self) -> Optional[Params]:
         return INT_PARAM_OPT
 
 
@@ -446,10 +446,10 @@ class StopParseArgs(ArgsParser):
         self.mandatory = mandatory
         self.stop_after = stop_after or mandatory
 
-    def _vargs_spec(self) -> Optional[Params]:
+    def vargs_spec(self) -> Optional[Params]:
         return NoopParams(self.mandatory, 0)
 
-    def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
+    def continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
         return lambda arg, argtype, idx, parsedargs, positionals: len(positionals) < self.stop_after
 
 # if __name__ == "__main__":

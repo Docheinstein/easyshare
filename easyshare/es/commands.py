@@ -89,9 +89,9 @@ def matches_special_command(s: str, sp_comm: str):
            (len(s) == len(sp_comm) or s[len(sp_comm)] != SPECIAL_COMMAND_MARK)
 
 
-# =============================================
-# ============ COMMANDS INFO ==================
-# =============================================
+# ==================================================
+# ============ BASE COMMAND INFO ===================
+# ==================================================
 
 class SuggestionsIntent:
     def __init__(self,
@@ -137,67 +137,72 @@ class CommandInfo(ABC):
         return []
 
     @classmethod
-    def suggestions(cls, token: str, line: str) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
+        options = cls.options()
+
+        if not options:
+            log.d("No options to suggest")
+            return None
+
         log.i("Token: %s", token)
         if not token.startswith("-"):
             # This class handles only the kwargs ('-', '--')
             # The sub classes can provide something else
             return None
 
-        options = cls.options()
+        log.d("Computing (%d) args suggestions", len(options))
 
-        # log.d("Computing (%d) args suggestions for", len(options))
-        #
-        # longest_args_names = 0
-        #
-        # for comm_args in options:
-        #     longest_args_names = max(
-        #         longest_args_names,
-        #         len(comm_args.args_str())
-        #     )
-        #
-        # suggestions = [StyledString(comm_args.args_help_str(justify=longest_args_names))
-        #                for comm_args in classargs]
-        #
-        # return SuggestionsIntent(suggestions,
-        #                          completion=False,
-        #                          max_columns=1)
+        options_aliases = []
+        longest_options = 0
+        i = 0
 
+        while i < len(options):
+            aliases, _ = options[i]
+            options_aliases.append(", ".join(aliases))
 
+            longest_options = max(
+                longest_options,
+                len(options_aliases[i])
+            )
+            i += 1
 
-# class CommandWithArgsInfo(CommandInfo, ABC):
-#
-#     def args(self) -> List[CommandArgInfo]:
-#         if not hasattr(self, "ARGS"):
-#             # Retrieve the CommandArgInfo of this class
-#             ARGS = []
-#
-#             for attrname in dir(self):
-#                 if attrname.startswith("_"):
-#                     continue
-#                 command_arg_info = getattr(self, attrname)
-#                 if isinstance(command_arg_info, tuple):
-#                     ARGS.append(command_arg_info)
-#
-#             setattr(self, "ARGS", ARGS)
-#         return getattr(self, "ARGS")
-#
-#     def suggestions(self, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
-#
-#         return None
+        log.d("Longest options string length: %d", longest_options)
+
+        suggestions = []
+        i = 0
+
+        while i < len(options):
+            _, desc = options[i]
+            suggestions.append(StyledString(
+                "{}      {}".format(
+                    options_aliases[i].ljust(longest_options),
+                    desc
+                )
+            ))
+            i += 1
+
+        return SuggestionsIntent(suggestions,
+                                 completion=False,
+                                 max_columns=1)
 
 
-class ListCommandArgsInfo(CommandInfo, ABC):
+# ==================================================
+# ============== LIST COMMAND INFO =================
+# ==================================================
+
+class ListCommandInfo(CommandInfo, ABC):
+    @classmethod
     @abstractmethod
-    def display_path_filter(self, finfo: FileInfo) -> bool:
+    def display_path_filter(cls, finfo: FileInfo) -> bool:
         pass
 
+    @classmethod
     @abstractmethod
-    def list(self, token: str, line: str, client: 'Client') -> List[FileInfo]:
+    def list(cls, token: str, line: str, client) -> List[FileInfo]:
         pass
 
-    def suggestions(self, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
-
+    @classmethod
+    def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
         log.d("Providing files listing suggestions")
 
         suggestions_intent = super().suggestions(token, line, client)
@@ -205,12 +210,12 @@ class ListCommandArgsInfo(CommandInfo, ABC):
             return suggestions_intent
 
         suggestions = []
-        for finfo in self.list(token, line, client):
+        for finfo in cls.list(token, line, client):
             log.d("Suggestion finfo: %s", finfo)
 
             fname = finfo.get("name")
 
-            if not self.display_path_filter(finfo):
+            if not cls.display_path_filter(finfo):
                 log.d("%s doesn't pass the filter", fname)
                 continue
 
@@ -235,8 +240,9 @@ class ListCommandArgsInfo(CommandInfo, ABC):
                                  space_after_completion=lambda s: not s.endswith("/"))
 
 
-class ListLocalCommandInfo(ListCommandArgsInfo, ABC):
-    def list(self, token: str, line: str, client: 'Client') -> List[FileInfo]:
+class ListLocalCommandInfo(ListCommandInfo, ABC):
+    @classmethod
+    def list(cls, token: str, line: str, client) -> List[FileInfo]:
         log.i("List on token = '%s', line = '%s'", token, line)
         pattern = rightof(line, " ", from_end=True)
         path_dir, path_trail = os.path.split(os.path.join(os.getcwd(), pattern))
@@ -244,8 +250,9 @@ class ListLocalCommandInfo(ListCommandArgsInfo, ABC):
         return ls(path_dir)
 
 
-class ListRemoteCommandInfo(ListCommandArgsInfo, ABC):
-    def list(self, token: str, line: str, client: 'Client') -> List[FileInfo]:
+class ListRemoteCommandInfo(ListCommandInfo, ABC):
+    @classmethod
+    def list(cls, token: str, line: str, client) -> List[FileInfo]:
         if not client or not client.is_connected_to_sharing():
             log.w("Cannot list suggestions on a non connected es")
             return []
@@ -264,18 +271,26 @@ class ListRemoteCommandInfo(ListCommandArgsInfo, ABC):
         return resp.get("data")
 
 
-class ListAllFilter(ListCommandArgsInfo, ABC):
-    def display_path_filter(self, finfo: FileInfo) -> bool:
+
+# ==================================================
+# ================== LIST FILTERS ==================
+# ==================================================
+
+class ListAllFilter(ListCommandInfo, ABC):
+    @classmethod
+    def display_path_filter(cls, finfo: FileInfo) -> bool:
         return True
 
 
-class ListDirsFilter(ListCommandArgsInfo, ABC):
-    def display_path_filter(self, finfo: FileInfo) -> bool:
+class ListDirsFilter(ListCommandInfo, ABC):
+    @classmethod
+    def display_path_filter(cls, finfo: FileInfo) -> bool:
         return finfo.get("ftype") == FTYPE_DIR
 
 
-class ListFilesFilter(ListCommandArgsInfo, ABC):
-    def display_path_filter(self, finfo: FileInfo) -> bool:
+class ListFilesFilter(ListCommandInfo, ABC):
+    @classmethod
+    def display_path_filter(cls, finfo: FileInfo) -> bool:
         return finfo.get("ftype") == FTYPE_FILE
 
 
@@ -339,6 +354,12 @@ class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter, ABC):
 #         )
 
 
+
+# ==================================================
+# ========== REAL COMMANDS INFO IMPL ===============
+# ==================================================
+
+
 class BaseLsCommandInfo(CommandInfo, ABC, PositionalArgs):
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
@@ -359,7 +380,7 @@ class BaseLsCommandInfo(CommandInfo, ABC, PositionalArgs):
             (cls.SHOW_DETAILS, "show more details")
         ]
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (Ls.SORT_BY_SIZE, PRESENCE_PARAM),
             (Ls.REVERSE, PRESENCE_PARAM),
@@ -431,8 +452,10 @@ class Ls(BaseLsCommandInfo, ListLocalAllCommandInfo):
 #     DETAILS = CommandArgInfo(["-l"], "Show all the details")
 #
 
+
+
 COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
-    # Commands.HELP: CommandInfo,
+    # Commands.HELP: Help,
     # Commands.EXIT: CommandInfo,
     #
     # Commands.TRACE: TraceCommandInfo,

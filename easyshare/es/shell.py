@@ -14,7 +14,7 @@ from easyshare.es.client import Client
 from easyshare.es.commands import Commands, matches_special_command
 from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.es.errors import print_error, ClientErrors
-from easyshare.es.helps import SuggestionsIntent, COMMANDS_INFO
+from easyshare.es.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.styling import styled
 from easyshare.tracing import is_tracing_enabled, enable_tracing

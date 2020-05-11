@@ -58,7 +58,7 @@ class LsArgs(PositionalArgs):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (LsArgs.SORT_BY_SIZE, PRESENCE_PARAM),
             (LsArgs.REVERSE, PRESENCE_PARAM),
@@ -83,7 +83,7 @@ class TreeArgs(PositionalArgs):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (TreeArgs.SORT_BY_SIZE, PRESENCE_PARAM),
             (TreeArgs.REVERSE, PRESENCE_PARAM),
@@ -101,7 +101,7 @@ class ScanArgs(PositionalArgs):
     def __init__(self):
         super().__init__(0, 0)
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (ScanArgs.SHOW_DETAILS, PRESENCE_PARAM),
         ]
@@ -113,7 +113,7 @@ class ListArgs(PositionalArgs):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 0)
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (ListArgs.SHOW_DETAILS, PRESENCE_PARAM),
         ]
@@ -125,7 +125,7 @@ class PingArgs(PositionalArgs):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 0)
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (PingArgs.COUNT, INT_PARAM),
         ]
@@ -137,7 +137,7 @@ class GetArgs(VariadicArgs):
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (GetArgs.OVERWRITE_YES, PRESENCE_PARAM),
             (GetArgs.OVERWRITE_NO, PRESENCE_PARAM),
@@ -155,7 +155,7 @@ class PutArgs(VariadicArgs):
     QUIET = ["-q", "--quiet"]
 
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (PutArgs.OVERWRITE_YES, PRESENCE_PARAM),
             (PutArgs.OVERWRITE_NO, PRESENCE_PARAM),
@@ -460,7 +460,7 @@ class Client:
 
         command_args_normalized = command_args.copy()
 
-        # Handle special commands (':')
+        # Handle special Commands (':')
         command_parts = command.rsplit(SPECIAL_COMMAND_MARK, maxsplit=1)
         if len(command_parts) > 1:
             command = command_parts[0] + SPECIAL_COMMAND_MARK
@@ -471,8 +471,8 @@ class Client:
         log.i("Executing %s(%s)", command, command_args_normalized)
 
         # Check which parser to use
-        # The local commands and the connected remote commands use
-        # the same parsers, while the unconnected remote commands
+        # The local Commands and the connected remote Commands use
+        # the same parsers, while the unconnected remote Commands
         # need one more leading parameter (the remote sharing location)
         parser_provider, parser_provider_args, executor = self._command_dispatcher[command]
 
@@ -516,7 +516,7 @@ class Client:
     # def is_connected(self) -> bool:
     #     return self.connection and self.connection.is_connected()
 
-    # === LOCAL COMMANDS ===
+    # === LOCAL Commands ===
 
     @staticmethod
     def cd(args: Args, _, _2):
@@ -608,7 +608,7 @@ class Client:
 
 
     # =================================================
-    # ================ SERVER COMMANDS ================
+    # ================ SERVER Commands ================
     # =================================================
 
 
@@ -850,7 +850,7 @@ class Client:
             time.sleep(1)
 
     # =================================================
-    # =============== PROBING COMMANDS ================
+    # =============== PROBING Commands ================
     # =================================================
 
     def scan(self, args: Args, _, _2):
@@ -917,7 +917,7 @@ class Client:
                                      details=show_details))
 
     # =================================================
-    # ================ SHARING COMMANDS ===============
+    # ================ SHARING Commands ===============
     # =================================================
 
     @provide_sharing_connection

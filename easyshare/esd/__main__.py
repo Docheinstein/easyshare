@@ -41,7 +41,7 @@ class SharingArgs(PositionalArgs):
     def __init__(self):
         super().__init__(1, 1)
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (SharingArgs.READ_ONLY, PRESENCE_PARAM),
         ]
@@ -66,7 +66,7 @@ class EsdArgs(ArgsParser):
     TRACE =     ["-t", "--trace"]
     NO_COLOR =  ["--no-color"]
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (EsdArgs.HELP, ActionParam(lambda _: terminate("help"))),
             (EsdArgs.VERSION, ActionParam(lambda _: terminate("version"))),

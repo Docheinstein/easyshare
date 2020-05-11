@@ -50,7 +50,7 @@ class EsArgs(ArgsParser):
 
     NO_COLOR =      ["--no-color"]
 
-    def _kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
             (EsArgs.HELP, ActionParam(lambda _: terminate("help"))),
             (EsArgs.VERSION, ActionParam(lambda _: terminate(APP_INFO))),
@@ -60,7 +60,7 @@ class EsArgs(ArgsParser):
             (EsArgs.NO_COLOR, PRESENCE_PARAM),
         ]
 
-    def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
+    def continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
         return lambda argname, argtype, idx, args, positionals: argtype != ArgType.VARG
 
 # ==================================================================
