@@ -1,15 +1,16 @@
 from math import ceil
 from typing import List
 
+from easyshare.consts import ansi
 from easyshare.logging import get_logger
 from easyshare.protocol import FileInfo
 from easyshare.protocol import FTYPE_DIR, FTYPE_FILE
 from easyshare.protocol import ServerInfoFull
 from easyshare.protocol import SharingInfo
 from easyshare.common import DIR_COLOR, FILE_COLOR
+from easyshare.styling import styled, fg
 from easyshare.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.ssl import get_cached_or_fetch_ssl_certificate_for_endpoint
-from easyshare.colors import fg, styled, Style
 from easyshare.utils.env import terminal_size
 from easyshare.utils.measures import size_str
 from easyshare.utils.os import is_hidden
@@ -175,7 +176,7 @@ def server_info_to_pretty_str(info: ServerInfoFull) -> str:
 
         # Server info
         s = SEP_FIRST + \
-            styled("SERVER INFO", attrs=Style.BOLD) + "\n\n" + \
+            styled("SERVER INFO", attrs=ansi.ATTR_BOLD) + "\n\n" + \
             "Name:           {}\n".format(info.get("name")) + \
             "IP:             {}\n".format(info.get("ip")) + \
             "Port:           {}\n".format(info.get("port")) + \
@@ -192,13 +193,13 @@ def server_info_to_pretty_str(info: ServerInfoFull) -> str:
             )
 
             s += \
-                styled("SSL CERTIFICATE", attrs=Style.BOLD) + "\n\n" + \
+                styled("SSL CERTIFICATE", attrs=ansi.ATTR_BOLD) + "\n\n" + \
                 ssl_certificate_to_pretty_str(ssl_cert) + "\n" + \
                 SEP_MID
 
         # Sharings
         s += \
-            styled("SHARINGS", attrs=Style.BOLD) + "\n\n" + \
+            styled("SHARINGS", attrs=ansi.ATTR_BOLD) + "\n\n" + \
             sharings_to_pretty_str(info.get("sharings"), details=True) + "\n" + \
             SEP_LAST
 

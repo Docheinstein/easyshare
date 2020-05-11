@@ -20,7 +20,7 @@ from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, print_error
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str
-from easyshare.consts import ADDR_BROADCAST
+from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.esd.services import TransferService
 from easyshare.logging import get_logger
 from easyshare.protocol import FileInfo, FileInfoTreeNode
@@ -35,7 +35,6 @@ from easyshare.timer import Timer
 from easyshare.ssl import get_ssl_context
 from easyshare.sockets import SocketTcpOut
 from easyshare.utils.app import eprint
-from easyshare.colors import red, styled, Style
 from easyshare.utils.json import j
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro.common import pyro_uri

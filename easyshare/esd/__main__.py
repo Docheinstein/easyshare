@@ -15,7 +15,7 @@ from easyshare.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALP
 from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
-from easyshare.colors import enable_colors
+from easyshare.styling import enable_colors
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.pyro.common import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context

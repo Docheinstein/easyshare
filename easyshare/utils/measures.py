@@ -1,4 +1,4 @@
-from easyshare.consts import K, M, G
+from easyshare.consts.units import K, M, G
 
 UNITS = (1, K, M, G)
 

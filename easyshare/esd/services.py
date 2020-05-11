@@ -10,7 +10,7 @@ from typing import Callable, Optional, Union, List, Tuple
 from Pyro5.server import expose
 
 from easyshare.common import transfer_port
-from easyshare.consts import STDOUT, STDERR
+from easyshare.consts.os import STDOUT, STDERR
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.daemon import get_pyro_daemon

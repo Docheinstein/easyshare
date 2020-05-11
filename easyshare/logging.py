@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from easyshare.colors import styled, Color
+from easyshare.styling import styled, green, blue, yellow, red
 from easyshare.utils.math import rangify
 
 ROOT_LOGGER_NAME = "easyshare"
@@ -98,10 +98,10 @@ def init_logging():
         logger.verbosity = verbosity
 
     # Aliases
-    logging.addLevelName(LEVEL_ERROR, styled("[ERROR]", fg=Color.RED))
-    logging.addLevelName(LEVEL_WARNING, styled("[WARN] ", fg=Color.YELLOW))
-    logging.addLevelName(LEVEL_INFO, styled("[INFO] ", fg=Color.BLUE))
-    logging.addLevelName(LEVEL_DEBUG, styled("[DEBUG]", fg=Color.GREEN))
+    logging.addLevelName(LEVEL_ERROR, red("[ERROR]"))
+    logging.addLevelName(LEVEL_WARNING, yellow("[WARN] "))
+    logging.addLevelName(LEVEL_INFO, blue("[INFO] "))
+    logging.addLevelName(LEVEL_DEBUG, green("[DEBUG]"))
 
     logging.Logger.e = logging.Logger.error
     logging.Logger.w = logging.Logger.warning

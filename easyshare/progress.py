@@ -8,9 +8,9 @@ from typing import Tuple
 
 from easyshare import logging
 from easyshare.logging import get_logger
-from easyshare.colors import fg, Color, enable_colors
+from easyshare.styling import enable_colors, fg
 from easyshare.utils.env import is_unicode_supported, terminal_size
-from easyshare.utils.measures import duration_str_human
+from easyshare.utils.measures import duration_str_human, size_str, speed_str
 
 log = get_logger(__name__)
 
@@ -154,8 +154,8 @@ class FileProgressor:
                  ui_fps: float = 20,
                  speed_fps: float = 4,
                  progress_bar_renderer: ProgressBarRenderer = ProgressBarRendererFactory.auto(),
-                 color_progress: Color = None,
-                 color_done: Color = None):
+                 color_progress: str = None,
+                 color_done: str = None):
 
         self.description = description
         self.partial = partial

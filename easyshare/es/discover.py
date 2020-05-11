@@ -2,7 +2,7 @@ import select
 from datetime import datetime
 from typing import Callable
 
-from easyshare.consts import ADDR_BROADCAST
+from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
 from easyshare.protocol import Response, is_data_response

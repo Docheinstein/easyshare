@@ -2,8 +2,9 @@ import os
 import string
 
 from easyshare import logging
+from easyshare.consts import ansi
 from easyshare.logging import get_logger, init_logging
-from easyshare.colors import Color, enable_colors
+from easyshare.styling import enable_colors
 from easyshare.utils.env import is_stdout_terminal
 from easyshare.utils.str import satisfy
 from easyshare.utils.types import to_int
@@ -33,11 +34,11 @@ RESOURCES_PKG = "easyshare.res"
 # ======= COLORS ======
 # =====================
 
-DIR_COLOR = Color.BLUE
+DIR_COLOR = ansi.FG_BLUE
 FILE_COLOR = None
 
-PROGRESS_COLOR = Color.BLUE
-DONE_COLOR = Color.GREEN
+PROGRESS_COLOR = ansi.FG_BLUE
+DONE_COLOR = ansi.FG_GREEN
 
 
 # =====================
@@ -85,7 +86,10 @@ def is_server_name(s: str):
 # =====================
 
 def easyshare_setup():
-    enable_colors(is_stdout_terminal())  # disable colors when redirection is involved
+    # disable colors when redirection is involved or if
+    # colors are disabled
+    colors_disabled = os.getenv('ANSI_COLORS_DISABLED')
+    enable_colors(not colors_disabled and is_stdout_terminal())
 
     init_logging()
 

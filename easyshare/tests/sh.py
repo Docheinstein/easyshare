@@ -1,4 +1,4 @@
-from easyshare.colors import red
+from easyshare.styling import red
 from easyshare.utils.os import run_detached, stdin_read_nonblocking
 
 

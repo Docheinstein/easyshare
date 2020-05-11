@@ -2,6 +2,7 @@ SPECIAL_COMMAND_MARK = ":"
 
 class Commands:
     HELP = "help"
+    HELP_SHORT = "h"
     EXIT = "exit"
     QUIT = "quit"
     QUIT_SHORT = "q"

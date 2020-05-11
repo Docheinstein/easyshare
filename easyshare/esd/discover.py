@@ -1,6 +1,6 @@
 from typing import Callable
 
-from easyshare.consts import ADDR_ANY
+from easyshare.consts.net import ADDR_ANY
 from easyshare.logging import get_logger
 from easyshare.endpoint import Endpoint
 from easyshare.tracing import trace_in

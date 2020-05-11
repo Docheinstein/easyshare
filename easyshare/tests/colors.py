@@ -1,4 +1,4 @@
-from easyshare.colors import red, enable_colors, styled, Color, Style
+from easyshare.styling import red, enable_colors, styled, Color, Style
 
 if __name__ == "__main__":
     enable_colors()

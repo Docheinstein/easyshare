@@ -23,7 +23,7 @@ from easyshare.protocol import ServerErrors
 from easyshare.ssl import set_ssl_context, get_ssl_context
 from easyshare.tracing import trace_out
 from easyshare.sockets import SocketUdpOut
-from easyshare.colors import red, green
+from easyshare.styling import red, green
 from easyshare.utils.json import json_to_bytes, j
 from easyshare.utils.net import get_primary_ip, is_valid_port
 from easyshare.utils.pyro.server import pyro_client_endpoint, try_or_command_failed_response, trace_api

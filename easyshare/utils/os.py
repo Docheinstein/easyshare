@@ -8,7 +8,6 @@ import threading
 from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
-from easyshare.consts import K, M, G
 from easyshare.logging import get_logger
 from easyshare.protocol import FileInfo, FileInfoTreeNode
 from easyshare.protocol import FTYPE_FILE, FTYPE_DIR

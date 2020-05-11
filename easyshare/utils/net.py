@@ -4,7 +4,7 @@ import re
 
 from typing import Optional
 
-from easyshare.consts import ADDR_ANY, PORT_ANY
+from easyshare.consts.net import ADDR_ANY, PORT_ANY
 from easyshare.logging import get_logger
 from easyshare.utils.types import is_int
 

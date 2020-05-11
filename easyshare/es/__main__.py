@@ -10,7 +10,7 @@ from easyshare.logging import get_logger
 from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup, APP_INFO
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
-from easyshare.colors import enable_colors
+from easyshare.styling import enable_colors
 from easyshare.utils.env import is_stdout_terminal
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values

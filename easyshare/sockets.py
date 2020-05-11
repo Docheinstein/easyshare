@@ -4,7 +4,7 @@ import ssl
 from abc import ABC
 from typing import Optional, Union, Tuple
 
-from easyshare.consts import ADDR_BROADCAST, ADDR_ANY, PORT_ANY
+from easyshare.consts.net import ADDR_BROADCAST, ADDR_ANY, PORT_ANY
 from easyshare.logging import get_logger
 from easyshare.endpoint import Endpoint
 from easyshare.utils.net import socket_udp_in, socket_udp_out, socket_tcp_out, socket_tcp_in

@@ -8,18 +8,18 @@ from Pyro5.errors import PyroError
 
 from easyshare import logging, helps
 from easyshare.args import Args, ArgsParseError, VariadicArgs, OptIntArg, ArgsParser
-
+from easyshare.consts import ansi
 
 from easyshare.es.client import Client
 from easyshare.es.commands import Commands, matches_special_command
 from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.es.errors import print_error, ClientErrors
 from easyshare.es.help import SuggestionsIntent, COMMANDS_INFO
-from easyshare.helps import help_markdown_pager
 from easyshare.logging import get_logger
+from easyshare.styling import styled
 from easyshare.tracing import is_tracing_enabled, enable_tracing
-from easyshare.utils.app import eprint, terminate
-from easyshare.colors import styled, Style
+from easyshare.utils.app import eprint
+from easyshare.utils.help import help_markdown_pager
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.pyro.common import enable_pyro_logging, is_pyro_logging_enabled
@@ -66,6 +66,7 @@ class Shell:
 
         self._shell_command_dispatcher[Commands.TRACE_SHORT] = self._shell_command_dispatcher[Commands.TRACE]
         self._shell_command_dispatcher[Commands.VERBOSE_SHORT] = self._shell_command_dispatcher[Commands.VERBOSE]
+        self._shell_command_dispatcher[Commands.HELP_SHORT] = self._shell_command_dispatcher[Commands.HELP]
         self._shell_command_dispatcher[Commands.QUIT_SHORT] = self._shell_command_dispatcher[Commands.QUIT]
 
 
@@ -280,7 +281,7 @@ class Shell:
 
         prompt = remote + sep + local + "> "
 
-        return styled(prompt, attrs=Style.BOLD)
+        return styled(prompt, attrs=ansi.ATTR_BOLD)
 
     @staticmethod
     def _help(args: Args) -> NoReturn:
