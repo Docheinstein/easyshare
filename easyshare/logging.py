@@ -110,16 +110,27 @@ def init_logging():
     logging.Logger.set_verbosity = set_verbosity
 
 
-def get_logger(name: str = ROOT_LOGGER_NAME, force_initialize: bool = False) -> Logger:
+def get_logger(name: str = ROOT_LOGGER_NAME, force_initialize: bool = False, verbosity: int = None) -> Logger:
+
     logger: logging.Logger = logging.getLogger(name)
     if name == ROOT_LOGGER_NAME or force_initialize:
         logger.addHandler(_log_handler)
-    level = logger.getEffectiveLevel()
-    logger.verbosity = LEVEL_TO_VERBOSITY[rangify(level, LEVEL_DEBUG, LEVEL_FATAL)]
+
+    if verbosity is not None:
+        # Set the level corresponding to the explicit verbosity
+        level = VERBOSITY_TO_LEVEL[rangify(verbosity, VERBOSITY_MIN, VERBOSITY_MAX)]
+        logger.setLevel(level)
+        logger.verbosity = verbosity
+    else:
+        # Keep the default level and make verbosity consistent with the level
+        level = logger.getEffectiveLevel()
+        logger.verbosity = LEVEL_TO_VERBOSITY[rangify(level, LEVEL_DEBUG, LEVEL_FATAL)]
     return logger
 
+def get_logger_silent(name, force_initialize: bool = False):
+    return get_logger(name, force_initialize, verbosity=VERBOSITY_MIN)
 
-def get_logger_exuberant(name: str = ROOT_LOGGER_NAME, verbosity: int = VERBOSITY_MAX):
+def get_logger_plug_and_play(name: str = ROOT_LOGGER_NAME, verbosity: int = VERBOSITY_MAX):
     init_logging()
     logger = get_logger(name, force_initialize=True)
     logger.set_verbosity(verbosity)

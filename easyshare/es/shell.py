@@ -15,6 +15,7 @@ from easyshare.es.commands import Commands, matches_special_command
 from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.es.errors import print_error, ClientErrors
 from easyshare.es.help import SuggestionsIntent, COMMANDS_INFO
+from easyshare.helps import help_markdown_pager
 from easyshare.logging import get_logger
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint, terminate
@@ -285,17 +286,16 @@ class Shell:
     def _help(args: Args) -> NoReturn:
         cmd = args.get_varg()
         if not cmd:
-            # terminate(read_resource_string(RESOURCES_PKG, "helps/help.txt"))
-            terminate(helps.HELP)
-
-        # Show the help of cmd if found on helps.py
-        cmd_help = getattr(helps, cmd.upper(), None)
+            cmd_help = helps.HELP
+        else:
+            # Show the help of cmd if found on helps.py
+            cmd_help = getattr(helps, cmd.upper(), None)
 
         if not cmd_help:
             eprint("Help not found for command {}".format(cmd))
             return
 
-        terminate(cmd_help)
+        print(help_markdown_pager(cmd_help, False))
 
     @staticmethod
     def _exit(cls, _: Args) -> NoReturn:
