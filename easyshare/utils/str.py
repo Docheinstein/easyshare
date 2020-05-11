@@ -1,5 +1,6 @@
 import string
 import random
+from typing import List
 from uuid import uuid4 as UUID
 from easyshare.utils.types import is_str
 
@@ -60,3 +61,7 @@ def leftof(s: str, sep: str, from_end=False) -> str:
     else:
         before_or_ori, _, _ = s.partition(sep)
         return before_or_ori
+
+
+def sorted_i(l: List[str]):
+    return sorted(l, key=lambda s: s.lower())

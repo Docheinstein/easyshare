@@ -1,3 +1,5 @@
+import re
+
 from easyshare.consts import ansi
 from easyshare.logging import get_logger_silent
 from easyshare.styling import styled
@@ -5,10 +7,16 @@ from easyshare.utils.env import terminal_size
 
 log = get_logger_silent(__name__)
 
+I_START_REGEX = re.compile(r"^<(i\d+)>")
+I_END_REGEX = re.compile(r"<(/i\d+)>$")
+# I_END_REGEX = re.compile(r"</([iI]\d+)>")
+
 def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> str: # HelpMarkDown
     if not cols:
         cols, rows = terminal_size()
+
     last_a_col = 0
+    last_i = 0
 
     parsed_hdm = ""
 
@@ -23,6 +31,40 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
         log.d("'%s'", styled(line_in, attrs=ansi.ATTR_BOLD))
         if debug_step_by_step:
             input()
+
+        # Indent <i*></i*>
+        # indents = re.findall(I_REGEX, line_in)
+        #
+        # if indents:
+        #     indent_tag = indents[len(indents) - 1]
+        #     last_i = int(last_indent_tag[1:])
+        #     log.d("Found new indentation: %d", last_i)
+        #
+        #     if last_indent_tag[0] == "I":
+        #         continue  # don't keep the line into account
+        #
+        # # Add the indentation
+        # line_in = re.sub(I_BEGIN_REGEX, "", line_in) # strip <i*>
+        # line_in = re.sub(I_END_REGEX, "", line_in) # strip </i*>
+        #
+
+        indents = re.findall(I_START_REGEX, line_in)
+        if indents:
+            indent_tag = indents[len(indents) - 1]
+            last_i = int(indent_tag[1:])
+            log.d("Found new indentation: %d", last_i)
+
+        line_in = re.sub(I_START_REGEX, "", line_in) # strip <i*>
+
+        log.d("Adding indentation of %d", last_i)
+        line_in = " " * last_i + line_in
+
+        indents = re.findall(I_END_REGEX, line_in)
+        if indents:
+            last_i = 0
+            log.d("Resetting indentation: %d", last_i)
+
+        line_in = re.sub(I_END_REGEX, "", line_in) # strip </i*>
 
         # Alignment <a> OR <A>
         # <a> will be stripped out lonely

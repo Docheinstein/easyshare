@@ -6,39 +6,40 @@ import sys
 
 # Add the the project directory to sys.path since this is outside
 # the easyshare folder and the modules won't be seen otherwise
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_PARENT_DIR, _ = os.path.split(SCRIPT_DIR)
 
 sys.path.append(SCRIPT_PARENT_DIR)
 
-
+from easyshare.utils.str import sorted_i
 from easyshare.es.commands import CommandInfo, COMMANDS_INFO
 
 
-HELP = """\
+USAGE = """\
 See the manual page (man es) for a complete description of the commands.
 Type "help <command>" for the documentation of <command>.
 
 Available commands are:     
                         <a>
-General commands
+<b>General commands</b>
     help                show this help
     exit, quit, q       exit from the shell
     trace, t            enable/disable packet tracing
     verbose, v          change verbosity level
 
-Connection establishment commands
+<b>Connection establishment commands</b>
     scan, s             scan the network for easyshare servers
     connect             connect to a remote server
     disconnect          disconnect from a remote server
     open, o             open a remote sharing (eventually discovering it)
     close, c            close the remote sharing
 
-Transfer commands
+<b>Transfer commands</b>
     get, g              get files and directories from the remote sharing
     put, p              put files and directories in the remote sharing
 
-Local commands
+<b>Local commands</b>
     pwd                 show the name of current local working directory
     ls                  list local directory content
     l                   alias for ls -la
@@ -50,7 +51,7 @@ Local commands
     rm                  remove files and directories locally
     exec, :             execute an arbitrary command locally
 
-Remote commands
+<b>Remote commands</b>
     rpwd                show the name of current remote working directory
     rls                 list remote directory content
     rl                  alias for rls -la
@@ -62,33 +63,42 @@ Remote commands
     rrm                 remove files and directories remotely
     rexec, ::           execute an arbitrary command remotely (disabled by default) since it will compromise server security
 
-Server information commands
+<b>Server information commands</b>
     info, i             show information about the remote server
     list                list the sharings of the remote server
     ping                test the connection with the remote server"""
 
 
 def generate_command_help_markdown(info: Type[CommandInfo]):
-    options_strings = []
-    for option in info.options():
-        aliases, option_desc = option
-        options_strings.append("    {}{}".format(", ".join(aliases).ljust(24), option_desc))
 
-    options_strings = sorted(options_strings, key=lambda opt_str: opt_str[0][0])
-    options_string = "\n".join(options_strings)
-
+    # -- BASE FORMAT--
     s = f"""\
     <A> # alignment
 <b>COMMAND</b>
-    {info.name()} - {info.short_description()}
-
-    {info.long_description()}
+<i4>{info.name()} - {info.short_description()}</i4>
 
 <b>SYNOPSIS</b>
-    {info.name()}  {info.synopsis()}
+<i4>{info.synopsis()}</i4>
 
-<b>OPTIONS</b>
-{options_string}"""
+<b>DESCRIPTION</b>
+<i4>{info.long_description()}</i4>"""
+    # -- END BASE FORMAT --
+
+    # -- OPTIONS --
+    options = info.options()
+    if options:
+        options_strings = []
+        for option in info.options():
+            aliases, option_desc = option
+            options_strings.append("{}{}".format(", ".join(aliases).ljust(24), option_desc))
+
+        options_strings = sorted_i(options_strings)
+        options_string = "\n".join(options_strings)
+
+        s += f"""
+
+<i4>{options_string}</i4>"""
+    # -- END OPTIONS --
 
     return s
 
@@ -100,7 +110,7 @@ def generate_definition(name: str, value: str):
 
 if __name__ == "__main__":
     cmd_helps = [
-        ("help", HELP) # custom
+        ("usage", USAGE) # special - not actually a command
     ]
     cmd_helps += [(cmd_name, generate_command_help_markdown(cmd_info))
                  for cmd_name, cmd_info in COMMANDS_INFO.items()]
@@ -108,7 +118,8 @@ if __name__ == "__main__":
     cmd_helps_defs = [generate_definition(cmd_name, cmd_md)
                       for cmd_name, cmd_md in cmd_helps]
 
-    print("# Automatically generated {}".format(
+    print("# Automatically generated from {} on date {}".format(
+        __file__,
         datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')),
         end="\n\n"
     )

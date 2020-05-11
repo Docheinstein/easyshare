@@ -19,7 +19,7 @@ from easyshare.logging import get_logger
 from easyshare.styling import styled
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
-from easyshare.utils.help import help_markdown_pager
+from easyshare.utils.hmd import help_markdown_pager
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.pyro.common import enable_pyro_logging, is_pyro_logging_enabled
@@ -287,7 +287,7 @@ class Shell:
     def _help(args: Args) -> NoReturn:
         cmd = args.get_varg()
         if not cmd:
-            cmd_help = helps.HELP
+            cmd_help = helps.USAGE
         else:
             # Show the help of cmd if found on helps.py
             cmd_help = getattr(helps, cmd.upper(), None)
@@ -296,7 +296,7 @@ class Shell:
             eprint("Help not found for command {}".format(cmd))
             return
 
-        print(help_markdown_pager(cmd_help, False))
+        print(help_markdown_pager(cmd_help), end="")
 
     @staticmethod
     def _exit(cls, _: Args) -> NoReturn:

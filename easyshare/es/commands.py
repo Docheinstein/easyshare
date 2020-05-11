@@ -359,6 +359,45 @@ class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter, ABC):
 # ========== REAL COMMANDS INFO IMPL ===============
 # ==================================================
 
+# EXIT
+
+class Help(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "help"
+
+    @classmethod
+    def short_description(cls):
+        return "show the help of a command"
+
+    @classmethod
+    def long_description(cls):
+        comms = "\n".join(["    " + comm for comm in sorted(COMMANDS_INFO.keys())])
+        return f"""\
+Show the help of COMMAND if specified, or show the list of commands if no COMMAND is given.
+
+Available commands are:
+{comms}"""
+
+    @classmethod
+    def synopsis(cls):
+        return "help [COMMAND]"
+
+    @classmethod
+    def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
+        log.d("Providing commands suggestions")
+
+        suggestions = [StyledString(comm)
+                       for comm in COMMANDS_INFO.keys() if comm.startswith(token)]
+
+        return SuggestionsIntent(suggestions,
+                                 completion=True,
+                                 space_after_completion=lambda s: not s.endswith("/"))
+
+
+
+# xLS
 
 class BaseLsCommandInfo(CommandInfo, ABC, PositionalArgs):
     SORT_BY_SIZE = ["-s", "--sort-size"]
@@ -401,15 +440,43 @@ class Ls(BaseLsCommandInfo, ListLocalAllCommandInfo):
 
     @classmethod
     def short_description(cls):
+        return "list local directory content"
+
+    @classmethod
+    def long_description(cls):
+        return """\
+List content of the local FILE or the current local directory if no FILE is specified."""
+
+    @classmethod
+    def synopsis(cls):
+        return "ls [OPTION]... [FILE]"
+
+class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 1)
+
+    @classmethod
+    def name(cls):
+        return "rls"
+
+    @classmethod
+    def short_description(cls):
         return "list remote directory content"
 
     @classmethod
     def long_description(cls):
-        return "List content of the remote FILE or the current remote directory if no FILE is specified."
+        return """\
+List content of the remote FILE or the current remote directory if no FILE is specified.
+
+SHARING_LOCATION must be specified if and only if not already connected to a remote sharing, \
+in that case the connection would be established as "open SHARING_LOCATION" would do before \
+execute the command."""
 
     @classmethod
     def synopsis(cls):
-        return "[OPTION]... [FILE]"
+        return """\
+rls [OPTION]... [FILE]
+rls [OPTION]... [SHARING_LOCATION] [FILE]"""
 
 
 #
@@ -455,7 +522,7 @@ class Ls(BaseLsCommandInfo, ListLocalAllCommandInfo):
 
 
 COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
-    # Commands.HELP: Help,
+    Commands.HELP: Help,
     # Commands.EXIT: CommandInfo,
     #
     # Commands.TRACE: TraceCommandInfo,
@@ -479,7 +546,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     #
     #
     # Commands.REMOTE_CURRENT_DIRECTORY: CommandInfo,
-    # Commands.REMOTE_LIST_DIRECTORY: RlsCommandInfo,
+    Commands.REMOTE_LIST_DIRECTORY: Rls,
     # Commands.REMOTE_TREE_DIRECTORY: RtreeCommandInfo,
     # Commands.REMOTE_CHANGE_DIRECTORY: ListRemoteDirsCommandInfo,
     # Commands.REMOTE_CREATE_DIRECTORY: ListRemoteDirsCommandInfo,
