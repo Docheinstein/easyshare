@@ -1,61 +1,54 @@
+from typing import Type
+
+import os
 import datetime
-from typing import List, Tuple
+import sys
+
+# Add the the project directory to sys.path since this is outside
+# the easyshare folder and the modules won't be seen otherwise
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_PARENT_DIR, _ = os.path.split(SCRIPT_DIR)
+
+sys.path.append(SCRIPT_PARENT_DIR)
 
 
-def generate_help(name: str, short_description, long_description: str, synopsis: str,
-                  options: List[Tuple[List[str], str]]):
+from easyshare.es.commands import CommandInfo, COMMANDS_INFO
+
+
+def generate_command_help_markdown(info: Type[CommandInfo]):
     options_strings = []
-    for option in options:
+    for option in info.options():
         aliases, option_desc = option
-        options_strings.append("{}{}".format(", ".join(aliases).ljust(24), option_desc))
+        options_strings.append("    {}{}".format(", ".join(aliases).ljust(24), option_desc))
+
+    options_strings = sorted(options_strings, key=lambda opt_str: opt_str[0][0])
     options_string = "\n".join(options_strings)
 
     s = f"""\
     <A> # alignment
 <b>COMMAND</b>
-    {name} - {short_description}
+    {info.name()} - {info.short_description()}
 
-    {long_description}
+    {info.long_description()}
 
 <b>SYNOPSIS</b>
-    {name}  {synopsis}
+    {info.name()}  {info.synopsis()}
 
 <b>OPTIONS</b>
-    {options_string}"""
+{options_string}"""
 
     return s
 
 
-def generate_help_definition(
-        name: str, short_description, long_description: str, synopsis: str,
-        options: List[Tuple[List[str], str]]):
-    return "{} = \"\"\"\\\n{}\"\"\"".format(name.upper(), generate_help(
-        name=name, short_description=short_description, long_description=long_description,
-        synopsis=synopsis, options=options
-    ))
+def generate_command_help_markdown_definition(info: Type[CommandInfo]):
+    return "{} = \"\"\"\\\n{}\"\"\"".format(
+        info.name().upper(), generate_command_help_markdown(info)
+    )
 
 
 if __name__ == "__main__":
-    help_defs = [
-        generate_help_definition(
-            name="ls",
-            short_description="list remote directory content",
-            long_description="List content of the remote FILE or the current remote directory if no FILE is specified.",
-            synopsis="rls [OPTION]... [FILE]",
-            options=[
-                (["-a", "--all"], "show hidden files too")
-            ]
-        ),
-        generate_help_definition(
-            name="rls",
-            short_description="list remote directory content",
-            long_description="List content of the remote FILE or the current remote directory if no FILE is specified.",
-            synopsis="rls [OPTION]... [FILE]",
-            options=[
-                (["-a", "--all"], "show hidden files too")
-            ]
-        )
-    ]
+    help_defs = [generate_command_help_markdown_definition(cmd_info)
+                 for cmd_info in COMMANDS_INFO.values()]
 
     print("# Automatically generated {}".format(
         datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')),

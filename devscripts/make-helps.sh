@@ -1,6 +1,7 @@
 #!/bin/sh
 
 SCRIPT_DIR="$(dirname "$0")"
+#PROJECT_DIR="$SCRIPT_DIR/.."
 
 . "$SCRIPT_DIR/utils.sh"
 

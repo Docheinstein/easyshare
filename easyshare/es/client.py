@@ -12,6 +12,7 @@ from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, cast
 from Pyro5.errors import PyroError
 
 from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR
+from easyshare.consts import ansi
 from easyshare.endpoint import Endpoint
 from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK
 from easyshare.es.common import ServerLocation, SharingLocation
@@ -31,6 +32,7 @@ from easyshare.protocol import Response, is_error_response, is_success_response,
 from easyshare.protocol import ServerInfoFull, ServerInfo
 from easyshare.protocol import SharingInfo
 from easyshare.progress import FileProgressor
+from easyshare.styling import styled, red
 from easyshare.timer import Timer
 from easyshare.ssl import get_ssl_context
 from easyshare.sockets import SocketTcpOut
@@ -52,13 +54,6 @@ log = get_logger(__name__)
 
 
 class LsArgs(PositionalArgs):
-    SORT_BY_SIZE = ["-s", "--sort-size"]
-    REVERSE = ["-r", "--reverse"]
-    GROUP = ["-g", "--group"]
-
-    SHOW_ALL = ["-a", "--all"]
-    SHOW_DETAILS = ["-l"]
-    SHOW_SIZE = ["-S"]
 
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
@@ -882,7 +877,7 @@ class Client:
             s += styled("{} ({}:{})".format(
                     server_info_full.get("name"),
                     server_info_full.get("ip"),
-                    server_info_full.get("port")), attrs=Style.BOLD) + "\n"
+                    server_info_full.get("port")), attrs=ansi.ATTR_BOLD) + "\n"
 
             s += sharings_to_pretty_str(server_info_full.get("sharings"),
                                         details=show_details)
