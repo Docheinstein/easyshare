@@ -70,6 +70,14 @@ Available commands are:
 
 
 def generate_command_help_markdown(info: Type[CommandInfo]):
+    info_custom = info.custom()
+
+    if info_custom:
+        # Custom format
+        return info_custom
+
+    # Standard help format
+
     # Compute optional parts
     info_options = None
     info_synopsis_extra = info.synopsis_extra()
@@ -87,7 +95,6 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
 
     info_options = ("\n" + info_options + "\n") if info_options else ""
     info_synopsis_extra = ("\n" + info_synopsis_extra + "\n") if info_synopsis_extra else ""
-
 
     s = f"""\
     <A> # break line alignment

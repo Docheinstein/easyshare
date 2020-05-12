@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-12 11:04:15
+# Automatically generated from make-helps.py on date 2020-05-12 11:13:21
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -74,10 +74,12 @@ Available commands are:
     exit
     h
     help
+    l
     ls
     pwd
     q
     quit
+    rl
     rls
     rpwd
     t
@@ -108,10 +110,12 @@ Available commands are:
     exit
     h
     help
+    l
     ls
     pwd
     q
     quit
+    rl
     rls
     rpwd
     t
@@ -211,15 +215,14 @@ Show (1) or hide (0) the packets sent and received to and from the server for an
 If no argument is given, toggle the packet tracing mode.
 
 </I4>
-
-# <b>EXAMPLES</b>
-# <I4>
-# Here are some examples of data shown with the packet tracing on.
+<b>EXAMPLES</b>
+<I4>
+Here are some examples of data shown with the packet tracing on.
 
 {
     TODO: example
 }
-# </I4>"""
+</I4>"""
 
 # ============================================================
 
@@ -243,15 +246,14 @@ Show (1) or hide (0) the packets sent and received to and from the server for an
 If no argument is given, toggle the packet tracing mode.
 
 </I4>
-
-# <b>EXAMPLES</b>
-# <I4>
-# Here are some examples of data shown with the packet tracing on.
+<b>EXAMPLES</b>
+<I4>
+Here are some examples of data shown with the packet tracing on.
 
 {
     TODO: example
 }
-# </I4>"""
+</I4>"""
 
 # ============================================================
 
@@ -342,6 +344,11 @@ List content of the local FILE or the current local directory if no FILE is spec
 
 # ============================================================
 
+L = """\
+alias for ls -la"""
+
+# ============================================================
+
 RPWD = """\
     <A> # break line alignment
 <b>COMMAND</b>
@@ -395,6 +402,11 @@ List content of the remote FILE or the current remote directory if no FILE is sp
 -S                      show files size
 -s, --sort-size         sort by size
 </I4>"""
+
+# ============================================================
+
+RL = """\
+alias for rls -la"""
 
 # ============================================================
 

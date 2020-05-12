@@ -148,6 +148,10 @@ class CommandInfo(ABC):
         return []
 
     @classmethod
+    def custom(cls):
+        return None
+
+    @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
         options = cls.options()
 
@@ -511,6 +515,7 @@ v         [0 | 1 | 2 | 3 | 4]"""
         )
 
 # xPWD
+
 class Pwd(CommandInfo):
 
     @classmethod
@@ -637,7 +642,23 @@ rls [OPTION]... [SHARING_LOCATION] [FILE]"""
     @classmethod
     def synopsis_extra(cls):
         return SHARING_LOCATION_IF_NOT_CONNECTED_DESC
-#
+
+# xLS
+
+# noinspection PyAbstractClass
+class L(CommandInfo):
+    @classmethod
+    def custom(cls):
+        return "alias for ls -la"
+
+
+# noinspection PyAbstractClass
+class Rl(CommandInfo):
+    @classmethod
+    def custom(cls):
+        return "alias for rls -la"
+
+
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
 #     pass
 #
@@ -702,7 +723,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
 
     Commands.LOCAL_CURRENT_DIRECTORY: Pwd,
     Commands.LOCAL_LIST_DIRECTORY: Ls,
-    # LOCAL_LIST_DIRECTORY_ENHANCED = "l"
+    Commands.LOCAL_LIST_DIRECTORY_ENHANCED: L,
     # LOCAL_TREE_DIRECTORY = "tree"
     # LOCAL_CHANGE_DIRECTORY = "cd"
     # LOCAL_CREATE_DIRECTORY = "mkdir"
@@ -713,8 +734,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     # LOCAL_EXEC_SHORT = SPECIAL_COMMAND_MARK
     #
     Commands.REMOTE_CURRENT_DIRECTORY: Rpwd,
-    Commands.REMOTE_LIST_DIRECTORY: Rls
-    # REMOTE_LIST_DIRECTORY_ENHANCED = "rl"
+    Commands.REMOTE_LIST_DIRECTORY: Rls,
+    Commands.REMOTE_LIST_DIRECTORY_ENHANCED: Rl,
     # REMOTE_TREE_DIRECTORY = "rtree"
     # REMOTE_CHANGE_DIRECTORY = "rcd"
     # REMOTE_CREATE_DIRECTORY = "rmkdir"
