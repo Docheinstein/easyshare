@@ -70,10 +70,27 @@ Available commands are:
 
 
 def generate_command_help_markdown(info: Type[CommandInfo]):
+    # Compute optional parts
+    info_options = None
+    info_synopsis_extra = info.synopsis_extra()
+    info_examples = info.examples()
 
-    # -- BASE FORMAT--
+    options = info.options()
+    if options:
+        options_strings = []
+        for option in options:
+            aliases, option_desc = option
+            options_strings.append("{}{}".format(", ".join(aliases).ljust(24), option_desc))
+
+        options_strings = sorted_i(options_strings)
+        info_options = "\n".join(options_strings)
+
+    info_options = ("\n" + info_options + "\n") if info_options else ""
+    info_synopsis_extra = ("\n" + info_synopsis_extra + "\n") if info_synopsis_extra else ""
+
+
     s = f"""\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 {info.name()} - {info.short_description()}
@@ -82,46 +99,80 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
 <b>SYNOPSIS</b>
 <I4>
 {info.synopsis()}
+{info_synopsis_extra}\
 </I4>
 
 <b>DESCRIPTION</b>
 <I4>
 {info.long_description()}
+{info_options}\
 </I4>"""
-    # -- END BASE FORMAT --
 
-    # -- OPTIONS --
-    options = info.options()
-    if options:
-        options_strings = []
-        for option in info.options():
-            aliases, option_desc = option
-            options_strings.append("{}{}".format(", ".join(aliases).ljust(24), option_desc))
-
-        options_strings = sorted_i(options_strings)
-        options_string = "\n".join(options_strings)
-
+    if info_examples:
         s += f"""
-
-<I4>
-{options_string}
-</I4>"""
-    # -- END OPTIONS --
-
-    # -- EXAMPLES --
-    examples = info.examples()
-    if examples:
-        s += f"""
-
 <b>EXAMPLES</b>
 <I4>
-{examples}
+{info_examples}
 </I4>"""
 
-    # -- END EXAMPLES --
-
-
     return s
+
+#
+#
+# #     s = f"""\
+# #     <A> # alignment
+# # <b>COMMAND</b>
+# # <I4>
+# # {info.name()} - {info.short_description()}
+# # </I4>
+#
+# <b>SYNOPSIS</b>
+# <I4>
+# {info.synopsis()}
+# </I4>"""
+#
+#     synopsis_extra = info.synopsis_extra()
+#     if synopsis_extra:
+#         s += """
+# sy
+# """
+#     s += """\
+# <b>DESCRIPTION</b>
+# <I4>
+# {info.long_description()}
+# </I4>"""
+#     # -- END BASE FORMAT --
+#
+#     # -- OPTIONS --
+#     options = info.options()
+#     if options:
+#         options_strings = []
+#         for option in info.options():
+#             aliases, option_desc = option
+#             options_strings.append("{}{}".format(", ".join(aliases).ljust(24), option_desc))
+#
+#         options_strings = sorted_i(options_strings)
+#         options_string = "\n".join(options_strings)
+#
+#         s += f"""
+#
+# <I4>
+# {options_string}
+# </I4>"""
+#     # -- END OPTIONS --
+#
+#     # -- EXAMPLES --
+#     examples = info.examples()
+#     if examples:
+#         s += f"""
+#
+# <b>EXAMPLES</b>
+# <I4>
+# {examples}
+# </I4>"""
+#
+#     # -- END EXAMPLES --
+#
 
 
 def generate_definition(name: str, value: str):

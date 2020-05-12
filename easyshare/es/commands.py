@@ -136,6 +136,10 @@ class CommandInfo(ABC):
         pass
 
     @classmethod
+    def synopsis_extra(cls):
+        return None
+
+    @classmethod
     def options(cls) -> List[CommandOptionInfo]:
         return []
 
@@ -335,7 +339,7 @@ SHARING_LOCATION must be specified <u>if and only if </u> not already connected 
 in that case the connection would be established as "open SHARING_LOCATION" would do before \
 execute the command.
 
-See "help open" for more information about SHARING_LOCATION format."""
+Type "<b>help open</b>" for more information about SHARING_LOCATION format."""
 
 
 # ==================================================
@@ -506,6 +510,52 @@ v         [0 | 1 | 2 | 3 | 4]"""
             max_columns=1,
         )
 
+# xPWD
+class Pwd(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "pwd"
+
+    @classmethod
+    def short_description(cls):
+        return "show the name of current local working directory"
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Show the name of current local working directory.
+
+The local working directory can be changed with the command <b>cd</b>."""
+
+    @classmethod
+    def synopsis(cls):
+        return "pwd"
+
+class Rpwd(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "rpwd"
+
+    @classmethod
+    def short_description(cls):
+        return "show the name of current remote working directory"
+
+    @classmethod
+    def long_description(cls):
+        return f"""\
+Show the name of current remote working directory.
+
+The remote working directory can be changed with the command <b>rcd</b>."""
+
+    @classmethod
+    def synopsis(cls):
+        return "rpwd"
+
+    @classmethod
+    def synopsis_extra(cls):
+        return SHARING_LOCATION_IF_NOT_CONNECTED_DESC
 
 # xLS
 
@@ -576,9 +626,7 @@ class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo):
     @classmethod
     def long_description(cls):
         return f"""\
-List content of the remote FILE or the current remote directory if no FILE is specified.
-
-{SHARING_LOCATION_IF_NOT_CONNECTED_DESC}"""
+List content of the remote FILE or the current remote directory if no FILE is specified."""
 
     @classmethod
     def synopsis(cls):
@@ -586,7 +634,9 @@ List content of the remote FILE or the current remote directory if no FILE is sp
 rls [OPTION]... [FILE]
 rls [OPTION]... [SHARING_LOCATION] [FILE]"""
 
-
+    @classmethod
+    def synopsis_extra(cls):
+        return SHARING_LOCATION_IF_NOT_CONNECTED_DESC
 #
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
 #     pass
@@ -650,7 +700,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.VERBOSE: Verbose,
     Commands.VERBOSE_SHORT: Verbose,
 
-    # LOCAL_CURRENT_DIRECTORY = "pwd"
+    Commands.LOCAL_CURRENT_DIRECTORY: Pwd,
     Commands.LOCAL_LIST_DIRECTORY: Ls,
     # LOCAL_LIST_DIRECTORY_ENHANCED = "l"
     # LOCAL_TREE_DIRECTORY = "tree"
@@ -662,7 +712,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     # LOCAL_EXEC = "exec"
     # LOCAL_EXEC_SHORT = SPECIAL_COMMAND_MARK
     #
-    # REMOTE_CURRENT_DIRECTORY = "rpwd"
+    Commands.REMOTE_CURRENT_DIRECTORY: Rpwd,
     Commands.REMOTE_LIST_DIRECTORY: Rls
     # REMOTE_LIST_DIRECTORY_ENHANCED = "rl"
     # REMOTE_TREE_DIRECTORY = "rtree"

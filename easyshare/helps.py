@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-12 10:25:26
+# Automatically generated from make-helps.py on date 2020-05-12 11:04:15
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -55,7 +55,7 @@ Available commands are:
 # ============================================================
 
 HELP = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 help - show the help of a command
@@ -75,9 +75,11 @@ Available commands are:
     h
     help
     ls
+    pwd
     q
     quit
     rls
+    rpwd
     t
     trace
     v
@@ -87,7 +89,7 @@ Available commands are:
 # ============================================================
 
 H = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 help - show the help of a command
@@ -107,9 +109,11 @@ Available commands are:
     h
     help
     ls
+    pwd
     q
     quit
     rls
+    rpwd
     t
     trace
     v
@@ -119,7 +123,7 @@ Available commands are:
 # ============================================================
 
 EXIT = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 exit - exit from the interactive shell
@@ -142,7 +146,7 @@ Open connections are automatically closed.
 # ============================================================
 
 QUIT = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 exit - exit from the interactive shell
@@ -165,7 +169,7 @@ Open connections are automatically closed.
 # ============================================================
 
 Q = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 exit - exit from the interactive shell
@@ -188,7 +192,7 @@ Open connections are automatically closed.
 # ============================================================
 
 TRACE = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 trace - enable/disable packet tracing
@@ -208,19 +212,19 @@ If no argument is given, toggle the packet tracing mode.
 
 </I4>
 
-<b>EXAMPLES</b>
-<I4>
-Here are some examples of data shown with the packet tracing on.
+# <b>EXAMPLES</b>
+# <I4>
+# Here are some examples of data shown with the packet tracing on.
 
 {
     TODO: example
 }
-</I4>"""
+# </I4>"""
 
 # ============================================================
 
 T = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 trace - enable/disable packet tracing
@@ -240,19 +244,19 @@ If no argument is given, toggle the packet tracing mode.
 
 </I4>
 
-<b>EXAMPLES</b>
-<I4>
-Here are some examples of data shown with the packet tracing on.
+# <b>EXAMPLES</b>
+# <I4>
+# Here are some examples of data shown with the packet tracing on.
 
 {
     TODO: example
 }
-</I4>"""
+# </I4>"""
 
 # ============================================================
 
 VERBOSE = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 verbose - change verbosity level           
@@ -272,7 +276,7 @@ None
 # ============================================================
 
 V = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 verbose - change verbosity level           
@@ -291,8 +295,29 @@ None
 
 # ============================================================
 
+PWD = """\
+    <A> # break line alignment
+<b>COMMAND</b>
+<I4>
+pwd - show the name of current local working directory
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+pwd
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Show the name of current local working directory.
+
+The local working directory can be changed with the command <b>cd</b>.
+</I4>"""
+
+# ============================================================
+
 LS = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 ls - list local directory content
@@ -306,9 +331,7 @@ ls [OPTION]... [FILE]
 <b>DESCRIPTION</b>
 <I4>
 List content of the local FILE or the current local directory if no FILE is specified.
-</I4>
 
-<I4>
 -a, --all               show hidden files too
 -g, --group             group by file type
 -l                      show more details
@@ -319,8 +342,33 @@ List content of the local FILE or the current local directory if no FILE is spec
 
 # ============================================================
 
+RPWD = """\
+    <A> # break line alignment
+<b>COMMAND</b>
+<I4>
+rpwd - show the name of current remote working directory
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+rpwd
+
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.
+
+Type "<b>help open</b>" for more information about SHARING_LOCATION format.
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Show the name of current remote working directory.
+
+The remote working directory can be changed with the command <b>rcd</b>.
+</I4>"""
+
+# ============================================================
+
 RLS = """\
-    <A> # alignment
+    <A> # break line alignment
 <b>COMMAND</b>
 <I4>
 rls - list remote directory content
@@ -330,18 +378,16 @@ rls - list remote directory content
 <I4>
 rls [OPTION]... [FILE]
 rls [OPTION]... [SHARING_LOCATION] [FILE]
+
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.
+
+Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 </I4>
 
 <b>DESCRIPTION</b>
 <I4>
 List content of the remote FILE or the current remote directory if no FILE is specified.
 
-SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.
-
-See "help open" for more information about SHARING_LOCATION format.
-</I4>
-
-<I4>
 -a, --all               show hidden files too
 -g, --group             group by file type
 -l                      show more details
