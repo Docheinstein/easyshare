@@ -73,7 +73,7 @@ def tree(path: str,
         return None
 
     sort_by_fields = list(filter(lambda sort_field: sort_field in ["name", "size", "ftype"], sort_by))
-    print("TREE sorting by {}{}".format(sort_by, " (reverse)" if reverse else ""))
+    log.i("TREE sorting by {}{}".format(sort_by, " (reverse)" if reverse else ""))
 
     f_stat = os.lstat(path)
 

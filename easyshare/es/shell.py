@@ -293,12 +293,12 @@ class Shell:
 
         sep = (" " + 1 * self._prompt_local_remote_sep + " ") if remote else ""
 
-        # prompt = remote + sep + local + "> "
+        prompt = bold(remote + sep + local + "> ")
         # prompt = bold(remote + sep + local + "> ")
-        prompt = \
-            ansi.ATTR_BOLD + ansi.FG_CYAN + local + ansi.RESET + \
-            ansi.ATTR_BOLD + sep +  ansi.FG_MAGENTA + remote + ansi.RESET + \
-            ansi.ATTR_BOLD + "> " + ansi.RESET
+        # prompt = \
+        #     ansi.ATTR_BOLD + ansi.FG_CYAN + local + ansi.RESET + \
+        #     ansi.ATTR_BOLD + sep +  ansi.FG_MAGENTA + remote + ansi.RESET + \
+        #     ansi.ATTR_BOLD + "> " + ansi.RESET
 
         # prompt = \
         #     ansi.FG_MAGENTA + remote + ansi.RESET + \

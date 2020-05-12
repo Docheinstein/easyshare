@@ -351,9 +351,9 @@ class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter, ABC):
 # ==================================================
 
 SHARING_LOCATION_IF_NOT_CONNECTED_DESC = """\
-SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, \
-in that case the connection would be established as "<b>open</b> SHARING_LOCATION" would do before \
-execute the command.
+SHARING_LOCATION must be specified <u>if and only if </u> not already \
+connected to a remote sharing. In that case the connection will be \
+established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
 Type "<b>help open</b>" for more information about SHARING_LOCATION format."""
 
@@ -804,11 +804,70 @@ the current sharing if no DIR is specified."""
 Usage example:
 
 <b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> rcd dir
-<b>/tmp - remote.shared:/dir></b> rcd subdir
-<b>/tmp - remote.shared:/dir/subdir></b> rcd
-<b>/tmp - remote.shared:/></b>
-"""
+<b>/tmp - remote.shared:/></b> <u>rcd</u> dir
+<b>/tmp - remote.shared:/dir></b> <u>rcd</u> subdir
+<b>/tmp - remote.shared:/dir/subdir></b> <u>rcd</u>
+<b>/tmp - remote.shared:/></b>"""
+
+
+# ============ xMKDIR ================
+
+
+class Mkdir(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "mkdir"
+
+    @classmethod
+    def short_description(cls):
+        return "create a local directory"
+
+    @classmethod
+    def synopsis(cls):
+        return "mkdir DIR"
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Create the local directory DIR.
+
+Parent directories of DIR are automatically created when needed.
+
+If DIR already exists, it does nothing."""
+
+class Rmkdir(RemoteSharingCommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "rmkdir"
+
+    @classmethod
+    def short_description(cls):
+        return "create a remote directory"
+
+    @classmethod
+    def synopsis(cls):
+        return "rmkdir DIR"
+
+    @classmethod
+    def long_description(cls):
+        return f"""\
+Create the remote directory DIR.
+
+Parent directories of DIR are automatically created when needed.
+
+If DIR already exists, it does nothing."""
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> <u>rmkdir</u> newdir
+<b>/tmp - remote.shared:/></b> rcd newdir
+<b>/tmp - remote.shared:/newdir></b>"""
 
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
@@ -869,7 +928,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_LIST_DIRECTORY_ENHANCED: L,
     Commands.LOCAL_TREE_DIRECTORY: Tree,
     Commands.LOCAL_CHANGE_DIRECTORY: Cd,
-    # LOCAL_CREATE_DIRECTORY = "mkdir"
+    Commands.LOCAL_CREATE_DIRECTORY: Mkdir,
     # LOCAL_COPY = "cp"
     # LOCAL_MOVE = "mv"
     # LOCAL_REMOVE = "rm"
@@ -881,7 +940,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_LIST_DIRECTORY_ENHANCED: Rl,
     Commands.REMOTE_TREE_DIRECTORY: Rtree,
     Commands.REMOTE_CHANGE_DIRECTORY: Rcd,
-    # REMOTE_CREATE_DIRECTORY = "rmkdir"
+    Commands.REMOTE_CREATE_DIRECTORY: Rmkdir,
     # REMOTE_COPY = "rcp"
     # REMOTE_MOVE = "rmv"
     # REMOTE_REMOVE = "rrm"

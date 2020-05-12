@@ -101,8 +101,12 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
         options_strings = sorted_i(options_strings)
         info_options = "\n".join(options_strings)
 
-    info_options = ("\n" + info_options + "\n") if info_options else ""
-    info_synopsis_extra = ("\n" + info_synopsis_extra + "\n") if info_synopsis_extra else ""
+    def optional_section_string(s: str, leading_endl=True) -> str:
+        return (("\n" if leading_endl else "") + s + "\n") if s else ""
+
+    info_options = optional_section_string(info_options)
+    info_synopsis_extra = optional_section_string(info_synopsis_extra)
+    info_examples = optional_section_string(info_examples, False)
 
     s = f"""\
     <A> # paragraph alignment (4)

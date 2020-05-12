@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-12 16:21:01
+# Automatically generated from make-helps.py on date 2020-05-12 16:45:28
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -77,12 +77,14 @@ Available commands are:
     help
     l
     ls
+    mkdir
     pwd
     q
     quit
     rcd
     rl
     rls
+    rmkdir
     rpwd
     rtree
     t
@@ -120,12 +122,14 @@ Available commands are:
     help
     l
     ls
+    mkdir
     pwd
     q
     quit
     rcd
     rl
     rls
+    rmkdir
     rpwd
     rtree
     t
@@ -247,7 +251,8 @@ Here are some examples of data shown with the packet tracing on.
 
 {
     TODO: example
-}</I4>"""
+}
+</I4>"""
 
 # ============================================================
 
@@ -280,7 +285,8 @@ Here are some examples of data shown with the packet tracing on.
 
 {
     TODO: example
-}</I4>"""
+}
+</I4>"""
 
 # ============================================================
 
@@ -440,6 +446,32 @@ Change the current local working directory to DIR or to the user's home director
 
 # ============================================================
 
+MKDIR = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+mkdir - create a local directory
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+mkdir DIR
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Create the local directory DIR.
+
+Parent directories of DIR are automatically created when needed.
+
+If DIR already exists, it does nothing.
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
+
+# ============================================================
+
 RPWD = """\
     <A> # paragraph alignment (4)
 <b>COMMAND</b>
@@ -451,7 +483,7 @@ rpwd - show the name of current remote working directory
 <I4>
 rpwd
 
-SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "<b>open</b> SHARING_LOCATION" would do before execute the command.
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
 Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 </I4>
@@ -480,7 +512,7 @@ rls - list remote directory content
 rls [OPTION]... [DIR]
 rls [OPTION]... [SHARING_LOCATION] [DIR]
 
-SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "<b>open</b> SHARING_LOCATION" would do before execute the command.
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
 Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 </I4>
@@ -518,7 +550,7 @@ rtree - list remote directory contents in a tree-like format
 <I4>
 tree [OPTION]... [DIR]
 
-SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "<b>open</b> SHARING_LOCATION" would do before execute the command.
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
 Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 </I4>
@@ -553,7 +585,7 @@ rcd - change remote working directory
 rcd [DIR]
 rcd [SHARING_LOCATION] [DIR]
 
-SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "<b>open</b> SHARING_LOCATION" would do before execute the command.
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
 Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 </I4>
@@ -568,12 +600,51 @@ Change the current remote working directory to DIR or to the root of the current
 <b>EXAMPLES</b>
 <I4>
 Usage example:
-[47m
+
 <b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> rcd dir
-<b>/tmp - remote.shared:/dir></b> rcd subdir
-<b>/tmp - remote.shared:/dir/subdir></b> rcd
-<b>/tmp - remote.shared:/></b>[0m
+<b>/tmp - remote.shared:/></b> <u>rcd</u> dir
+<b>/tmp - remote.shared:/dir></b> <u>rcd</u> subdir
+<b>/tmp - remote.shared:/dir/subdir></b> <u>rcd</u>
+<b>/tmp - remote.shared:/></b>
+</I4>"""
+
+# ============================================================
+
+RMKDIR = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+rmkdir - create a remote directory
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+rmkdir DIR
+
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
+
+Type "<b>help open</b>" for more information about SHARING_LOCATION format.
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Create the remote directory DIR.
+
+Parent directories of DIR are automatically created when needed.
+
+If DIR already exists, it does nothing.
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+
+<b>EXAMPLES</b>
+<I4>
+Usage example:
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> <u>rmkdir</u> newdir
+<b>/tmp - remote.shared:/></b> rcd newdir
+<b>/tmp - remote.shared:/newdir></b>
 </I4>"""
 
 # ============================================================
