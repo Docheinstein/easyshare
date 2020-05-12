@@ -31,7 +31,7 @@ from easyshare.utils.types import bytes_to_int
 
 # ==================================================================
 
-log = get_logger()
+log = get_logger(__name__)
 
 
 

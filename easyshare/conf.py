@@ -6,7 +6,7 @@ from easyshare.logging import get_logger
 from easyshare.utils.json import j
 from easyshare.utils.types import to_int
 
-log = get_logger()
+log = get_logger(__name__)
 
 class ConfParseError(Exception):
     pass

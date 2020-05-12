@@ -1,10 +1,11 @@
 import logging
 import sys
 
-from easyshare.styling import styled, green, blue, yellow, red
+from easyshare.styling import green, blue, yellow, red
 from easyshare.utils.math import rangify
 
-ROOT_LOGGER_NAME = "easyshare"
+ROOT_LOGGER_NAME = "__main__"
+ROOT_LOGGER_DISPLAY_NAME = "easyshare"
 
 VERBOSITY_NONE = 0
 VERBOSITY_ERROR = 1
@@ -39,6 +40,8 @@ LEVEL_TO_VERBOSITY = {
     LEVEL_DEBUG: VERBOSITY_DEBUG,
 }
 
+_initialized = False
+
 
 class Logger(logging.Logger):
     @property
@@ -62,7 +65,6 @@ class Logger(logging.Logger):
 
 
 class LoggerFormatter(logging.Formatter):
-
     def __init__(self, show_time: bool = False):
         self._show_time = show_time
         super().__init__(
@@ -90,6 +92,11 @@ _log_handler = logging.StreamHandler(sys.stdout)
 _log_handler.setFormatter(LoggerFormatter())
 
 def init_logging():
+    global _initialized
+
+    if _initialized:
+        return
+
     def set_verbosity(logger: logging.Logger, verbosity: int):
         if verbosity not in VERBOSITY_TO_LEVEL:
             verbosity = rangify(verbosity, VERBOSITY_MIN, VERBOSITY_MAX)
@@ -109,10 +116,17 @@ def init_logging():
     logging.Logger.d = logging.Logger.debug
     logging.Logger.set_verbosity = set_verbosity
 
+    _initialized = True
 
-def get_logger(name: str = ROOT_LOGGER_NAME, force_initialize: bool = False, verbosity: int = None) -> Logger:
 
-    logger: logging.Logger = logging.getLogger(name)
+def get_logger(name: str = ROOT_LOGGER_NAME,
+               force_initialize: bool = False,
+               verbosity: int = None) -> Logger:
+    init_logging()
+
+    fetch_name = ROOT_LOGGER_DISPLAY_NAME if name == ROOT_LOGGER_NAME else name
+
+    logger: logging.Logger = logging.getLogger(fetch_name)
     if name == ROOT_LOGGER_NAME or force_initialize:
         logger.addHandler(_log_handler)
 
@@ -129,12 +143,6 @@ def get_logger(name: str = ROOT_LOGGER_NAME, force_initialize: bool = False, ver
 
 def get_logger_silent(name, force_initialize: bool = False):
     return get_logger(name, force_initialize, verbosity=VERBOSITY_MIN)
-
-def get_logger_plug_and_play(name: str = ROOT_LOGGER_NAME, verbosity: int = VERBOSITY_MAX):
-    init_logging()
-    logger = get_logger(name, force_initialize=True)
-    logger.set_verbosity(verbosity)
-    return logger
 
 if __name__ == "__main__":
     log = get_logger(__name__)

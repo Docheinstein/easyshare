@@ -23,7 +23,7 @@ from easyshare.utils.str import satisfy
 
 # ==================================================================
 
-log = get_logger()
+log = get_logger(__name__)
 
 
 # === HELPS ===

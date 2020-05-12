@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-12 01:49:14
+# Automatically generated from make-helps.py on date 2020-05-12 09:44:34
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -8,7 +8,7 @@ Available commands are:
                         <a>
 <b>General commands</b>
     help                show this help
-    exit, quit, q       exit from the shell
+    exit, quit, q       exit from the interactive shell
     trace, t            enable/disable packet tracing
     verbose, v          change verbosity level
 
@@ -66,9 +66,136 @@ HELP = """\
 <i4>Show the help of COMMAND if specified, or show the list of commands if no COMMAND is given.
 
 Available commands are:
+    exit
+    h
     help
     ls
-    rls</i4>"""
+    q
+    quit
+    rls
+    t
+    trace</i4>"""
+
+# ============================================================
+
+H = """\
+    <A> # alignment
+<b>COMMAND</b>
+<i4>help - show the help of a command</i4>
+
+<b>SYNOPSIS</b>
+<i4>help [COMMAND]</i4>
+
+<b>DESCRIPTION</b>
+<i4>Show the help of COMMAND if specified, or show the list of commands if no COMMAND is given.
+
+Available commands are:
+    exit
+    h
+    help
+    ls
+    q
+    quit
+    rls
+    t
+    trace</i4>"""
+
+# ============================================================
+
+EXIT = """\
+    <A> # alignment
+<b>COMMAND</b>
+<i4>exit - exit from the interactive shell</i4>
+
+<b>SYNOPSIS</b>
+<i4>exit
+quit
+q</i4>
+
+<b>DESCRIPTION</b>
+<i4>Exit from the interactive shell.
+
+Open connections are automatically closed.</i4>"""
+
+# ============================================================
+
+QUIT = """\
+    <A> # alignment
+<b>COMMAND</b>
+<i4>exit - exit from the interactive shell</i4>
+
+<b>SYNOPSIS</b>
+<i4>exit
+quit
+q</i4>
+
+<b>DESCRIPTION</b>
+<i4>Exit from the interactive shell.
+
+Open connections are automatically closed.</i4>"""
+
+# ============================================================
+
+Q = """\
+    <A> # alignment
+<b>COMMAND</b>
+<i4>exit - exit from the interactive shell</i4>
+
+<b>SYNOPSIS</b>
+<i4>exit
+quit
+q</i4>
+
+<b>DESCRIPTION</b>
+<i4>Exit from the interactive shell.
+
+Open connections are automatically closed.</i4>"""
+
+# ============================================================
+
+TRACE = """\
+    <A> # alignment
+<b>COMMAND</b>
+<i4>trace - enable/disable packet tracing</i4>
+
+<b>SYNOPSIS</b>
+<i4>trace   [0 | 1]
+t       [0 | 1]</i4>
+
+<b>DESCRIPTION</b>
+<i4>Enable (1) or disable (0) the packet tracing for any network operation.
+
+If no argument is given, toggle the packet tracing.
+</i4>
+
+<b>EXAMPLES</b>
+<i4>Here are some examples of data shown with the packet tracing on.
+{
+    TODO: example
+}</i4>"""
+
+# ============================================================
+
+T = """\
+    <A> # alignment
+<b>COMMAND</b>
+<i4>trace - enable/disable packet tracing</i4>
+
+<b>SYNOPSIS</b>
+<i4>trace   [0 | 1]
+t       [0 | 1]</i4>
+
+<b>DESCRIPTION</b>
+<i4>Enable (1) or disable (0) the packet tracing for any network operation.
+
+If no argument is given, toggle the packet tracing.
+</i4>
+
+<b>EXAMPLES</b>
+<i4>Here are some examples of data shown with the packet tracing on.
+{
+    TODO: example
+}</i4>"""
 
 # ============================================================
 
@@ -104,7 +231,9 @@ rls [OPTION]... [SHARING_LOCATION] [FILE]</i4>
 <b>DESCRIPTION</b>
 <i4>List content of the remote FILE or the current remote directory if no FILE is specified.
 
-SHARING_LOCATION must be specified if and only if not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.</i4>
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.
+
+See "help open" for more information about SHARING_LOCATION format.</i4>
 
 <i4>-a, --all               show hidden files too
 -g, --group             group by file type

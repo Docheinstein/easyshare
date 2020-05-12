@@ -19,7 +19,7 @@ from easyshare.utils.types import is_int, is_str
 from easyshare.args import Args as Args, KwArg, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, \
     ArgsParseError, ArgType, ArgsParser, ActionParam
 
-log = get_logger()
+log = get_logger(__name__)
 
 # ==================================================================
 

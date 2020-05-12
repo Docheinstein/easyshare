@@ -1,11 +1,13 @@
 import re
 
+from easyshare import logging
 from easyshare.consts import ansi
-from easyshare.logging import get_logger_silent
+from easyshare.logging import get_logger_silent, get_logger
 from easyshare.styling import styled
 from easyshare.utils.env import terminal_size
 
-log = get_logger_silent(__name__)
+# log = get_logger_silent(__name__)
+log = get_logger(__name__)
 
 I_START_REGEX = re.compile(r"^<(i\d+)>")
 I_END_REGEX = re.compile(r"<(/i\d+)>$")
@@ -20,14 +22,16 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
 
     parsed_hdm = ""
 
-    def add_text(l: str, endl=True):
+    def add_text(l: str, *, indent: int = 0, endl=True):
         nonlocal parsed_hdm
-        l = (l or "") + ("\n" if endl else "")
+        l = " " * indent + (l or "") + ("\n" if endl else "")
         parsed_hdm += l
         log.d("+ %s", styled(l, fg=ansi.FG_CYAN, attrs=ansi.ATTR_BOLD))
 
 
     for line_in in hmd.splitlines(keepends=False):
+        reset_i = False
+
         log.d("'%s'", styled(line_in, attrs=ansi.ATTR_BOLD))
         if debug_step_by_step:
             input()
@@ -57,11 +61,12 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
         line_in = re.sub(I_START_REGEX, "", line_in) # strip <i*>
 
         log.d("Adding indentation of %d", last_i)
-        line_in = " " * last_i + line_in
+        # line_in = " " * last_i + line_in
 
+        # strip </i*>
         indents = re.findall(I_END_REGEX, line_in)
         if indents:
-            last_i = 0
+            reset_i = True
             log.d("Resetting indentation: %d", last_i)
 
         line_in = re.sub(I_END_REGEX, "", line_in) # strip </i*>
@@ -96,19 +101,26 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
         line_in = line_in.replace("<b>", ansi.ATTR_BOLD)
         line_in = line_in.replace("</b>", ansi.RESET)
 
+        # Underline <u></u>
+
+        line_in = line_in.replace("<u>", ansi.ATTR_UNDERLINE)
+        line_in = line_in.replace("</u>", ansi.RESET)
+
         if len(line_in) <= cols:
-            add_text(line_in)
+            add_text(line_in, indent=last_i)
         else:
             log.d("-> breaking line since length %d > %d cols", len(line_in), cols)
 
             leading = line_in[:alignment]
             space_leading = " " * alignment
             remaining_line_in = line_in[alignment:]
+            current_i = last_i
+            remaining_space = cols - alignment - current_i
 
-            while len(remaining_line_in) > cols - alignment:
+            while len(remaining_line_in) > remaining_space:
                 log.w("--> still longer after break:  '%s'", remaining_line_in)
-                head = remaining_line_in[:cols - alignment - 1]
-                remaining_line_in = remaining_line_in[cols - alignment - 1:].lstrip()
+                head = remaining_line_in[:remaining_space - 1]
+                remaining_line_in = remaining_line_in[remaining_space - 1:].lstrip()
 
                 if not head.endswith(" ") and remaining_line_in:
                     head += "-"
@@ -118,10 +130,34 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
                 log.d("--> leading (%d) = '%s'", len(leading), leading)
                 log.d("--> head (%d) = '%s'", len(head), head)
                 log.d("--> tail (%d) = '%s'", len(remaining_line_in), remaining_line_in)
+                log.d("--> last_i = %d", last_i)
+                log.d("--> len(leading) = %d", len(leading))
 
-                add_text(leading + head)
+                add_text(leading + head, indent=current_i)
                 leading = space_leading
+                current_i = max(0, last_i - len(leading))
+                remaining_space = cols - alignment - current_i
 
-            add_text(leading + remaining_line_in)
+            add_text(leading + remaining_line_in, indent=current_i)
+
+        if reset_i:
+            last_i = 0
 
     return parsed_hdm
+
+if __name__ == "__main__":
+    log.set_verbosity(logging.VERBOSITY_MAX)
+
+    print(help_markdown_pager("""\
+    <A>
+<i4>An indented text of the super text very very long that will break the line</i8>
+    """,
+    cols=40
+    ))
+
+    print(help_markdown_pager("""\
+    <A>
+<i0>An indented text of the super text very very long that will break the line</i8>
+    """,
+    cols=40
+    ))

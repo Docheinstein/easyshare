@@ -12,6 +12,7 @@ from easyshare.common import DIR_COLOR, FILE_COLOR
 from easyshare.styling import fg
 from easyshare.utils.os import ls
 from easyshare.utils.str import rightof
+from easyshare.utils.types import is_str
 
 log = get_logger(__name__)
 
@@ -137,6 +138,10 @@ class CommandInfo(ABC):
         return []
 
     @classmethod
+    def examples(cls):
+        return []
+
+    @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
         options = cls.options()
 
@@ -153,20 +158,20 @@ class CommandInfo(ABC):
         log.d("Computing (%d) args suggestions", len(options))
 
         options_aliases = []
-        longest_options = 0
+        longest_option = 0
         i = 0
 
         while i < len(options):
             aliases, _ = options[i]
-            options_aliases.append(", ".join(aliases))
+            options_aliases.append(_aliases_string(aliases))
 
-            longest_options = max(
-                longest_options,
+            longest_option = max(
+                longest_option,
                 len(options_aliases[i])
             )
             i += 1
 
-        log.d("Longest options string length: %d", longest_options)
+        log.d("Longest option string length: %d", longest_option)
 
         suggestions = []
         i = 0
@@ -174,9 +179,10 @@ class CommandInfo(ABC):
         while i < len(options):
             _, desc = options[i]
             suggestions.append(StyledString(
-                "{}      {}".format(
-                    options_aliases[i].ljust(longest_options),
-                    desc
+                _aliases_and_desc_string(
+                    aliases=options_aliases[i],
+                    description=desc,
+                    justification=longest_option,
                 )
             ))
             i += 1
@@ -339,27 +345,25 @@ class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter, ABC):
 #         )
 #
 #
-# class TraceCommandInfo(CommandInfo):
-#     T0 = CommandArgInfo(["0"], "enable packet tracing")
-#     T1 = CommandArgInfo(["1"], "disable packet tracing")
-#
-#     def suggestions(self, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
-#         return SuggestionsIntent(
-#             [StyledString(c.args_help_str()) for c in [
-#                 TraceCommandInfo.T0,
-#                 TraceCommandInfo.T1]
-#              ],
-#             completion=False,
-#             max_columns=1,
-#         )
 
+
+# ==================================================
+# ============== COMMON DESCRIPTIONS ===============
+# ==================================================
+
+SHARING_LOCATION_IF_NOT_CONNECTED_DESC = """\
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, \
+in that case the connection would be established as "open SHARING_LOCATION" would do before \
+execute the command.
+
+See "help open" for more information about SHARING_LOCATION format."""
 
 
 # ==================================================
 # ========== REAL COMMANDS INFO IMPL ===============
 # ==================================================
 
-# EXIT
+# ============ HELP ================
 
 class Help(CommandInfo):
 
@@ -396,6 +400,82 @@ Available commands are:
                                  space_after_completion=lambda s: not s.endswith("/"))
 
 
+# ============ EXIT ================
+
+class Exit(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "exit"
+
+    @classmethod
+    def short_description(cls):
+        return "exit from the interactive shell"
+
+    @classmethod
+    def long_description(cls):
+        return f"""\
+Exit from the interactive shell.
+
+Open connections are automatically closed."""
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+exit
+quit
+q"""
+
+# ============ TRACE ================
+
+class Trace(CommandInfo):
+    T0 = (["0"], "enable packet tracing")
+    T1 = (["1"], "disable packet tracing")
+
+    @classmethod
+    def name(cls):
+        return "trace"
+
+    @classmethod
+    def short_description(cls):
+        return "enable/disable packet tracing"
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Show (1) or hide (0) the packets sent and received to and from the server for any operation.
+
+If no argument is given, toggle the packet tracing mode.
+"""
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+trace   [0 | 1]
+t       [0 | 1]"""
+
+    @classmethod
+    def examples(cls):
+        return """\
+Here are some examples of data shown with the packet tracing on.
+
+{
+    TODO: example
+}"""
+
+    def suggestions(self, token: str, line: str, client) -> Optional[SuggestionsIntent]:
+        return SuggestionsIntent(
+            [StyledString(_aliases_and_desc_string(
+                    aliases=c[0],
+                    description=c[1]
+                )) for c in [
+                    Trace.T0,
+                    Trace.T1
+                ]
+             ],
+            completion=False,
+            max_columns=1,
+        )
 
 # xLS
 
@@ -465,12 +545,10 @@ class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo):
 
     @classmethod
     def long_description(cls):
-        return """\
+        return f"""\
 List content of the remote FILE or the current remote directory if no FILE is specified.
 
-SHARING_LOCATION must be specified if and only if not already connected to a remote sharing, \
-in that case the connection would be established as "open SHARING_LOCATION" would do before \
-execute the command."""
+{SHARING_LOCATION_IF_NOT_CONNECTED_DESC}"""
 
     @classmethod
     def synopsis(cls):
@@ -519,52 +597,72 @@ rls [OPTION]... [SHARING_LOCATION] [FILE]"""
 #     DETAILS = CommandArgInfo(["-l"], "Show all the details")
 #
 
+def _aliases_string(aliases: List[str]):
+    return ', '.join(aliases)
+
+def _aliases_and_desc_string(aliases: Union[str, List[str]], description: str, justification: int = 0,):
+    if not is_str(aliases):
+        aliases = _aliases_string(aliases)
+
+    return f"{aliases.ljust(justification)}      {description}"
 
 
 COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.HELP: Help,
-    # Commands.EXIT: CommandInfo,
+    Commands.HELP_SHORT: Help,
+    Commands.EXIT: Exit,
+    Commands.QUIT: Exit,
+    Commands.QUIT_SHORT: Exit,
+
+    Commands.TRACE: Trace,
+    Commands.TRACE_SHORT: Trace,
     #
-    # Commands.TRACE: TraceCommandInfo,
-    # Commands.TRACE_SHORT: TraceCommandInfo,
+    # VERBOSE = "verbose"
+    # VERBOSE_SHORT = "v"
     #
-    # Commands.VERBOSE: VerboseCommandInfo,
-    # Commands.VERBOSE_SHORT: VerboseCommandInfo,
-    #
-    #
-    # Commands.LOCAL_CURRENT_DIRECTORY: CommandInfo,
+    # LOCAL_CURRENT_DIRECTORY = "pwd"
     Commands.LOCAL_LIST_DIRECTORY: Ls,
-    # Commands.LOCAL_LIST_DIRECTORY_ENHANCED: LsEnhancedCommandInfo,
-    # Commands.LOCAL_TREE_DIRECTORY: TreeCommandInfo,
-    # Commands.LOCAL_CHANGE_DIRECTORY: ListLocalDirsCommandInfo,
-    # Commands.LOCAL_CREATE_DIRECTORY: ListLocalDirsCommandInfo,
-    # Commands.LOCAL_COPY: ListLocalAllCommandInfo,
-    # Commands.LOCAL_MOVE: ListLocalAllCommandInfo,
-    # Commands.LOCAL_REMOVE: ListLocalAllCommandInfo,
-    # Commands.LOCAL_EXEC: ListLocalAllCommandInfo,
-    # Commands.LOCAL_EXEC_SHORT: ListLocalAllCommandInfo,
+    # LOCAL_LIST_DIRECTORY_ENHANCED = "l"
+    # LOCAL_TREE_DIRECTORY = "tree"
+    # LOCAL_CHANGE_DIRECTORY = "cd"
+    # LOCAL_CREATE_DIRECTORY = "mkdir"
+    # LOCAL_COPY = "cp"
+    # LOCAL_MOVE = "mv"
+    # LOCAL_REMOVE = "rm"
+    # LOCAL_EXEC = "exec"
+    # LOCAL_EXEC_SHORT = SPECIAL_COMMAND_MARK
     #
+    # REMOTE_CURRENT_DIRECTORY = "rpwd"
+    Commands.REMOTE_LIST_DIRECTORY: Rls
+    # REMOTE_LIST_DIRECTORY_ENHANCED = "rl"
+    # REMOTE_TREE_DIRECTORY = "rtree"
+    # REMOTE_CHANGE_DIRECTORY = "rcd"
+    # REMOTE_CREATE_DIRECTORY = "rmkdir"
+    # REMOTE_COPY = "rcp"
+    # REMOTE_MOVE = "rmv"
+    # REMOTE_REMOVE = "rrm"
+    # REMOTE_EXEC = "rexec"
+    # REMOTE_EXEC_SHORT = SPECIAL_COMMAND_MARK * 2
     #
-    # Commands.REMOTE_CURRENT_DIRECTORY: CommandInfo,
-    Commands.REMOTE_LIST_DIRECTORY: Rls,
-    # Commands.REMOTE_TREE_DIRECTORY: RtreeCommandInfo,
-    # Commands.REMOTE_CHANGE_DIRECTORY: ListRemoteDirsCommandInfo,
-    # Commands.REMOTE_CREATE_DIRECTORY: ListRemoteDirsCommandInfo,
-    # Commands.REMOTE_COPY: ListRemoteAllCommandInfo,
-    # Commands.REMOTE_MOVE: ListRemoteAllCommandInfo,
-    # Commands.REMOTE_REMOVE: ListRemoteAllCommandInfo,
-    # Commands.REMOTE_EXEC: CommandInfo,
-    # Commands.REMOTE_EXEC_SHORT: CommandInfo,
+    # SCAN = "scan"
+    # SCAN_SHORT = "s"
+    # LIST = "list"
     #
+    # CONNECT = "connect"
+    # DISCONNECT = "disconnect"
     #
-    # Commands.SCAN: ScanCommandInfo,
-    # Commands.OPEN: CommandInfo,
-    # Commands.CLOSE: CommandInfo,
+    # OPEN = "open"
+    # OPEN_SHORT = "o"
+    # CLOSE = "close"
+    # CLOSE_SHORT = "c"
     #
-    # Commands.GET: GetCommandInfo,
-    # Commands.PUT: PutCommandInfo,
+    # GET = "get"
+    # GET_SHORT = "g"
+    # PUT = "put"
+    # PUT_SHORT = "p"
     #
-    # Commands.INFO: CommandInfo,
-    # Commands.PING: CommandInfo,
+    # INFO = "info"
+    # INFO_SHORT = "i"
+    # PING = "ping"
 }
 

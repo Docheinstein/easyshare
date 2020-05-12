@@ -7,7 +7,7 @@ from easyshare.tracing import trace_in
 from easyshare.sockets import SocketUdpIn
 from easyshare.utils.types import bytes_to_int
 
-log = get_logger()
+log = get_logger(__name__)
 
 class DiscoverDaemon:
 

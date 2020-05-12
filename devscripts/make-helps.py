@@ -24,7 +24,7 @@ Available commands are:
                         <a>
 <b>General commands</b>
     help                show this help
-    exit, quit, q       exit from the shell
+    exit, quit, q       exit from the interactive shell
     trace, t            enable/disable packet tracing
     verbose, v          change verbosity level
 
@@ -99,6 +99,17 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
 
 <i4>{options_string}</i4>"""
     # -- END OPTIONS --
+
+    # -- EXAMPLES --
+    examples = info.examples()
+    if examples:
+        s += f"""
+
+<b>EXAMPLES</b>
+<i4>{examples}</i4>"""
+
+    # -- END EXAMPLES --
+
 
     return s
 

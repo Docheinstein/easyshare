@@ -14,7 +14,7 @@ from Pyro5.errors import PyroError
 from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR
 from easyshare.consts import ansi
 from easyshare.endpoint import Endpoint
-from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK
+from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls
 from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connections import ServerConnection, SharingConnection, ServerConnectionMinimal
 from easyshare.es.discover import Discoverer
@@ -52,21 +52,6 @@ log = get_logger(__name__)
 
 # ==================================================================
 
-
-class LsArgs(PositionalArgs):
-
-    def __init__(self, mandatory: int):
-        super().__init__(mandatory, 1)
-
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
-        return [
-            (LsArgs.SORT_BY_SIZE, PRESENCE_PARAM),
-            (LsArgs.REVERSE, PRESENCE_PARAM),
-            (LsArgs.GROUP, PRESENCE_PARAM),
-            (LsArgs.SHOW_ALL, PRESENCE_PARAM),
-            (LsArgs.SHOW_DETAILS, PRESENCE_PARAM),
-            (LsArgs.SHOW_SIZE, PRESENCE_PARAM),
-        ]
 
 
 class TreeArgs(PositionalArgs):
@@ -315,7 +300,7 @@ class Client:
                 Client.cd),
             Commands.LOCAL_LIST_DIRECTORY: (
                 LOCAL,
-                [LsArgs(0)],
+                [Ls(0)],
                 Client.ls),
             Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (
                 LOCAL,
@@ -356,7 +341,7 @@ class Client:
                 self.rcd),
             Commands.REMOTE_LIST_DIRECTORY: (
                 SHARING,
-                [LsArgs(0), LsArgs(1)],
+                [Ls(0), Ls(1)],
                 self.rls),
             Commands.REMOTE_LIST_DIRECTORY_ENHANCED: (
                 SHARING,
@@ -543,8 +528,8 @@ class Client:
     def l(args: Args, _, _2):
         # Just call ls -la
         # Reuse the parsed args for keep the (optional) path
-        args._parsed[LsArgs.SHOW_ALL[0]] = True
-        args._parsed[LsArgs.SHOW_DETAILS[0]] = True
+        args._parsed[Ls.SHOW_ALL[0]] = True
+        args._parsed[Ls.SHOW_DETAILS[0]] = True
         Client.ls(args, _, _2)
 
     @staticmethod
@@ -977,8 +962,8 @@ class Client:
     def rl(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         # Just call rls -la
         # Reuse the parsed args for keep the (optional) path
-        args._parsed[LsArgs.SHOW_ALL[0]] = True
-        args._parsed[LsArgs.SHOW_DETAILS[0]] = True
+        args._parsed[Ls.SHOW_ALL[0]] = True
+        args._parsed[Ls.SHOW_DETAILS[0]] = True
         self.rls(args, server_conn, sharing_conn)
 
     @provide_sharing_connection
@@ -1613,15 +1598,15 @@ class Client:
             data_provider_name: str = "LS"):
 
         path = args.get_varg()
-        reverse = LsArgs.REVERSE in args
-        show_hidden = LsArgs.SHOW_ALL in args
+        reverse = Ls.REVERSE in args
+        show_hidden = Ls.SHOW_ALL in args
 
         # Sorting
         sort_by = ["name"]
 
-        if LsArgs.SORT_BY_SIZE in args:
+        if Ls.SORT_BY_SIZE in args:
             sort_by.append("size")
-        if LsArgs.GROUP in args:
+        if Ls.GROUP in args:
             sort_by.append("ftype")
 
         log.i(">> %s %s (sort by %s%s)",
@@ -1634,10 +1619,10 @@ class Client:
 
         print_files_info_list(
             ls_result,
-            show_file_type=LsArgs.SHOW_DETAILS in args,
+            show_file_type=Ls.SHOW_DETAILS in args,
             show_hidden=show_hidden,
-            show_size=LsArgs.SHOW_SIZE in args or LsArgs.SHOW_DETAILS in args,
-            compact=LsArgs.SHOW_DETAILS not in args
+            show_size=Ls.SHOW_SIZE in args or Ls.SHOW_DETAILS in args,
+            compact=Ls.SHOW_DETAILS not in args
         )
 
     @staticmethod
