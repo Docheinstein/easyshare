@@ -1,8 +1,8 @@
 import os
 from abc import abstractmethod, ABC
-from typing import List, Callable, Union, Optional, Dict, Tuple, Type
+from typing import List, Callable, Union, Optional, Dict, Type
 
-from easyshare.args import KwArg, PositionalArgs, PRESENCE_PARAM
+from easyshare.args import KwArg, PositionalArgs, PRESENCE_PARAM, INT_PARAM
 from easyshare.es.ui import StyledString
 from easyshare.logging import get_logger
 from easyshare.protocol import FileInfo
@@ -12,7 +12,6 @@ from easyshare.common import DIR_COLOR, FILE_COLOR
 from easyshare.styling import fg
 from easyshare.utils.os import ls
 from easyshare.utils.str import rightof
-from easyshare.utils.types import is_str, is_list
 
 log = get_logger(__name__)
 
@@ -112,7 +111,30 @@ class SuggestionsIntent:
     def __str__(self):
         return "".join([str(s) for s in self.suggestions])
 
-CommandOptionInfo = Tuple[List[str], str]
+# CommandOptionInfo = Tuple[List[str], str]
+
+class CommandOptionInfo:
+    def __init__(self, aliases: Optional[List[str]], description: str, param: str = None):
+        self.aliases = aliases
+        self.description = description
+        self.param = param
+
+    def aliases_string(self) -> str:
+        if not self.aliases:
+            return ''
+        return ', '.join(self.aliases)
+
+    def to_string(self, justification: int = 0):
+        return CommandOptionInfo._to_string(
+            self.aliases_string() or "",
+            self.param or "",
+            self.description,
+            justification
+        )
+
+    @staticmethod
+    def _to_string(aliases: str, param: str, description: str, justification: int):
+        return f"{(aliases + ' ' + param).ljust(justification)}{description}"
 
 class CommandInfo(ABC):
     @classmethod
@@ -167,35 +189,25 @@ class CommandInfo(ABC):
 
         log.d("Computing (%d) args suggestions", len(options))
 
-        options_aliases = []
-        longest_option = 0
-        i = 0
+        longest_option_w_param = 0
 
-        while i < len(options):
-            aliases, _ = options[i]
-            options_aliases.append(_aliases_string(aliases))
-
-            longest_option = max(
-                longest_option,
-                len(options_aliases[i])
+        for opt in options:
+            longest_option_w_param = max(
+                longest_option_w_param,
+                len(opt.aliases_string()) + len(" ") + len(opt.param)
             )
-            i += 1
 
-        log.d("Longest option string length: %d", longest_option)
+        log.d("Longest longest_option_w_param string length: %d", longest_option_w_param)
 
         suggestions = []
         i = 0
 
-        while i < len(options):
-            _, desc = options[i]
+        # TODO param
+
+        for opt in options:
             suggestions.append(StyledString(
-                _aliases_and_desc_string(
-                    aliases=options_aliases[i],
-                    description=desc,
-                    justification=longest_option,
-                )
+                opt.to_string(justification=longest_option_w_param + 6)
             ))
-            i += 1
 
         return SuggestionsIntent(suggestions,
                                  completion=False,
@@ -346,6 +358,11 @@ execute the command.
 Type "<b>help open</b>" for more information about SHARING_LOCATION format."""
 
 
+class RemoteSharingCommandInfo(CommandInfo, ABC):
+    @classmethod
+    def synopsis_extra(cls):
+        return SHARING_LOCATION_IF_NOT_CONNECTED_DESC
+
 # ==================================================
 # ========== REAL COMMANDS INFO IMPL ===============
 # ==================================================
@@ -452,21 +469,19 @@ Here are some examples of data shown with the packet tracing on.
 
     @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
-        try:
-            return SuggestionsIntent(
-                [StyledString(_aliases_and_desc_string(
-                        aliases=c[0],
-                        description=c[1]))
-                    for c in [
-                        Trace.T0,
-                        Trace.T1
-                    ]
-                 ],
-                completion=False,
-                max_columns=1,
-            )
-        except:
-            log.exception("WTF")
+        return SuggestionsIntent(
+            [StyledString(info.to_string(justification=15 + 6))
+             for info in [
+                 CommandOptionInfo(None, param=Trace.T0[0][0], description=Trace.T0[1]),
+                 CommandOptionInfo(None, param=Trace.T1[0][0], description=Trace.T1[1])
+                ]
+            ],
+            completion=False,
+            max_columns=1,
+        )
+
+
+# ============ VERBOSE ================
 
 
 class Verbose(CommandInfo):
@@ -483,7 +498,7 @@ class Verbose(CommandInfo):
 
     @classmethod
     def short_description(cls):
-        return "change verbosity level           "
+        return "change verbosity level"
 
     @classmethod
     def long_description(cls):
@@ -498,23 +513,21 @@ v         [0 | 1 | 2 | 3 | 4]"""
     @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
-            [StyledString(_aliases_and_desc_string(
-                    aliases=c[0],
-                    description=c[1]))
-                for c in [
-                    Verbose.V0,
-                    Verbose.V1,
-                    Verbose.V2,
-                    Verbose.V3,
-                    Verbose.V4,
-                    Verbose.V5,
+            [StyledString(info.to_string(justification=15 + 6))
+             for info in [
+                 CommandOptionInfo(None, param=Verbose.V0[0][0], description=Verbose.V0[1]),
+                 CommandOptionInfo(None, param=Verbose.V1[0][0], description=Verbose.V1[1]),
+                 CommandOptionInfo(None, param=Verbose.V2[0][0], description=Verbose.V2[1]),
+                 CommandOptionInfo(None, param=Verbose.V3[0][0], description=Verbose.V3[1]),
+                 CommandOptionInfo(None, param=Verbose.V4[0][0], description=Verbose.V4[1]),
+                 CommandOptionInfo(None, param=Verbose.V5[0][0], description=Verbose.V5[1]),
                 ]
-             ],
+            ],
             completion=False,
             max_columns=1,
         )
 
-# xPWD
+# ============ xPWD ================
 
 class Pwd(CommandInfo):
 
@@ -537,7 +550,7 @@ The local working directory can be changed with the command <b>cd</b>."""
     def synopsis(cls):
         return "pwd"
 
-class Rpwd(CommandInfo):
+class Rpwd(RemoteSharingCommandInfo):
 
     @classmethod
     def name(cls):
@@ -558,11 +571,9 @@ The remote working directory can be changed with the command <b>rcd</b>."""
     def synopsis(cls):
         return "rpwd"
 
-    @classmethod
-    def synopsis_extra(cls):
-        return SHARING_LOCATION_IF_NOT_CONNECTED_DESC
 
-# xLS
+# ============ xLS ================
+
 
 class BaseLsCommandInfo(CommandInfo, ABC, PositionalArgs):
     SORT_BY_SIZE = ["-s", "--sort-size"]
@@ -576,22 +587,22 @@ class BaseLsCommandInfo(CommandInfo, ABC, PositionalArgs):
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
         return [
-            (cls.SORT_BY_SIZE, "sort by size"),
-            (cls.REVERSE, "reverse sort order"),
-            (cls.GROUP, "group by file type"),
-            (cls.SHOW_ALL, "show hidden files too"),
-            (cls.SHOW_SIZE, "show files size"),
-            (cls.SHOW_DETAILS, "show more details")
+            CommandOptionInfo(cls.SORT_BY_SIZE, "sort by size"),
+            CommandOptionInfo(cls.REVERSE, "reverse sort order"),
+            CommandOptionInfo(cls.GROUP, "group by file type"),
+            CommandOptionInfo(cls.SHOW_ALL, "show hidden files too"),
+            CommandOptionInfo(cls.SHOW_SIZE, "show files size"),
+            CommandOptionInfo(cls.SHOW_DETAILS, "show more details")
         ]
 
     def kwargs_specs(self) -> Optional[List[KwArg]]:
         return [
-            (Ls.SORT_BY_SIZE, PRESENCE_PARAM),
-            (Ls.REVERSE, PRESENCE_PARAM),
-            (Ls.GROUP, PRESENCE_PARAM),
-            (Ls.SHOW_ALL, PRESENCE_PARAM),
-            (Ls.SHOW_DETAILS, PRESENCE_PARAM),
-            (Ls.SHOW_SIZE, PRESENCE_PARAM),
+            (self.SORT_BY_SIZE, PRESENCE_PARAM),
+            (self.REVERSE, PRESENCE_PARAM),
+            (self.GROUP, PRESENCE_PARAM),
+            (self.SHOW_ALL, PRESENCE_PARAM),
+            (self.SHOW_DETAILS, PRESENCE_PARAM),
+            (self.SHOW_SIZE, PRESENCE_PARAM),
         ]
 
 
@@ -610,13 +621,13 @@ class Ls(BaseLsCommandInfo, ListLocalAllCommandInfo):
     @classmethod
     def long_description(cls):
         return """\
-List content of the local FILE or the current local directory if no FILE is specified."""
+List content of the local DIR or the current local directory if no DIR is specified."""
 
     @classmethod
     def synopsis(cls):
-        return "ls [OPTION]... [FILE]"
+        return "ls [OPTION]... [DIR]"
 
-class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo):
+class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
@@ -631,19 +642,16 @@ class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo):
     @classmethod
     def long_description(cls):
         return f"""\
-List content of the remote FILE or the current remote directory if no FILE is specified."""
+List content of the remote DIR or the current remote directory if no DIR is specified."""
 
     @classmethod
     def synopsis(cls):
         return """\
-rls [OPTION]... [FILE]
-rls [OPTION]... [SHARING_LOCATION] [FILE]"""
+rls [OPTION]... [DIR]
+rls [OPTION]... [SHARING_LOCATION] [DIR]"""
 
-    @classmethod
-    def synopsis_extra(cls):
-        return SHARING_LOCATION_IF_NOT_CONNECTED_DESC
 
-# xLS
+# ============ xL ================
 
 # noinspection PyAbstractClass
 class L(CommandInfo):
@@ -657,6 +665,89 @@ class Rl(CommandInfo):
     @classmethod
     def custom(cls):
         return "alias for rls -la"
+
+
+# ============ xTREE ================
+
+class BaseTreeCommandInfo(CommandInfo, ABC, PositionalArgs):
+    SORT_BY_SIZE = ["-s", "--sort-size"]
+    REVERSE = ["-r", "--reverse"]
+    GROUP = ["-g", "--group"]
+
+    SHOW_ALL = ["-a", "--all"]
+    SHOW_DETAILS = ["-l"]
+    SHOW_SIZE = ["-S"]
+
+    MAX_DEPTH = ["-d", "--depth"]
+
+    @classmethod
+    def options(cls) -> List[CommandOptionInfo]:
+        return [
+            CommandOptionInfo(cls.SORT_BY_SIZE, "sort by size"),
+            CommandOptionInfo(cls.REVERSE, "reverse sort order"),
+            CommandOptionInfo(cls.GROUP, "group by file type"),
+            CommandOptionInfo(cls.SHOW_ALL, "show hidden files too"),
+            CommandOptionInfo(cls.SHOW_SIZE, "show files size"),
+            CommandOptionInfo(cls.SHOW_DETAILS, "show more details"),
+            CommandOptionInfo(cls.MAX_DEPTH, "maximum display depth of tree", "depth")
+        ]
+
+    def kwargs_specs(self) -> Optional[List[KwArg]]:
+        return [
+            (self.SORT_BY_SIZE, PRESENCE_PARAM),
+            (self.REVERSE, PRESENCE_PARAM),
+            (self.GROUP, PRESENCE_PARAM),
+            (self.SHOW_ALL, PRESENCE_PARAM),
+            (self.SHOW_DETAILS, PRESENCE_PARAM),
+            (self.SHOW_SIZE, PRESENCE_PARAM),
+            (self.MAX_DEPTH, INT_PARAM),
+        ]
+
+
+class Tree(BaseTreeCommandInfo, ListLocalAllCommandInfo):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 1)
+
+    @classmethod
+    def name(cls):
+        return "tree"
+
+    @classmethod
+    def short_description(cls):
+        return "list local directory contents in a tree-like format"
+
+    @classmethod
+    def long_description(cls):
+        return """\
+List recursively, in a tree-like format, the local DIR or the current \
+local directory if no DIR is specified."""
+
+    @classmethod
+    def synopsis(cls):
+        return "tree [OPTION]... [DIR]"
+
+class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 1)
+
+    @classmethod
+    def name(cls):
+        return "rtree"
+
+    @classmethod
+    def short_description(cls):
+        return "list remote directory contents in a tree-like format"
+
+    @classmethod
+    def long_description(cls):
+        return """\
+List recursively, in a tree-like format, the remote DIR or the current \
+remote directory if no DIR is specified"""
+
+    @classmethod
+    def synopsis(cls):
+        return "tree [OPTION]... [DIR]"
+
 
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
@@ -698,15 +789,6 @@ class Rl(CommandInfo):
 #     DETAILS = CommandArgInfo(["-l"], "Show all the details")
 #
 
-def _aliases_string(aliases: List[str]):
-    return ', '.join(aliases)
-
-def _aliases_and_desc_string(aliases: Union[str, List[str]], description: str, justification: int = 0,):
-    if is_list(aliases):
-        aliases = _aliases_string(aliases)
-
-    return f"{aliases.ljust(justification)}      {description}"
-
 
 COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.HELP: Help,
@@ -724,7 +806,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_CURRENT_DIRECTORY: Pwd,
     Commands.LOCAL_LIST_DIRECTORY: Ls,
     Commands.LOCAL_LIST_DIRECTORY_ENHANCED: L,
-    # LOCAL_TREE_DIRECTORY = "tree"
+    Commands.LOCAL_TREE_DIRECTORY: Tree,
     # LOCAL_CHANGE_DIRECTORY = "cd"
     # LOCAL_CREATE_DIRECTORY = "mkdir"
     # LOCAL_COPY = "cp"
@@ -736,7 +818,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_CURRENT_DIRECTORY: Rpwd,
     Commands.REMOTE_LIST_DIRECTORY: Rls,
     Commands.REMOTE_LIST_DIRECTORY_ENHANCED: Rl,
-    # REMOTE_TREE_DIRECTORY = "rtree"
+    Commands.REMOTE_TREE_DIRECTORY: Rtree,
     # REMOTE_CHANGE_DIRECTORY = "rcd"
     # REMOTE_CREATE_DIRECTORY = "rmkdir"
     # REMOTE_COPY = "rcp"

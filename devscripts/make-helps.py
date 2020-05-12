@@ -70,6 +70,8 @@ Available commands are:
 
 
 def generate_command_help_markdown(info: Type[CommandInfo]):
+    # PARAGRAPH_JUSTIFY = 4 : hardcoded
+    OPTIONS_JUSTIFY = 26
     info_custom = info.custom()
 
     if info_custom:
@@ -86,9 +88,13 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
     options = info.options()
     if options:
         options_strings = []
-        for option in options:
-            aliases, option_desc = option
-            options_strings.append("{}{}".format(", ".join(aliases).ljust(24), option_desc))
+        for opt in options:
+            options_strings.append(opt._to_string(
+                aliases=opt.aliases_string() or "",
+                param=f"<u>{opt.param}</u>" if opt.param else "",
+                description=opt.description,
+                justification=OPTIONS_JUSTIFY + (len("<u></u>") if opt.param else 0)
+            ))
 
         options_strings = sorted_i(options_strings)
         info_options = "\n".join(options_strings)
@@ -97,7 +103,7 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
     info_synopsis_extra = ("\n" + info_synopsis_extra + "\n") if info_synopsis_extra else ""
 
     s = f"""\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 {info.name()} - {info.short_description()}
@@ -112,11 +118,14 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
 <b>DESCRIPTION</b>
 <I4>
 {info.long_description()}
+{' ' * (OPTIONS_JUSTIFY + 4)}<A> # options alignment (34 = 4 + 30)
 {info_options}\
-</I4>"""
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
     if info_examples:
-        s += f"""
+        s += f"""\
 <b>EXAMPLES</b>
 <I4>
 {info_examples}

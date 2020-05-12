@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-12 11:13:21
+# Automatically generated from make-helps.py on date 2020-05-12 12:13:27
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -55,7 +55,7 @@ Available commands are:
 # ============================================================
 
 HELP = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 help - show the help of a command
@@ -82,16 +82,21 @@ Available commands are:
     rl
     rls
     rpwd
+    rtree
     t
     trace
+    tree
     v
     verbose
-</I4>"""
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
 H = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 help - show the help of a command
@@ -118,16 +123,21 @@ Available commands are:
     rl
     rls
     rpwd
+    rtree
     t
     trace
+    tree
     v
     verbose
-</I4>"""
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
 EXIT = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 exit - exit from the interactive shell
@@ -145,12 +155,15 @@ q
 Exit from the interactive shell.
 
 Open connections are automatically closed.
-</I4>"""
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
 QUIT = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 exit - exit from the interactive shell
@@ -168,12 +181,15 @@ q
 Exit from the interactive shell.
 
 Open connections are automatically closed.
-</I4>"""
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
 Q = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 exit - exit from the interactive shell
@@ -191,12 +207,15 @@ q
 Exit from the interactive shell.
 
 Open connections are automatically closed.
-</I4>"""
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
 TRACE = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 trace - enable/disable packet tracing
@@ -214,7 +233,9 @@ Show (1) or hide (0) the packets sent and received to and from the server for an
 
 If no argument is given, toggle the packet tracing mode.
 
+                              <A> # options alignment (34 = 4 + 30)
 </I4>
+    <A> # paragraph alignment (4)
 <b>EXAMPLES</b>
 <I4>
 Here are some examples of data shown with the packet tracing on.
@@ -227,7 +248,7 @@ Here are some examples of data shown with the packet tracing on.
 # ============================================================
 
 T = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 trace - enable/disable packet tracing
@@ -245,7 +266,9 @@ Show (1) or hide (0) the packets sent and received to and from the server for an
 
 If no argument is given, toggle the packet tracing mode.
 
+                              <A> # options alignment (34 = 4 + 30)
 </I4>
+    <A> # paragraph alignment (4)
 <b>EXAMPLES</b>
 <I4>
 Here are some examples of data shown with the packet tracing on.
@@ -258,10 +281,10 @@ Here are some examples of data shown with the packet tracing on.
 # ============================================================
 
 VERBOSE = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
-verbose - change verbosity level           
+verbose - change verbosity level
 </I4>
 
 <b>SYNOPSIS</b>
@@ -273,15 +296,18 @@ v         [0 | 1 | 2 | 3 | 4]
 <b>DESCRIPTION</b>
 <I4>
 None
-</I4>"""
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
 V = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
-verbose - change verbosity level           
+verbose - change verbosity level
 </I4>
 
 <b>SYNOPSIS</b>
@@ -293,12 +319,15 @@ v         [0 | 1 | 2 | 3 | 4]
 <b>DESCRIPTION</b>
 <I4>
 None
-</I4>"""
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
 PWD = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 pwd - show the name of current local working directory
@@ -314,12 +343,15 @@ pwd
 Show the name of current local working directory.
 
 The local working directory can be changed with the command <b>cd</b>.
-</I4>"""
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
 LS = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 ls - list local directory content
@@ -327,20 +359,23 @@ ls - list local directory content
 
 <b>SYNOPSIS</b>
 <I4>
-ls [OPTION]... [FILE]
+ls [OPTION]... [DIR]
 </I4>
 
 <b>DESCRIPTION</b>
 <I4>
-List content of the local FILE or the current local directory if no FILE is specified.
+List content of the local DIR or the current local directory if no DIR is specified.
+                              <A> # options alignment (34 = 4 + 30)
 
--a, --all               show hidden files too
--g, --group             group by file type
--l                      show more details
--r, --reverse           reverse sort order
--S                      show files size
--s, --sort-size         sort by size
-</I4>"""
+-a, --all                 show hidden files too
+-g, --group               group by file type
+-l                        show more details
+-r, --reverse             reverse sort order
+-S                        show files size
+-s, --sort-size           sort by size
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
@@ -349,8 +384,38 @@ alias for ls -la"""
 
 # ============================================================
 
+TREE = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+tree - list local directory contents in a tree-like format
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+tree [OPTION]... [DIR]
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+List recursively, in a tree-like format, the local DIR or the current local directory if no DIR is specified.
+                              <A> # options alignment (34 = 4 + 30)
+
+-a, --all                 show hidden files too
+-d, --depth <u>depth</u>         maximum display depth of tree
+-g, --group               group by file type
+-l                        show more details
+-r, --reverse             reverse sort order
+-S                        show files size
+-s, --sort-size           sort by size
+</I4>
+    <A> # paragraph alignment (4)
+"""
+
+# ============================================================
+
 RPWD = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 rpwd - show the name of current remote working directory
@@ -370,12 +435,15 @@ Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 Show the name of current remote working directory.
 
 The remote working directory can be changed with the command <b>rcd</b>.
-</I4>"""
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
 RLS = """\
-    <A> # break line alignment
+    <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
 rls - list remote directory content
@@ -383,8 +451,8 @@ rls - list remote directory content
 
 <b>SYNOPSIS</b>
 <I4>
-rls [OPTION]... [FILE]
-rls [OPTION]... [SHARING_LOCATION] [FILE]
+rls [OPTION]... [DIR]
+rls [OPTION]... [SHARING_LOCATION] [DIR]
 
 SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.
 
@@ -393,20 +461,57 @@ Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 
 <b>DESCRIPTION</b>
 <I4>
-List content of the remote FILE or the current remote directory if no FILE is specified.
+List content of the remote DIR or the current remote directory if no DIR is specified.
+                              <A> # options alignment (34 = 4 + 30)
 
--a, --all               show hidden files too
--g, --group             group by file type
--l                      show more details
--r, --reverse           reverse sort order
--S                      show files size
--s, --sort-size         sort by size
-</I4>"""
+-a, --all                 show hidden files too
+-g, --group               group by file type
+-l                        show more details
+-r, --reverse             reverse sort order
+-S                        show files size
+-s, --sort-size           sort by size
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
 RL = """\
 alias for rls -la"""
+
+# ============================================================
+
+RTREE = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+rtree - list remote directory contents in a tree-like format
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+tree [OPTION]... [DIR]
+
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.
+
+Type "<b>help open</b>" for more information about SHARING_LOCATION format.
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+List recursively, in a tree-like format, the remote DIR or the current remote directory if no DIR is specified
+                              <A> # options alignment (34 = 4 + 30)
+
+-a, --all                 show hidden files too
+-d, --depth <u>depth</u>         maximum display depth of tree
+-g, --group               group by file type
+-l                        show more details
+-r, --reverse             reverse sort order
+-S                        show files size
+-s, --sort-size           sort by size
+</I4>
+    <A> # paragraph alignment (4)
+"""
 
 # ============================================================
 
