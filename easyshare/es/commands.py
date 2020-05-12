@@ -114,20 +114,25 @@ class SuggestionsIntent:
 # CommandOptionInfo = Tuple[List[str], str]
 
 class CommandOptionInfo:
-    def __init__(self, aliases: Optional[List[str]], description: str, param: str = None):
+    def __init__(self, aliases: Optional[List[str]], description: str, params: Optional[List[str]] = None):
         self.aliases = aliases
         self.description = description
-        self.param = param
+        self.params = params
 
     def aliases_string(self) -> str:
         if not self.aliases:
             return ''
         return ', '.join(self.aliases)
 
+    def params_string(self) -> str:
+        if not self.params:
+            return ''
+        return ' '.join(self.params)
+
     def to_string(self, justification: int = 0):
         return CommandOptionInfo._to_string(
-            self.aliases_string() or "",
-            self.param or "",
+            self.aliases_string(),
+            self.params_string(),
             self.description,
             justification
         )
@@ -149,17 +154,17 @@ class CommandInfo(ABC):
 
     @classmethod
     @abstractmethod
-    def long_description(cls):
-        pass
-
-    @classmethod
-    @abstractmethod
     def synopsis(cls):
         pass
 
     @classmethod
     def synopsis_extra(cls):
         return None
+
+    @classmethod
+    @abstractmethod
+    def long_description(cls):
+        pass
 
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
@@ -189,24 +194,19 @@ class CommandInfo(ABC):
 
         log.d("Computing (%d) args suggestions", len(options))
 
-        longest_option_w_param = 0
+        longest_option_length = max(
+            [len(o.aliases_string()) + len(" ") + len(o.params_string()) for o in options]
+        )
 
-        for opt in options:
-            longest_option_w_param = max(
-                longest_option_w_param,
-                len(opt.aliases_string()) + len(" ") + len(opt.param)
-            )
-
-        log.d("Longest longest_option_w_param string length: %d", longest_option_w_param)
+        log.d("longest_option string length: %d", longest_option_length)
 
         suggestions = []
-        i = 0
 
         # TODO param
 
         for opt in options:
             suggestions.append(StyledString(
-                opt.to_string(justification=longest_option_w_param + 6)
+                opt.to_string(justification=longest_option_length + 6)
             ))
 
         return SuggestionsIntent(suggestions,
@@ -352,7 +352,7 @@ class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter, ABC):
 
 SHARING_LOCATION_IF_NOT_CONNECTED_DESC = """\
 SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, \
-in that case the connection would be established as "open SHARING_LOCATION" would do before \
+in that case the connection would be established as "<b>open</b> SHARING_LOCATION" would do before \
 execute the command.
 
 Type "<b>help open</b>" for more information about SHARING_LOCATION format."""
@@ -380,6 +380,10 @@ class Help(CommandInfo):
         return "show the help of a command"
 
     @classmethod
+    def synopsis(cls):
+        return "help [COMMAND]"
+
+    @classmethod
     def long_description(cls):
         comms = "\n".join(["    " + comm for comm in sorted(COMMANDS_INFO.keys())])
         return f"""\
@@ -387,10 +391,6 @@ Show the help of COMMAND if specified, or show the list of commands if no COMMAN
 
 Available commands are:
 {comms}"""
-
-    @classmethod
-    def synopsis(cls):
-        return "help [COMMAND]"
 
     @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
@@ -417,18 +417,18 @@ class Exit(CommandInfo):
         return "exit from the interactive shell"
 
     @classmethod
-    def long_description(cls):
-        return f"""\
-Exit from the interactive shell.
-
-Open connections are automatically closed."""
-
-    @classmethod
     def synopsis(cls):
         return """\
 exit
 quit
 q"""
+
+    @classmethod
+    def long_description(cls):
+        return f"""\
+Exit from the interactive shell.
+
+Open connections are automatically closed."""
 
 # ============ TRACE ================
 
@@ -445,18 +445,18 @@ class Trace(CommandInfo):
         return "enable/disable packet tracing"
 
     @classmethod
+    def synopsis(cls):
+        return """\
+trace   [0 | 1]
+t       [0 | 1]"""
+
+    @classmethod
     def long_description(cls):
         return """\
 Show (1) or hide (0) the packets sent and received to and from the server for any operation.
 
 If no argument is given, toggle the packet tracing mode.
 """
-
-    @classmethod
-    def synopsis(cls):
-        return """\
-trace   [0 | 1]
-t       [0 | 1]"""
 
     @classmethod
     def examples(cls):
@@ -472,8 +472,8 @@ Here are some examples of data shown with the packet tracing on.
         return SuggestionsIntent(
             [StyledString(info.to_string(justification=15 + 6))
              for info in [
-                 CommandOptionInfo(None, param=Trace.T0[0][0], description=Trace.T0[1]),
-                 CommandOptionInfo(None, param=Trace.T1[0][0], description=Trace.T1[1])
+                 CommandOptionInfo(None, params=Trace.T0[0], description=Trace.T0[1]),
+                 CommandOptionInfo(None, params=Trace.T1[0], description=Trace.T1[1])
                 ]
             ],
             completion=False,
@@ -501,33 +501,35 @@ class Verbose(CommandInfo):
         return "change verbosity level"
 
     @classmethod
-    def long_description(cls):
-        pass
-
-    @classmethod
     def synopsis(cls):
         return """\
 verbose   [0 | 1 | 2 | 3 | 4]
 v         [0 | 1 | 2 | 3 | 4]"""
 
     @classmethod
+    def long_description(cls):
+        pass
+
+    @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
             [StyledString(info.to_string(justification=15 + 6))
              for info in [
-                 CommandOptionInfo(None, param=Verbose.V0[0][0], description=Verbose.V0[1]),
-                 CommandOptionInfo(None, param=Verbose.V1[0][0], description=Verbose.V1[1]),
-                 CommandOptionInfo(None, param=Verbose.V2[0][0], description=Verbose.V2[1]),
-                 CommandOptionInfo(None, param=Verbose.V3[0][0], description=Verbose.V3[1]),
-                 CommandOptionInfo(None, param=Verbose.V4[0][0], description=Verbose.V4[1]),
-                 CommandOptionInfo(None, param=Verbose.V5[0][0], description=Verbose.V5[1]),
+                 CommandOptionInfo(None, params=Verbose.V0[0], description=Verbose.V0[1]),
+                 CommandOptionInfo(None, params=Verbose.V1[0], description=Verbose.V1[1]),
+                 CommandOptionInfo(None, params=Verbose.V2[0], description=Verbose.V2[1]),
+                 CommandOptionInfo(None, params=Verbose.V3[0], description=Verbose.V3[1]),
+                 CommandOptionInfo(None, params=Verbose.V4[0], description=Verbose.V4[1]),
+                 CommandOptionInfo(None, params=Verbose.V5[0], description=Verbose.V5[1]),
                 ]
             ],
             completion=False,
             max_columns=1,
         )
 
+
 # ============ xPWD ================
+
 
 class Pwd(CommandInfo):
 
@@ -540,15 +542,16 @@ class Pwd(CommandInfo):
         return "show the name of current local working directory"
 
     @classmethod
+    def synopsis(cls):
+        return "pwd"
+
+    @classmethod
     def long_description(cls):
         return """\
 Show the name of current local working directory.
 
 The local working directory can be changed with the command <b>cd</b>."""
 
-    @classmethod
-    def synopsis(cls):
-        return "pwd"
 
 class Rpwd(RemoteSharingCommandInfo):
 
@@ -561,15 +564,15 @@ class Rpwd(RemoteSharingCommandInfo):
         return "show the name of current remote working directory"
 
     @classmethod
+    def synopsis(cls):
+        return "rpwd"
+
+    @classmethod
     def long_description(cls):
         return f"""\
 Show the name of current remote working directory.
 
 The remote working directory can be changed with the command <b>rcd</b>."""
-
-    @classmethod
-    def synopsis(cls):
-        return "rpwd"
 
 
 # ============ xLS ================
@@ -619,13 +622,13 @@ class Ls(BaseLsCommandInfo, ListLocalAllCommandInfo):
         return "list local directory content"
 
     @classmethod
+    def synopsis(cls):
+        return "ls [OPTION]... [DIR]"
+
+    @classmethod
     def long_description(cls):
         return """\
 List content of the local DIR or the current local directory if no DIR is specified."""
-
-    @classmethod
-    def synopsis(cls):
-        return "ls [OPTION]... [DIR]"
 
 class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
     def __init__(self, mandatory: int):
@@ -640,15 +643,15 @@ class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
         return "list remote directory content"
 
     @classmethod
-    def long_description(cls):
-        return f"""\
-List content of the remote DIR or the current remote directory if no DIR is specified."""
-
-    @classmethod
     def synopsis(cls):
         return """\
 rls [OPTION]... [DIR]
 rls [OPTION]... [SHARING_LOCATION] [DIR]"""
+
+    @classmethod
+    def long_description(cls):
+        return f"""\
+List content of the remote DIR or the current remote directory if no DIR is specified."""
 
 
 # ============ xL ================
@@ -689,7 +692,7 @@ class BaseTreeCommandInfo(CommandInfo, ABC, PositionalArgs):
             CommandOptionInfo(cls.SHOW_ALL, "show hidden files too"),
             CommandOptionInfo(cls.SHOW_SIZE, "show files size"),
             CommandOptionInfo(cls.SHOW_DETAILS, "show more details"),
-            CommandOptionInfo(cls.MAX_DEPTH, "maximum display depth of tree", "depth")
+            CommandOptionInfo(cls.MAX_DEPTH, "maximum display depth of tree", params=["depth"])
         ]
 
     def kwargs_specs(self) -> Optional[List[KwArg]]:
@@ -717,14 +720,14 @@ class Tree(BaseTreeCommandInfo, ListLocalAllCommandInfo):
         return "list local directory contents in a tree-like format"
 
     @classmethod
+    def synopsis(cls):
+        return "tree [OPTION]... [DIR]"
+
+    @classmethod
     def long_description(cls):
         return """\
 List recursively, in a tree-like format, the local DIR or the current \
 local directory if no DIR is specified."""
-
-    @classmethod
-    def synopsis(cls):
-        return "tree [OPTION]... [DIR]"
 
 class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
     def __init__(self, mandatory: int):
@@ -739,15 +742,73 @@ class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandIn
         return "list remote directory contents in a tree-like format"
 
     @classmethod
+    def synopsis(cls):
+        return "tree [OPTION]... [DIR]"
+
+    @classmethod
     def long_description(cls):
         return """\
 List recursively, in a tree-like format, the remote DIR or the current \
 remote directory if no DIR is specified"""
 
+
+
+# ============ xCD ================
+
+
+class Cd(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "cd"
+
+    @classmethod
+    def short_description(cls):
+        return "change local working directory"
+
     @classmethod
     def synopsis(cls):
-        return "tree [OPTION]... [DIR]"
+        return "cd [DIR]"
 
+    @classmethod
+    def long_description(cls):
+        return """\
+Change the current local working directory to DIR or to the user's home \
+directory if DIR is not specified."""
+
+class Rcd(RemoteSharingCommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "rcd"
+
+    @classmethod
+    def short_description(cls):
+        return "change remote working directory"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+rcd [DIR]
+rcd [SHARING_LOCATION] [DIR]"""
+
+    @classmethod
+    def long_description(cls):
+        return f"""\
+Change the current remote working directory to DIR or to the root of \
+the current sharing if no DIR is specified."""
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> rcd dir
+<b>/tmp - remote.shared:/dir></b> rcd subdir
+<b>/tmp - remote.shared:/dir/subdir></b> rcd
+<b>/tmp - remote.shared:/></b>
+"""
 
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
@@ -807,7 +868,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_LIST_DIRECTORY: Ls,
     Commands.LOCAL_LIST_DIRECTORY_ENHANCED: L,
     Commands.LOCAL_TREE_DIRECTORY: Tree,
-    # LOCAL_CHANGE_DIRECTORY = "cd"
+    Commands.LOCAL_CHANGE_DIRECTORY: Cd,
     # LOCAL_CREATE_DIRECTORY = "mkdir"
     # LOCAL_COPY = "cp"
     # LOCAL_MOVE = "mv"
@@ -819,7 +880,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_LIST_DIRECTORY: Rls,
     Commands.REMOTE_LIST_DIRECTORY_ENHANCED: Rl,
     Commands.REMOTE_TREE_DIRECTORY: Rtree,
-    # REMOTE_CHANGE_DIRECTORY = "rcd"
+    Commands.REMOTE_CHANGE_DIRECTORY: Rcd,
     # REMOTE_CREATE_DIRECTORY = "rmkdir"
     # REMOTE_COPY = "rcp"
     # REMOTE_MOVE = "rmv"

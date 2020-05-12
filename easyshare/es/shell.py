@@ -1,6 +1,7 @@
 import os
 import shlex
 import readline as rl
+import traceback
 
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
@@ -16,9 +17,10 @@ from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.es.errors import print_error, ClientErrors
 from easyshare.es.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
-from easyshare.styling import styled
+from easyshare.styling import styled, fg, bold
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
+from easyshare.utils.env import is_unicode_supported
 from easyshare.utils.hmd import help_markdown_pager
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
@@ -69,6 +71,7 @@ class Shell:
         self._shell_command_dispatcher[Commands.HELP_SHORT] = self._shell_command_dispatcher[Commands.HELP]
         self._shell_command_dispatcher[Commands.QUIT_SHORT] = self._shell_command_dispatcher[Commands.QUIT]
 
+        self._prompt_local_remote_sep = "\u2014" if is_unicode_supported() else "-"
 
         rl.parse_and_bind("tab: complete")
         rl.parse_and_bind("set completion-query-items 50")
@@ -78,9 +81,9 @@ class Shell:
         # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
         rl.set_completer_delims(rl.get_completer_delims().replace("-", ""))
 
-        rl.set_completion_display_matches_hook(self._display_suggestions)
+        rl.set_completion_display_matches_hook(self._display_suggestions_wrapper)
 
-        rl.set_completer(self._next_suggestion)
+        rl.set_completer(self._next_suggestion_wrapper)
 
     def input_loop(self):
         while True:
@@ -101,7 +104,7 @@ class Shell:
                 )
 
                 self._prompt = self._build_prompt_string()
-
+                # print(self._prompt, end="", flush=True)
                 command_line = input(self._prompt)
 
                 if not command_line:
@@ -184,6 +187,13 @@ class Shell:
 
         return 0
 
+
+    def _display_suggestions_wrapper(self, substitution, matches, longest_match_length):
+        try:
+            self._display_suggestions(substitution, matches, longest_match_length)
+        except:
+            log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
+
     def _display_suggestions(self, substitution, matches, longest_match_length):
         # Simulate the default behaviour of readline, but:
         # 1. Separate the concept of suggestion/rendered suggestion: in this
@@ -194,6 +204,12 @@ class Shell:
         print_tabulated(self._suggestions_intent.suggestions,
                         max_columns=self._suggestions_intent.max_columns)
         print(self._prompt + self._current_line, end="", flush=True)
+
+    def _next_suggestion_wrapper(self, token: str, count: int):
+        try:
+            return self._next_suggestion(token, count)
+        except:
+            log.w("Exception occurred while retrieving suggestions\n%s", traceback.format_exc())
 
     def _next_suggestion(self, token: str, count: int):
         self._current_line = rl.get_line_buffer()
@@ -215,9 +231,7 @@ class Shell:
 
                     log.d("Fetched (%d) suggestions intent for command '%s'",
                           len(self._suggestions_intent.suggestions),
-                          comm_name
-                      )
-
+                          comm_name)
                     break
 
                 if comm_name.startswith(stripped_current_line):
@@ -272,16 +286,28 @@ class Shell:
                 self._client.sharing_connection.rcwd()
             )
 
-            # remote = fg(remote, color=Color.MAGENTA)
+            # remote = styled(remote, fg=ansi.FG_MAGENTA, attrs=ansi.ATTR_BOLD)
 
         local = os.getcwd()
-        # local = fg(local, color=Color.CYAN)
+        # local = styled(local, fg=ansi.FG_CYAN, attrs=ansi.ATTR_BOLD)
 
-        sep = "  ##  " if remote else ""
+        sep = (" " + 1 * self._prompt_local_remote_sep + " ") if remote else ""
 
-        prompt = remote + sep + local + "> "
+        # prompt = remote + sep + local + "> "
+        # prompt = bold(remote + sep + local + "> ")
+        prompt = \
+            ansi.ATTR_BOLD + ansi.FG_CYAN + local + ansi.RESET + \
+            ansi.ATTR_BOLD + sep +  ansi.FG_MAGENTA + remote + ansi.RESET + \
+            ansi.ATTR_BOLD + "> " + ansi.RESET
 
-        return styled(prompt, attrs=ansi.ATTR_BOLD)
+        # prompt = \
+        #     ansi.FG_MAGENTA + remote + ansi.RESET + \
+        #     sep +  ansi.FG_CYAN + local + ansi.RESET + \
+        #     "> " + ansi.RESET
+
+        # assert prompt == prompt2, "mismatch {} != {}".format(prompt, prompt2)
+        # return styled(prompt, attrs=ansi.ATTR_BOLD)
+        return prompt
 
     @staticmethod
     def _help(args: Args) -> NoReturn:

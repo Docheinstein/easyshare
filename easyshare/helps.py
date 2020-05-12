@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-12 12:13:27
+# Automatically generated from make-helps.py on date 2020-05-12 16:21:01
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -71,6 +71,7 @@ help [COMMAND]
 Show the help of COMMAND if specified, or show the list of commands if no COMMAND is given.
 
 Available commands are:
+    cd
     exit
     h
     help
@@ -79,6 +80,7 @@ Available commands are:
     pwd
     q
     quit
+    rcd
     rl
     rls
     rpwd
@@ -112,6 +114,7 @@ help [COMMAND]
 Show the help of COMMAND if specified, or show the list of commands if no COMMAND is given.
 
 Available commands are:
+    cd
     exit
     h
     help
@@ -120,6 +123,7 @@ Available commands are:
     pwd
     q
     quit
+    rcd
     rl
     rls
     rpwd
@@ -236,14 +240,14 @@ If no argument is given, toggle the packet tracing mode.
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
+
 <b>EXAMPLES</b>
 <I4>
 Here are some examples of data shown with the packet tracing on.
 
 {
     TODO: example
-}
-</I4>"""
+}</I4>"""
 
 # ============================================================
 
@@ -269,14 +273,14 @@ If no argument is given, toggle the packet tracing mode.
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
+
 <b>EXAMPLES</b>
 <I4>
 Here are some examples of data shown with the packet tracing on.
 
 {
     TODO: example
-}
-</I4>"""
+}</I4>"""
 
 # ============================================================
 
@@ -414,6 +418,28 @@ List recursively, in a tree-like format, the local DIR or the current local dire
 
 # ============================================================
 
+CD = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+cd - change local working directory
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+cd [DIR]
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Change the current local working directory to DIR or to the user's home directory if DIR is not specified.
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
+
+# ============================================================
+
 RPWD = """\
     <A> # paragraph alignment (4)
 <b>COMMAND</b>
@@ -425,7 +451,7 @@ rpwd - show the name of current remote working directory
 <I4>
 rpwd
 
-SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "<b>open</b> SHARING_LOCATION" would do before execute the command.
 
 Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 </I4>
@@ -454,7 +480,7 @@ rls - list remote directory content
 rls [OPTION]... [DIR]
 rls [OPTION]... [SHARING_LOCATION] [DIR]
 
-SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "<b>open</b> SHARING_LOCATION" would do before execute the command.
 
 Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 </I4>
@@ -492,7 +518,7 @@ rtree - list remote directory contents in a tree-like format
 <I4>
 tree [OPTION]... [DIR]
 
-SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "<b>open</b> SHARING_LOCATION" would do before execute the command.
 
 Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 </I4>
@@ -512,6 +538,43 @@ List recursively, in a tree-like format, the remote DIR or the current remote di
 </I4>
     <A> # paragraph alignment (4)
 """
+
+# ============================================================
+
+RCD = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+rcd - change remote working directory
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+rcd [DIR]
+rcd [SHARING_LOCATION] [DIR]
+
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "<b>open</b> SHARING_LOCATION" would do before execute the command.
+
+Type "<b>help open</b>" for more information about SHARING_LOCATION format.
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Change the current remote working directory to DIR or to the root of the current sharing if no DIR is specified.
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+
+<b>EXAMPLES</b>
+<I4>
+Usage example:
+[47m
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> rcd dir
+<b>/tmp - remote.shared:/dir></b> rcd subdir
+<b>/tmp - remote.shared:/dir/subdir></b> rcd
+<b>/tmp - remote.shared:/></b>[0m
+</I4>"""
 
 # ============================================================
 

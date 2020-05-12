@@ -89,11 +89,13 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
     if options:
         options_strings = []
         for opt in options:
+            aliases = opt.aliases_string()
+            params = opt.params_string()
             options_strings.append(opt._to_string(
-                aliases=opt.aliases_string() or "",
-                param=f"<u>{opt.param}</u>" if opt.param else "",
+                aliases=aliases or "",
+                param=f"<u>{params}</u>" if params else "",
                 description=opt.description,
-                justification=OPTIONS_JUSTIFY + (len("<u></u>") if opt.param else 0)
+                justification=OPTIONS_JUSTIFY + (len("<u></u>") if params else 0)
             ))
 
         options_strings = sorted_i(options_strings)
@@ -125,10 +127,10 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
 """
 
     if info_examples:
-        s += f"""\
+        s += f"""
 <b>EXAMPLES</b>
 <I4>
-{info_examples}
+{info_examples}\
 </I4>"""
 
     return s
