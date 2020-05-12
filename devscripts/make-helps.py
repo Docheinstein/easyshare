@@ -75,13 +75,19 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
     s = f"""\
     <A> # alignment
 <b>COMMAND</b>
-<i4>{info.name()} - {info.short_description()}</i4>
+<I4>
+{info.name()} - {info.short_description()}
+</I4>
 
 <b>SYNOPSIS</b>
-<i4>{info.synopsis()}</i4>
+<I4>
+{info.synopsis()}
+</I4>
 
 <b>DESCRIPTION</b>
-<i4>{info.long_description()}</i4>"""
+<I4>
+{info.long_description()}
+</I4>"""
     # -- END BASE FORMAT --
 
     # -- OPTIONS --
@@ -97,7 +103,9 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
 
         s += f"""
 
-<i4>{options_string}</i4>"""
+<I4>
+{options_string}
+</I4>"""
     # -- END OPTIONS --
 
     # -- EXAMPLES --
@@ -106,7 +114,9 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
         s += f"""
 
 <b>EXAMPLES</b>
-<i4>{examples}</i4>"""
+<I4>
+{examples}
+</I4>"""
 
     # -- END EXAMPLES --
 

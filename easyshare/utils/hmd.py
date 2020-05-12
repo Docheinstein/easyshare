@@ -9,8 +9,8 @@ from easyshare.utils.env import terminal_size
 # log = get_logger_silent(__name__)
 log = get_logger(__name__)
 
-I_START_REGEX = re.compile(r"^<(i\d+)>")
-I_END_REGEX = re.compile(r"<(/i\d+)>$")
+I_START_REGEX = re.compile(r"^<([iI]\d+)>")
+I_END_REGEX = re.compile(r"</([iI]\d+)>$")
 # I_END_REGEX = re.compile(r"</([iI]\d+)>")
 
 def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> str: # HelpMarkDown
@@ -57,6 +57,8 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
             indent_tag = indents[len(indents) - 1]
             last_i = int(indent_tag[1:])
             log.d("Found new indentation: %d", last_i)
+            if indent_tag[0] == "I":
+                continue # don't keep the line into account
 
         line_in = re.sub(I_START_REGEX, "", line_in) # strip <i*>
 
@@ -66,8 +68,15 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
         # strip </i*>
         indents = re.findall(I_END_REGEX, line_in)
         if indents:
-            reset_i = True
-            log.d("Resetting indentation: %d", last_i)
+            indent_tag = indents[len(indents) - 1]
+
+            if indent_tag[0] == "I":
+                last_i = 0
+                continue # don't keep the line into account
+
+            reset_i = True # don't set last_i now, will be set at the end of the iter
+            log.d("Resetting indentation")
+
 
         line_in = re.sub(I_END_REGEX, "", line_in) # strip </i*>
 

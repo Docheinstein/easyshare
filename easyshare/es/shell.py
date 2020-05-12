@@ -11,7 +11,7 @@ from easyshare.args import Args, ArgsParseError, VariadicArgs, OptIntArg, ArgsPa
 from easyshare.consts import ansi
 
 from easyshare.es.client import Client
-from easyshare.es.commands import Commands, matches_special_command
+from easyshare.es.commands import Commands, matches_special_command, Verbose
 from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.es.errors import print_error, ClientErrors
 from easyshare.es.commands import SuggestionsIntent, COMMANDS_INFO
@@ -23,7 +23,7 @@ from easyshare.utils.hmd import help_markdown_pager
 from easyshare.utils.math import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.pyro.common import enable_pyro_logging, is_pyro_logging_enabled
-from easyshare.utils.types import is_bool, is_int, is_str
+from easyshare.utils.types import is_bool, is_int, is_str, bool_to_str
 
 log = get_logger(__name__)
 
@@ -34,12 +34,12 @@ log = get_logger(__name__)
 SHELL_COMMANDS = values(Commands)
 
 VERBOSITY_EXPLANATION_MAP = {
-    logging.VERBOSITY_NONE: " (disabled)",
-    logging.VERBOSITY_ERROR: " (error)",
-    logging.VERBOSITY_WARNING: " (error / warn)",
-    logging.VERBOSITY_INFO: " (error / warn / info)",
-    logging.VERBOSITY_DEBUG: " (error / warn / info / debug)",
-    logging.VERBOSITY_DEBUG + 1: " (error / warn / info / debug / internal)",
+    logging.VERBOSITY_NONE: Verbose.V0[1],
+    logging.VERBOSITY_ERROR: Verbose.V1[1],
+    logging.VERBOSITY_WARNING: Verbose.V2[1],
+    logging.VERBOSITY_INFO: Verbose.V3[1],
+    logging.VERBOSITY_DEBUG: Verbose.V4[1],
+    logging.VERBOSITY_DEBUG + 1: Verbose.V5[1]
 }
 
 
@@ -225,6 +225,7 @@ class Shell:
                     # e.g. 'clos '
 
                     # Case 1: complete command
+                    log.d("Fetching suggestions for command completion of '%s'", comm_name)
                     self._suggestions_intent.suggestions.append(StyledString(comm_name))
 
             self._suggestions_intent.suggestions = \
@@ -237,7 +238,6 @@ class Shell:
 
             # Escape whitespaces
             sug = sug.replace(" ", "\\ ")
-
 
             # If there is only a command that begins with
             # this name, complete the command (and eventually insert a space)
@@ -311,9 +311,9 @@ class Shell:
 
         enable_tracing(enable)
 
-        print("Tracing = {:d}{}".format(
+        print("Tracing = {:d} ({})".format(
             enable,
-            " (enabled)" if enable else " (disabled)"
+            bool_to_str(enable, "enabled", "disabled")
         ))
 
         return 0
@@ -336,9 +336,9 @@ class Shell:
         root_log.set_verbosity(verbosity)
         enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
-        print("Verbosity = {:d}{}".format(
+        print("Verbosity = {:d} ({})".format(
             verbosity,
-            VERBOSITY_EXPLANATION_MAP.get(verbosity, "")
+            VERBOSITY_EXPLANATION_MAP.get(verbosity, "<unknown>")
         ))
 
         return 0

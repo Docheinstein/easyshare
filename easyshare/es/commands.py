@@ -12,7 +12,7 @@ from easyshare.common import DIR_COLOR, FILE_COLOR
 from easyshare.styling import fg
 from easyshare.utils.os import ls
 from easyshare.utils.str import rightof
-from easyshare.utils.types import is_str
+from easyshare.utils.types import is_str, is_list
 
 log = get_logger(__name__)
 
@@ -86,7 +86,9 @@ def is_special_command(s: str):
     return s.startswith(SPECIAL_COMMAND_MARK)
 
 def matches_special_command(s: str, sp_comm: str):
-    return s.startswith(sp_comm) and \
+
+    return is_special_command(sp_comm) and \
+           s.startswith(sp_comm) and \
            (len(s) == len(sp_comm) or s[len(sp_comm)] != SPECIAL_COMMAND_MARK)
 
 
@@ -322,29 +324,6 @@ class ListRemoteDirsCommandInfo(ListRemoteCommandInfo, ListDirsFilter, ABC):
 
 class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter, ABC):
     pass
-#
-#
-# class VerboseCommandInfo(CommandInfo):
-#     V0 = CommandArgInfo(["0"], "error")
-#     V1 = CommandArgInfo(["1"], "error / warning")
-#     V2 = CommandArgInfo(["2"], "error / warning / info")
-#     V3 = CommandArgInfo(["3"], "error / warning / info / verbose")
-#     V4 = CommandArgInfo(["4"], "error / warning / info / verbose / debug")
-#
-#     def suggestions(self, token: str, line: str, client: 'Client') -> Optional[SuggestionsIntent]:
-#         return SuggestionsIntent(
-#             [StyledString(c.args_help_str()) for c in [
-#                 VerboseCommandInfo.V0,
-#                 VerboseCommandInfo.V1,
-#                 VerboseCommandInfo.V2,
-#                 VerboseCommandInfo.V3,
-#                 VerboseCommandInfo.V4]
-#              ],
-#             completion=False,
-#             max_columns=1,
-#         )
-#
-#
 
 
 # ==================================================
@@ -463,19 +442,70 @@ Here are some examples of data shown with the packet tracing on.
     TODO: example
 }"""
 
-    def suggestions(self, token: str, line: str, client) -> Optional[SuggestionsIntent]:
+    @classmethod
+    def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
+        try:
+            return SuggestionsIntent(
+                [StyledString(_aliases_and_desc_string(
+                        aliases=c[0],
+                        description=c[1]))
+                    for c in [
+                        Trace.T0,
+                        Trace.T1
+                    ]
+                 ],
+                completion=False,
+                max_columns=1,
+            )
+        except:
+            log.exception("WTF")
+
+
+class Verbose(CommandInfo):
+    V0 = (["0"], "disabled")
+    V1 = (["1"], "error")
+    V2 = (["2"], "warning")
+    V3 = (["3"], "info")
+    V4 = (["4"], "debug")
+    V5 = (["5"], "internal libraries")
+
+    @classmethod
+    def name(cls):
+        return "verbose"
+
+    @classmethod
+    def short_description(cls):
+        return "change verbosity level           "
+
+    @classmethod
+    def long_description(cls):
+        pass
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+verbose   [0 | 1 | 2 | 3 | 4]
+v         [0 | 1 | 2 | 3 | 4]"""
+
+    @classmethod
+    def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
             [StyledString(_aliases_and_desc_string(
                     aliases=c[0],
-                    description=c[1]
-                )) for c in [
-                    Trace.T0,
-                    Trace.T1
+                    description=c[1]))
+                for c in [
+                    Verbose.V0,
+                    Verbose.V1,
+                    Verbose.V2,
+                    Verbose.V3,
+                    Verbose.V4,
+                    Verbose.V5,
                 ]
              ],
             completion=False,
             max_columns=1,
         )
+
 
 # xLS
 
@@ -601,7 +631,7 @@ def _aliases_string(aliases: List[str]):
     return ', '.join(aliases)
 
 def _aliases_and_desc_string(aliases: Union[str, List[str]], description: str, justification: int = 0,):
-    if not is_str(aliases):
+    if is_list(aliases):
         aliases = _aliases_string(aliases)
 
     return f"{aliases.ljust(justification)}      {description}"
@@ -616,10 +646,10 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
 
     Commands.TRACE: Trace,
     Commands.TRACE_SHORT: Trace,
-    #
-    # VERBOSE = "verbose"
-    # VERBOSE_SHORT = "v"
-    #
+
+    Commands.VERBOSE: Verbose,
+    Commands.VERBOSE_SHORT: Verbose,
+
     # LOCAL_CURRENT_DIRECTORY = "pwd"
     Commands.LOCAL_LIST_DIRECTORY: Ls,
     # LOCAL_LIST_DIRECTORY_ENHANCED = "l"

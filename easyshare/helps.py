@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-12 09:44:34
+# Automatically generated from make-helps.py on date 2020-05-12 10:25:26
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -57,13 +57,18 @@ Available commands are:
 HELP = """\
     <A> # alignment
 <b>COMMAND</b>
-<i4>help - show the help of a command</i4>
+<I4>
+help - show the help of a command
+</I4>
 
 <b>SYNOPSIS</b>
-<i4>help [COMMAND]</i4>
+<I4>
+help [COMMAND]
+</I4>
 
 <b>DESCRIPTION</b>
-<i4>Show the help of COMMAND if specified, or show the list of commands if no COMMAND is given.
+<I4>
+Show the help of COMMAND if specified, or show the list of commands if no COMMAND is given.
 
 Available commands are:
     exit
@@ -74,20 +79,28 @@ Available commands are:
     quit
     rls
     t
-    trace</i4>"""
+    trace
+    v
+    verbose
+</I4>"""
 
 # ============================================================
 
 H = """\
     <A> # alignment
 <b>COMMAND</b>
-<i4>help - show the help of a command</i4>
+<I4>
+help - show the help of a command
+</I4>
 
 <b>SYNOPSIS</b>
-<i4>help [COMMAND]</i4>
+<I4>
+help [COMMAND]
+</I4>
 
 <b>DESCRIPTION</b>
-<i4>Show the help of COMMAND if specified, or show the list of commands if no COMMAND is given.
+<I4>
+Show the help of COMMAND if specified, or show the list of commands if no COMMAND is given.
 
 Available commands are:
     exit
@@ -98,149 +111,244 @@ Available commands are:
     quit
     rls
     t
-    trace</i4>"""
+    trace
+    v
+    verbose
+</I4>"""
 
 # ============================================================
 
 EXIT = """\
     <A> # alignment
 <b>COMMAND</b>
-<i4>exit - exit from the interactive shell</i4>
+<I4>
+exit - exit from the interactive shell
+</I4>
 
 <b>SYNOPSIS</b>
-<i4>exit
+<I4>
+exit
 quit
-q</i4>
+q
+</I4>
 
 <b>DESCRIPTION</b>
-<i4>Exit from the interactive shell.
+<I4>
+Exit from the interactive shell.
 
-Open connections are automatically closed.</i4>"""
+Open connections are automatically closed.
+</I4>"""
 
 # ============================================================
 
 QUIT = """\
     <A> # alignment
 <b>COMMAND</b>
-<i4>exit - exit from the interactive shell</i4>
+<I4>
+exit - exit from the interactive shell
+</I4>
 
 <b>SYNOPSIS</b>
-<i4>exit
+<I4>
+exit
 quit
-q</i4>
+q
+</I4>
 
 <b>DESCRIPTION</b>
-<i4>Exit from the interactive shell.
+<I4>
+Exit from the interactive shell.
 
-Open connections are automatically closed.</i4>"""
+Open connections are automatically closed.
+</I4>"""
 
 # ============================================================
 
 Q = """\
     <A> # alignment
 <b>COMMAND</b>
-<i4>exit - exit from the interactive shell</i4>
+<I4>
+exit - exit from the interactive shell
+</I4>
 
 <b>SYNOPSIS</b>
-<i4>exit
+<I4>
+exit
 quit
-q</i4>
+q
+</I4>
 
 <b>DESCRIPTION</b>
-<i4>Exit from the interactive shell.
+<I4>
+Exit from the interactive shell.
 
-Open connections are automatically closed.</i4>"""
+Open connections are automatically closed.
+</I4>"""
 
 # ============================================================
 
 TRACE = """\
     <A> # alignment
 <b>COMMAND</b>
-<i4>trace - enable/disable packet tracing</i4>
+<I4>
+trace - enable/disable packet tracing
+</I4>
 
 <b>SYNOPSIS</b>
-<i4>trace   [0 | 1]
-t       [0 | 1]</i4>
+<I4>
+trace   [0 | 1]
+t       [0 | 1]
+</I4>
 
 <b>DESCRIPTION</b>
-<i4>Enable (1) or disable (0) the packet tracing for any network operation.
+<I4>
+Show (1) or hide (0) the packets sent and received to and from the server for any operation.
 
-If no argument is given, toggle the packet tracing.
-</i4>
+If no argument is given, toggle the packet tracing mode.
+
+</I4>
 
 <b>EXAMPLES</b>
-<i4>Here are some examples of data shown with the packet tracing on.
+<I4>
+Here are some examples of data shown with the packet tracing on.
+
 {
     TODO: example
-}</i4>"""
+}
+</I4>"""
 
 # ============================================================
 
 T = """\
     <A> # alignment
 <b>COMMAND</b>
-<i4>trace - enable/disable packet tracing</i4>
+<I4>
+trace - enable/disable packet tracing
+</I4>
 
 <b>SYNOPSIS</b>
-<i4>trace   [0 | 1]
-t       [0 | 1]</i4>
+<I4>
+trace   [0 | 1]
+t       [0 | 1]
+</I4>
 
 <b>DESCRIPTION</b>
-<i4>Enable (1) or disable (0) the packet tracing for any network operation.
+<I4>
+Show (1) or hide (0) the packets sent and received to and from the server for any operation.
 
-If no argument is given, toggle the packet tracing.
-</i4>
+If no argument is given, toggle the packet tracing mode.
+
+</I4>
 
 <b>EXAMPLES</b>
-<i4>Here are some examples of data shown with the packet tracing on.
+<I4>
+Here are some examples of data shown with the packet tracing on.
+
 {
     TODO: example
-}</i4>"""
+}
+</I4>"""
+
+# ============================================================
+
+VERBOSE = """\
+    <A> # alignment
+<b>COMMAND</b>
+<I4>
+verbose - change verbosity level           
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+verbose   [0 | 1 | 2 | 3 | 4]
+v         [0 | 1 | 2 | 3 | 4]
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+None
+</I4>"""
+
+# ============================================================
+
+V = """\
+    <A> # alignment
+<b>COMMAND</b>
+<I4>
+verbose - change verbosity level           
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+verbose   [0 | 1 | 2 | 3 | 4]
+v         [0 | 1 | 2 | 3 | 4]
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+None
+</I4>"""
 
 # ============================================================
 
 LS = """\
     <A> # alignment
 <b>COMMAND</b>
-<i4>ls - list local directory content</i4>
+<I4>
+ls - list local directory content
+</I4>
 
 <b>SYNOPSIS</b>
-<i4>ls [OPTION]... [FILE]</i4>
+<I4>
+ls [OPTION]... [FILE]
+</I4>
 
 <b>DESCRIPTION</b>
-<i4>List content of the local FILE or the current local directory if no FILE is specified.</i4>
+<I4>
+List content of the local FILE or the current local directory if no FILE is specified.
+</I4>
 
-<i4>-a, --all               show hidden files too
+<I4>
+-a, --all               show hidden files too
 -g, --group             group by file type
 -l                      show more details
 -r, --reverse           reverse sort order
 -S                      show files size
--s, --sort-size         sort by size</i4>"""
+-s, --sort-size         sort by size
+</I4>"""
 
 # ============================================================
 
 RLS = """\
     <A> # alignment
 <b>COMMAND</b>
-<i4>rls - list remote directory content</i4>
+<I4>
+rls - list remote directory content
+</I4>
 
 <b>SYNOPSIS</b>
-<i4>rls [OPTION]... [FILE]
-rls [OPTION]... [SHARING_LOCATION] [FILE]</i4>
+<I4>
+rls [OPTION]... [FILE]
+rls [OPTION]... [SHARING_LOCATION] [FILE]
+</I4>
 
 <b>DESCRIPTION</b>
-<i4>List content of the remote FILE or the current remote directory if no FILE is specified.
+<I4>
+List content of the remote FILE or the current remote directory if no FILE is specified.
 
 SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing, in that case the connection would be established as "open SHARING_LOCATION" would do before execute the command.
 
-See "help open" for more information about SHARING_LOCATION format.</i4>
+See "help open" for more information about SHARING_LOCATION format.
+</I4>
 
-<i4>-a, --all               show hidden files too
+<I4>
+-a, --all               show hidden files too
 -g, --group             group by file type
 -l                      show more details
 -r, --reverse           reverse sort order
 -S                      show files size
--s, --sort-size         sort by size</i4>"""
+-s, --sort-size         sort by size
+</I4>"""
 
 # ============================================================
 
