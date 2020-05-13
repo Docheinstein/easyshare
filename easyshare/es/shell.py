@@ -1,6 +1,7 @@
 import os
 import shlex
 import readline as rl
+import sys
 import traceback
 
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
@@ -104,6 +105,7 @@ class Shell:
                 )
 
                 self._prompt = self._build_prompt_string()
+
                 # print(self._prompt, end="", flush=True)
                 command_line = input(self._prompt)
 
@@ -291,22 +293,25 @@ class Shell:
         local = os.getcwd()
         # local = styled(local, fg=ansi.FG_CYAN, attrs=ansi.ATTR_BOLD)
 
-        sep = (" " + 1 * self._prompt_local_remote_sep + " ") if remote else ""
+        sep = (" " + 2 * self._prompt_local_remote_sep + " ") if remote else ""
 
-        prompt = bold(remote + sep + local + "> ")
-        # prompt = bold(remote + sep + local + "> ")
-        # prompt = \
-        #     ansi.ATTR_BOLD + ansi.FG_CYAN + local + ansi.RESET + \
-        #     ansi.ATTR_BOLD + sep +  ansi.FG_MAGENTA + remote + ansi.RESET + \
-        #     ansi.ATTR_BOLD + "> " + ansi.RESET
+        IS = ansi.RL_PROMPT_START_IGNORE
+        IE = ansi.RL_PROMPT_END_IGNORE
+        R = ansi.RESET
+        B = ansi.ATTR_BOLD
+        M = ansi.FG_MAGENTA
+        C = ansi.FG_CYAN
 
-        # prompt = \
-        #     ansi.FG_MAGENTA + remote + ansi.RESET + \
-        #     sep +  ansi.FG_CYAN + local + ansi.RESET + \
-        #     "> " + ansi.RESET
+        # Escape sequence must be wrapped into \001 and \002
+        # so that readline can handle those well and deal with terminal/prompt
+        # width properly
+        # prompt = remote + sep + local + "> "
+        prompt = \
+            ((IS + B + M + IE + remote + IS + R + IE) if remote else "") + \
+            ((IS + B + IE + sep + IS + R + IE) if sep else "") + \
+            IS + B + C + IE + local + IS + R + IE + \
+            IS + B + IE + "> " + IS + R + IE
 
-        # assert prompt == prompt2, "mismatch {} != {}".format(prompt, prompt2)
-        # return styled(prompt, attrs=ansi.ATTR_BOLD)
         return prompt
 
     @staticmethod

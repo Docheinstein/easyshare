@@ -20,7 +20,7 @@ ANSI_REGEX = re.compile(r"(\033\[\d+m)")
 
 class ansistr:
     def __init__(self, string):
-        print("ansistr of {}".format(string))
+        # print("ansistr of {}".format(string))
         self._string = string
         self._escaped_string = re.sub(ANSI_REGEX, "", string)
 
@@ -28,13 +28,13 @@ class ansistr:
 
         offset = 0
         for m in re.finditer(ANSI_REGEX, self._string):
-            print("m:", m)
+            # print("m:", m)
             self._ansis.insert(0, (m.start() - offset, m.group()))
             offset += m.end() - m.start()
 
         # print(self._string)
         # print(self._escaped_string)
-        print(self._ansis)
+        # print(self._ansis)
 
     def __str__(self):
         return self._string
@@ -57,10 +57,10 @@ class ansistr:
     def lstrip(self):
         first_ansi_tag = self.first_ansi()
         if first_ansi_tag and first_ansi_tag[0] == 0:
-            print("first_ansi_tag start at 0")
+            # print("first_ansi_tag start at 0")
             # lstrip to the string without the leading ansi tag
             return ansistr(first_ansi_tag[1] + self._string[len(first_ansi_tag[1]):].lstrip())
-        print("lstrip of {}".format(self._string))
+        # print("lstrip of {}".format(self._string))
 
         return ansistr(self._string.lstrip())
 
@@ -86,7 +86,7 @@ class ansistr:
             ansi_pos, ansi_sequence = el
             if slicing_start <= ansi_pos < slicing_stop:
                 ansi_pos_correct = ansi_pos - slicing_start
-                print(f"ansi pos {ansi_pos} ({ansi_pos_correct}) within {slicing_start}:{slicing_stop}")
+                # print(f"ansi pos {ansi_pos} ({ansi_pos_correct}) within {slicing_start}:{slicing_stop}")
                 new_s = new_s[:ansi_pos_correct] + ansi_sequence + new_s[ansi_pos_correct:]
 
         return ansistr(new_s)

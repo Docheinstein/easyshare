@@ -29,6 +29,12 @@ BG_MAGENTA =        "\033[45m"
 BG_CYAN =           "\033[46m"
 BG_WHITE =          "\033[47m"
 
+# From readline docs
+# declared in `readline.h'
+# This may be used to embed terminal-specific escape sequences in prompts.
+RL_PROMPT_START_IGNORE = "\001"
+RL_PROMPT_END_IGNORE = "\002"
+
 if __name__ == "__main__":
     from easyshare.utils.hmd import help_markdown_pager
 
