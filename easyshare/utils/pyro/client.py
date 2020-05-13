@@ -16,7 +16,7 @@ class TracedPyroProxy(pyro.Proxy):
 
         self._easyshare_remote_alias = kwargs.get("alias")
 
-    def _pyroInvoke(self, methodname, Pargs, kwargs, flags=0, objectId=None) -> Any:
+    def _pyroInvoke(self, methodname, vargs, kwargs, flags=0, objectId=None) -> Any:
 
         remote = self._pyroConnection.sock.getpeername()
 

@@ -874,7 +874,8 @@ class Client:
                                                       sharing_details=True) + "\n" + SEP
             else:
                 s += sharings_to_pretty_str(server_info_full.get("sharings"),
-                                            details=show_sharings_details)
+                                            details=show_sharings_details,
+                                            indent=2)
 
             print(s)
 

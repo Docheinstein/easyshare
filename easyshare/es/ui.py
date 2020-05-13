@@ -11,7 +11,7 @@ from easyshare.common import DIR_COLOR, FILE_COLOR
 from easyshare.styling import styled, fg
 from easyshare.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.ssl import get_cached_or_fetch_ssl_certificate_for_endpoint
-from easyshare.utils.env import terminal_size
+from easyshare.utils.env import terminal_size, is_unicode_supported
 from easyshare.utils.measures import size_str
 from easyshare.utils.os import is_hidden
 from easyshare.utils.ssl import SSLCertificate
@@ -200,19 +200,24 @@ def server_info_to_pretty_str(info: ServerInfoFull, sharing_details: bool = Fals
         # Sharings
         s += \
             styled("SHARINGS", attrs=ansi.ATTR_BOLD) + "\n\n" + \
-            sharings_to_pretty_str(info.get("sharings"), details=sharing_details) + "\n" + \
+            sharings_to_pretty_str(info.get("sharings"),
+                                   details=sharing_details,
+                                   indent=2) + "\n" + \
             SEP_LAST
 
         return s
 
-def sharings_to_pretty_str(sharings: List[SharingInfo], details: bool = False) -> str:
+def sharings_to_pretty_str(sharings: List[SharingInfo],
+                           details: bool = False,
+                           indent: int = 0) -> str:
     s = ""
+    bullet = "\u2022" if is_unicode_supported() else "-"
 
     d_sharings = [sh for sh in sharings if sh.get("ftype") == FTYPE_DIR]
     f_sharings = [sh for sh in sharings if sh.get("ftype") == FTYPE_FILE]
 
     def sharing_string(sharing: SharingInfo):
-        ss = "  - " + sharing.get("name")
+        ss = " " * indent + bullet + " " + sharing.get("name")
 
         if details:
             details_list = []
@@ -221,17 +226,17 @@ def sharings_to_pretty_str(sharings: List[SharingInfo], details: bool = False) -
             if sharing.get("read_only"):
                 details_list.append("read only")
             if details_list:
-                ss += "  ({})".format(", ".join(details_list))
+                ss += "    ({})".format(", ".join(details_list))
         ss += "\n"
         return ss
 
     if d_sharings:
-        s += "  DIRECTORIES\n"
+        s += " " * indent + "DIRECTORIES\n"
         for dsh in d_sharings:
             s += sharing_string(dsh)
 
     if f_sharings:
-        s += "  FILES\n"
+        s += " " * indent + "FILES\n"
         for fsh in f_sharings:
             s += sharing_string(fsh)
 

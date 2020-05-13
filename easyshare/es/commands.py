@@ -841,11 +841,10 @@ the current sharing if no <u>DIR</u> is specified."""
         return f"""\
 Usage example:
 
-<b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> <b>rcd</b> dir
-<b>/tmp - remote.shared:/dir></b> <b>rcd</b> subdir
-<b>/tmp - remote.shared:/dir/subdir></b> <b>rcd</b>
-<b>/tmp - remote.shared:/></b>"""
+<b>/tmp></b> open music
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>rcd</b> dir
+<b>bob-debian.music:/dir</b> - <b>/tmp></b> <b>rcd</b> subdir
+<b>bob-debian.music:/dir/subdir</b> - <b>/tmp></b>"""
 
     @classmethod
     def see_also(cls):
@@ -913,10 +912,10 @@ If <u>DIR</u> already exists, it does nothing."""
         return f"""\
 Usage example:
 
-<b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> <b>rmkdir</b> newdir
-<b>/tmp - remote.shared:/></b> rcd newdir
-<b>/tmp - remote.shared:/newdir></b>"""
+<b>/tmp></b> open music
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>rmkdir</b> newdir
+<b>bob-debian.music:/</b> - <b>/tmp></b> rcd newdir
+<b>bob-debian.music:/newdir</b> - <b>/tmp></b>"""
 
     @classmethod
     def see_also(cls):
@@ -1000,25 +999,25 @@ be an existing directory and <u>SOURCE</u>s will be copied into it."""
         return f"""\
 Usage example:
 
-<b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> rls
+<b>/tmp></b> open music
+<b>bob-debian.music:/</b> - <b>/tmp></b> rls
 f1
-<b>/tmp - remote.shared:/></b> <b>rcp</b> f1 f2
-<b>/tmp - remote.shared:/></b> rls
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>rcp</b> f1 f2
+<b>bob-debian.music:/</b> - <b>/tmp></b> rls
 f1      f2
 
-<b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> tree
-├── dir
-├── f1
-└── f2
-<b>/tmp - remote.shared:/></b> <b>rcp</b> f1 f2 dir
-<b>/tmp - remote.shared:/></b> rtree dir
-├── dir
-│   ├── f1
-│   └── f2
-├── f1
-└── f2"""
+<b>/tmp></b> open music
+<b>bob-debian.music:/</b> - <b>/tmp></b> rtree
+|-- dir
+|-- f1
++-- f2
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>rcp</b> f1 f2 dir
+<b>bob-debian.music:/</b> - <b>/tmp></b> rtree dir
+|-- dir
+|   |-- f1
+|   +-- f2
+|-- f1
++-- f2"""
 
 
     @classmethod
@@ -1106,23 +1105,23 @@ be an existing directory and <u>SOURCE</u>s will be moved into it."""
         return f"""\
 Usage example:
 
-<b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> rls
+<b>/tmp></b> open music
+<b>bob-debian.music:/</b> - <b>/tmp></b> rls
 f1
-<b>/tmp - remote.shared:/></b> <b>rmv</b> f1 f2
-<b>/tmp - remote.shared:/></b> rls
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>rmv</b> f1 f2
+<b>bob-debian.music:/</b> - <b>/tmp></b> rls
 f2
 
-<b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> rtree
-├── dir
-├── f1
-└── f2
-<b>/tmp - remote.shared:/></b> <b>rmv</b> f1 f2 dir
-<b>/tmp - remote.shared:/></b> rtree dir
-└── dir
-    ├── f1
-    └── f2"""
+<b>/tmp></b> open music
+<b>bob-debian.music:/</b> - <b>/tmp></b> rtree
+|-- dir
+|-- f1
++-- f2
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>rmv</b> f1 f2 dir
+<b>bob-debian.music:/</b> - <b>/tmp></b> rtree dir
++-- dir
+    |-- f1
+    +-- f2"""
 
     @classmethod
     def see_also(cls):
@@ -1196,22 +1195,22 @@ This commands never prompts: essentially acts like unix's rm -rf."""
         return f"""\
 Usage example:
 
-<b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> rls
+<b>/tmp></b> open music
+<b>bob-debian.music:/</b> - <b>/tmp></b> rls
 f1      f2
-<b>/tmp - remote.shared:/></b> <b>rrm</b> f2
-<b>/tmp - remote.shared:/></b> rls
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>rrm</b> f2
+<b>bob-debian.music:/</b> - <b>/tmp></b> <rls
 f1
 
-<b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> rtree
-├── dir
-│   ├── f1
-│   └── f2
-└── f1
-<b>/tmp - remote.shared:/></b> <b>rrm</b> dir
-<b>/tmp - remote.shared:/></b> tree
-└── f1"""
+<b>/tmp></b> open music
+<b>bob-debian.music:/</b> - <b>/tmp></b> rtree
+|-- dir
+|   |-- f1
+|   +-- f2
++-- f1
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>rrm</b> dir
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>rrm</b> rtree
++-- f1"""
 
     @classmethod
     def see_also(cls):
@@ -1312,12 +1311,13 @@ The command can be run either with "<b>rexec</b> <u>COMMAND</u>",  \
         return f"""\
 Usage example:
 
-<b>/tmp></b> rls
+<b>/tmp></b> open music
+<b>bob-debian.music:/</b> - <b>/tmp></b> rls
 f1      f2
-<b>/tmp></b> <b>rexec</b> touch f3
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>rexec</b> touch f3
 f1      f2      f3
-<b>/tmp></b> <b>::</b> echo "hello" > f3
-<b>/tmp></b> <b>::</b>cat f3
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>::</b> echo "hello" > f3
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>::</b>cat f3
 hello"""
 
     @classmethod
@@ -1363,12 +1363,14 @@ The discover is performed in broadcast in the network.
 The port on which the discover is performed is the one specified to \
 <b>es</b> via <b>-d</b> <u>port</u>, or the default one if not specified.
 
+The scan time is two seconds unless it has been specified to <b>es</b> via <b>-w</b> <u>seconds</u>.
+
 Only details about the sharings are shown, unless <b>-L</b> is given."""
 
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionInfo(cls.SHOW_SHARINGS_DETAILS, "show more details of sharing"),
+            CommandOptionInfo(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
             CommandOptionInfo(cls.SHOW_ALL_DETAILS, "show more details of both servers and sharings"),
         ]
 
@@ -1377,7 +1379,7 @@ Only details about the sharings are shown, unless <b>-L</b> is given."""
         return f"""\
 Usage example:
 
-<b>/tmp></b> scan
+<b>/tmp></b> <b>scan</b>
 <b>alice-arch (192.168.1.105:12020)</b>
   DIRECTORIES
   - shared
@@ -1387,6 +1389,61 @@ Usage example:
   - music
   FILES
   - README.txt"""
+
+
+# ============ LIST ================
+
+
+class ListSharings(RemoteServerCommandInfo, NoPargs):
+    SHOW_DETAILS = ["-l"]
+
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
+        return [
+            (ListSharings.SHOW_DETAILS, PRESENCE_PARAM),
+        ]
+
+    @classmethod
+    def name(cls):
+        return "list"
+
+    @classmethod
+    def short_description(cls):
+        return "list the sharings of the remote server"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>list</b> [<u>OPTION</u>]...
+<b>list</b> [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]..."""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+List the sharings of the remote server to which the connection is established."""
+
+    @classmethod
+    def options(cls) -> List[CommandOptionInfo]:
+        return [
+            CommandOptionInfo(cls.SHOW_DETAILS, "show more details of sharings"),
+        ]
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> connect alice-arch
+<b>alice-arch</b> - <b>/tmp></b> <b>list</b>
+DIRECTORIES
+- shared
+- tmp
+
+<b>/tmp></b> open music
+<b>bob-debian.music:/</b> - <b>/tmp></b> <b>list</b>
+DIRECTORIES
+- music
+FILES
+- README.txt"""
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
 #     pass
@@ -1468,8 +1525,9 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.SCAN: Scan,
     Commands.SCAN_SHORT: Scan,
 
-    # LIST = "list"
-    #
+    Commands.LIST: ListSharings,
+
+
     # CONNECT = "connect"
     # DISCONNECT = "disconnect"
     #
