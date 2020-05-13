@@ -1416,31 +1416,69 @@ class Connect(CommandInfo):
     @classmethod
     def long_description(cls):
         return """\
-Connect to a remote server whose location is specified by <u>SERVER_LOCATION</u>
+Connect to a remote server whose location is specified by <u>SERVER_LOCATION</u>.
 
-The syntax of <u>SERVER_LOCATION</u> is either <server_name> or <address>[:<port>].
-
+<u>SERVER_LOCATION</u> is either <<u>server_name</u>> or <<u>address</u>>[:<<u>port</u>>].
+   <a>
 The following rules are applied for establish a connection:
-- if <u>SERVER_LOCATION</u> has the form <address>:<port>, the connection \
+1. If <u>SERVER_LOCATION</u> is a valid <<u>server_name</u>>, a discover is performed \
+for figure out which port the server is bound to.
+2. If <u>SERVER_LOCATION</u> has the form <<u>address</u>>, the connection \
+will be tried to be established directly to the server at the the default port. \
+If the attempt fails, a discover is performed for figure out which port \
+the server is really bound to and another attempt is done.
+3. If <u>SERVER_LOCATION</u> has the form <<u>address</u>>:<<u>port</u>>, the connection \
+will be established directly.
+   </a>
+The discover, if involved (1. and 2.), is performed on the port specified \
+with <b>-d</b> <u>port</u> for the time specified with <b>-w</b> <u>seconds</u> \
+(default is two seconds).
 
-"""
+Note that <b>connect</b> is not necessary if you want to directly open a sharing, \
+you can use <b>open</b> which automatically will establish the connection with \
+the server as <b>connect</b> would do.
+
+There might be cases in which use <b>connect</b> is still required, for example \
+for execute server commands (i.e. info, ping, list, rexec) which are not related \
+to any sharings (you can use those commands if connected to a sharing, by the way).
+
+When possible, using "<b>connect</b> <<u>server_name</u>>" (1.) is more immediate \
+and human friendly compared to specify the address and eventually the port of \
+the server (2. and 3.).
+
+There are cases in which specify the address and the port of the server (1.) is \
+necessary, for example when the discover can't be performed because the server \
+is not on the same network of the client (e.g. behind a NAT).
+
+If already connected to a server, a successful <b>connect</b> execution to another server \
+automatically closes the current connection.
+
+Remember that <b>connect</b> establish the connection with the server, but do \
+not place you inside any server's sharing. Use <b>open</b> for that."""
 
     @classmethod
     def examples(cls):
         return f"""\
 Usage example:
 
-<b>/tmp></b> <b>scan</b>
-<b>alice-arch (192.168.1.105:12020)</b>
-  DIRECTORIES
-  - shared
-  - tmp
-<b>bob-debian (192.168.1.185:12020)</b>
-  DIRECTORIES
-  - music
-  FILES
-  - README.txt"""
+1. Connection by server name (discover)
+<b>/tmp></b> <b>connect<b> alice-arch
+<b>alice-arch</b> - <b>/tmp></b> list
+DIRECTORIES
+- shared
+- tmp
 
+2. Connection by address (direct attempt, discover if fails)
+<b>/tmp></b> <b>connect<b> 192.168.1.105
+<b>alice-arch</b> - <b>/tmp></b>
+
+3. Connection by address and port (direct)
+<b>/tmp></b> <b>connect<b> 89.1.2.84:22020
+<b>eve-kali</b> - <b>/tmp></b>"""
+
+    @classmethod
+    def see_also(cls):
+        return "<b>open</b>"
 
 
 # ============ LIST ================
