@@ -576,7 +576,7 @@ class Client:
         Client._mvcp(args, mv, "MV")
 
     @staticmethod
-    def cp(args: Args, _):
+    def cp(args: Args, _, _2):
         Client._mvcp(args, cp, "CP")
 
     @staticmethod

@@ -351,11 +351,11 @@ class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter, ABC):
 # ==================================================
 
 SHARING_LOCATION_IF_NOT_CONNECTED_DESC = """\
-SHARING_LOCATION must be specified <u>if and only if</u> not already \
+SHARING_LOCATION must be specified if and only if not already \
 connected to a remote sharing. In that case the connection will be \
-established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
+established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
-Type "<b>help open</b>" for more information about SHARING_LOCATION format."""
+Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format."""
 
 
 class RemoteSharingCommandInfo(CommandInfo, ABC):
@@ -896,8 +896,14 @@ class Cp(CommandInfo):
 Copy <u>SOURCE</u> file or directory to <u>DEST</u>, \
 or copy multiple </u>SOURCE</u>s to the <u>DIR</u>.
 
-If used with two argument as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>"
-."""
+If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the following \
+rules are applied:
+- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
+- If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be copied into <u>DEST</u>
+- If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
+
+If used with at least arguments as "<b>cp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
+be an existing directory and <u>SOURCE</u>s will be copied into it."""
 
 class Rcp(RemoteSharingCommandInfo):
 
@@ -915,8 +921,18 @@ class Rcp(RemoteSharingCommandInfo):
 
     @classmethod
     def long_description(cls):
-        return f"""\
-"""
+        return """\
+Copy <u>SOURCE</u> file or directory to <u>DEST</u>, \
+or copy multiple </u>SOURCE</u>s to the <u>DIR</u>.
+
+If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the following \
+rules are applied:
+- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
+- If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be copied into <u>DEST</u>
+- If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
+
+If used with three arguments "<b>cp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
+be an existing directory."""
 
     @classmethod
     def examples(cls):

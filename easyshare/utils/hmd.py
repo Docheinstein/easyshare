@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 
 from easyshare import logging
 from easyshare.consts import ansi
-from easyshare.logging import get_logger_silent, get_logger
+from easyshare.logging import get_logger
 from easyshare.styling import styled
 from easyshare.utils.env import terminal_size
 
@@ -53,6 +53,12 @@ class ansistr:
 
     # def ansis(self) -> List[str]:
     #     return [a[1] for a in self._ansis]
+
+    def startswith(self, pattern):
+        return self._escaped_string.startswith(pattern)
+
+    def endswith(self, pattern):
+        return self._escaped_string.endswith(pattern)
 
     def lstrip(self):
         first_ansi_tag = self.first_ansi()
@@ -110,7 +116,11 @@ if __name__ == "__main__":
 
     log.set_verbosity(logging.VERBOSITY_MAX)
 
+    assert ansistr(bold("some text")).endswith("t")
+
     s = ansistr(bold("a str") + "text")
+    assert s.startswith("a")
+    assert s.endswith("ext")
     # print(s.len())
     # print(s.len_raw())
 
@@ -172,7 +182,7 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
 
         line_in = re.sub(I_START_REGEX, "", line_in) # strip <i*>
 
-        log.d("Adding indentation of %d", last_i)
+        log.d("Will add indentation of %d", last_i)
 
         # strip </i*>
         indents = re.findall(I_END_REGEX, line_in)
@@ -224,7 +234,7 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
         # Make an ansi aware string
         line_in = leading_ansi_tag + line_in
 
-        if len(line_in) <= cols:
+        if len(line_in) + last_i <= cols:
             leading_ansi_tag = add_ansistr(line_in, indent=last_i)
         else:
             log.d("-> breaking line since length %d > %d cols", len(line_in), cols)
@@ -242,10 +252,8 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
                 # remaining_line_in = leading_ansi_tag + remaining_line_in[remaining_space - 1:].lstrip()
                 # remaining_line_in = leading_ansi_tag + remaining_line_in[remaining_space - 1:]
                 remaining_line_in = remaining_line_in[remaining_space - 1:]
-                # if not head.endswith(" ") and remaining_line_in:
-                #     head += "-"
-
-                head = ansistr(str(head) + "-")
+                if not head.endswith(" ") and len(remaining_line_in) > 0:
+                    head += "-"
 
                 log.d("--> cols: %d", cols)
                 log.d("--> alignment: %d", alignment)
