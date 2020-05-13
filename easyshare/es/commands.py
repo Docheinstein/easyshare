@@ -1334,8 +1334,8 @@ class Scan(CommandInfo, NoPargs):
 
     def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
-            (Scan.SHOW_SHARINGS_DETAILS, PRESENCE_PARAM),
-            (Scan.SHOW_ALL_DETAILS, PRESENCE_PARAM),
+            (self.SHOW_SHARINGS_DETAILS, PRESENCE_PARAM),
+            (self.SHOW_ALL_DETAILS, PRESENCE_PARAM),
         ]
 
     @classmethod
@@ -1400,7 +1400,7 @@ class ListSharings(RemoteServerCommandInfo, NoPargs):
 
     def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
-            (ListSharings.SHOW_DETAILS, PRESENCE_PARAM),
+            (self.SHOW_DETAILS, PRESENCE_PARAM),
         ]
 
     @classmethod
@@ -1456,7 +1456,7 @@ class Info(RemoteServerCommandInfo, NoPargs):
 
     def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
-            (Info.SHOW_SHARINGS_DETAILS, PRESENCE_PARAM),
+            (self.SHOW_SHARINGS_DETAILS, PRESENCE_PARAM),
         ]
 
     @classmethod
@@ -1539,6 +1539,60 @@ SHARINGS
   - tmp
 
 ================================"""
+
+
+# ============ PING ================
+
+
+class Ping(RemoteServerCommandInfo, NoPargs):
+    COUNT = ["-c", "--count"]
+
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
+        return [
+            (self.COUNT, PRESENCE_PARAM),
+        ]
+
+    @classmethod
+    def name(cls):
+        return "ping"
+
+    @classmethod
+    def short_description(cls):
+        return "test the connection with the remote server"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>ping</b> [<u>OPTION</u>]...
+<b>ping</b> [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]..."""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Test the connectivity with the server by sending an application-level message."""
+
+    @classmethod
+    def options(cls) -> List[CommandOptionInfo]:
+        return [
+            CommandOptionInfo(cls.COUNT, "stop after <u>count</u> messages", ["count"]),
+        ]
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> connect alice-arch
+<b>alice-arch</b> - <b>/tmp></b> <b>ping</b>
+[1] PONG from alice-arch (192.168.1.105:12020)  |  time=5.1ms
+[2] PONG from alice-arch (192.168.1.105:12020)  |  time=0.9ms
+...
+
+<b>/tmp></b> <b>ping</b> bob-debian -c 1
+[1] PONG from bob-debian (192.168.1.185:12020)  |  time=9.3ms
+
+<b>/tmp></b> <b>ping</b> 192.168.1.185 -c 1
+[1] PONG from bob-debian (192.168.1.185:12020)  |  time=10.3ms"""
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
 #     pass
@@ -1639,6 +1693,6 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LIST: ListSharings,
     Commands.INFO: Info,
     Commands.INFO_SHORT: Info,
-    # PING = "ping"
+    Commands.PING: Ping,
 }
 

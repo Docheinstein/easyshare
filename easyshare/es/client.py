@@ -19,7 +19,7 @@ from easyshare.es.connections import ServerConnection, SharingConnection, Server
 from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, print_error
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
-    sharings_to_pretty_str, server_info_to_pretty_str
+    sharings_to_pretty_str, server_info_to_pretty_str, server_info_to_short_str
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.esd.services import TransferService
 from easyshare.logging import get_logger
@@ -827,7 +827,11 @@ class Client:
             timer.stop()
 
             if is_data_response(resp) and resp.get("data") == "pong":
-                print("[{}] OK      time={:.1f}ms".format(i, timer.elapsed_ms()))
+                print("[{}] PONG from {}  |  time={:.1f}ms".format(
+                    i,
+                    server_info_to_short_str(server_conn.server_info),
+                    timer.elapsed_ms())
+                )
             else:
                 print("[{}] FAIL")
 
@@ -862,12 +866,9 @@ class Client:
             else:
                 s += "\n"
 
-
-            s += bold("{}. {} ({}:{})".format(
-                    servers_found + 1,
-                    server_info_full.get("name"),
-                    server_info_full.get("ip"),
-                    server_info_full.get("port"))) + "\n"
+            s += bold("{}. {}".format(
+                      servers_found + 1,
+                      server_info_to_short_str(server_info_full))) + "\n"
 
             if show_all_details:
                 s += "\n" + server_info_to_pretty_str(server_info_full,

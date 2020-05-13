@@ -207,6 +207,12 @@ def server_info_to_pretty_str(info: ServerInfoFull, sharing_details: bool = Fals
 
         return s
 
+def server_info_to_short_str(server_info: ServerInfoFull):
+    return "{} ({}:{})".format(
+        server_info.get("name"),
+        server_info.get("ip"),
+        server_info.get("port"))
+
 def sharings_to_pretty_str(sharings: List[SharingInfo],
                            details: bool = False,
                            indent: int = 0) -> str:
@@ -241,3 +247,4 @@ def sharings_to_pretty_str(sharings: List[SharingInfo],
             s += sharing_string(fsh)
 
     return s.rstrip("\n")
+
