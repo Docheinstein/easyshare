@@ -142,6 +142,8 @@ if __name__ == "__main__":
 def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> str: # HelpMarkDown
     if not cols:
         cols, rows = terminal_size()
+        cols -= 1 # For permit scrollbars of terminal emulators
+
 
     last_a_col = 0
     last_i = 0
@@ -232,10 +234,12 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
         })
 
         # Make an ansi aware string
-        line_in = leading_ansi_tag + line_in
+        line_in = ansistr(line_in)
+        # line_in = leading_ansi_tag + line_in
 
         if len(line_in) + last_i <= cols:
-            leading_ansi_tag = add_ansistr(line_in, indent=last_i)
+            # leading_ansi_tag = add_ansistr(line_in, indent=last_i)
+            add_ansistr(line_in, indent=last_i)
         else:
             log.d("-> breaking line since length %d > %d cols", len(line_in), cols)
 

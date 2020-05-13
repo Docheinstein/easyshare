@@ -7,6 +7,6 @@ SCRIPT_DIR="$(dirname "$0")"
 
 cd "$SCRIPT_DIR" || exit
 
-HELPS_FILE="../easyshare/helps.py"
+HELPS_FILE="../easyshare/res/helps.json"
 
 python make-helps.py | tee "$HELPS_FILE"

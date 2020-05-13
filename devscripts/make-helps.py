@@ -12,6 +12,7 @@ SCRIPT_PARENT_DIR, _ = os.path.split(SCRIPT_DIR)
 
 sys.path.append(SCRIPT_PARENT_DIR)
 
+from easyshare.utils.json import j
 from easyshare.utils.str import sorted_i
 from easyshare.es.commands import CommandInfo, COMMANDS_INFO
 
@@ -154,63 +155,6 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
 
     return s
 
-#
-#
-# #     s = f"""\
-# #     <A> # alignment
-# # <b>COMMAND</b>
-# # <I4>
-# # {info.name()} - {info.short_description()}
-# # </I4>
-#
-# <b>SYNOPSIS</b>
-# <I4>
-# {info.synopsis()}
-# </I4>"""
-#
-#     synopsis_extra = info.synopsis_extra()
-#     if synopsis_extra:
-#         s += """
-# sy
-# """
-#     s += """\
-# <b>DESCRIPTION</b>
-# <I4>
-# {info.long_description()}
-# </I4>"""
-#     # -- END BASE FORMAT --
-#
-#     # -- OPTIONS --
-#     options = info.options()
-#     if options:
-#         options_strings = []
-#         for option in info.options():
-#             aliases, option_desc = option
-#             options_strings.append("{}{}".format(", ".join(aliases).ljust(24), option_desc))
-#
-#         options_strings = sorted_i(options_strings)
-#         options_string = "\n".join(options_strings)
-#
-#         s += f"""
-#
-# <I4>
-# {options_string}
-# </I4>"""
-#     # -- END OPTIONS --
-#
-#     # -- EXAMPLES --
-#     examples = info.examples()
-#     if examples:
-#         s += f"""
-#
-# <b>EXAMPLES</b>
-# <I4>
-# {examples}
-# </I4>"""
-#
-#     # -- END EXAMPLES --
-#
-
 
 def generate_definition(name: str, value: str):
     return "{} = \"\"\"\\\n{}\"\"\"".format(
@@ -224,15 +168,10 @@ if __name__ == "__main__":
     cmd_helps += [(cmd_name, generate_command_help_markdown(cmd_info))
                  for cmd_name, cmd_info in COMMANDS_INFO.items()]
 
-    cmd_helps_defs = [generate_definition(cmd_name, cmd_md)
-                      for cmd_name, cmd_md in cmd_helps]
+    help_map = {}
 
-    print("# Automatically generated from {} on date {}".format(
-        __file__,
-        datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')),
-        end="\n\n"
-    )
+    for cmd_help in cmd_helps:
+        cmd_name, cmd_help_string = cmd_help
+        help_map[cmd_name] = cmd_help_string
 
-    for cmd_help_def in cmd_helps_defs:
-        print(cmd_help_def, end="\n\n")
-        print("# ============================================================", end="\n\n")
+    print(j(help_map))

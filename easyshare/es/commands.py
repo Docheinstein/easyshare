@@ -1260,8 +1260,8 @@ Usage example:
 f1      f2
 <b>/tmp></b> <b>exec</b> touch f3
 f1      f2      f3
-<b>/tmp></b> <b>:<b> echo "hello" > f3
-<b>/tmp></b> <b>:<b>cat f3
+<b>/tmp></b> <b>:</b> echo "hello" > f3
+<b>/tmp></b> <b>:</b>cat f3
 hello"""
 
     @classmethod
@@ -1305,7 +1305,7 @@ This might be useful for execute commands remotely, giving the client \
 a kind of easy and plug-and-play shell.
 
 The command can be run either with "<b>rexec</b> <u>COMMAND</u>",  \
-"<b>:</b> <u>COMMAND</u>" or "<b>:</b><u>COMMAND</u>"."""
+"<b>::</b> <u>COMMAND</u>" or "<b>::</b><u>COMMAND</u>"."""
 
     @classmethod
     def examples(cls):
@@ -1316,8 +1316,8 @@ Usage example:
 f1      f2
 <b>/tmp></b> <b>rexec</b> touch f3
 f1      f2      f3
-<b>/tmp></b> <b>::<b> echo "hello" > f3
-<b>/tmp></b> <b>::<b>cat f3
+<b>/tmp></b> <b>::</b> echo "hello" > f3
+<b>/tmp></b> <b>::</b>cat f3
 hello"""
 
     @classmethod
@@ -1389,8 +1389,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_MOVE: Mv,
     Commands.LOCAL_REMOVE: Rm,
     Commands.LOCAL_EXEC: Exec,
-    # LOCAL_EXEC_SHORT = SPECIAL_COMMAND_MARK
-    #
+    Commands.LOCAL_EXEC_SHORT: Exec,
+
     Commands.REMOTE_CURRENT_DIRECTORY: Rpwd,
     Commands.REMOTE_LIST_DIRECTORY: Rls,
     Commands.REMOTE_LIST_DIRECTORY_ENHANCED: Rl,
@@ -1401,7 +1401,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_MOVE: Rmv,
     Commands.REMOTE_REMOVE: Rrm,
     Commands.REMOTE_EXEC: Rexec,
-    # REMOTE_EXEC_SHORT = SPECIAL_COMMAND_MARK * 2
+    Commands.REMOTE_EXEC_SHORT: Rexec,
     #
     # SCAN = "scan"
     # SCAN_SHORT = "s"

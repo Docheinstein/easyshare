@@ -8,8 +8,9 @@ from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
 from Pyro5.errors import PyroError
 
-from easyshare import logging, helps
+from easyshare import logging, helps, res
 from easyshare.args import Args, ArgsParseError, VariadicArgs, OptIntArg, ArgsParser
+from easyshare.common import RESOURCES_PKG
 from easyshare.consts import ansi
 
 from easyshare.es.client import Client
@@ -22,9 +23,11 @@ from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
 from easyshare.utils.env import is_unicode_supported
 from easyshare.utils.hmd import help_markdown_pager
+from easyshare.utils.json import str_to_json
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.pyro.common import enable_pyro_logging, is_pyro_logging_enabled
+from easyshare.utils.resources import read_resource_string
 from easyshare.utils.types import is_bool, is_int, is_str, bool_to_str
 
 log = get_logger(__name__)
@@ -72,6 +75,8 @@ class Shell:
         self._shell_command_dispatcher[Commands.QUIT_SHORT] = self._shell_command_dispatcher[Commands.QUIT]
 
         self._prompt_local_remote_sep = "\u2014" if is_unicode_supported() else "-"
+
+        self._help_map = None
 
         rl.parse_and_bind("tab: complete")
         rl.parse_and_bind("set completion-query-items 50")
@@ -314,15 +319,24 @@ class Shell:
         return prompt
 
     def _help(self, args: Args) -> NoReturn:
+        if not self._help_map:
+            log.i("Loading helps map")
+            self._help_map = str_to_json(read_resource_string(RESOURCES_PKG, "helps.json"))
+
+        if not self._help_map:
+            eprint("Failed to load helps")
+            return
+
         cmd = args.get_varg()
         if not cmd:
-            cmd_help = helps.USAGE
+            cmd_help = self._help_map["usage"]
         else:
             # Show the help of cmd if found on helps.py
-            cmd_help = getattr(helps, cmd.upper(), None)
+            # cmd_help = getattr(helps, cmd.upper(), None)
+            cmd_help = self._help_map.get(cmd)
 
         if not cmd_help:
-            eprint("Help not found for command {}".format(cmd))
+            eprint("Can't find help for command '{}'".format(cmd))
             return
 
         # Pass the help to the available help (typically less)
