@@ -84,6 +84,7 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
     info_options = None
     info_synopsis_extra = info.synopsis_extra()
     info_examples = info.examples()
+    info_see_also = info.see_also()
 
     options = info.options()
     if options:
@@ -110,6 +111,7 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
     info_options = optional_section_string(info_options)
     info_synopsis_extra = optional_section_string(info_synopsis_extra)
     info_examples = optional_section_string(info_examples, False)
+    info_see_also = optional_section_string(info_see_also, False)
 
     s = f"""\
     <A> # paragraph alignment (4)
@@ -138,6 +140,16 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
 <b>EXAMPLES</b>
 <I4>
 {info_examples}\
+</I4>"""
+
+    if info_see_also:
+        if info_examples:
+            s += "\n"
+
+        s += f"""
+<b>SEE ALSO</b>
+<I4>
+{info_see_also}\
 </I4>"""
 
     return s

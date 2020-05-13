@@ -1,8 +1,8 @@
 import os
 import shlex
 import readline as rl
-import sys
 import traceback
+import pydoc
 
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
@@ -18,7 +18,6 @@ from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.es.errors import print_error, ClientErrors
 from easyshare.es.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
-from easyshare.styling import styled, fg, bold
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
 from easyshare.utils.env import is_unicode_supported
@@ -314,8 +313,7 @@ class Shell:
 
         return prompt
 
-    @staticmethod
-    def _help(args: Args) -> NoReturn:
+    def _help(self, args: Args) -> NoReturn:
         cmd = args.get_varg()
         if not cmd:
             cmd_help = helps.USAGE
@@ -327,7 +325,9 @@ class Shell:
             eprint("Help not found for command {}".format(cmd))
             return
 
-        print(help_markdown_pager(cmd_help), end="")
+        # Pass the help to the available help (typically less)
+        pydoc.pager(help_markdown_pager(cmd_help))
+
 
     @staticmethod
     def _exit(cls, _: Args) -> NoReturn:

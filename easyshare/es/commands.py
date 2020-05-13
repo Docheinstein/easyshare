@@ -175,6 +175,10 @@ class CommandInfo(ABC):
         return []
 
     @classmethod
+    def see_also(cls):
+        return None
+
+    @classmethod
     def custom(cls):
         return None
 
@@ -552,6 +556,10 @@ Show the name of current local working directory.
 
 The local working directory can be changed with the command <b>cd</b>."""
 
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rpwd</b>" for the remote analogous."""
+
 
 class Rpwd(RemoteSharingCommandInfo):
 
@@ -574,6 +582,9 @@ Show the name of current remote working directory.
 
 The remote working directory can be changed with the command <b>rcd</b>."""
 
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help pwd</b>" for the local analogous."""
 
 # ============ xLS ================
 
@@ -630,6 +641,10 @@ class Ls(BaseLsCommandInfo, ListLocalAllCommandInfo):
         return """\
 List content of the local <u>DIR</u> or the current local directory if no <u>DIR</u> is specified."""
 
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rls</b>" for the remote analogous."""
+
 class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
@@ -653,6 +668,9 @@ class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
         return f"""\
 List content of the remote <u>DIR</u> or the current remote directory if no <u>DIR</u> is specified."""
 
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help ls</b>" for the local analogous."""
 
 # ============ xL ================
 
@@ -729,6 +747,11 @@ class Tree(BaseTreeCommandInfo, ListLocalAllCommandInfo):
 List recursively, in a tree-like format, the local <u>DIR</u> or the current \
 local directory if no <u>DIR</u> is specified."""
 
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rtree</b>" for the remote analogous."""
+
+
 class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
@@ -751,7 +774,9 @@ class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandIn
 List recursively, in a tree-like format, the remote <u>DIR</u> or the current \
 remote directory if no <u>DIR</u> is specified"""
 
-
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help tree</b>" for the local analogous."""
 
 # ============ xCD ================
 
@@ -775,6 +800,11 @@ class Cd(CommandInfo):
         return """\
 Change the current local working directory to <u>DIR</u> or to the user's home \
 directory if <u>DIR</u> is not specified."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rcd</b>" for the remote analogous."""
+
 
 class Rcd(RemoteSharingCommandInfo):
 
@@ -809,6 +839,10 @@ Usage example:
 <b>/tmp - remote.shared:/dir/subdir></b> <b>rcd</b>
 <b>/tmp - remote.shared:/></b>"""
 
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help cd</b>" for the local analogous."""
+
 
 # ============ xMKDIR ================
 
@@ -835,6 +869,11 @@ Create the local directory <u>DIR</u>.
 Parent directories of <u>DIR</u> are automatically created when needed.
 
 If <u>DIR</u> already exists, it does nothing."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rmkdir</b>" for the remote analogous."""
+
 
 class Rmkdir(RemoteSharingCommandInfo):
 
@@ -871,6 +910,9 @@ Usage example:
 <b>/tmp - remote.shared:/></b> rcd newdir
 <b>/tmp - remote.shared:/newdir></b>"""
 
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help mkdir</b>" for the local analogous."""
 
 
 # ============ xCP ================
@@ -895,7 +937,7 @@ class Cp(CommandInfo):
     @classmethod
     def long_description(cls):
         return """\
-Copy <u>SOURCE</u> file or directory to <u>DEST</u>, \
+Copy local <u>SOURCE</u> file or directory to <u>DEST</u>, \
 or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the following \
@@ -906,6 +948,11 @@ rules are applied:
 
 If used with at least arguments as "<b>cp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
 be an existing directory and <u>SOURCE</u>s will be copied into it."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rcp</b>" for the remote analogous."""
+
 
 class Rcp(RemoteSharingCommandInfo):
 
@@ -928,7 +975,7 @@ class Rcp(RemoteSharingCommandInfo):
     @classmethod
     def long_description(cls):
         return """\
-Copy <u>SOURCE</u> file or directory to <u>DEST</u>, \
+Copy remote <u>SOURCE</u> file or directory to <u>DEST</u>, \
 or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>rcp</b> <u>SOURCE</u> <u>DEST</u>" the following \
@@ -965,6 +1012,13 @@ f1      f2
 ├── f1
 └── f2"""
 
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help cp</b>" for the local analogous."""
+
+
+
 # ============ xMV ================
 
 
@@ -987,7 +1041,7 @@ class Mv(CommandInfo):
     @classmethod
     def long_description(cls):
         return """\
-Move <u>SOURCE</u> file or directory to <u>DEST</u>, \
+Move local <u>SOURCE</u> file or directory to <u>DEST</u>, \
 or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>mv</b> <u>SOURCE</u> <u>DEST</u>" the following \
@@ -998,6 +1052,13 @@ rules are applied:
 
 If used with at least arguments as "<b>mv</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
 be an existing directory and <u>SOURCE</u>s will be moved into it."""
+
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rmv</b>" for the remote analogous."""
+
+
 
 class Rmv(RemoteSharingCommandInfo):
 
@@ -1020,7 +1081,7 @@ class Rmv(RemoteSharingCommandInfo):
     @classmethod
     def long_description(cls):
         return """\
-Move <u>SOURCE</u> file or directory to <u>DEST</u>, \
+Move remote <u>SOURCE</u> file or directory to <u>DEST</u>, \
 or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>rmv</b> <u>SOURCE</u> <u>DEST</u>" the following \
@@ -1054,6 +1115,101 @@ f2
 └── dir
     ├── f1
     └── f2"""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help mv</b>" for the local analogous."""
+
+
+# ============ xRM ================
+
+
+class Rm(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "rm"
+
+    @classmethod
+    def short_description(cls):
+        return "remove files and directories locally"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>rm</b> [FILE]..."""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Remove local <u>FILE</u>s.
+
+If a <u>FILE</u> is a directory, it will be removed recursively.
+
+If a <u>FILE</u> does not exists, it will be ignored.
+
+This commands never prompts: essentially acts like unix's rm -rf."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rrm</b>" for the remote analogous."""
+
+
+
+class Rrm(RemoteSharingCommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "rmv"
+
+    @classmethod
+    def short_description(cls):
+        return "remove files and directories remotely"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>rm</b> [FILE]...
+<b>rm</b> [<u>SHARING_LOCATION</u>] [FILE]..."""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Remove remote <u>FILE</u>s.
+
+If a <u>FILE</u> is a directory, it will be removed recursively.
+
+If a <u>FILE</u> does not exists, it will be ignored.
+
+This commands never prompts: essentially acts like unix's rm -rf."""
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> rls
+f1      f2
+<b>/tmp - remote.shared:/></b> <b>rrm</b> f2
+<b>/tmp - remote.shared:/></b> rls
+f1
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> rtree
+├── dir
+│   ├── f1
+│   └── f2
+└── f1
+<b>/tmp - remote.shared:/></b> <b>rrm</b> dir
+<b>/tmp - remote.shared:/></b> tree
+└── f1"""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rm</b>" for the local analogous."""
+
+
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
 #     pass
@@ -1116,7 +1272,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_CREATE_DIRECTORY: Mkdir,
     Commands.LOCAL_COPY: Cp,
     Commands.LOCAL_MOVE: Mv,
-    # LOCAL_REMOVE = "rm"
+    Commands.LOCAL_REMOVE: Rm,
     # LOCAL_EXEC = "exec"
     # LOCAL_EXEC_SHORT = SPECIAL_COMMAND_MARK
     #
@@ -1128,7 +1284,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_CREATE_DIRECTORY: Rmkdir,
     Commands.REMOTE_COPY: Rcp,
     Commands.REMOTE_MOVE: Rmv,
-    # REMOTE_REMOVE = "rrm"
+    Commands.REMOTE_REMOVE: Rrm,
     # REMOTE_EXEC = "rexec"
     # REMOTE_EXEC_SHORT = SPECIAL_COMMAND_MARK * 2
     #

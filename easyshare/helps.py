@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-13 09:00:38
+# Automatically generated from make-helps.py on date 2020-05-13 09:41:59
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -87,9 +87,11 @@ Available commands are:
     rcp
     rl
     rls
+    rm
     rmkdir
     rmv
     rpwd
+    rrm
     rtree
     t
     trace
@@ -136,9 +138,11 @@ Available commands are:
     rcp
     rl
     rls
+    rm
     rmkdir
     rmv
     rpwd
+    rrm
     rtree
     t
     trace
@@ -364,7 +368,11 @@ The local working directory can be changed with the command <b>cd</b>.
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
-"""
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help rpwd</b>" for the remote analogous.
+</I4>"""
 
 # ============================================================
 
@@ -393,7 +401,11 @@ List content of the local <u>DIR</u> or the current local directory if no <u>DIR
 <b>-S</b>                        show files size
 </I4>
     <A> # paragraph alignment (4)
-"""
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help rls</b>" for the remote analogous.
+</I4>"""
 
 # ============================================================
 
@@ -428,7 +440,11 @@ List recursively, in a tree-like format, the local <u>DIR</u> or the current loc
 <b>-S</b>                        show files size
 </I4>
     <A> # paragraph alignment (4)
-"""
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help rtree</b>" for the remote analogous.
+</I4>"""
 
 # ============================================================
 
@@ -450,7 +466,11 @@ Change the current local working directory to <u>DIR</u> or to the user's home d
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
-"""
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help rcd</b>" for the remote analogous.
+</I4>"""
 
 # ============================================================
 
@@ -476,7 +496,11 @@ If <u>DIR</u> already exists, it does nothing.
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
-"""
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help rmkdir</b>" for the remote analogous.
+</I4>"""
 
 # ============================================================
 
@@ -495,7 +519,7 @@ cp - copy files and directories locally
 
 <b>DESCRIPTION</b>
 <I4>
-Copy <u>SOURCE</u> file or directory to <u>DEST</u>, or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
+Copy local <u>SOURCE</u> file or directory to <u>DEST</u>, or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the following rules are applied:
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
@@ -506,7 +530,11 @@ If used with at least arguments as "<b>cp</b> <u>SOURCE</u>... <u>DIR</u>" then 
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
-"""
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help rcp</b>" for the remote analogous.
+</I4>"""
 
 # ============================================================
 
@@ -525,7 +553,7 @@ mv - move files and directories locally
 
 <b>DESCRIPTION</b>
 <I4>
-Move <u>SOURCE</u> file or directory to <u>DEST</u>, or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
+Move local <u>SOURCE</u> file or directory to <u>DEST</u>, or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>mv</b> <u>SOURCE</u> <u>DEST</u>" the following rules are applied:
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>.
@@ -536,7 +564,43 @@ If used with at least arguments as "<b>mv</b> <u>SOURCE</u>... <u>DIR</u>" then 
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
-"""
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help rmv</b>" for the remote analogous.
+</I4>"""
+
+# ============================================================
+
+RM = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+rm - remove files and directories locally
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+<b>rm</b> [FILE]...
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Remove local <u>FILE</u>s.
+
+If a <u>FILE</u> is a directory, it will be removed recursively.
+
+If a <u>FILE</u> does not exists, it will be ignored.
+
+This commands never prompts: essentially acts like unix's rm -rf.
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help rrm</b>" for the remote analogous.
+</I4>"""
 
 # ============================================================
 
@@ -564,7 +628,11 @@ The remote working directory can be changed with the command <b>rcd</b>.
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
-"""
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help pwd</b>" for the local analogous.
+</I4>"""
 
 # ============================================================
 
@@ -598,7 +666,11 @@ List content of the remote <u>DIR</u> or the current remote directory if no <u>D
 <b>-S</b>                        show files size
 </I4>
     <A> # paragraph alignment (4)
-"""
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help ls</b>" for the local analogous.
+</I4>"""
 
 # ============================================================
 
@@ -637,7 +709,11 @@ List recursively, in a tree-like format, the remote <u>DIR</u> or the current re
 <b>-S</b>                        show files size
 </I4>
     <A> # paragraph alignment (4)
-"""
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help tree</b>" for the local analogous.
+</I4>"""
 
 # ============================================================
 
@@ -674,6 +750,11 @@ Usage example:
 <b>/tmp - remote.shared:/dir></b> <b>rcd</b> subdir
 <b>/tmp - remote.shared:/dir/subdir></b> <b>rcd</b>
 <b>/tmp - remote.shared:/></b>
+</I4>
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help cd</b>" for the local analogous.
 </I4>"""
 
 # ============================================================
@@ -714,6 +795,11 @@ Usage example:
 <b>/tmp - remote.shared:/></b> <b>rmkdir</b> newdir
 <b>/tmp - remote.shared:/></b> rcd newdir
 <b>/tmp - remote.shared:/newdir></b>
+</I4>
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help mkdir</b>" for the local analogous.
 </I4>"""
 
 # ============================================================
@@ -739,7 +825,7 @@ Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> forma
 
 <b>DESCRIPTION</b>
 <I4>
-Copy <u>SOURCE</u> file or directory to <u>DEST</u>, or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
+Copy remote <u>SOURCE</u> file or directory to <u>DEST</u>, or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>rcp</b> <u>SOURCE</u> <u>DEST</u>" the following rules are applied:
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
@@ -774,6 +860,11 @@ f1      f2
 │   └── f2
 ├── f1
 └── f2
+</I4>
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help cp</b>" for the local analogous.
 </I4>"""
 
 # ============================================================
@@ -799,7 +890,7 @@ Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> forma
 
 <b>DESCRIPTION</b>
 <I4>
-Move <u>SOURCE</u> file or directory to <u>DEST</u>, or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
+Move remote <u>SOURCE</u> file or directory to <u>DEST</u>, or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>rmv</b> <u>SOURCE</u> <u>DEST</u>" the following rules are applied:
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>.
@@ -832,6 +923,70 @@ f2
 └── dir
     ├── f1
     └── f2
+</I4>
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help mv</b>" for the local analogous.
+</I4>"""
+
+# ============================================================
+
+RRM = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+rmv - remove files and directories remotely
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+<b>rm</b> [FILE]...
+<b>rm</b> [<u>SHARING_LOCATION</u>] [FILE]...
+
+SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
+
+Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format.
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Remove remote <u>FILE</u>s.
+
+If a <u>FILE</u> is a directory, it will be removed recursively.
+
+If a <u>FILE</u> does not exists, it will be ignored.
+
+This commands never prompts: essentially acts like unix's rm -rf.
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+
+<b>EXAMPLES</b>
+<I4>
+Usage example:
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> rls
+f1      f2
+<b>/tmp - remote.shared:/></b> <b>rrm</b> f2
+<b>/tmp - remote.shared:/></b> rls
+f1
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> rtree
+├── dir
+│   ├── f1
+│   └── f2
+└── f1
+<b>/tmp - remote.shared:/></b> <b>rrm</b> dir
+<b>/tmp - remote.shared:/></b> tree
+└── f1
+</I4>
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help rm</b>" for the local analogous.
 </I4>"""
 
 # ============================================================
