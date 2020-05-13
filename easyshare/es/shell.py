@@ -9,7 +9,7 @@ from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 from Pyro5.errors import PyroError
 
 from easyshare import logging
-from easyshare.args import Args, ArgsParseError, VariadicArgs, OptIntArg, ArgsParser
+from easyshare.args import Args, ArgsParseError, VariadicPargs, OptIntArg, ArgsParser
 from easyshare.common import RESOURCES_PKG
 from easyshare.consts import ansi
 
@@ -64,9 +64,9 @@ class Shell:
         self._shell_command_dispatcher: Dict[str, Tuple[ArgsParser, Callable[[Args], None]]] = {
             Commands.TRACE: (OptIntArg(), self._trace),
             Commands.VERBOSE: (OptIntArg(), self._verbose),
-            Commands.HELP: (VariadicArgs(), self._help),
-            Commands.EXIT: (VariadicArgs(), self._exit),
-            Commands.QUIT: (VariadicArgs(), self._exit),
+            Commands.HELP: (VariadicPargs(), self._help),
+            Commands.EXIT: (VariadicPargs(), self._exit),
+            Commands.QUIT: (VariadicPargs(), self._exit),
         }
 
         self._shell_command_dispatcher[Commands.TRACE_SHORT] = self._shell_command_dispatcher[Commands.TRACE]
@@ -327,7 +327,7 @@ class Shell:
             eprint("Failed to load helps")
             return
 
-        cmd = args.get_varg()
+        cmd = args.get_parg()
         if not cmd:
             cmd_help = self._help_map["usage"]
         else:
@@ -352,7 +352,7 @@ class Shell:
     @staticmethod
     def _trace(args: Args) -> Union[int, str]:
         # Toggle tracing if no parameter is provided
-        enable = args.get_varg(default=not is_tracing_enabled())
+        enable = args.get_parg(default=not is_tracing_enabled())
 
         log.i(">> TRACE (%d)", enable)
 
@@ -372,7 +372,7 @@ class Shell:
 
         current_verbosity = root_log.verbosity + is_pyro_logging_enabled()
 
-        verbosity = args.get_varg(
+        verbosity = args.get_parg(
             default=(current_verbosity + 1) % (logging.VERBOSITY_MAX + 2)
         )
 

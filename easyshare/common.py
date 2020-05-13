@@ -55,6 +55,8 @@ ENV_EASYSHARE_VERBOSITY = "EASYSHARE_VERBOSITY"
 DEFAULT_DISCOVER_PORT = 12019   # UDP
 DEFAULT_SERVER_PORT =   12020   # TCP
 
+DEFAULT_DISCOVER_TIMEOUT = 2    # sec
+
 def transfer_port(server_port: int):
     return server_port + 1
 

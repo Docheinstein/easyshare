@@ -33,7 +33,7 @@ class Params(ABC):
         )
 
 # aliases, params_spec
-KwArg = Tuple[Union[str, List[str]], Params]
+Kwarg = Tuple[Union[str, List[str]], Params]
 
 # class KwArgSpec:
 #     def __init__(self,
@@ -47,7 +47,7 @@ KwArg = Tuple[Union[str, List[str]], Params]
 class ArgType(Enum):
     KWARG = object()
     KWARG_PARAM = object()
-    VARG = object()
+    PARG = object()
 
 
 class Args:
@@ -66,16 +66,16 @@ class Args:
 
     # Positional arguments
 
-    def has_vargs(self) -> bool:
-        return True if self.get_vargs() is not None else False
+    def has_pargs(self) -> bool:
+        return True if self.get_pargs() is not None else False
 
-    def get_varg(self, default=None) -> Optional[Any]:
-        vargs = self.get_vargs()
-        if vargs:
-            return vargs[0]
+    def get_parg(self, default=None) -> Optional[Any]:
+        pargs = self.get_pargs()
+        if pargs:
+            return pargs[0]
         return default
 
-    def get_vargs(self, default=None) -> Optional[List[Any]]:
+    def get_pargs(self, default=None) -> Optional[List[Any]]:
         return self._parsed.get(None, default)
 
     # Keyword arguments
@@ -101,12 +101,12 @@ class Args:
 
     @staticmethod
     def parse(args: List[str], *,
-              vargs_spec: Params = None,
-              kwargs_specs: List[KwArg] = None,
+              pargs_spec: Params = None,
+              kwargs_specs: List[Kwarg] = None,
               continue_parsing_hook: Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]] = None) -> 'Args':
             # continue_parsing_hook: argname, argtype, idx, args, positionals
 
-        vargs_spec = vargs_spec or VARIADIC_PARAMS
+        pargs_spec = pargs_spec or VARIADIC_PARAMS
         kwargs_specs = kwargs_specs or []
         parsed = {}
         unparsed = []
@@ -114,7 +114,7 @@ class Args:
 
         ret = Args(parsed, unparsed)
 
-        def get_bucket(kw_arg_name: str) -> Tuple[Optional[List], Optional[KwArg]]:
+        def get_bucket(kw_arg_name: str) -> Tuple[Optional[List], Optional[Kwarg]]:
             nonlocal parsed
 
             log.d("get_bucket (%s)", kw_arg_name)
@@ -158,7 +158,7 @@ class Args:
                 if Args._is_long_kwarg(arg) or Args._is_kwarg(arg):
                     argtype = ArgType.KWARG
                 else:
-                    argtype = ArgType.VARG
+                    argtype = ArgType.PARG
 
                 if continue_parsing_hook:
                     cont = continue_parsing_hook(arg, argtype, cursor, ret, positionals)
@@ -174,7 +174,7 @@ class Args:
 
                 # The hook didn't block us, go on
 
-                # Check whether this is a kwarg or varg
+                # Check whether this is a kwarg or parg
 
                 if Args._is_long_kwarg(arg):
                     # Long format kwarg
@@ -225,9 +225,9 @@ class Args:
                         chain_idx += 1
 
                 else:
-                    # Positional varg
+                    # Positional parg
                     log.d("Considering '%s' as positional parameter", arg)
-                    # Add as it is (non parsed) for now, will parse all the vargs
+                    # Add as it is (non parsed) for now, will parse all the pargs
                     # at the end
                     positionals.append(arg)
 
@@ -240,7 +240,7 @@ class Args:
             positionals_count = Args._append_to_bucket(
                 positionals_bucket,
                 params=positionals,
-                params_spec=vargs_spec,
+                params_spec=pargs_spec,
             )
 
             if positionals_count != len(positionals):
@@ -275,7 +275,7 @@ class Args:
 
 
     @staticmethod
-    def _is_varg(s: str):
+    def _is_parg(s: str):
         return not Args._is_kwarg(s)
 
 
@@ -304,7 +304,7 @@ class Args:
 
         # Ensure that the params are allowed
         # (the check could be performed even by the params_parser; this
-        # is just an helper, for example for filter kwarg/varg)
+        # is just an helper, for example for filter kwarg/parg)
 
         while param_cursor < params_spec.mandatory_count:
             param = params[params_offset + param_cursor]
@@ -399,45 +399,46 @@ class ArgsParser:
     def parse(self, args: List[str]) -> Optional[Args]:
         return Args.parse(
             args=args,
-            vargs_spec=self.vargs_spec(),
+            pargs_spec=self.pargs_spec(),
             kwargs_specs=self.kwargs_specs(),
             continue_parsing_hook=self.continue_parsing_hook(),
         )
 
-    def vargs_spec(self) -> Optional[Params]:
+    def pargs_spec(self) -> Optional[Params]:
         return None
 
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return None
 
     def continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
         return None
 
 
-class VariadicArgs(ArgsParser):
-    def __init__(self, mandatory: int = 0):
-        self.mandatory = mandatory
-
-    def vargs_spec(self) -> Optional[Params]:
-        return NoopParams(self.mandatory, Params.VARIADIC_PARAMETERS_COUNT)
-
-
-class PositionalArgs(ArgsParser):
+class Pargs(ArgsParser):
     def __init__(self, mandatory: int, optional: int = 0):
         self.mandatory = mandatory
         self.optional = optional
 
-    def vargs_spec(self) -> Optional[Params]:
+    def pargs_spec(self) -> Optional[Params]:
         return NoopParams(self.mandatory, self.optional)
 
+class VariadicPargs(Pargs):
+    def __init__(self, mandatory: int = 0):
+        super().__init__(mandatory, Params.VARIADIC_PARAMETERS_COUNT)
 
-class IntArg(ArgsParser):
-    def vargs_spec(self) -> Optional[Params]:
+
+class NoPargs(Pargs):
+    def __init__(self):
+        super().__init__(0, 0)
+
+
+class IntParg(ArgsParser):
+    def pargs_spec(self) -> Optional[Params]:
         return INT_PARAM
 
 
 class OptIntArg(ArgsParser):
-    def vargs_spec(self) -> Optional[Params]:
+    def pargs_spec(self) -> Optional[Params]:
         return INT_PARAM_OPT
 
 
@@ -446,7 +447,7 @@ class StopParseArgs(ArgsParser):
         self.mandatory = mandatory
         self.stop_after = stop_after or mandatory
 
-    def vargs_spec(self) -> Optional[Params]:
+    def pargs_spec(self) -> Optional[Params]:
         return NoopParams(self.mandatory, 0)
 
     def continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
@@ -471,7 +472,7 @@ class StopParseArgs(ArgsParser):
 #
 #             print(args.get_kwarg_param("-v"))
 #             print(args.get_kwarg_param(["-t", "--trace"]))
-#             print(args.has_vargs())
-#             print(args.get_vargs())
+#             print(args.has_pargs())
+#             print(args.get_pargs())
 #
 #     main()

@@ -22,7 +22,7 @@ def sum2(a: int, b: int):
 
 def trace_request():
     caller_frame = inspect.stack()[1].frame
-    arg_names, vargs_names, kwargs_names, vals = inspect.getargvalues(caller_frame)
+    arg_names, pargs_names, kwargs_names, vals = inspect.getargvalues(caller_frame)
 
     print("caller_frame: ", caller_frame.f_code.co_name)
 

@@ -2,7 +2,7 @@ import os
 from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
-from easyshare.args import KwArg, PositionalArgs, PRESENCE_PARAM, INT_PARAM
+from easyshare.args import Kwarg, PRESENCE_PARAM, INT_PARAM, NoPargs, Pargs
 from easyshare.es.ui import StyledString
 from easyshare.logging import get_logger
 from easyshare.protocol import FileInfo
@@ -597,7 +597,7 @@ The remote working directory can be changed with the command <b>rcd</b>."""
 # ============ xLS ================
 
 
-class BaseLsCommandInfo(CommandInfo, ABC, PositionalArgs):
+class BaseLsCommandInfo(CommandInfo, ABC, Pargs):
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
@@ -605,6 +605,17 @@ class BaseLsCommandInfo(CommandInfo, ABC, PositionalArgs):
     SHOW_ALL = ["-a", "--all"]
     SHOW_DETAILS = ["-l"]
     SHOW_SIZE = ["-S"]
+
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
+        return [
+            (self.SORT_BY_SIZE, PRESENCE_PARAM),
+            (self.REVERSE, PRESENCE_PARAM),
+            (self.GROUP, PRESENCE_PARAM),
+            (self.SHOW_ALL, PRESENCE_PARAM),
+            (self.SHOW_DETAILS, PRESENCE_PARAM),
+            (self.SHOW_SIZE, PRESENCE_PARAM),
+        ]
+
 
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
@@ -616,17 +627,6 @@ class BaseLsCommandInfo(CommandInfo, ABC, PositionalArgs):
             CommandOptionInfo(cls.SHOW_SIZE, "show files size"),
             CommandOptionInfo(cls.SHOW_DETAILS, "show more details")
         ]
-
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
-        return [
-            (self.SORT_BY_SIZE, PRESENCE_PARAM),
-            (self.REVERSE, PRESENCE_PARAM),
-            (self.GROUP, PRESENCE_PARAM),
-            (self.SHOW_ALL, PRESENCE_PARAM),
-            (self.SHOW_DETAILS, PRESENCE_PARAM),
-            (self.SHOW_SIZE, PRESENCE_PARAM),
-        ]
-
 
 class Ls(BaseLsCommandInfo, ListLocalAllCommandInfo):
     def __init__(self, mandatory: int):
@@ -698,7 +698,7 @@ class Rl(CommandInfo):
 
 # ============ xTREE ================
 
-class BaseTreeCommandInfo(CommandInfo, ABC, PositionalArgs):
+class BaseTreeCommandInfo(CommandInfo, ABC, Pargs):
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
@@ -708,6 +708,17 @@ class BaseTreeCommandInfo(CommandInfo, ABC, PositionalArgs):
     SHOW_SIZE = ["-S"]
 
     MAX_DEPTH = ["-d", "--depth"]
+
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
+        return [
+            (self.SORT_BY_SIZE, PRESENCE_PARAM),
+            (self.REVERSE, PRESENCE_PARAM),
+            (self.GROUP, PRESENCE_PARAM),
+            (self.SHOW_ALL, PRESENCE_PARAM),
+            (self.SHOW_DETAILS, PRESENCE_PARAM),
+            (self.SHOW_SIZE, PRESENCE_PARAM),
+            (self.MAX_DEPTH, INT_PARAM),
+        ]
 
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
@@ -719,17 +730,6 @@ class BaseTreeCommandInfo(CommandInfo, ABC, PositionalArgs):
             CommandOptionInfo(cls.SHOW_SIZE, "show files size"),
             CommandOptionInfo(cls.SHOW_DETAILS, "show more details"),
             CommandOptionInfo(cls.MAX_DEPTH, "maximum display depth of tree", params=["depth"])
-        ]
-
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
-        return [
-            (self.SORT_BY_SIZE, PRESENCE_PARAM),
-            (self.REVERSE, PRESENCE_PARAM),
-            (self.GROUP, PRESENCE_PARAM),
-            (self.SHOW_ALL, PRESENCE_PARAM),
-            (self.SHOW_DETAILS, PRESENCE_PARAM),
-            (self.SHOW_SIZE, PRESENCE_PARAM),
-            (self.MAX_DEPTH, INT_PARAM),
         ]
 
 
@@ -1328,8 +1328,15 @@ hello"""
 # ============ SCAN ================
 
 
-class Scan(CommandInfo):
-    SHOW_DETAILS = ["-l"]
+class Scan(CommandInfo, NoPargs):
+    SHOW_SHARINGS_DETAILS = ["-l"]
+    SHOW_ALL_DETAILS = ["-L"]
+
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
+        return [
+            (Scan.SHOW_SHARINGS_DETAILS, PRESENCE_PARAM),
+            (Scan.SHOW_ALL_DETAILS, PRESENCE_PARAM),
+        ]
 
     @classmethod
     def name(cls):
@@ -1342,7 +1349,8 @@ class Scan(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>scan</b> [<u>OPTION</u>]..."""
+<b>scan</b> [<u>OPTION</u>]...
+<b>s</b> [<u>OPTION</u>]..."""
 
     @classmethod
     def long_description(cls):
@@ -1353,12 +1361,15 @@ of the sharings found.
 The discover is performed in broadcast in the network.
 
 The port on which the discover is performed is the one specified to \
-<b>es</b> via <b>-p</b> <u>port</u>, or the default one if not specified."""
+<b>es</b> via <b>-d</b> <u>port</u>, or the default one if not specified.
+
+Only details about the sharings are shown, unless <b>-L</b> is given."""
 
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionInfo(cls.SHOW_DETAILS, "show more details"),
+            CommandOptionInfo(cls.SHOW_SHARINGS_DETAILS, "show more details of sharing"),
+            CommandOptionInfo(cls.SHOW_ALL_DETAILS, "show more details of both servers and sharings"),
         ]
 
     @classmethod
@@ -1376,7 +1387,6 @@ Usage example:
   - music
   FILES
   - README.txt"""
-
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
 #     pass
@@ -1456,8 +1466,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_EXEC_SHORT: Rexec,
 
     Commands.SCAN: Scan,
+    Commands.SCAN_SHORT: Scan,
 
-    # SCAN_SHORT = "s"
     # LIST = "list"
     #
     # CONNECT = "connect"

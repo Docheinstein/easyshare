@@ -12,9 +12,8 @@ from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, cast
 from Pyro5.errors import PyroError
 
 from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR
-from easyshare.consts import ansi
 from easyshare.endpoint import Endpoint
-from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls
+from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan
 from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connections import ServerConnection, SharingConnection, ServerConnectionMinimal
 from easyshare.es.discover import Discoverer
@@ -32,7 +31,7 @@ from easyshare.protocol import Response, is_error_response, is_success_response,
 from easyshare.protocol import ServerInfoFull, ServerInfo
 from easyshare.protocol import SharingInfo
 from easyshare.progress import FileProgressor
-from easyshare.styling import styled, red
+from easyshare.styling import styled, red, bold
 from easyshare.timer import Timer
 from easyshare.ssl import get_ssl_context
 from easyshare.sockets import SocketTcpOut
@@ -44,8 +43,8 @@ from easyshare.utils.str import unprefix
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, relpath
-from easyshare.args import Args as Args, KwArg, INT_PARAM, PRESENCE_PARAM, ArgsParseError, PositionalArgs, \
-    VariadicArgs, ArgsParser, StopParseArgs
+from easyshare.args import Args as Args, Kwarg, INT_PARAM, PRESENCE_PARAM, ArgsParseError, Pargs, \
+    VariadicPargs, ArgsParser, StopParseArgs
 
 log = get_logger(__name__)
 
@@ -54,7 +53,7 @@ log = get_logger(__name__)
 
 
 
-class TreeArgs(PositionalArgs):
+class TreeArgs(Pargs):
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
@@ -68,7 +67,7 @@ class TreeArgs(PositionalArgs):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
             (TreeArgs.SORT_BY_SIZE, PRESENCE_PARAM),
             (TreeArgs.REVERSE, PRESENCE_PARAM),
@@ -80,49 +79,49 @@ class TreeArgs(PositionalArgs):
         ]
 
 
-class ScanArgs(PositionalArgs):
+class ScanArgs(Pargs):
     SHOW_DETAILS = ["-l"]
 
     def __init__(self):
         super().__init__(0, 0)
 
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
             (ScanArgs.SHOW_DETAILS, PRESENCE_PARAM),
         ]
 
 
-class ListArgs(PositionalArgs):
+class ListArgs(Pargs):
     SHOW_DETAILS = ["-l"]
 
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 0)
 
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
             (ListArgs.SHOW_DETAILS, PRESENCE_PARAM),
         ]
 
 
-class PingArgs(PositionalArgs):
+class PingArgs(Pargs):
     COUNT = ["-c", "--count"]
 
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 0)
 
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
             (PingArgs.COUNT, INT_PARAM),
         ]
 
-class GetArgs(VariadicArgs):
+class GetArgs(VariadicPargs):
     OVERWRITE_YES = ["-y", "--yes"]
     OVERWRITE_NO = ["-n", "--no"]
     OVERWRITE_NEWER = ["-N", "--newer"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
 
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
             (GetArgs.OVERWRITE_YES, PRESENCE_PARAM),
             (GetArgs.OVERWRITE_NO, PRESENCE_PARAM),
@@ -131,7 +130,7 @@ class GetArgs(VariadicArgs):
             (GetArgs.QUIET, PRESENCE_PARAM),
         ]
 
-class PutArgs(VariadicArgs):
+class PutArgs(VariadicPargs):
     OVERWRITE_YES = ["-y", "--yes"]
     OVERWRITE_NO = ["-n", "--no"]
     OVERWRITE_NEWER = ["-N", "--newer"]
@@ -140,7 +139,7 @@ class PutArgs(VariadicArgs):
     QUIET = ["-q", "--quiet"]
 
 
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
             (PutArgs.OVERWRITE_YES, PRESENCE_PARAM),
             (PutArgs.OVERWRITE_NO, PRESENCE_PARAM),
@@ -256,12 +255,13 @@ class BadOutcome(Exception):
 
 class Client:
 
-    def __init__(self, discover_port: int):
+    def __init__(self, discover_port: int, discover_timeout: int):
         # self.connection: Optional[Connection] = None
         self.server_connection: Optional[ServerConnection] = None
         self.sharing_connection: Optional[SharingConnection] = None
 
         self._discover_port = discover_port
+        self._discover_timeout = discover_timeout
 
 
         def LOCAL(parser: ArgsParser) -> ArgsParser:
@@ -296,7 +296,7 @@ class Client:
 
             Commands.LOCAL_CHANGE_DIRECTORY: (
                 LOCAL,
-                [PositionalArgs(0, 1)],
+                [Pargs(0, 1)],
                 Client.cd),
             Commands.LOCAL_LIST_DIRECTORY: (
                 LOCAL,
@@ -304,7 +304,7 @@ class Client:
                 Client.ls),
             Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (
                 LOCAL,
-                [PositionalArgs(0, 1)],
+                [Pargs(0, 1)],
                 Client.l),
             Commands.LOCAL_TREE_DIRECTORY: (
                 LOCAL,
@@ -312,23 +312,23 @@ class Client:
                 Client.tree),
             Commands.LOCAL_CREATE_DIRECTORY: (
                 LOCAL,
-                [PositionalArgs(1)],
+                [Pargs(1)],
                 Client.mkdir),
             Commands.LOCAL_CURRENT_DIRECTORY: (
                 LOCAL,
-                [PositionalArgs(0)],
+                [Pargs(0)],
                 Client.pwd),
             Commands.LOCAL_REMOVE: (
                 LOCAL,
-                [VariadicArgs(1)],
+                [VariadicPargs(1)],
                 Client.rm),
             Commands.LOCAL_MOVE: (
                 LOCAL,
-                [VariadicArgs(2)],
+                [VariadicPargs(2)],
                 Client.mv),
             Commands.LOCAL_COPY: (
                 LOCAL,
-                [VariadicArgs(2)],
+                [VariadicPargs(2)],
                 Client.cp),
             Commands.LOCAL_EXEC: (
                 LOCAL,
@@ -337,7 +337,7 @@ class Client:
 
             Commands.REMOTE_CHANGE_DIRECTORY: (
                 SHARING,
-                [PositionalArgs(0, 1), PositionalArgs(1, 1)],
+                [Pargs(0, 1), Pargs(1, 1)],
                 self.rcd),
             Commands.REMOTE_LIST_DIRECTORY: (
                 SHARING,
@@ -345,7 +345,7 @@ class Client:
                 self.rls),
             Commands.REMOTE_LIST_DIRECTORY_ENHANCED: (
                 SHARING,
-                [PositionalArgs(0, 1), PositionalArgs(1, 1)],
+                [Pargs(0, 1), Pargs(1, 1)],
                 self.rl),
             Commands.REMOTE_TREE_DIRECTORY: (
                 SHARING,
@@ -353,23 +353,23 @@ class Client:
                 self.rtree),
             Commands.REMOTE_CREATE_DIRECTORY: (
                 SHARING,
-                [PositionalArgs(1), PositionalArgs(2)],
+                [Pargs(1), Pargs(2)],
                 self.rmkdir),
             Commands.REMOTE_CURRENT_DIRECTORY: (
                 SHARING,
-                [PositionalArgs(0), PositionalArgs(1)],
+                [Pargs(0), Pargs(1)],
                 self.rpwd),
             Commands.REMOTE_REMOVE: (
                 SHARING,
-                [VariadicArgs(1), VariadicArgs(2)],
+                [VariadicPargs(1), VariadicPargs(2)],
                 self.rrm),
             Commands.REMOTE_MOVE: (
                 SHARING,
-                [VariadicArgs(2), VariadicArgs(3)],
+                [VariadicPargs(2), VariadicPargs(3)],
                 self.rmv),
             Commands.REMOTE_COPY: (
                 SHARING,
-                [VariadicArgs(2), VariadicArgs(3)],
+                [VariadicPargs(2), VariadicPargs(3)],
                 self.rcp),
             Commands.REMOTE_EXEC: (
                 SERVER,
@@ -389,12 +389,12 @@ class Client:
 
             Commands.SCAN: (
                 LOCAL,
-                [ScanArgs()],
+                [Scan()],
                 self.scan),
 
             Commands.INFO: (
                 SERVER,
-                [PositionalArgs(0, 1), PositionalArgs(1, 0)],
+                [Pargs(0, 1), Pargs(1, 0)],
                 self.info),
 
             Commands.LIST: (
@@ -404,20 +404,20 @@ class Client:
 
             Commands.CONNECT: (
                 SERVER,
-                [PositionalArgs(1), PositionalArgs(1)],
+                [Pargs(1), Pargs(1)],
                 self.connect),
             Commands.DISCONNECT: (
                 SERVER,
-                [PositionalArgs(0), PositionalArgs(1)],
+                [Pargs(0), Pargs(1)],
                 self.disconnect),
 
             Commands.OPEN: (
                 SERVER,
-                [PositionalArgs(1), PositionalArgs(1)],
+                [Pargs(1), Pargs(1)],
                 self.open),
             Commands.CLOSE: (
                 SHARING,
-                [PositionalArgs(0), PositionalArgs(1)],
+                [Pargs(0), Pargs(1)],
                 self.close),
 
             Commands.PING: (
@@ -505,7 +505,7 @@ class Client:
 
     @staticmethod
     def cd(args: Args, _, _2):
-        directory = pathify(args.get_varg(default="~"))
+        directory = pathify(args.get_parg(default="~"))
 
         log.i(">> CD %s", directory)
 
@@ -544,7 +544,7 @@ class Client:
 
     @staticmethod
     def mkdir(args: Args, _, _2):
-        directory = pathify(args.get_varg())
+        directory = pathify(args.get_parg())
 
         if not directory:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -561,7 +561,7 @@ class Client:
 
     @staticmethod
     def rm(args: Args, _, _2):
-        paths = [pathify(p) for p in args.get_vargs()]
+        paths = [pathify(p) for p in args.get_pargs()]
 
         if not paths:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -581,7 +581,7 @@ class Client:
 
     @staticmethod
     def exec(args: Args, _, _2):
-        popen_cmd = args.get_vargs(default=[])
+        popen_cmd = args.get_pargs(default=[])
         popen_cmd_args = args.get_unparsed_args(default=[])
         popen_full_command = " ".join(popen_cmd + popen_cmd_args)
 
@@ -600,7 +600,7 @@ class Client:
     def connect(self, args: Args, _1, _2):
         log.i(">> CONNECT")
 
-        server_location = ServerLocation.parse(args.get_varg())
+        server_location = ServerLocation.parse(args.get_parg())
 
         # Just in case check whether we already connected to the right one
         if self.is_connected_to_server():
@@ -613,7 +613,7 @@ class Client:
 
         # Actually create the connection
         new_server_conn = self._create_server_connection_from_server_location(
-            ServerLocation.parse(args.get_varg()),
+            ServerLocation.parse(args.get_parg()),
             connect=True
         )
 
@@ -648,7 +648,7 @@ class Client:
 
         # Check whether we are connected to a esd which owns the
         # sharing we are looking for, otherwise performs a scan
-        sharing_location = SharingLocation.parse(args.get_varg())
+        sharing_location = SharingLocation.parse(args.get_parg())
 
         if not sharing_location:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -839,11 +839,14 @@ class Client:
     # =================================================
 
     def scan(self, args: Args, _, _2):
-        show_details = ScanArgs.SHOW_DETAILS in args
+
+        show_sharings_details = Scan.SHOW_SHARINGS_DETAILS in args
+        show_all_details = Scan.SHOW_ALL_DETAILS in args
 
         log.i(">> SCAN")
 
         servers_found = 0
+        SEP = "========================================"
 
         def response_handler(client: Endpoint,
                              server_info_full: ServerInfoFull) -> bool:
@@ -859,13 +862,19 @@ class Client:
             else:
                 s += "\n"
 
-            s += styled("{} ({}:{})".format(
+
+            s += bold("{}. {} ({}:{})".format(
+                    servers_found + 1,
                     server_info_full.get("name"),
                     server_info_full.get("ip"),
-                    server_info_full.get("port")), attrs=ansi.ATTR_BOLD) + "\n"
+                    server_info_full.get("port"))) + "\n"
 
-            s += sharings_to_pretty_str(server_info_full.get("sharings"),
-                                        details=show_details)
+            if show_all_details:
+                s += "\n" + server_info_to_pretty_str(server_info_full,
+                                                      sharing_details=True) + "\n" + SEP
+            else:
+                s += sharings_to_pretty_str(server_info_full.get("sharings"),
+                                            details=show_sharings_details)
 
             print(s)
 
@@ -874,7 +883,8 @@ class Client:
             return True     # Continue DISCOVER
 
         Discoverer(
-            server_discover_port=self._discover_port,
+            discover_port=self._discover_port,
+            discover_timeout=self._discover_timeout,
             response_handler=response_handler).discover()
 
         log.i("======================")
@@ -884,7 +894,8 @@ class Client:
         if not server_conn:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        print(server_info_to_pretty_str(server_conn.server_info))
+        print(server_info_to_pretty_str(server_conn.server_info,
+                                        separators=True))
 
     @provide_server_connection
     def list(self, args: Args, server_conn: ServerConnection, _):
@@ -938,7 +949,7 @@ class Client:
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        directory = args.get_varg(default="/")
+        directory = args.get_parg(default="/")
 
         log.i(">> RCD %s", directory)
 
@@ -983,7 +994,7 @@ class Client:
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        directory = args.get_varg()
+        directory = args.get_parg()
 
         if not directory:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -998,7 +1009,7 @@ class Client:
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        paths = args.get_vargs()
+        paths = args.get_pargs()
 
         if not paths:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -1033,7 +1044,7 @@ class Client:
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        files = args.get_vargs()
+        files = args.get_pargs()
 
         do_check = PutArgs.CHECK in args
         quiet = PutArgs.QUIET in args
@@ -1286,7 +1297,7 @@ class Client:
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        files = args.get_vargs()
+        files = args.get_pargs()
         sendfiles: List[dict] = []
 
         if len(files) == 0:
@@ -1597,7 +1608,7 @@ class Client:
             data_provider: Callable[..., Optional[List[FileInfo]]],
             data_provider_name: str = "LS"):
 
-        path = args.get_varg()
+        path = args.get_parg()
         reverse = Ls.REVERSE in args
         show_hidden = Ls.SHOW_ALL in args
 
@@ -1630,7 +1641,7 @@ class Client:
               data_provider: Callable[..., Optional[FileInfoTreeNode]],
               data_provider_name: str = "TREE"):
 
-        path = args.get_varg()
+        path = args.get_parg()
         reverse = TreeArgs.REVERSE in args
         show_hidden = TreeArgs.SHOW_ALL in args
         max_depth = args.get_kwarg_param(TreeArgs.MAX_DEPTH, default=None)
@@ -1683,7 +1694,7 @@ class Client:
                 C2  If <dest> doesn't exist => ERROR
 
                 """
-        mvcp_args = [pathify(f) for f in args.get_vargs()]
+        mvcp_args = [pathify(f) for f in args.get_pargs()]
 
         if not mvcp_args or len(mvcp_args) < 2:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -1720,7 +1731,7 @@ class Client:
     def _rmvcp(args: Args,
                api: Callable[[List[str], str], Response],
                api_name: str = "RMV/RCP"):
-        paths = args.get_vargs()
+        paths = args.get_pargs()
 
         if not paths:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -1752,12 +1763,12 @@ class Client:
         # Create temporary connection
         log.i("No established sharing connection; creating a new one")
 
-        vargs = args.get_vargs()
+        pargs = args.get_pargs()
 
-        if not vargs:
+        if not pargs:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        sharing_location = SharingLocation.parse(vargs.pop(0))
+        sharing_location = SharingLocation.parse(pargs.pop(0))
         return self._create_sharing_connection_from_sharing_location(sharing_location)
 
 
@@ -1771,12 +1782,12 @@ class Client:
         # Create temporary connection
         log.i("No established esd connection; creating a new one")
 
-        vargs = args.get_vargs()
+        pargs = args.get_pargs()
 
-        if not vargs:
+        if not pargs:
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        server_location = ServerLocation.parse(vargs.pop(0))
+        server_location = ServerLocation.parse(pargs.pop(0))
         return self._create_server_connection_from_server_location(
             server_location, connect=connect)
 
@@ -2038,8 +2049,9 @@ class Client:
             return True         # Continue DISCOVER
 
         Discoverer(
-            server_discover_port=self._discover_port,
-            server_discover_addr=server_ip or ADDR_BROADCAST,
+            discover_port=self._discover_port,
+            discover_addr=server_ip or ADDR_BROADCAST,
+            discover_timeout=self._discover_timeout,
             response_handler=response_handler).discover()
 
         return server_info

@@ -167,12 +167,12 @@ def ssl_certificate_to_pretty_str(ssl_cert: SSLCertificate) -> str:
         "Signing:            {}".format("signed" if ssl_cert.get("self_signed") else "self signed (insecure)")
 
 
-def server_info_to_pretty_str(info: ServerInfoFull) -> str:
+def server_info_to_pretty_str(info: ServerInfoFull, sharing_details: bool = False, separators: bool = False) -> str:
         SEP = "================================"
 
-        SEP_FIRST = SEP + "\n\n"
-        SEP_MID = "\n" + SEP + "\n\n"
-        SEP_LAST = "\n" + SEP
+        SEP_FIRST = (SEP + "\n\n") if separators else ""
+        SEP_MID = ("\n" + SEP + "\n\n") if separators else "\n"
+        SEP_LAST = ("\n" + SEP) if separators else ""
 
         # Server info
         s = SEP_FIRST + \
@@ -200,7 +200,7 @@ def server_info_to_pretty_str(info: ServerInfoFull) -> str:
         # Sharings
         s += \
             styled("SHARINGS", attrs=ansi.ATTR_BOLD) + "\n\n" + \
-            sharings_to_pretty_str(info.get("sharings"), details=True) + "\n" + \
+            sharings_to_pretty_str(info.get("sharings"), details=sharing_details) + "\n" + \
             SEP_LAST
 
         return s

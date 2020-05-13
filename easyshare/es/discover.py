@@ -17,19 +17,19 @@ log = get_logger(__name__)
 
 class Discoverer:
 
-    DEFAULT_TIMEOUT = 2
-
     def __init__(
             self, *,
-            server_discover_port: int,
+            discover_port: int,
+            discover_timeout: int,
             response_handler: Callable[[Endpoint, ServerInfoFull], bool],
-            server_discover_addr: str = ADDR_BROADCAST):
+            discover_addr: str = ADDR_BROADCAST):
 
-        self.server_discover_addr = server_discover_addr
-        self.server_discover_port = server_discover_port
-        self.response_handler = response_handler
+        self._discover_addr = discover_addr
+        self._discover_port = discover_port
+        self._discover_timeout = discover_timeout
+        self._response_handler = response_handler
 
-    def discover(self, timeout: float = DEFAULT_TIMEOUT):
+    def discover(self):
         # Listening socket
         in_sock = SocketUdpIn()
 
@@ -38,19 +38,19 @@ class Discoverer:
         # Send discover
         discover_message_raw = in_sock.port()
         discover_message = int_to_bytes(discover_message_raw, 2)
-        out_sock = SocketUdpOut(broadcast=self.server_discover_addr == ADDR_BROADCAST)
+        out_sock = SocketUdpOut(broadcast=self._discover_addr == ADDR_BROADCAST)
 
         log.i("Sending DISCOVER to %s:%d",
-              self.server_discover_addr,
-              self.server_discover_port)
+              self._discover_addr,
+              self._discover_port)
 
         trace_out(
             "DISCOVER {} ({})".format(str(discover_message), discover_message_raw),
-            ip=self.server_discover_addr,
-            port=self.server_discover_port
+            ip=self._discover_addr,
+            port=self._discover_port
         )
 
-        out_sock.send(discover_message, self.server_discover_addr, self.server_discover_port)
+        out_sock.send(discover_message, self._discover_addr, self._discover_port)
 
         # Listen
         discover_start_time = datetime.now()
@@ -58,11 +58,11 @@ class Discoverer:
         while True:
             # Calculate remaining time
             remaining_seconds = \
-                timeout - (datetime.now() - discover_start_time).total_seconds()
+                self._discover_timeout - (datetime.now() - discover_start_time).total_seconds()
 
             if remaining_seconds < 0:
                 # No more time to wait
-                log.i("DISCOVER timeout elapsed (%.3f)", timeout)
+                log.i("DISCOVER timeout elapsed (%.3f)", self._discover_timeout)
                 break
 
             log.i("Waiting for %.3f seconds...", remaining_seconds)
@@ -91,7 +91,7 @@ class Discoverer:
                 continue
 
             # Dispatch the response and check whether go on on listening
-            go_ahead = self.response_handler(endpoint, resp.get("data"))
+            go_ahead = self._response_handler(endpoint, resp.get("data"))
 
             if not go_ahead:
                 log.d("Stopping DISCOVER since handle_discover_response_callback returned false")

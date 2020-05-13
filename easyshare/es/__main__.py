@@ -7,7 +7,8 @@ from easyshare.es.commands import Commands, is_special_command
 from easyshare.es.errors import errcode_string
 from easyshare.es.shell import Shell
 from easyshare.logging import get_logger
-from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup, APP_INFO
+from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup, APP_INFO, \
+    DEFAULT_DISCOVER_TIMEOUT
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.styling import enable_colors
@@ -16,7 +17,7 @@ from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
 from easyshare.utils.pyro.common import enable_pyro_logging
 from easyshare.utils.types import is_int, is_str
-from easyshare.args import Args as Args, KwArg, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, \
+from easyshare.args import Args as Args, Kwarg, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, \
     ArgsParseError, ArgType, ArgsParser, ActionParam
 
 log = get_logger(__name__)
@@ -44,24 +45,26 @@ class EsArgs(ArgsParser):
     VERSION =       ["-V", "--version"]
 
     DISCOVER_PORT = ["-d", "--discover-port"]
+    DISCOVER_TIMEOUT = ["-w", "--discover-wait"]
 
     VERBOSE =       ["-v", "--verbose"]
     TRACE =         ["-t", "--trace"]
 
     NO_COLOR =      ["--no-color"]
 
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
             (EsArgs.HELP, ActionParam(lambda _: terminate("help"))),
             (EsArgs.VERSION, ActionParam(lambda _: terminate(APP_INFO))),
             (EsArgs.DISCOVER_PORT, INT_PARAM),
+            (EsArgs.DISCOVER_TIMEOUT, INT_PARAM),
             (EsArgs.VERBOSE, INT_PARAM_OPT),
             (EsArgs.TRACE, INT_PARAM_OPT),
             (EsArgs.NO_COLOR, PRESENCE_PARAM),
         ]
 
     def continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
-        return lambda argname, argtype, idx, args, positionals: argtype != ArgType.VARG
+        return lambda argname, argtype, idx, args, positionals: argtype != ArgType.PARG
 
 # ==================================================================
 
@@ -93,6 +96,7 @@ def main():
     tracing = 0
     no_colors = False
     discover_port = DEFAULT_DISCOVER_PORT
+    discover_timeout = DEFAULT_DISCOVER_TIMEOUT
 
 
     # Colors
@@ -123,6 +127,12 @@ def main():
         default=discover_port
     )
 
+    # Discover port
+    discover_timeout = args.get_kwarg_param(
+        EsArgs.DISCOVER_TIMEOUT,
+        default=discover_timeout
+    )
+
     # Validation
 
     # - ports
@@ -149,7 +159,8 @@ def main():
 
 
     # Initialize the client
-    client = Client(discover_port=discover_port)
+    client = Client(discover_port=discover_port,
+                    discover_timeout=discover_timeout)
 
     # Initialize the shell as well
     shell = Shell(client)
@@ -160,12 +171,12 @@ def main():
     start_shell = True
 
     # 1. Run a command directly from the cli ?
-    vargs = args.get_unparsed_args()
-    command = vargs[0] if vargs else None
+    pargs = args.get_unparsed_args()
+    command = pargs[0] if pargs else None
     if command:
         if command in CLI_COMMANDS or is_special_command(command):
             log.i("Found a valid CLI command '%s'", command)
-            command_args = vargs[1:]
+            command_args = pargs[1:]
 
             outcome = None
 

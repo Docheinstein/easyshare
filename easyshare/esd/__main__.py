@@ -5,8 +5,8 @@ from typing import List, Optional
 from easyshare.esd.common import Sharing
 
 from easyshare import logging
-from easyshare.args import KwArg, Params, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
-    PositionalArgs, ArgsParser, ActionParam
+from easyshare.args import Kwarg, Params, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
+    Pargs, ArgsParser, ActionParam
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.logging import get_logger
 from easyshare.auth import AuthFactory
@@ -35,13 +35,13 @@ HELP_APP = """easyshare deamon (esd)
 
 # === ARGUMENTS ===
 
-class SharingArgs(PositionalArgs):
+class SharingArgs(Pargs):
     READ_ONLY = ["-r", "--read-only"]
 
     def __init__(self):
         super().__init__(1, 1)
 
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
             (SharingArgs.READ_ONLY, PRESENCE_PARAM),
         ]
@@ -66,7 +66,7 @@ class EsdArgs(ArgsParser):
     TRACE =     ["-t", "--trace"]
     NO_COLOR =  ["--no-color"]
 
-    def kwargs_specs(self) -> Optional[List[KwArg]]:
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
             (EsdArgs.HELP, ActionParam(lambda _: terminate("help"))),
             (EsdArgs.VERSION, ActionParam(lambda _: terminate("version"))),
@@ -90,7 +90,7 @@ class EsdArgs(ArgsParser):
         ]
 
     # def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
-    #     return lambda argname, argtype, idx, args, positionals: argtype != ArgType.VARG
+    #     return lambda argname, argtype, idx, args, positionals: argtype != ArgType.PARG
 
 class EsdConfKeys:
     G_NAME = "name"
@@ -387,25 +387,25 @@ def main():
 
     # Parse sharing arguments (only a sharing is allowed in the cli)
 
-    vargs = g_args.get_vargs()
-    if vargs:
-        log.d("Found %d positional args: considering those sharing args", len(vargs))
+    pargs = g_args.get_pargs()
+    if pargs:
+        log.d("Found %d positional args: considering those sharing args", len(pargs))
 
         s_args = None
 
         try:
-            s_args = SharingArgs().parse(vargs)
+            s_args = SharingArgs().parse(pargs)
         except ArgsParseError as err:
             log.exception("Exception occurred while parsing args")
             abort("Parse of sharing arguments failed: {}".format(str(err)))
 
-        s_vargs = s_args.get_vargs()
+        s_pargs = s_args.get_pargs()
 
-        log.d("Sharing len(args): %d", len(s_vargs))
+        log.d("Sharing len(args): %d", len(s_pargs))
 
-        if s_vargs: # should always be valid actually
-            s_path = s_vargs[0]
-            s_name = s_vargs[1] if len(s_vargs) >= 2 else None
+        if s_pargs: # should always be valid actually
+            s_path = s_pargs[0]
+            s_name = s_pargs[1] if len(s_pargs) >= 2 else None
             s_readonly = s_args.get_kwarg_param(SharingArgs.READ_ONLY,
                                                 default=False)
 
