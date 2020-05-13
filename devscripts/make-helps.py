@@ -15,6 +15,7 @@ sys.path.append(SCRIPT_PARENT_DIR)
 from easyshare.utils.json import j
 from easyshare.utils.str import sorted_i
 from easyshare.es.commands import CommandInfo, COMMANDS_INFO
+from easyshare.utils.app import eprint
 
 
 USAGE = """\
@@ -70,19 +71,18 @@ Available commands are:
     ping                test the connection with the remote server"""
 
 
-
-def make_section(name: str, content: str, alignment: int = 4,
-                   leading_endl: int = 2, trailing_endl: int = 0) -> str:
+def make_section(name: str, content: str, alignment: int = 0,
+                 leading_endl: int = 2, trailing_endl: int = 0) -> str:
 
     if not name or not content:
         return ""
 
     # -------------
-    return "\n" * leading_endl + f"""\
+    return ("\n" * leading_endl) + f"""\
 <b>{name}</b>
 <I4>
 {' ' * alignment}<A> # alignment
-{content}</i4>""" + "\n" * trailing_endl
+{content}</a></i4>""" + ("\n" * trailing_endl)
     # -------------
 
 
@@ -171,5 +171,6 @@ if __name__ == "__main__":
     for cmd_help in cmd_helps:
         cmd_name, cmd_help_string = cmd_help
         help_map[cmd_name] = cmd_help_string
+        eprint(cmd_help_string, "\n===================================\n")
 
     print(j(help_map))

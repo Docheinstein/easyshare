@@ -22,7 +22,7 @@ from easyshare.logging import get_logger
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
 from easyshare.utils.env import is_unicode_supported
-from easyshare.utils.hmd import help_markdown_to_str
+from easyshare.utils.hmd import HelpMarkdown, HelpMarkdownParseError
 from easyshare.utils.json import str_to_json
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
@@ -339,7 +339,12 @@ class Shell:
             eprint("Can't find help for command '{}'".format(cmd))
             return
 
-        formatted_cmd_help = help_markdown_to_str(cmd_help)
+        try:
+            formatted_cmd_help = HelpMarkdown(cmd_help).to_term_str()
+        except HelpMarkdownParseError:
+            log.exception("Exception occurred while parsing markdown of help")
+            eprint("Can't provide help for command '{}'".format(cmd))
+            return
 
         # Pass the help to the available help (typically less)
         pydoc.pager(formatted_cmd_help)

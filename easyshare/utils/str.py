@@ -1,6 +1,7 @@
+import re
 import string
 import random
-from typing import List, Dict
+from typing import List, Dict, Pattern, Tuple
 from uuid import uuid4 as UUID
 from easyshare.utils.types import is_str
 
@@ -67,9 +68,16 @@ def sorted_i(l: List[str]):
     return sorted(l, key=lambda s: s.lower())
 
 
-def multireplace(s: str, table: Dict[str, str]) -> str:
-    for k, v in table.items():
+def multireplace(s: str,
+                 str_replacements: List[Tuple[str, str]],
+                 re_replacements: List[Tuple[Pattern, str]]) -> str:
+
+    for k, v in str_replacements:
         s = s.replace(k, v)
+
+    for k, v in re_replacements:
+        s = re.sub(k, v, s)
+
     return s
 
 # def multireplace_re(s: str, table: Dict[str, str]) -> str:

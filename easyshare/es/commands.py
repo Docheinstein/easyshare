@@ -949,10 +949,11 @@ or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the following \
 rules are applied:
+  <a>
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
 - If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be copied into <u>DEST</u>
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
-
+  </a>
 If used with at least arguments as "<b>cp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
 be an existing directory and <u>SOURCE</u>s will be copied into it."""
 
@@ -987,10 +988,11 @@ or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>rcp</b> <u>SOURCE</u> <u>DEST</u>" the following \
 rules are applied:
+  <a>
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
 - If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be copied into <u>DEST</u>
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
-
+  </a>
 If used with at least arguments as "<b>rcp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
 be an existing directory and <u>SOURCE</u>s will be copied into it."""
 
@@ -1053,10 +1055,11 @@ or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>mv</b> <u>SOURCE</u> <u>DEST</u>" the following \
 rules are applied:
+  <a>
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>.
 - If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be moved into <u>DEST</u>
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
-
+  </a>
 If used with at least arguments as "<b>mv</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
 be an existing directory and <u>SOURCE</u>s will be moved into it."""
 
@@ -1093,10 +1096,11 @@ or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>rmv</b> <u>SOURCE</u> <u>DEST</u>" the following \
 rules are applied:
+  <a>
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>.
 - If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be moved into <u>DEST</u>
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
-
+  </a>
 If used with at least arguments as "<b>rmv</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
 be an existing directory and <u>SOURCE</u>s will be moved into it."""
 
@@ -1373,6 +1377,53 @@ Only details about the sharings are shown, unless <b>-L</b> is given."""
             CommandOptionInfo(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
             CommandOptionInfo(cls.SHOW_ALL_DETAILS, "show more details of both servers and sharings"),
         ]
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> <b>scan</b>
+<b>alice-arch (192.168.1.105:12020)</b>
+  DIRECTORIES
+  - shared
+  - tmp
+<b>bob-debian (192.168.1.185:12020)</b>
+  DIRECTORIES
+  - music
+  FILES
+  - README.txt"""
+
+
+# ============ SCAN ================
+
+
+class Connect(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "connect"
+
+    @classmethod
+    def short_description(cls):
+        return "connect to a remote server"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>connect</b> <u>SERVER_LOCATION</u>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Connect to a remote server whose location is specified by <u>SERVER_LOCATION</u>
+
+The syntax of <u>SERVER_LOCATION</u> is either <server_name> or <address>[:<port>].
+
+The following rules are applied for establish a connection:
+- if <u>SERVER_LOCATION</u> has the form <address>:<port>, the connection \
+
+"""
 
     @classmethod
     def examples(cls):
@@ -1674,9 +1725,9 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.SCAN: Scan,
     Commands.SCAN_SHORT: Scan,
 
+    Commands.CONNECT: Connect,
 
-
-    # CONNECT = "connect"
+    #  = "connect"
     # DISCONNECT = "disconnect"
     #
     # OPEN = "open"
