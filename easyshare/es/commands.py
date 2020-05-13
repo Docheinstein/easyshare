@@ -804,9 +804,9 @@ the current sharing if no <u>DIR</u> is specified."""
 Usage example:
 
 <b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> <u>rcd</u> dir
-<b>/tmp - remote.shared:/dir></b> <u>rcd</u> subdir
-<b>/tmp - remote.shared:/dir/subdir></b> <u>rcd</u>
+<b>/tmp - remote.shared:/></b> <b>rcd</b> dir
+<b>/tmp - remote.shared:/dir></b> <b>rcd</b> subdir
+<b>/tmp - remote.shared:/dir/subdir></b> <b>rcd</b>
 <b>/tmp - remote.shared:/></b>"""
 
 
@@ -848,7 +848,9 @@ class Rmkdir(RemoteSharingCommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "<b>rmkdir</b> <u>DIR</u>"
+        return """\
+<b>rmkdir</b> <u>DIR</u>
+<b>rmkdir</b> [<u>SHARING_LOCATION</u>] <u>DIR</u>"""
 
     @classmethod
     def long_description(cls):
@@ -865,7 +867,7 @@ If <u>DIR</u> already exists, it does nothing."""
 Usage example:
 
 <b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> <u>rmkdir</u> newdir
+<b>/tmp - remote.shared:/></b> <b>rmkdir</b> newdir
 <b>/tmp - remote.shared:/></b> rcd newdir
 <b>/tmp - remote.shared:/newdir></b>"""
 
@@ -886,7 +888,7 @@ class Cp(CommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return """
+        return """\
 <b>cp</b> <u>SOURCE</u> <u>DEST</u>
 <b>cp</b> <u>SOURCE</u>... <u>DIR</u>"""
 
@@ -894,7 +896,7 @@ class Cp(CommandInfo):
     def long_description(cls):
         return """\
 Copy <u>SOURCE</u> file or directory to <u>DEST</u>, \
-or copy multiple </u>SOURCE</u>s to the <u>DIR</u>.
+or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the following \
 rules are applied:
@@ -917,22 +919,26 @@ class Rcp(RemoteSharingCommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "rcp SOURCE... DEST"
+        return """\
+<b>rcp</b> <u>SOURCE</u> <u>DEST</u>
+<b>rcp</b> <u>SOURCE</u>... <u>DIR</u>
+<b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u> <u>DEST</u>
+<b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u>"""
 
     @classmethod
     def long_description(cls):
         return """\
 Copy <u>SOURCE</u> file or directory to <u>DEST</u>, \
-or copy multiple </u>SOURCE</u>s to the <u>DIR</u>.
+or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
-If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the following \
+If used with two arguments as "<b>rcp</b> <u>SOURCE</u> <u>DEST</u>" the following \
 rules are applied:
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
 - If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be copied into <u>DEST</u>
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
 
-If used with three arguments "<b>cp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
-be an existing directory."""
+If used with at least arguments as "<b>rcp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
+be an existing directory and <u>SOURCE</u>s will be copied into it."""
 
     @classmethod
     def examples(cls):
@@ -940,10 +946,114 @@ be an existing directory."""
 Usage example:
 
 <b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> <u>rmkdir</u> newdir
-<b>/tmp - remote.shared:/></b> rcd newdir
-<b>/tmp - remote.shared:/newdir></b>"""
+<b>/tmp - remote.shared:/></b> rls
+f1
+<b>/tmp - remote.shared:/></b> <b>rcp</b> f1 f2
+<b>/tmp - remote.shared:/></b> rls
+f1      f2
 
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> tree
+├── dir
+├── f1
+└── f2
+<b>/tmp - remote.shared:/></b> <b>rcp</b> f1 f2 dir
+<b>/tmp - remote.shared:/></b> rtree dir
+├── dir
+│   ├── f1
+│   └── f2
+├── f1
+└── f2"""
+
+# ============ xMV ================
+
+
+class Mv(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "mv"
+
+    @classmethod
+    def short_description(cls):
+        return "move files and directories locally"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>mv</b> <u>SOURCE</u> <u>DEST</u>
+<b>mv</b> <u>SOURCE</u>... <u>DIR</u>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Move <u>SOURCE</u> file or directory to <u>DEST</u>, \
+or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
+
+If used with two arguments as "<b>mv</b> <u>SOURCE</u> <u>DEST</u>" the following \
+rules are applied:
+- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>.
+- If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be moved into <u>DEST</u>
+- If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
+
+If used with at least arguments as "<b>mv</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
+be an existing directory and <u>SOURCE</u>s will be moved into it."""
+
+class Rmv(RemoteSharingCommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "rmv"
+
+    @classmethod
+    def short_description(cls):
+        return "move files and directories remotely"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>rmv</b> <u>SOURCE</u> <u>DEST</u>
+<b>rmv</b> <u>SOURCE</u>... <u>DIR</u>
+<b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u> <u>DEST</u>
+<b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Move <u>SOURCE</u> file or directory to <u>DEST</u>, \
+or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
+
+If used with two arguments as "<b>rmv</b> <u>SOURCE</u> <u>DEST</u>" the following \
+rules are applied:
+- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>.
+- If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be moved into <u>DEST</u>
+- If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
+
+If used with at least arguments as "<b>rmv</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must \
+be an existing directory and <u>SOURCE</u>s will be moved into it."""
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> rls
+f1
+<b>/tmp - remote.shared:/></b> <b>rmv</b> f1 f2
+<b>/tmp - remote.shared:/></b> rls
+f2
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> rtree
+├── dir
+├── f1
+└── f2
+<b>/tmp - remote.shared:/></b> <b>rmv</b> f1 f2 dir
+<b>/tmp - remote.shared:/></b> rtree dir
+└── dir
+    ├── f1
+    └── f2"""
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
 #     pass
@@ -1005,7 +1115,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_CHANGE_DIRECTORY: Cd,
     Commands.LOCAL_CREATE_DIRECTORY: Mkdir,
     Commands.LOCAL_COPY: Cp,
-    # LOCAL_MOVE = "mv"
+    Commands.LOCAL_MOVE: Mv,
     # LOCAL_REMOVE = "rm"
     # LOCAL_EXEC = "exec"
     # LOCAL_EXEC_SHORT = SPECIAL_COMMAND_MARK
@@ -1017,7 +1127,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_CHANGE_DIRECTORY: Rcd,
     Commands.REMOTE_CREATE_DIRECTORY: Rmkdir,
     Commands.REMOTE_COPY: Rcp,
-    # REMOTE_MOVE = "rmv"
+    Commands.REMOTE_MOVE: Rmv,
     # REMOTE_REMOVE = "rrm"
     # REMOTE_EXEC = "rexec"
     # REMOTE_EXEC_SHORT = SPECIAL_COMMAND_MARK * 2

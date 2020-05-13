@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-13 08:42:53
+# Automatically generated from make-helps.py on date 2020-05-13 09:00:38
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -79,6 +79,7 @@ Available commands are:
     l
     ls
     mkdir
+    mv
     pwd
     q
     quit
@@ -87,6 +88,7 @@ Available commands are:
     rl
     rls
     rmkdir
+    rmv
     rpwd
     rtree
     t
@@ -126,6 +128,7 @@ Available commands are:
     l
     ls
     mkdir
+    mv
     pwd
     q
     quit
@@ -134,6 +137,7 @@ Available commands are:
     rl
     rls
     rmkdir
+    rmv
     rpwd
     rtree
     t
@@ -485,14 +489,13 @@ cp - copy files and directories locally
 
 <b>SYNOPSIS</b>
 <I4>
-
 <b>cp</b> <u>SOURCE</u> <u>DEST</u>
 <b>cp</b> <u>SOURCE</u>... <u>DIR</u>
 </I4>
 
 <b>DESCRIPTION</b>
 <I4>
-Copy <u>SOURCE</u> file or directory to <u>DEST</u>, or copy multiple </u>SOURCE</u>s to the <u>DIR</u>.
+Copy <u>SOURCE</u> file or directory to <u>DEST</u>, or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
 If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the following rules are applied:
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
@@ -500,6 +503,36 @@ If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the followin
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
 
 If used with at least arguments as "<b>cp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must be an existing directory and <u>SOURCE</u>s will be copied into it.
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
+
+# ============================================================
+
+MV = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+mv - move files and directories locally
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+<b>mv</b> <u>SOURCE</u> <u>DEST</u>
+<b>mv</b> <u>SOURCE</u>... <u>DIR</u>
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Move <u>SOURCE</u> file or directory to <u>DEST</u>, or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
+
+If used with two arguments as "<b>mv</b> <u>SOURCE</u> <u>DEST</u>" the following rules are applied:
+- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>.
+- If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be moved into <u>DEST</u>
+- If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
+
+If used with at least arguments as "<b>mv</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must be an existing directory and <u>SOURCE</u>s will be moved into it.
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
@@ -637,9 +670,9 @@ Change the current remote working directory to <u>DIR</u> or to the root of the 
 Usage example:
 
 <b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> <u>rcd</u> dir
-<b>/tmp - remote.shared:/dir></b> <u>rcd</u> subdir
-<b>/tmp - remote.shared:/dir/subdir></b> <u>rcd</u>
+<b>/tmp - remote.shared:/></b> <b>rcd</b> dir
+<b>/tmp - remote.shared:/dir></b> <b>rcd</b> subdir
+<b>/tmp - remote.shared:/dir/subdir></b> <b>rcd</b>
 <b>/tmp - remote.shared:/></b>
 </I4>"""
 
@@ -655,6 +688,7 @@ rmkdir - create a remote directory
 <b>SYNOPSIS</b>
 <I4>
 <b>rmkdir</b> <u>DIR</u>
+<b>rmkdir</b> [<u>SHARING_LOCATION</u>] <u>DIR</u>
 
 SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
@@ -677,7 +711,7 @@ If <u>DIR</u> already exists, it does nothing.
 Usage example:
 
 <b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> <u>rmkdir</u> newdir
+<b>/tmp - remote.shared:/></b> <b>rmkdir</b> newdir
 <b>/tmp - remote.shared:/></b> rcd newdir
 <b>/tmp - remote.shared:/newdir></b>
 </I4>"""
@@ -693,7 +727,10 @@ rcp - copy files and directories remotely
 
 <b>SYNOPSIS</b>
 <I4>
-rcp SOURCE... DEST
+<b>rcp</b> <u>SOURCE</u> <u>DEST</u>
+<b>rcp</b> <u>SOURCE</u>... <u>DIR</u>
+<b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u> <u>DEST</u>
+<b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u>
 
 SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
@@ -702,14 +739,14 @@ Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> forma
 
 <b>DESCRIPTION</b>
 <I4>
-Copy <u>SOURCE</u> file or directory to <u>DEST</u>, or copy multiple </u>SOURCE</u>s to the <u>DIR</u>.
+Copy <u>SOURCE</u> file or directory to <u>DEST</u>, or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 
-If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the following rules are applied:
+If used with two arguments as "<b>rcp</b> <u>SOURCE</u> <u>DEST</u>" the following rules are applied:
 - If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
 - If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be copied into <u>DEST</u>
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
 
-If used with three arguments "<b>cp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must be an existing directory.
+If used with at least arguments as "<b>rcp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must be an existing directory and <u>SOURCE</u>s will be copied into it.
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
@@ -719,9 +756,82 @@ If used with three arguments "<b>cp</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR
 Usage example:
 
 <b>/tmp></b> open shared
-<b>/tmp - remote.shared:/></b> <u>rmkdir</u> newdir
-<b>/tmp - remote.shared:/></b> rcd newdir
-<b>/tmp - remote.shared:/newdir></b>
+<b>/tmp - remote.shared:/></b> rls
+f1
+<b>/tmp - remote.shared:/></b> <b>rcp</b> f1 f2
+<b>/tmp - remote.shared:/></b> rls
+f1      f2
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> tree
+├── dir
+├── f1
+└── f2
+<b>/tmp - remote.shared:/></b> <b>rcp</b> f1 f2 dir
+<b>/tmp - remote.shared:/></b> rtree dir
+├── dir
+│   ├── f1
+│   └── f2
+├── f1
+└── f2
+</I4>"""
+
+# ============================================================
+
+RMV = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+rmv - move files and directories remotely
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+<b>rmv</b> <u>SOURCE</u> <u>DEST</u>
+<b>rmv</b> <u>SOURCE</u>... <u>DIR</u>
+<b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u> <u>DEST</u>
+<b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u>
+
+SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
+
+Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format.
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Move <u>SOURCE</u> file or directory to <u>DEST</u>, or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
+
+If used with two arguments as "<b>rmv</b> <u>SOURCE</u> <u>DEST</u>" the following rules are applied:
+- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>.
+- If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be moved into <u>DEST</u>
+- If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
+
+If used with at least arguments as "<b>rmv</b> <u>SOURCE</u>... <u>DIR</u>" then <u>DIR</u> must be an existing directory and <u>SOURCE</u>s will be moved into it.
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+
+<b>EXAMPLES</b>
+<I4>
+Usage example:
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> rls
+f1
+<b>/tmp - remote.shared:/></b> <b>rmv</b> f1 f2
+<b>/tmp - remote.shared:/></b> rls
+f2
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> rtree
+├── dir
+├── f1
+└── f2
+<b>/tmp - remote.shared:/></b> <b>rmv</b> f1 f2 dir
+<b>/tmp - remote.shared:/></b> rtree dir
+└── dir
+    ├── f1
+    └── f2
 </I4>"""
 
 # ============================================================
