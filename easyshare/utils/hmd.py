@@ -139,7 +139,7 @@ if __name__ == "__main__":
     # print(f"sl_ansi |{len(sl_smart)}| {sl_smart}")
     # print(f"sl_raw |{len(sl_raw)}| {sl_raw}")
 
-def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> str: # HelpMarkDown
+def help_markdown_to_str(hmd: str, cols = None, debug_step_by_step = False) -> str: # HelpMarkDown
     if not cols:
         cols, rows = terminal_size()
         cols -= 1 # For permit scrollbars of terminal emulators
@@ -165,7 +165,7 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
 
         return ansistr(open_tag)
 
-    leading_ansi_tag = ansistr("")
+    # leading_ansi_tag = ansistr("")
 
     for line_in in hmd.splitlines(keepends=False):
         reset_i = False

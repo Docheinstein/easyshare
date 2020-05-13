@@ -70,6 +70,22 @@ Available commands are:
     ping                test the connection with the remote server"""
 
 
+
+def make_section(name: str, content: str, alignment: int = 4,
+                   leading_endl: int = 2, trailing_endl: int = 0) -> str:
+
+    if not name or not content:
+        return ""
+
+    # -------------
+    return "\n" * leading_endl + f"""\
+<b>{name}</b>
+<I4>
+{' ' * alignment}<A> # alignment
+{content}</i4>""" + "\n" * trailing_endl
+    # -------------
+
+
 def generate_command_help_markdown(info: Type[CommandInfo]):
     # PARAGRAPH_JUSTIFY = 4 : hardcoded
     OPTIONS_JUSTIFY = 26
@@ -82,8 +98,8 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
     # Standard help format
 
     # Compute optional parts
-    info_options = None
     info_synopsis_extra = info.synopsis_extra()
+    info_options = None
     info_examples = info.examples()
     info_see_also = info.see_also()
 
@@ -106,60 +122,42 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
         options_strings = sorted_i(options_strings)
         info_options = "\n".join(options_strings)
 
-    def optional_section_string(s: str, leading_endl=True) -> str:
-        return (("\n" if leading_endl else "") + s + "\n") if s else ""
+    subsection_synopsis_extra = ("\n\n" + info_synopsis_extra) if info_synopsis_extra else ""
 
-    info_options = optional_section_string(info_options)
-    info_synopsis_extra = optional_section_string(info_synopsis_extra)
-    info_examples = optional_section_string(info_examples, False)
-    info_see_also = optional_section_string(info_see_also, False)
-
-    s = f"""\
-    <A> # paragraph alignment (4)
-<b>COMMAND</b>
-<I4>
-{info.name()} - {info.short_description()}
-</I4>
-
-<b>SYNOPSIS</b>
-<I4>
-{info.synopsis()}
-{info_synopsis_extra}\
-</I4>
-
-<b>DESCRIPTION</b>
-<I4>
-{info.long_description()}
-{' ' * (OPTIONS_JUSTIFY + 4)}<A> # options alignment (34 = 4 + 30)
-{info_options}\
-</I4>
-    <A> # paragraph alignment (4)
-"""
-
-    if info_examples:
-        s += f"""
-<b>EXAMPLES</b>
-<I4>
-{info_examples}\
-</I4>"""
-
-    if info_see_also:
-        if info_examples:
-            s += "\n"
-
-        s += f"""
-<b>SEE ALSO</b>
-<I4>
-{info_see_also}\
-</I4>"""
-
-    return s
-
-
-def generate_definition(name: str, value: str):
-    return "{} = \"\"\"\\\n{}\"\"\"".format(
-        name.upper(), value
+    # section_synopsis_extra = info_synopsis_extra
+    section_command = make_section(
+        "COMMAND", f"{info.name()} - {info.short_description()}",
+        leading_endl=0
     )
+    section_synopsis = make_section(
+        "SYNOPSIS",
+        f"{info.synopsis()}{subsection_synopsis_extra}"
+    )
+
+    section_description = make_section(
+        "DESCRIPTION",
+        info.long_description()
+    )
+    section_options = make_section(
+        "OPTIONS", info_options,
+        alignment=OPTIONS_JUSTIFY + 4
+    )
+    section_examples = make_section(
+        "EXAMPLES", info_examples
+    )
+    section_see_also = make_section(
+        "SEE ALSO",
+        info_see_also
+    )
+
+    return f"""\
+{section_command}\
+{section_synopsis}\
+{section_description}\
+{section_options}\
+{section_examples}\
+{section_see_also}\
+"""
 
 if __name__ == "__main__":
     cmd_helps = [

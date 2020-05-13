@@ -1325,6 +1325,58 @@ hello"""
         return """Type "<b>help exec</b>" for the local analogous."""
 
 
+# ============ SCAN ================
+
+
+class Scan(CommandInfo):
+    SHOW_DETAILS = ["-l"]
+
+    @classmethod
+    def name(cls):
+        return "scan"
+
+    @classmethod
+    def short_description(cls):
+        return "scan the network for easyshare servers"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>scan</b> [<u>OPTION</u>]..."""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Scan the network for easyshare server and reports the details \
+of the sharings found.
+
+The discover is performed in broadcast in the network.
+
+The port on which the discover is performed is the one specified to \
+<b>es</b> via <b>-p</b> <u>port</u>, or the default one if not specified."""
+
+    @classmethod
+    def options(cls) -> List[CommandOptionInfo]:
+        return [
+            CommandOptionInfo(cls.SHOW_DETAILS, "show more details"),
+        ]
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> scan
+<b>alice-arch (192.168.1.105:12020)</b>
+  DIRECTORIES
+  - shared
+  - tmp
+<b>bob-debian (192.168.1.185:12020)</b>
+  DIRECTORIES
+  - music
+  FILES
+  - README.txt"""
+
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
 #     pass
@@ -1402,8 +1454,9 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_REMOVE: Rrm,
     Commands.REMOTE_EXEC: Rexec,
     Commands.REMOTE_EXEC_SHORT: Rexec,
-    #
-    # SCAN = "scan"
+
+    Commands.SCAN: Scan,
+
     # SCAN_SHORT = "s"
     # LIST = "list"
     #

@@ -8,7 +8,7 @@ from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
 from Pyro5.errors import PyroError
 
-from easyshare import logging, helps, res
+from easyshare import logging
 from easyshare.args import Args, ArgsParseError, VariadicArgs, OptIntArg, ArgsParser
 from easyshare.common import RESOURCES_PKG
 from easyshare.consts import ansi
@@ -22,7 +22,7 @@ from easyshare.logging import get_logger
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
 from easyshare.utils.env import is_unicode_supported
-from easyshare.utils.hmd import help_markdown_pager
+from easyshare.utils.hmd import help_markdown_to_str
 from easyshare.utils.json import str_to_json
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
@@ -339,8 +339,10 @@ class Shell:
             eprint("Can't find help for command '{}'".format(cmd))
             return
 
+        formatted_cmd_help = help_markdown_to_str(cmd_help)
+
         # Pass the help to the available help (typically less)
-        pydoc.pager(help_markdown_pager(cmd_help))
+        pydoc.pager(formatted_cmd_help)
 
 
     @staticmethod
