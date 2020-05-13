@@ -61,7 +61,6 @@ class Commands:
 
     SCAN = "scan"
     SCAN_SHORT = "s"
-    LIST = "list"
 
     CONNECT = "connect"
     DISCONNECT = "disconnect"
@@ -76,6 +75,7 @@ class Commands:
     PUT = "put"
     PUT_SHORT = "p"
 
+    LIST = "list"
     INFO = "info"
     INFO_SHORT = "i"
     PING = "ping"
@@ -1391,6 +1391,7 @@ Usage example:
   - README.txt"""
 
 
+
 # ============ LIST ================
 
 
@@ -1444,6 +1445,100 @@ DIRECTORIES
 - music
 FILES
 - README.txt"""
+
+
+
+# ============ INFO ================
+
+
+class Info(RemoteServerCommandInfo, NoPargs):
+    SHOW_SHARINGS_DETAILS = ["-l"]
+
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
+        return [
+            (Info.SHOW_SHARINGS_DETAILS, PRESENCE_PARAM),
+        ]
+
+    @classmethod
+    def name(cls):
+        return "info"
+
+    @classmethod
+    def short_description(cls):
+        return "show information about the remote server"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>info</b> [<u>OPTION</u>]...
+<b>info</b> [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]..."""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Show information of the remote server to which the connection is established.
+
+The reported information are: 
+- Server name
+- Server ip
+- Server port
+- Server discover port
+- Authentication enabled/disabled
+- SSL enabled/disabled 
+- SSL certificate info (if enabled)
+- Sharings"""
+
+    @classmethod
+    def options(cls) -> List[CommandOptionInfo]:
+        return [
+            CommandOptionInfo(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
+        ]
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> connect alice-arch
+<b>alice-arch</b> - <b>/tmp></b> <b>info</b>
+================================
+
+SERVER INFO
+
+Name:           alice-arch
+IP:             192.168.1.105
+Port:           12020
+Discoverable:   True
+Discover Port:  12019
+Auth:           False
+SSL:            True
+
+================================
+
+SSL CERTIFICATE
+
+Common name:        192.168.1.105
+Organization:       Acme Corporation
+Organization Unit:  Acme Corporation
+Email:              acme@gmail.com
+Locality:           Los Angeles
+State:              Los Angeles
+Country:            US
+
+Valid From:         Apr 24 21:29:46 2020 GMT
+Valid To:           Apr 24 21:29:46 2021 GMT
+
+Issuer:             192.168.1.105, Acme Corporation
+Signing:            self signed
+
+================================
+
+SHARINGS
+
+  DIRECTORIES
+  - tmp
+
+================================"""
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
 #     pass
@@ -1525,7 +1620,6 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.SCAN: Scan,
     Commands.SCAN_SHORT: Scan,
 
-    Commands.LIST: ListSharings,
 
 
     # CONNECT = "connect"
@@ -1541,8 +1635,10 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     # PUT = "put"
     # PUT_SHORT = "p"
     #
-    # INFO = "info"
-    # INFO_SHORT = "i"
+
+    Commands.LIST: ListSharings,
+    Commands.INFO: Info,
+    Commands.INFO_SHORT: Info,
     # PING = "ping"
 }
 

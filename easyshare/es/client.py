@@ -13,7 +13,7 @@ from Pyro5.errors import PyroError
 
 from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR
 from easyshare.endpoint import Endpoint
-from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan
+from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info
 from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connections import ServerConnection, SharingConnection, ServerConnectionMinimal
 from easyshare.es.discover import Discoverer
@@ -895,7 +895,10 @@ class Client:
         if not server_conn:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
+        show_sharings_details = Info.SHOW_SHARINGS_DETAILS in args
+
         print(server_info_to_pretty_str(server_conn.server_info,
+                                        sharing_details=show_sharings_details,
                                         separators=True))
 
     @provide_server_connection

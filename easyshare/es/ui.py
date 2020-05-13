@@ -164,7 +164,7 @@ def ssl_certificate_to_pretty_str(ssl_cert: SSLCertificate) -> str:
         "Valid From:         {}\n".format(ssl_cert.get("valid_from")) + \
         "Valid To:           {}\n\n".format(ssl_cert.get("valid_to")) + \
         "Issuer:             {}\n".format(", ".join([issuer.get("common_name"), issuer.get("organization")])) + \
-        "Signing:            {}".format("signed" if ssl_cert.get("self_signed") else "self signed (insecure)")
+        "Signing:            {}".format("self signed" if ssl_cert.get("self_signed") else "signed")
 
 
 def server_info_to_pretty_str(info: ServerInfoFull, sharing_details: bool = False, separators: bool = False) -> str:
