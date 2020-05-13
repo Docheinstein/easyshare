@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-12 16:45:28
+# Automatically generated from make-helps.py on date 2020-05-13 01:13:30
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -63,7 +63,7 @@ help - show the help of a command
 
 <b>SYNOPSIS</b>
 <I4>
-help [COMMAND]
+<b>help</b> [<u>COMMAND</u>]
 </I4>
 
 <b>DESCRIPTION</b>
@@ -72,6 +72,7 @@ Show the help of COMMAND if specified, or show the list of commands if no COMMAN
 
 Available commands are:
     cd
+    cp
     exit
     h
     help
@@ -82,6 +83,7 @@ Available commands are:
     q
     quit
     rcd
+    rcp
     rl
     rls
     rmkdir
@@ -108,7 +110,7 @@ help - show the help of a command
 
 <b>SYNOPSIS</b>
 <I4>
-help [COMMAND]
+<b>help</b> [<u>COMMAND</u>]
 </I4>
 
 <b>DESCRIPTION</b>
@@ -117,6 +119,7 @@ Show the help of COMMAND if specified, or show the list of commands if no COMMAN
 
 Available commands are:
     cd
+    cp
     exit
     h
     help
@@ -127,6 +130,7 @@ Available commands are:
     q
     quit
     rcd
+    rcp
     rl
     rls
     rmkdir
@@ -153,9 +157,9 @@ exit - exit from the interactive shell
 
 <b>SYNOPSIS</b>
 <I4>
-exit
-quit
-q
+<b>exit</b>
+<b>quit</b>
+<b>q</b>
 </I4>
 
 <b>DESCRIPTION</b>
@@ -179,9 +183,9 @@ exit - exit from the interactive shell
 
 <b>SYNOPSIS</b>
 <I4>
-exit
-quit
-q
+<b>exit</b>
+<b>quit</b>
+<b>q</b>
 </I4>
 
 <b>DESCRIPTION</b>
@@ -205,9 +209,9 @@ exit - exit from the interactive shell
 
 <b>SYNOPSIS</b>
 <I4>
-exit
-quit
-q
+<b>exit</b>
+<b>quit</b>
+<b>q</b>
 </I4>
 
 <b>DESCRIPTION</b>
@@ -231,8 +235,8 @@ trace - enable/disable packet tracing
 
 <b>SYNOPSIS</b>
 <I4>
-trace   [0 | 1]
-t       [0 | 1]
+<b>trace</b>   [<u>0</u> | <u>1</u>]
+<b>t</b>       [<u>0</u> | <u>1</u>]
 </I4>
 
 <b>DESCRIPTION</b>
@@ -265,8 +269,8 @@ trace - enable/disable packet tracing
 
 <b>SYNOPSIS</b>
 <I4>
-trace   [0 | 1]
-t       [0 | 1]
+<b>trace</b>   [<u>0</u> | <u>1</u>]
+<b>t</b>       [<u>0</u> | <u>1</u>]
 </I4>
 
 <b>DESCRIPTION</b>
@@ -299,8 +303,8 @@ verbose - change verbosity level
 
 <b>SYNOPSIS</b>
 <I4>
-verbose   [0 | 1 | 2 | 3 | 4]
-v         [0 | 1 | 2 | 3 | 4]
+<b>verbose</b>   [<u>0</u> | <u>1</u> | <u>2</u> | <u>3</u> | <u>4</u>]
+<b>v</b>   [<u>0</u> | <u>1</u> | <u>2</u> | <u>3</u> | <u>4</u>]
 </I4>
 
 <b>DESCRIPTION</b>
@@ -322,8 +326,8 @@ verbose - change verbosity level
 
 <b>SYNOPSIS</b>
 <I4>
-verbose   [0 | 1 | 2 | 3 | 4]
-v         [0 | 1 | 2 | 3 | 4]
+<b>verbose</b>   [<u>0</u> | <u>1</u> | <u>2</u> | <u>3</u> | <u>4</u>]
+<b>v</b>   [<u>0</u> | <u>1</u> | <u>2</u> | <u>3</u> | <u>4</u>]
 </I4>
 
 <b>DESCRIPTION</b>
@@ -345,7 +349,7 @@ pwd - show the name of current local working directory
 
 <b>SYNOPSIS</b>
 <I4>
-pwd
+<b>pwd</b>
 </I4>
 
 <b>DESCRIPTION</b>
@@ -369,20 +373,20 @@ ls - list local directory content
 
 <b>SYNOPSIS</b>
 <I4>
-ls [OPTION]... [DIR]
+<b>ls</b> [<u>OPTION</u>]... [<u>DIR</u>]
 </I4>
 
 <b>DESCRIPTION</b>
 <I4>
-List content of the local DIR or the current local directory if no DIR is specified.
+List content of the local <u>DIR</u> or the current local directory if no <u>DIR</u> is specified.
                               <A> # options alignment (34 = 4 + 30)
 
--a, --all                 show hidden files too
--g, --group               group by file type
--l                        show more details
--r, --reverse             reverse sort order
--S                        show files size
--s, --sort-size           sort by size
+<b>-a, --all</b>                 show hidden files too
+<b>-g, --group</b>               group by file type
+<b>-l</b>                        show more details
+<b>-r, --reverse</b>             reverse sort order
+<b>-s, --sort-size</b>           sort by size
+<b>-S</b>                        show files size
 </I4>
     <A> # paragraph alignment (4)
 """
@@ -403,21 +407,21 @@ tree - list local directory contents in a tree-like format
 
 <b>SYNOPSIS</b>
 <I4>
-tree [OPTION]... [DIR]
+<b>tree</b> [<u>OPTION</u>]... [<u>DIR</u>]
 </I4>
 
 <b>DESCRIPTION</b>
 <I4>
-List recursively, in a tree-like format, the local DIR or the current local directory if no DIR is specified.
+List recursively, in a tree-like format, the local <u>DIR</u> or the current local directory if no <u>DIR</u> is specified.
                               <A> # options alignment (34 = 4 + 30)
 
--a, --all                 show hidden files too
--d, --depth <u>depth</u>         maximum display depth of tree
--g, --group               group by file type
--l                        show more details
--r, --reverse             reverse sort order
--S                        show files size
--s, --sort-size           sort by size
+<b>-a, --all</b>                 show hidden files too
+<b>-d, --depth</b> <u>depth</u>         maximum display depth of tree
+<b>-g, --group</b>               group by file type
+<b>-l</b>                        show more details
+<b>-r, --reverse</b>             reverse sort order
+<b>-s, --sort-size</b>           sort by size
+<b>-S</b>                        show files size
 </I4>
     <A> # paragraph alignment (4)
 """
@@ -433,12 +437,12 @@ cd - change local working directory
 
 <b>SYNOPSIS</b>
 <I4>
-cd [DIR]
+<b>cd</b> [<u>DIR</u>]
 </I4>
 
 <b>DESCRIPTION</b>
 <I4>
-Change the current local working directory to DIR or to the user's home directory if DIR is not specified.
+Change the current local working directory to <u>DIR</u> or to the user's home directory if <u>DIR</u> is not specified.
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
@@ -455,16 +459,43 @@ mkdir - create a local directory
 
 <b>SYNOPSIS</b>
 <I4>
-mkdir DIR
+<b>mkdir</b> <u>DIR</u>
 </I4>
 
 <b>DESCRIPTION</b>
 <I4>
-Create the local directory DIR.
+Create the local directory <u>DIR</u>.
 
-Parent directories of DIR are automatically created when needed.
+Parent directories of <u>DIR</u> are automatically created when needed.
 
-If DIR already exists, it does nothing.
+If <u>DIR</u> already exists, it does nothing.
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+"""
+
+# ============================================================
+
+CP = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+cp - copy files and directories locally
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+
+<b>cp</b> <u>SOURCE</u> <u>DEST</u>
+<b>cp</b> <u>SOURCE</u>... <u>DIR</u>
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Copy <u>SOURCE</u> file or directory to <u>DEST</u>, or copy multiple </u>SOURCE</u>s to the <u>DIR</u>.
+
+If used with two argument as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>"
+.
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
@@ -481,7 +512,7 @@ rpwd - show the name of current remote working directory
 
 <b>SYNOPSIS</b>
 <I4>
-rpwd
+<b>rpwd</b>
 
 SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
@@ -509,8 +540,8 @@ rls - list remote directory content
 
 <b>SYNOPSIS</b>
 <I4>
-rls [OPTION]... [DIR]
-rls [OPTION]... [SHARING_LOCATION] [DIR]
+<b>rls</b> [<u>OPTION</u>]... [<u>DIR</u>]
+<b>rls</b> [<u>OPTION</u>]... [<u>SHARING_LOCATION</u>] [<u>DIR</u>]
 
 SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
@@ -519,15 +550,15 @@ Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 
 <b>DESCRIPTION</b>
 <I4>
-List content of the remote DIR or the current remote directory if no DIR is specified.
+List content of the remote <u>DIR</u> or the current remote directory if no <u>DIR</u> is specified.
                               <A> # options alignment (34 = 4 + 30)
 
--a, --all                 show hidden files too
--g, --group               group by file type
--l                        show more details
--r, --reverse             reverse sort order
--S                        show files size
--s, --sort-size           sort by size
+<b>-a, --all</b>                 show hidden files too
+<b>-g, --group</b>               group by file type
+<b>-l</b>                        show more details
+<b>-r, --reverse</b>             reverse sort order
+<b>-s, --sort-size</b>           sort by size
+<b>-S</b>                        show files size
 </I4>
     <A> # paragraph alignment (4)
 """
@@ -543,12 +574,12 @@ RTREE = """\
     <A> # paragraph alignment (4)
 <b>COMMAND</b>
 <I4>
-rtree - list remote directory contents in a tree-like format
+<b>rtree</b> - list remote directory contents in a tree-like format
 </I4>
 
 <b>SYNOPSIS</b>
 <I4>
-tree [OPTION]... [DIR]
+<b>tree</b> [<u>OPTION</u>]... [<u>DIR</u>]
 
 SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
@@ -557,16 +588,16 @@ Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 
 <b>DESCRIPTION</b>
 <I4>
-List recursively, in a tree-like format, the remote DIR or the current remote directory if no DIR is specified
+List recursively, in a tree-like format, the remote <u>DIR</u> or the current remote directory if no <u>DIR</u> is specified
                               <A> # options alignment (34 = 4 + 30)
 
--a, --all                 show hidden files too
--d, --depth <u>depth</u>         maximum display depth of tree
--g, --group               group by file type
--l                        show more details
--r, --reverse             reverse sort order
--S                        show files size
--s, --sort-size           sort by size
+<b>-a, --all</b>                 show hidden files too
+<b>-d, --depth</b> <u>depth</u>         maximum display depth of tree
+<b>-g, --group</b>               group by file type
+<b>-l</b>                        show more details
+<b>-r, --reverse</b>             reverse sort order
+<b>-s, --sort-size</b>           sort by size
+<b>-S</b>                        show files size
 </I4>
     <A> # paragraph alignment (4)
 """
@@ -582,8 +613,8 @@ rcd - change remote working directory
 
 <b>SYNOPSIS</b>
 <I4>
-rcd [DIR]
-rcd [SHARING_LOCATION] [DIR]
+<b>rcd</b> [<u>DIR</u>]
+<b>rcd</b> [<u>SHARING_LOCATION</u>] [<u>DIR</u>]
 
 SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
@@ -592,7 +623,7 @@ Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 
 <b>DESCRIPTION</b>
 <I4>
-Change the current remote working directory to DIR or to the root of the current sharing if no DIR is specified.
+Change the current remote working directory to <u>DIR</u> or to the root of the current sharing if no <u>DIR</u> is specified.
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)
@@ -619,7 +650,7 @@ rmkdir - create a remote directory
 
 <b>SYNOPSIS</b>
 <I4>
-rmkdir DIR
+<b>rmkdir</b> <u>DIR</u>
 
 SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
@@ -628,11 +659,46 @@ Type "<b>help open</b>" for more information about SHARING_LOCATION format.
 
 <b>DESCRIPTION</b>
 <I4>
-Create the remote directory DIR.
+Create the remote directory <u>DIR</u>.
 
-Parent directories of DIR are automatically created when needed.
+Parent directories of <u>DIR</u> are automatically created when needed.
 
-If DIR already exists, it does nothing.
+If <u>DIR</u> already exists, it does nothing.
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+
+<b>EXAMPLES</b>
+<I4>
+Usage example:
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> <u>rmkdir</u> newdir
+<b>/tmp - remote.shared:/></b> rcd newdir
+<b>/tmp - remote.shared:/newdir></b>
+</I4>"""
+
+# ============================================================
+
+RCP = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+rcp - copy files and directories remotely
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+rcp SOURCE... DEST
+
+SHARING_LOCATION must be specified <u>if and only if </u> not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
+
+Type "<b>help open</b>" for more information about SHARING_LOCATION format.
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+
                               <A> # options alignment (34 = 4 + 30)
 </I4>
     <A> # paragraph alignment (4)

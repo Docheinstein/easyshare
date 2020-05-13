@@ -91,12 +91,15 @@ def generate_command_help_markdown(info: Type[CommandInfo]):
         for opt in options:
             aliases = opt.aliases_string()
             params = opt.params_string()
+            justification = OPTIONS_JUSTIFY
+            justification += len("<b></b>") if aliases else 0
+            justification += len("<u></u>") if params else 0
             options_strings.append(opt._to_string(
-                aliases=aliases or "",
+                aliases=f"<b>{aliases}</b>" if aliases else "",
                 param=f"<u>{params}</u>" if params else "",
                 description=opt.description,
-                justification=OPTIONS_JUSTIFY + (len("<u></u>") if params else 0)
-            ))
+                justification=justification)
+            )
 
         options_strings = sorted_i(options_strings)
         info_options = "\n".join(options_strings)

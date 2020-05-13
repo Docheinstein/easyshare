@@ -2,6 +2,7 @@ import logging
 import sys
 
 from easyshare.styling import green, blue, yellow, red
+from easyshare.utils.inspection import print_stack
 from easyshare.utils.math import rangify
 
 ROOT_LOGGER_NAME = "__main__"

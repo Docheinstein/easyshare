@@ -351,7 +351,7 @@ class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter, ABC):
 # ==================================================
 
 SHARING_LOCATION_IF_NOT_CONNECTED_DESC = """\
-SHARING_LOCATION must be specified <u>if and only if </u> not already \
+SHARING_LOCATION must be specified <u>if and only if</u> not already \
 connected to a remote sharing. In that case the connection will be \
 established before execute the command, as "<b>open</b> SHARING_LOCATION" would do.
 
@@ -381,7 +381,7 @@ class Help(CommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "help [COMMAND]"
+        return "<b>help</b> [<u>COMMAND</u>]"
 
     @classmethod
     def long_description(cls):
@@ -419,9 +419,9 @@ class Exit(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-exit
-quit
-q"""
+<b>exit</b>
+<b>quit</b>
+<b>q</b>"""
 
     @classmethod
     def long_description(cls):
@@ -447,8 +447,8 @@ class Trace(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-trace   [0 | 1]
-t       [0 | 1]"""
+<b>trace</b>   [<u>0</u> | <u>1</u>]
+<b>t</b>       [<u>0</u> | <u>1</u>]"""
 
     @classmethod
     def long_description(cls):
@@ -503,8 +503,8 @@ class Verbose(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-verbose   [0 | 1 | 2 | 3 | 4]
-v         [0 | 1 | 2 | 3 | 4]"""
+<b>verbose</b>   [<u>0</u> | <u>1</u> | <u>2</u> | <u>3</u> | <u>4</u>]
+<b>v</b>   [<u>0</u> | <u>1</u> | <u>2</u> | <u>3</u> | <u>4</u>]"""
 
     @classmethod
     def long_description(cls):
@@ -543,7 +543,7 @@ class Pwd(CommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "pwd"
+        return "<b>pwd</b>"
 
     @classmethod
     def long_description(cls):
@@ -565,7 +565,7 @@ class Rpwd(RemoteSharingCommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "rpwd"
+        return "<b>rpwd</b>"
 
     @classmethod
     def long_description(cls):
@@ -623,12 +623,12 @@ class Ls(BaseLsCommandInfo, ListLocalAllCommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "ls [OPTION]... [DIR]"
+        return "<b>ls</b> [<u>OPTION</u>]... [<u>DIR</u>]"
 
     @classmethod
     def long_description(cls):
         return """\
-List content of the local DIR or the current local directory if no DIR is specified."""
+List content of the local <u>DIR</u> or the current local directory if no <u>DIR</u> is specified."""
 
 class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
     def __init__(self, mandatory: int):
@@ -645,13 +645,13 @@ class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-rls [OPTION]... [DIR]
-rls [OPTION]... [SHARING_LOCATION] [DIR]"""
+<b>rls</b> [<u>OPTION</u>]... [<u>DIR</u>]
+<b>rls</b> [<u>OPTION</u>]... [<u>SHARING_LOCATION</u>] [<u>DIR</u>]"""
 
     @classmethod
     def long_description(cls):
         return f"""\
-List content of the remote DIR or the current remote directory if no DIR is specified."""
+List content of the remote <u>DIR</u> or the current remote directory if no <u>DIR</u> is specified."""
 
 
 # ============ xL ================
@@ -721,13 +721,13 @@ class Tree(BaseTreeCommandInfo, ListLocalAllCommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "tree [OPTION]... [DIR]"
+        return "<b>tree</b> [<u>OPTION</u>]... [<u>DIR</u>]"
 
     @classmethod
     def long_description(cls):
         return """\
-List recursively, in a tree-like format, the local DIR or the current \
-local directory if no DIR is specified."""
+List recursively, in a tree-like format, the local <u>DIR</u> or the current \
+local directory if no <u>DIR</u> is specified."""
 
 class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandInfo):
     def __init__(self, mandatory: int):
@@ -735,7 +735,7 @@ class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandIn
 
     @classmethod
     def name(cls):
-        return "rtree"
+        return "<b>rtree</b>"
 
     @classmethod
     def short_description(cls):
@@ -743,13 +743,13 @@ class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, RemoteSharingCommandIn
 
     @classmethod
     def synopsis(cls):
-        return "tree [OPTION]... [DIR]"
+        return "<b>tree</b> [<u>OPTION</u>]... [<u>DIR</u>]"
 
     @classmethod
     def long_description(cls):
         return """\
-List recursively, in a tree-like format, the remote DIR or the current \
-remote directory if no DIR is specified"""
+List recursively, in a tree-like format, the remote <u>DIR</u> or the current \
+remote directory if no <u>DIR</u> is specified"""
 
 
 
@@ -768,13 +768,13 @@ class Cd(CommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "cd [DIR]"
+        return "<b>cd</b> [<u>DIR</u>]"
 
     @classmethod
     def long_description(cls):
         return """\
-Change the current local working directory to DIR or to the user's home \
-directory if DIR is not specified."""
+Change the current local working directory to <u>DIR</u> or to the user's home \
+directory if <u>DIR</u> is not specified."""
 
 class Rcd(RemoteSharingCommandInfo):
 
@@ -789,14 +789,14 @@ class Rcd(RemoteSharingCommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-rcd [DIR]
-rcd [SHARING_LOCATION] [DIR]"""
+<b>rcd</b> [<u>DIR</u>]
+<b>rcd</b> [<u>SHARING_LOCATION</u>] [<u>DIR</u>]"""
 
     @classmethod
     def long_description(cls):
         return f"""\
-Change the current remote working directory to DIR or to the root of \
-the current sharing if no DIR is specified."""
+Change the current remote working directory to <u>DIR</u> or to the root of \
+the current sharing if no <u>DIR</u> is specified."""
 
     @classmethod
     def examples(cls):
@@ -825,16 +825,16 @@ class Mkdir(CommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "mkdir DIR"
+        return "<b>mkdir</b> <u>DIR</u>"
 
     @classmethod
     def long_description(cls):
         return """\
-Create the local directory DIR.
+Create the local directory <u>DIR</u>.
 
-Parent directories of DIR are automatically created when needed.
+Parent directories of <u>DIR</u> are automatically created when needed.
 
-If DIR already exists, it does nothing."""
+If <u>DIR</u> already exists, it does nothing."""
 
 class Rmkdir(RemoteSharingCommandInfo):
 
@@ -848,16 +848,75 @@ class Rmkdir(RemoteSharingCommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "rmkdir DIR"
+        return "<b>rmkdir</b> <u>DIR</u>"
 
     @classmethod
     def long_description(cls):
         return f"""\
-Create the remote directory DIR.
+Create the remote directory <u>DIR</u>.
 
-Parent directories of DIR are automatically created when needed.
+Parent directories of <u>DIR</u> are automatically created when needed.
 
-If DIR already exists, it does nothing."""
+If <u>DIR</u> already exists, it does nothing."""
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> open shared
+<b>/tmp - remote.shared:/></b> <u>rmkdir</u> newdir
+<b>/tmp - remote.shared:/></b> rcd newdir
+<b>/tmp - remote.shared:/newdir></b>"""
+
+
+
+# ============ xCP ================
+
+
+class Cp(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "cp"
+
+    @classmethod
+    def short_description(cls):
+        return "copy files and directories locally"
+
+    @classmethod
+    def synopsis(cls):
+        return """
+<b>cp</b> <u>SOURCE</u> <u>DEST</u>
+<b>cp</b> <u>SOURCE</u>... <u>DIR</u>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Copy <u>SOURCE</u> file or directory to <u>DEST</u>, \
+or copy multiple </u>SOURCE</u>s to the <u>DIR</u>.
+
+If used with two argument as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>"
+."""
+
+class Rcp(RemoteSharingCommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "rcp"
+
+    @classmethod
+    def short_description(cls):
+        return "copy files and directories remotely"
+
+    @classmethod
+    def synopsis(cls):
+        return "rcp SOURCE... DEST"
+
+    @classmethod
+    def long_description(cls):
+        return f"""\
+"""
 
     @classmethod
     def examples(cls):
@@ -929,7 +988,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_TREE_DIRECTORY: Tree,
     Commands.LOCAL_CHANGE_DIRECTORY: Cd,
     Commands.LOCAL_CREATE_DIRECTORY: Mkdir,
-    # LOCAL_COPY = "cp"
+    Commands.LOCAL_COPY: Cp,
     # LOCAL_MOVE = "mv"
     # LOCAL_REMOVE = "rm"
     # LOCAL_EXEC = "exec"
@@ -941,7 +1000,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_TREE_DIRECTORY: Rtree,
     Commands.REMOTE_CHANGE_DIRECTORY: Rcd,
     Commands.REMOTE_CREATE_DIRECTORY: Rmkdir,
-    # REMOTE_COPY = "rcp"
+    Commands.REMOTE_COPY: Rcp,
     # REMOTE_MOVE = "rmv"
     # REMOTE_REMOVE = "rrm"
     # REMOTE_EXEC = "rexec"

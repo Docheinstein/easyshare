@@ -347,7 +347,7 @@ class Shell:
     @staticmethod
     def _verbose(args: Args) -> Union[int, str]:
         # Increase verbosity (or disable if is already max)
-        root_log = get_logger(__name__)
+        root_log = get_logger(logging.ROOT_LOGGER_NAME)
 
         current_verbosity = root_log.verbosity + is_pyro_logging_enabled()
 

@@ -28,3 +28,27 @@ BG_BLUE =           "\033[44m"
 BG_MAGENTA =        "\033[45m"
 BG_CYAN =           "\033[46m"
 BG_WHITE =          "\033[47m"
+
+if __name__ == "__main__":
+    from easyshare.utils.hmd import help_markdown_pager
+
+    s = "a string really long"
+    sred = FG_RED + s + RESET
+    sbold = ATTR_BOLD + s + RESET
+    print("len_s", len(s))
+    print("len_sred", len(sred))
+    print("len_sbold", len(sbold))
+
+    print(help_markdown_pager("""
+         <A>
+         |     |
+a string really long
+""", cols=16
+    ))
+
+    print(help_markdown_pager("""
+         <A>
+         |     |
+\033[1ma string really long\033[0m
+""", cols=16
+    ))

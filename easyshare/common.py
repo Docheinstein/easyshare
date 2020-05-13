@@ -91,8 +91,6 @@ def easyshare_setup():
     colors_disabled = os.getenv('ANSI_COLORS_DISABLED')
     enable_colors(not colors_disabled and is_stdout_terminal())
 
-    init_logging()
-
     # EASYSHARE_VERBOSITY
     starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
     starting_verbosity = to_int(starting_verbosity,

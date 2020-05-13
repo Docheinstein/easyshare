@@ -1,4 +1,5 @@
 import re
+from typing import Optional, Tuple
 
 from easyshare import logging
 from easyshare.consts import ansi
@@ -7,11 +8,126 @@ from easyshare.styling import styled
 from easyshare.utils.env import terminal_size
 
 # log = get_logger_silent(__name__)
+from easyshare.utils.str import multireplace
+
 log = get_logger(__name__)
 
 I_START_REGEX = re.compile(r"^<([iI]\d+)>")
 I_END_REGEX = re.compile(r"</([iI]\d+)>$")
+ANSI_REGEX = re.compile(r"(\033\[\d+m)")
 # I_END_REGEX = re.compile(r"</([iI]\d+)>")
+
+
+class ansistr:
+    def __init__(self, string):
+        print("ansistr of {}".format(string))
+        self._string = string
+        self._escaped_string = re.sub(ANSI_REGEX, "", string)
+
+        self._ansis = []
+
+        offset = 0
+        for m in re.finditer(ANSI_REGEX, self._string):
+            print("m:", m)
+            self._ansis.insert(0, (m.start() - offset, m.group()))
+            offset += m.end() - m.start()
+
+        # print(self._string)
+        # print(self._escaped_string)
+        print(self._ansis)
+
+    def __str__(self):
+        return self._string
+
+    def __len__(self):
+        return self.len()
+
+    def __add__(self, other):
+        return ansistr(str(self._string) + str(other))
+
+
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            return self.sliced(item)
+        return self.sliced_raw(item)
+
+    # def ansis(self) -> List[str]:
+    #     return [a[1] for a in self._ansis]
+
+    def lstrip(self):
+        first_ansi_tag = self.first_ansi()
+        if first_ansi_tag and first_ansi_tag[0] == 0:
+            print("first_ansi_tag start at 0")
+            # lstrip to the string without the leading ansi tag
+            return ansistr(first_ansi_tag[1] + self._string[len(first_ansi_tag[1]):].lstrip())
+        print("lstrip of {}".format(self._string))
+
+        return ansistr(self._string.lstrip())
+
+    def first_ansi(self) -> Optional[Tuple[int, str]]:
+        if self._ansis:
+            return self._ansis[len(self._ansis) - 1]
+        return None
+
+    def last_ansi(self) -> Optional[Tuple[int, str]]:
+        if self._ansis:
+            return self._ansis[0]
+        return None
+
+    def sliced(self, slicing) -> 'ansistr':
+        # print("__getitem__", slicing)
+        slicing_start = slicing.start or 0
+        slicing_stop = slicing.stop or len(self._escaped_string)
+        new_s = self._escaped_string[slicing_start:slicing_stop]
+
+        # print("new_s before", new_s)
+
+        for el in self._ansis:
+            ansi_pos, ansi_sequence = el
+            if slicing_start <= ansi_pos < slicing_stop:
+                ansi_pos_correct = ansi_pos - slicing_start
+                print(f"ansi pos {ansi_pos} ({ansi_pos_correct}) within {slicing_start}:{slicing_stop}")
+                new_s = new_s[:ansi_pos_correct] + ansi_sequence + new_s[ansi_pos_correct:]
+
+        return ansistr(new_s)
+
+    def sliced_raw(self, slicing) -> str:
+        return self._string.__getitem__(slicing)
+
+    def len(self):
+        length = len(self._string)
+        matches = re.findall(ANSI_REGEX, self._string)
+        for m in matches:
+            length -= len(m)
+        return length
+
+    def len_raw(self):
+        return len(self._string)
+
+
+if __name__ == "__main__":
+    from easyshare.styling import bold
+
+    log.set_verbosity(logging.VERBOSITY_MAX)
+
+    s = ansistr(bold("a str") + "text")
+    # print(s.len())
+    # print(s.len_raw())
+
+    sl_smart = s.sliced(slice(0, 7))
+    sl_raw = s.sliced_raw(slice(0, 7))
+    print(f"sl_ansi |{len(sl_smart)}| {sl_smart}")
+    print(f"sl_raw |{len(sl_raw)}| {sl_raw}")
+
+    # sl_smart = s.sliced(slice(2, 7))
+    # sl_raw = s.sliced_raw(slice(2, 7))
+    # print(f"sl_ansi |{len(sl_smart)}| {sl_smart}")
+    # print(f"sl_raw |{len(sl_raw)}| {sl_raw}")
+    # #
+    # sl_smart = s.sliced(slice(2, 5))
+    # sl_raw = s.sliced_raw(slice(2, 5))
+    # print(f"sl_ansi |{len(sl_smart)}| {sl_smart}")
+    # print(f"sl_raw |{len(sl_raw)}| {sl_raw}")
 
 def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> str: # HelpMarkDown
     if not cols:
@@ -22,12 +138,22 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
 
     parsed_hdm = ""
 
-    def add_text(l: str, *, indent: int = 0, endl=True):
+    def add_ansistr(al: ansistr, *, indent: int = 0, endl=True) -> ansistr:
         nonlocal parsed_hdm
-        l = " " * indent + (l or "") + ("\n" if endl else "")
+        last_open_ansi = al.last_ansi()
+        open_tag = last_open_ansi[1] if last_open_ansi else ""
+        end_tag = ""
+        if open_tag and open_tag != ansi.RESET:
+            log.w("There is an open ansi tag")
+            end_tag = ansi.RESET
+        l = str(al)
+        l = " " * indent + (l or "") + ("\n" if endl else "") + end_tag
         parsed_hdm += l
         log.d("+ %s", styled(l, fg=ansi.FG_CYAN, attrs=ansi.ATTR_BOLD))
 
+        return ansistr(open_tag)
+
+    leading_ansi_tag = ansistr("")
 
     for line_in in hmd.splitlines(keepends=False):
         reset_i = False
@@ -35,22 +161,6 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
         log.d("'%s'", styled(line_in, attrs=ansi.ATTR_BOLD))
         if debug_step_by_step:
             input()
-
-        # Indent <i*></i*>
-        # indents = re.findall(I_REGEX, line_in)
-        #
-        # if indents:
-        #     indent_tag = indents[len(indents) - 1]
-        #     last_i = int(last_indent_tag[1:])
-        #     log.d("Found new indentation: %d", last_i)
-        #
-        #     if last_indent_tag[0] == "I":
-        #         continue  # don't keep the line into account
-        #
-        # # Add the indentation
-        # line_in = re.sub(I_BEGIN_REGEX, "", line_in) # strip <i*>
-        # line_in = re.sub(I_END_REGEX, "", line_in) # strip </i*>
-        #
 
         indents = re.findall(I_START_REGEX, line_in)
         if indents:
@@ -63,7 +173,6 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
         line_in = re.sub(I_START_REGEX, "", line_in) # strip <i*>
 
         log.d("Adding indentation of %d", last_i)
-        # line_in = " " * last_i + line_in
 
         # strip </i*>
         indents = re.findall(I_END_REGEX, line_in)
@@ -105,23 +214,23 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
         else:
             alignment = last_a_col
 
-        # Bold <b></b>
+        line_in = multireplace(line_in, {
+            "<b>": ansi.ATTR_BOLD,
+            "</b>": ansi.RESET,
+            "<u>": ansi.ATTR_UNDERLINE,
+            "</u>": ansi.RESET,
+        })
 
-        line_in = line_in.replace("<b>", ansi.ATTR_BOLD)
-        line_in = line_in.replace("</b>", ansi.RESET)
-
-        # Underline <u></u>
-
-        line_in = line_in.replace("<u>", ansi.ATTR_UNDERLINE)
-        line_in = line_in.replace("</u>", ansi.RESET)
+        # Make an ansi aware string
+        line_in = leading_ansi_tag + line_in
 
         if len(line_in) <= cols:
-            add_text(line_in, indent=last_i)
+            leading_ansi_tag = add_ansistr(line_in, indent=last_i)
         else:
             log.d("-> breaking line since length %d > %d cols", len(line_in), cols)
 
             leading = line_in[:alignment]
-            space_leading = " " * alignment
+            space_leading = ansistr(" " * alignment)
             remaining_line_in = line_in[alignment:]
             current_i = last_i
             remaining_space = cols - alignment - current_i
@@ -129,10 +238,14 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
             while len(remaining_line_in) > remaining_space:
                 log.w("--> still longer after break:  '%s'", remaining_line_in)
                 head = remaining_line_in[:remaining_space - 1]
-                remaining_line_in = remaining_line_in[remaining_space - 1:].lstrip()
 
-                if not head.endswith(" ") and remaining_line_in:
-                    head += "-"
+                # remaining_line_in = leading_ansi_tag + remaining_line_in[remaining_space - 1:].lstrip()
+                # remaining_line_in = leading_ansi_tag + remaining_line_in[remaining_space - 1:]
+                remaining_line_in = remaining_line_in[remaining_space - 1:]
+                # if not head.endswith(" ") and remaining_line_in:
+                #     head += "-"
+
+                head = ansistr(str(head) + "-")
 
                 log.d("--> cols: %d", cols)
                 log.d("--> alignment: %d", alignment)
@@ -142,31 +255,38 @@ def help_markdown_pager(hmd: str, cols = None, debug_step_by_step = False) -> st
                 log.d("--> last_i = %d", last_i)
                 log.d("--> len(leading) = %d", len(leading))
 
-                add_text(leading + head, indent=current_i)
+                leading_ansi_tag = add_ansistr(leading + head, indent=current_i)
+
+                remaining_line_in = leading_ansi_tag + remaining_line_in.lstrip()
+
                 leading = space_leading
                 current_i = max(0, last_i - len(leading))
                 remaining_space = cols - alignment - current_i
 
-            add_text(leading + remaining_line_in, indent=current_i)
+            add_ansistr(leading + remaining_line_in, indent=current_i)
 
         if reset_i:
             last_i = 0
 
     return parsed_hdm
 
-if __name__ == "__main__":
-    log.set_verbosity(logging.VERBOSITY_MAX)
 
-    print(help_markdown_pager("""\
-    <A>
-<i4>An indented text of the super text very very long that will break the line</i8>
-    """,
-    cols=40
-    ))
-
-    print(help_markdown_pager("""\
-    <A>
-<i0>An indented text of the super text very very long that will break the line</i8>
-    """,
-    cols=40
-    ))
+#     print(len(s))
+#     print(s.raw_len())
+#
+#     print(s[1])
+#     print(s[0:2])
+# #
+#     print(help_markdown_pager("""\
+#     <A>
+# <i4>An indented text of the super text very very long that will break the line</i8>
+#     """,
+#     cols=40
+#     ))
+#
+#     print(help_markdown_pager("""\
+#     <A>
+# <i0>An indented text of the super text very very long that will break the line</i8>
+#     """,
+#     cols=40
+#     ))

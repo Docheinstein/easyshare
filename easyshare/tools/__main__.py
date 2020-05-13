@@ -32,9 +32,6 @@ def generate_esd_conf():
 
 
 def main():
-    init_logging()
-    log.set_verbosity(logging.VERBOSITY_MAX)
-
     try:
         Args.parse(
             sys.argv[1:],
