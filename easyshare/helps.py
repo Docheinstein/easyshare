@@ -1,4 +1,4 @@
-# Automatically generated from make-helps.py on date 2020-05-13 09:41:59
+# Automatically generated from make-helps.py on date 2020-05-13 10:16:20
 
 USAGE = """\
 See the manual page (man es) for a complete description of the commands.
@@ -73,6 +73,7 @@ Show the help of COMMAND if specified, or show the list of commands if no COMMAN
 Available commands are:
     cd
     cp
+    exec
     exit
     h
     help
@@ -85,6 +86,7 @@ Available commands are:
     quit
     rcd
     rcp
+    rexec
     rl
     rls
     rm
@@ -124,6 +126,7 @@ Show the help of COMMAND if specified, or show the list of commands if no COMMAN
 Available commands are:
     cd
     cp
+    exec
     exit
     h
     help
@@ -136,6 +139,7 @@ Available commands are:
     quit
     rcd
     rcp
+    rexec
     rl
     rls
     rm
@@ -604,6 +608,53 @@ Type "<b>help rrm</b>" for the remote analogous.
 
 # ============================================================
 
+EXEC = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+exec - execute an arbitrary command locally
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+<b>exec</b> <u>COMMAND</u>
+<b>:</b> <u>COMMAND</u>
+<b>:</b><u>COMMAND</u>
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+Executes an arbitrary <u>COMMAND</u> locally.
+
+The <u>COMMAND</u> is executed via the shell and therefore allows all the shell features (e.g. variables, glob expansions, redirection).
+
+This might be useful for execute commands without exiting the easyshare's shell.
+
+The command can be run either with "<b>exec</b> <u>COMMAND</u>",  "<b>:</b> <u>COMMAND</u>" or "<b>:</b><u>COMMAND</u>".
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+
+<b>EXAMPLES</b>
+<I4>
+Usage example:
+
+<b>/tmp></b> ls
+f1      f2
+<b>/tmp></b> <b>exec</b> touch f3
+f1      f2      f3
+<b>/tmp></b> <b>:<b> echo "hello" > f3
+<b>/tmp></b> <b>:<b>cat f3
+hello
+</I4>
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help rexec</b>" for the remote analogous.
+</I4>"""
+
+# ============================================================
+
 RPWD = """\
     <A> # paragraph alignment (4)
 <b>COMMAND</b>
@@ -615,7 +666,7 @@ rpwd - show the name of current remote working directory
 <I4>
 <b>rpwd</b>
 
-SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
+<u>SHARING_LOCATION</u> must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
 Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format.
 </I4>
@@ -648,7 +699,7 @@ rls - list remote directory content
 <b>rls</b> [<u>OPTION</u>]... [<u>DIR</u>]
 <b>rls</b> [<u>OPTION</u>]... [<u>SHARING_LOCATION</u>] [<u>DIR</u>]
 
-SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
+<u>SHARING_LOCATION</u> must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
 Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format.
 </I4>
@@ -690,7 +741,7 @@ RTREE = """\
 <I4>
 <b>tree</b> [<u>OPTION</u>]... [<u>DIR</u>]
 
-SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
+<u>SHARING_LOCATION</u> must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
 Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format.
 </I4>
@@ -729,7 +780,7 @@ rcd - change remote working directory
 <b>rcd</b> [<u>DIR</u>]
 <b>rcd</b> [<u>SHARING_LOCATION</u>] [<u>DIR</u>]
 
-SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
+<u>SHARING_LOCATION</u> must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
 Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format.
 </I4>
@@ -771,7 +822,7 @@ rmkdir - create a remote directory
 <b>rmkdir</b> <u>DIR</u>
 <b>rmkdir</b> [<u>SHARING_LOCATION</u>] <u>DIR</u>
 
-SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
+<u>SHARING_LOCATION</u> must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
 Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format.
 </I4>
@@ -818,7 +869,7 @@ rcp - copy files and directories remotely
 <b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u> <u>DEST</u>
 <b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u>
 
-SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
+<u>SHARING_LOCATION</u> must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
 Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format.
 </I4>
@@ -883,7 +934,7 @@ rmv - move files and directories remotely
 <b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u> <u>DEST</u>
 <b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u>
 
-SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
+<u>SHARING_LOCATION</u> must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
 Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format.
 </I4>
@@ -944,7 +995,7 @@ rmv - remove files and directories remotely
 <b>rm</b> [FILE]...
 <b>rm</b> [<u>SHARING_LOCATION</u>] [FILE]...
 
-SHARING_LOCATION must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
+<u>SHARING_LOCATION</u> must be specified if and only if not already connected to a remote sharing. In that case the connection will be established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
 Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format.
 </I4>
@@ -987,6 +1038,64 @@ f1
 <b>SEE ALSO</b>
 <I4>
 Type "<b>help rm</b>" for the local analogous.
+</I4>"""
+
+# ============================================================
+
+REXEC = """\
+    <A> # paragraph alignment (4)
+<b>COMMAND</b>
+<I4>
+rexec - execute an arbitrary command remotely
+</I4>
+
+<b>SYNOPSIS</b>
+<I4>
+<b>rexec</b> <u>COMMAND</u>
+<b>::</b> <u>COMMAND</u>
+<b>::</b><u>COMMAND</u>
+
+<b>rexec</b> [<u>SERVER_LOCATION</u>] <u>COMMAND</u>
+<b>::</b> [<u>SERVER_LOCATION</u>] <u>COMMAND</u>
+<b>::</b>[<u>SERVER_LOCATION</u>] <u>COMMAND</u>
+
+<u>SERVER_LOCATION</u> must be specified if and only if not already connected to a remote server. In that case the connection will be established before execute the command, as "<b>connect</b> <u>SERVER_LOCATION</u>" would do.
+
+Type "<b>help connect</b>" for more information about <u>SERVER_LOCATION</u> format.
+</I4>
+
+<b>DESCRIPTION</b>
+<I4>
+THE SERVER REJECTS THIS COMMAND BY DEFAULT, UNLESS IT HAS BEEN MANUALLY 
+ENABLED WITH THE SETTING "<u>rexec=true</u>"
+
+Executes an arbitrary <u>COMMAND</u> remotely.
+
+The <u>COMMAND</u> is executed via the shell and therefore allows all the shell features (e.g. variables, glob expansions, redirection).
+
+This might be useful for execute commands remotely, giving the client a kind of easy and plug-and-play shell.
+
+The command can be run either with "<b>rexec</b> <u>COMMAND</u>",  "<b>:</b> <u>COMMAND</u>" or "<b>:</b><u>COMMAND</u>".
+                              <A> # options alignment (34 = 4 + 30)
+</I4>
+    <A> # paragraph alignment (4)
+
+<b>EXAMPLES</b>
+<I4>
+Usage example:
+
+<b>/tmp></b> rls
+f1      f2
+<b>/tmp></b> <b>rexec</b> touch f3
+f1      f2      f3
+<b>/tmp></b> <b>::<b> echo "hello" > f3
+<b>/tmp></b> <b>::<b>cat f3
+hello
+</I4>
+
+<b>SEE ALSO</b>
+<I4>
+Type "<b>help exec</b>" for the local analogous.
 </I4>"""
 
 # ============================================================

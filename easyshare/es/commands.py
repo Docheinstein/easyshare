@@ -354,18 +354,26 @@ class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter, ABC):
 # ============== COMMON DESCRIPTIONS ===============
 # ==================================================
 
-SHARING_LOCATION_IF_NOT_CONNECTED_DESC = """\
-SHARING_LOCATION must be specified if and only if not already \
+
+class RemoteSharingCommandInfo(CommandInfo, ABC):
+    @classmethod
+    def synopsis_extra(cls):
+        return """\
+<u>SHARING_LOCATION</u> must be specified if and only if not already \
 connected to a remote sharing. In that case the connection will be \
 established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
 Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format."""
 
-
-class RemoteSharingCommandInfo(CommandInfo, ABC):
+class RemoteServerCommandInfo(CommandInfo, ABC):
     @classmethod
     def synopsis_extra(cls):
-        return SHARING_LOCATION_IF_NOT_CONNECTED_DESC
+        return """\
+<u>SERVER_LOCATION</u> must be specified if and only if not already \
+connected to a remote server. In that case the connection will be \
+established before execute the command, as "<b>connect</b> <u>SERVER_LOCATION</u>" would do.
+
+Type "<b>help connect</b>" for more information about <u>SERVER_LOCATION</u> format."""
 
 # ==================================================
 # ========== REAL COMMANDS INFO IMPL ===============
@@ -1210,6 +1218,113 @@ f1
         return """Type "<b>help rm</b>" for the local analogous."""
 
 
+# ============ xEXEC ================
+
+
+class Exec(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "exec"
+
+    @classmethod
+    def short_description(cls):
+        return "execute an arbitrary command locally"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>exec</b> <u>COMMAND</u>
+<b>:</b> <u>COMMAND</u>
+<b>:</b><u>COMMAND</u>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Executes an arbitrary <u>COMMAND</u> locally.
+
+The <u>COMMAND</u> is executed via the shell and therefore allows all the \
+shell features (e.g. variables, glob expansions, redirection).
+
+This might be useful for execute commands without exiting the easyshare's shell.
+
+The command can be run either with "<b>exec</b> <u>COMMAND</u>",  \
+"<b>:</b> <u>COMMAND</u>" or "<b>:</b><u>COMMAND</u>"."""
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> ls
+f1      f2
+<b>/tmp></b> <b>exec</b> touch f3
+f1      f2      f3
+<b>/tmp></b> <b>:<b> echo "hello" > f3
+<b>/tmp></b> <b>:<b>cat f3
+hello"""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rexec</b>" for the remote analogous."""
+
+
+class Rexec(RemoteServerCommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "rexec"
+
+    @classmethod
+    def short_description(cls):
+        return "execute an arbitrary command remotely"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>rexec</b> <u>COMMAND</u>
+<b>::</b> <u>COMMAND</u>
+<b>::</b><u>COMMAND</u>
+
+<b>rexec</b> [<u>SERVER_LOCATION</u>] <u>COMMAND</u>
+<b>::</b> [<u>SERVER_LOCATION</u>] <u>COMMAND</u>
+<b>::</b>[<u>SERVER_LOCATION</u>] <u>COMMAND</u>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+THE SERVER REJECTS THIS COMMAND BY DEFAULT, UNLESS IT HAS BEEN MANUALLY \
+ENABLED WITH THE SETTING "<u>rexec=true</u>"
+
+Executes an arbitrary <u>COMMAND</u> remotely.
+
+The <u>COMMAND</u> is executed via the shell and therefore allows all the \
+shell features (e.g. variables, glob expansions, redirection).
+
+This might be useful for execute commands remotely, giving the client \
+a kind of easy and plug-and-play shell.
+
+The command can be run either with "<b>rexec</b> <u>COMMAND</u>",  \
+"<b>:</b> <u>COMMAND</u>" or "<b>:</b><u>COMMAND</u>"."""
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> rls
+f1      f2
+<b>/tmp></b> <b>rexec</b> touch f3
+f1      f2      f3
+<b>/tmp></b> <b>::<b> echo "hello" > f3
+<b>/tmp></b> <b>::<b>cat f3
+hello"""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help exec</b>" for the local analogous."""
+
+
 
 # class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
 #     pass
@@ -1273,7 +1388,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_COPY: Cp,
     Commands.LOCAL_MOVE: Mv,
     Commands.LOCAL_REMOVE: Rm,
-    # LOCAL_EXEC = "exec"
+    Commands.LOCAL_EXEC: Exec,
     # LOCAL_EXEC_SHORT = SPECIAL_COMMAND_MARK
     #
     Commands.REMOTE_CURRENT_DIRECTORY: Rpwd,
@@ -1285,7 +1400,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_COPY: Rcp,
     Commands.REMOTE_MOVE: Rmv,
     Commands.REMOTE_REMOVE: Rrm,
-    # REMOTE_EXEC = "rexec"
+    Commands.REMOTE_EXEC: Rexec,
     # REMOTE_EXEC_SHORT = SPECIAL_COMMAND_MARK * 2
     #
     # SCAN = "scan"
