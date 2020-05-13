@@ -1395,7 +1395,7 @@ Usage example:
   - README.txt"""
 
 
-# ============ SCAN ================
+# ============ CONNECT ================
 
 
 class Connect(CommandInfo):
@@ -1478,7 +1478,50 @@ DIRECTORIES
 
     @classmethod
     def see_also(cls):
-        return "<b>open</b>"
+        return "<b>disconnect></b>, <b>open</b>"
+
+
+# ============ DISCONNECT ================
+
+
+class Disconnect(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "disconnect"
+
+    @classmethod
+    def short_description(cls):
+        return "disconnect from a remote server"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>disconnect</b>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Disconnect from the remote server to which the connection is established.
+
+While this command is the counterpart of <b>connect</b>, it can be used to \
+close connections opened in other ways (i.e. with <b>open</b>).
+
+This differs from <b>close</b> which closes only the currently opened sharing \
+without closing the connection."""
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+<b>/tmp></b> connect alice-arch
+<b>alice-arch</b> - <b>/tmp></b> <b>disconnect</b>
+<b>/tmp></b> connect"""
+
+    @classmethod
+    def see_also(cls):
+        return "<b>connect</b>, <b>close</b>"
 
 
 # ============ LIST ================
@@ -1764,9 +1807,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.SCAN_SHORT: Scan,
 
     Commands.CONNECT: Connect,
-
-    #  = "connect"
-    # DISCONNECT = "disconnect"
+    Commands.DISCONNECT: Disconnect,
     #
     # OPEN = "open"
     # OPEN_SHORT = "o"
