@@ -328,6 +328,12 @@ class Shell:
             return
 
         cmd = args.get_parg()
+        if cmd == "all":
+            for v in self._help_map.values():
+                pydoc.pager(HelpMarkdown(v).to_term_str())
+            return
+        # REMOVE ^
+
         if not cmd:
             cmd_help = self._help_map["usage"]
         else:
@@ -351,7 +357,7 @@ class Shell:
 
 
     @staticmethod
-    def _exit(cls, _: Args) -> NoReturn:
+    def _exit(_: Args) -> NoReturn:
         exit(0)
 
     @staticmethod

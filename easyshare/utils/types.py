@@ -46,7 +46,11 @@ def to_int(o: Any, default=None, raise_exceptions=False) -> Optional[int]:
         return val
 
     if raise_exceptions:
-        raise ValueError("Conversion to integer failed")
+        try:
+            err = ValueError("Conversion to integer failed: {}".format(o))
+        except:
+            err = ValueError("Conversion to integer failed")
+        raise err
 
     return default
 
@@ -66,7 +70,11 @@ def to_bool(o: Any, default=None, raise_exceptions=False) -> Optional[bool]:
         return val
 
     if raise_exceptions:
-        raise ValueError("Conversion to boolean failed")
+        try:
+            err = ValueError("Conversion to boolean failed: {}".format(o))
+        except:
+            err = ValueError("Conversion to boolean failed")
+        raise err
 
     return default
 
@@ -85,7 +93,11 @@ def to_bytes(o: Any, default=None, raise_exceptions=False) -> Optional[bytes]:
         return val
 
     if raise_exceptions:
-        raise ValueError("Conversion to bytes failed")
+        try:
+            err = ValueError("Conversion to bytes failed: {}".format(o))
+        except:
+            err = ValueError("Conversion to bytes failed")
+        raise err
 
     return default
 

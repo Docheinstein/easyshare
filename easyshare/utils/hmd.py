@@ -4,7 +4,6 @@ from typing import Optional, Tuple
 from easyshare import logging
 from easyshare.consts import ansi
 from easyshare.logging import get_logger
-from easyshare.styling import styled
 from easyshare.utils.env import terminal_size
 
 # log = get_logger_silent(__name__)
@@ -15,8 +14,8 @@ log = get_logger(__name__)
 
 A_START_REGEX = re.compile("<a>")
 
-I_START_REGEX = re.compile(r"^<([iI]\d+)>")
-I_END_REGEX = re.compile(r"</([iI]\d+)>$")
+I_START_REGEX = re.compile(r"^<([iI])(\+?)(\d+)>")
+I_END_REGEX = re.compile(r"</([iI]\d*)>$")
 
 ANSI_REGEX = re.compile(r"(\033\[\d+m)")
 # I_END_REGEX = re.compile(r"</([iI]\d+)>")
@@ -53,7 +52,7 @@ class ansistr:
     def __getitem__(self, item):
         if isinstance(item, slice):
             return self.sliced(item)
-        return self.sliced_raw(item)
+        return self.raw[item]
 
     # def ansis(self) -> List[str]:
     #     return [a[1] for a in self._ansis]
@@ -72,7 +71,7 @@ class ansistr:
             return ansistr(first_ansi_tag[1] + self._string[len(first_ansi_tag[1]):].lstrip())
         # print("lstrip of {}".format(self._string))
 
-        return ansistr(self._string.lstrip())
+        return ansistr(self.raw().lstrip())
 
     def first_ansi_match(self) -> Optional[Tuple[int, str]]:
         if self._ansis:
@@ -109,8 +108,8 @@ class ansistr:
 
         return ansistr(new_s)
 
-    def sliced_raw(self, slicing) -> str:
-        return self._string.__getitem__(slicing)
+    def raw(self) -> str:
+        return self._string
 
     def len(self):
         length = len(self._string)
@@ -118,9 +117,6 @@ class ansistr:
         for m in matches:
             length -= len(m)
         return length
-
-    def len_raw(self):
-        return len(self._string)
 
 
 if __name__ == "__main__":
@@ -198,11 +194,16 @@ class HelpMarkdown:
                 if len(indents) > 1:
                     log.w("Only an <i> tag is allowed per line, only the last will be kept")
 
-                indent_match = indents[len(indents) - 1]
-                indent_value = to_int(indent_match[1:], raise_exceptions=True)
+                i, plus, val = indents[len(indents) - 1]
+                indent_value = to_int(val, raise_exceptions=True)
+
+                if plus:
+                    log.d("Detect relative indent increasing")
+                    indent_value += self._current_indent()
+
                 self._set_indent(indent_value)
 
-                if indent_match[0] == "I": # <I*>
+                if i == "I": # <I*>
                     keep_line = False # don't keep the line into account
 
             # </i*>
@@ -294,7 +295,13 @@ class HelpMarkdown:
 
                         log.w("--> still longer after break:  '%s'", line_no_fit_part)
                         line_fit_part = line_no_fit_part[:available_space - 1] # make room for "-"
-                        line_no_fit_part = line_no_fit_part[available_space - 1:].lstrip()
+                        line_no_fit_part = line_no_fit_part[available_space - 1:]
+
+                        # line_no_fit_first_two_chars = line_no_fit_part[0:2]
+                        # if len(line_no_fit_first_two_chars) >= 2:
+                        #     _1, _2 = line_no_fit_first_two_chars[0], line_no_fit_first_two_chars[1]
+                        #     if _1 == " " and _2 != " ":
+                        #         line_no_fit_part = line_no_fit_part.lstrip()
 
                         # Add a trailing "-" if there's still something to render
                         # and if the line doesn't end with a space
@@ -367,6 +374,7 @@ class HelpMarkdown:
 
 
     def _add_line(self, astr: ansistr, *, align: bool = False):
+        log.d("add_line | astr raw = '%s'", astr.raw())
         log.d("add_line | do align = %s", align)
         log.d("-> current indent = %d", self._current_indent())
         log.d("-> current align = %d", self._current_align())
@@ -374,7 +382,7 @@ class HelpMarkdown:
         # Build line as <indent>[<align>][awaiting_ansi_tag]<str>
         # The awaiting ansi tag is an eventual tag that has been broken
         # in the previous add_line and thus add to be re-enabled.
-        s = str(astr).strip()
+        s = str(astr)
         escaped = astr._escaped_string.strip().replace("\n", "")
 
         line = ""
