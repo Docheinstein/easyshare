@@ -48,11 +48,19 @@ class ansistr:
     def __add__(self, other):
         return ansistr(str(self._string) + str(other))
 
+    def __eq__(self, other):
+        if isinstance(other, ansistr):
+            return self._string == other._string
+        if isinstance(other, str):
+            return self == ansistr(other)
+        raise ValueError("__eq__ don't know what to do for item of unknown type")
 
     def __getitem__(self, item):
         if isinstance(item, slice):
             return self.sliced(item)
-        return self.raw[item]
+        if isinstance(item, int):
+            return self.sliced(slice(item, item + 1))
+        raise ValueError("__getitem__ don't know what to do for item of unknown type")
 
     # def ansis(self) -> List[str]:
     #     return [a[1] for a in self._ansis]
@@ -297,11 +305,12 @@ class HelpMarkdown:
                         line_fit_part = line_no_fit_part[:available_space - 1] # make room for "-"
                         line_no_fit_part = line_no_fit_part[available_space - 1:]
 
-                        # line_no_fit_first_two_chars = line_no_fit_part[0:2]
-                        # if len(line_no_fit_first_two_chars) >= 2:
-                        #     _1, _2 = line_no_fit_first_two_chars[0], line_no_fit_first_two_chars[1]
-                        #     if _1 == " " and _2 != " ":
-                        #         line_no_fit_part = line_no_fit_part.lstrip()
+                        if len(line_no_fit_part) >= 2:
+                            line_no_fit_c1 = line_no_fit_part[0]
+                            line_no_fit_c2 = line_no_fit_part[1]
+                            if line_no_fit_c1[0] == " " and \
+                                    line_no_fit_c2[1] != " ":
+                                line_no_fit_part = line_no_fit_part.lstrip()
 
                         # Add a trailing "-" if there's still something to render
                         # and if the line doesn't end with a space

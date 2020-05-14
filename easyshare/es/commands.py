@@ -559,8 +559,8 @@ class Verbose(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>verbose</b>   [<u>LEVEL/<u>]
-<b>v</b>   [<u>LEVEL/<u>]"""
+<b>verbose</b>   [<u>LEVEL</u>]
+<b>v</b>   [<u>LEVEL</u>]"""
 
     @classmethod
     def long_description(cls):
