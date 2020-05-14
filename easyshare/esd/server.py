@@ -14,9 +14,9 @@ from easyshare.logging import get_logger
 from easyshare.auth import Auth, AuthNone
 from easyshare.protocol import create_success_response, create_error_response, Response
 from easyshare.protocol import ServerInfoFull, ServerInfo
-from easyshare.esd.daemon import init_pyro_daemon, get_pyro_daemon
-from easyshare.esd.discover import DiscoverDaemon
-from easyshare.common import DEFAULT_DISCOVER_PORT, ESD_PYRO_UID, DEFAULT_SERVER_PORT
+from easyshare.esd.daemons import init_pyro_daemon, get_pyro_daemon, DiscoverDaemon, TransferDaemon, \
+    init_discover_daemon, get_discover_daemon, init_transfer_daemon, get_transfer_daemon
+from easyshare.common import DEFAULT_DISCOVER_PORT, ESD_PYRO_UID, DEFAULT_SERVER_PORT, transfer_port
 from easyshare.endpoint import Endpoint
 from easyshare.protocol import IServer
 from easyshare.protocol import ServerErrors
@@ -68,13 +68,18 @@ class Server(IServer):
         self._clients: Dict[Endpoint, ClientContext] = {}
         self._clients_lock = threading.Lock()
 
+        # Discover daemon
         if self._enable_discover_server:
-            self._discover_daemon = DiscoverDaemon(
-                port=self._discover_port,
-                callback=self.handle_discover_request
+            init_discover_daemon(self._discover_port)
+            get_discover_daemon().add_callback(
+                self.handle_discover_request
             )
-        else:
-            self._discover_daemon = None
+
+        # Transfer daemon
+        init_transfer_daemon(transfer_port(self._port))
+
+        # We don't have to listen to the transfer daemon
+        # get and put services will do so
 
         set_ssl_context(ssl_context)
         self._ssl_context = get_ssl_context()
@@ -92,8 +97,8 @@ class Server(IServer):
         log.i("Server real address: %s", address)
         log.i("Server real port: %d", port)
         if self.is_discoverable():
-            log.i("Server real discover address: %s", self._discover_daemon.sock.address())
-            log.i("Server real discover port: %d", self._discover_daemon.sock.port())
+            log.i("Server real discover address: %s", get_discover_daemon()._sock.address())
+            log.i("Server real discover port: %d", get_discover_daemon()._sock.port())
 
         log.i("Server registered at URI: %s", pyro_uri)
 
@@ -135,10 +140,13 @@ class Server(IServer):
     def start(self):
         th_discover = None
 
+
         th_pyro = threading.Thread(target=get_pyro_daemon().requestLoop, daemon=True)
 
+        th_transfer = threading.Thread(target=get_transfer_daemon().run, daemon=True)
+
         if self.is_discoverable():
-            th_discover = threading.Thread(target=self._discover_daemon.run, daemon=True)
+            th_discover = threading.Thread(target=get_discover_daemon().run, daemon=True)
 
         try:
             if th_discover:
@@ -147,14 +155,18 @@ class Server(IServer):
             else:
                 log.w("NOT starting DISCOVER daemon")
 
-            th_pyro.start()
             log.i("Starting PYRO daemon")
+            th_pyro.start()
+
+            log.i("Starting TRANSFER daemon")
+            th_transfer.start()
 
             log.i("Ready to handle requests")
 
             if th_discover:
                 th_discover.join()
             th_pyro.join()
+            th_transfer.join()
 
         except KeyboardInterrupt:
             log.d("CTRL+C detected; quitting")
@@ -317,7 +329,7 @@ class Server(IServer):
         si["discoverable"] = self._enable_discover_server
 
         if self._enable_discover_server:
-            si["discover_port"] = self._discover_daemon.endpoint()[1]
+            si["discover_port"] = get_discover_daemon().endpoint()[1]
         return si
 
     def _add_client(self, endpoint: Endpoint) -> ClientContext:

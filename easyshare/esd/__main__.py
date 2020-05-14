@@ -5,9 +5,10 @@ from typing import List, Optional
 from easyshare.esd.common import Sharing
 
 from easyshare import logging
-from easyshare.args import Kwarg, Params, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
+from easyshare.args import Kwarg, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
     Pargs, ArgsParser, ActionParam
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
+from easyshare.esd.daemons import get_discover_daemon, get_transfer_daemon
 from easyshare.logging import get_logger
 from easyshare.auth import AuthFactory
 from easyshare.esd.server import Server
@@ -452,13 +453,14 @@ def main():
         rexec=server_rexec
     )
 
-    print("Server name:      ", server.name())
-    print("Server auth:      ", server.auth_type())
-    print("Server address:   ", server.endpoint()[0])
-    print("Server port:      ", server.endpoint()[1])
-    print("Discover port:    ", server._discover_daemon.endpoint()[1] if server.is_discoverable() else "DISABLED")
-    print("SSL:              ", True if get_ssl_context() else False)
-    print("Remote execution  ", server_rexec)
+    print("Server name:           ", server.name())
+    print("Server auth:           ", server.auth_type())
+    print("Server address:        ", server.endpoint()[0])
+    print("Server port:           ", server.endpoint()[1])
+    print("Server transfer port:  ", get_transfer_daemon().endpoint()[1])
+    print("Discover port:         ", get_discover_daemon().endpoint()[1] if server.is_discoverable() else "DISABLED")
+    print("SSL:                   ", True if get_ssl_context() else False)
+    print("Remote execution       ", server_rexec)
     print("------------------------")
 
     if sharings:

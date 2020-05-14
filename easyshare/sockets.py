@@ -118,10 +118,12 @@ class SocketTcpAcceptor(Socket):
     def __init__(self,
                  address: str = ADDR_ANY,
                  port: int = PORT_ANY, *,
+                 pending_connections: int = 0,
                  ssl_context: Optional[ssl.SSLContext] = None):
         super().__init__(
             sslify_socket(
-                socket_tcp_in(address, port),
+                socket_tcp_in(address, port,
+                              pending_connections=pending_connections),
                 ssl_context=ssl_context,
                 server_hostname=address
             )

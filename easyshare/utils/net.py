@@ -75,7 +75,7 @@ def socket_tcp_out(address: str, port: int, *,
 def _socket(mode: SocketMode, direction: SocketDirection,
             address: str = None, port: int = None,
             timeout: float = None, broadcast: bool = False,
-            pending_connections: int = 1, reuse_addr: bool = True) -> Optional[socket.socket]:
+            pending_connections: int = 0, reuse_addr: bool = True) -> Optional[socket.socket]:
 
     log.d("Creating raw_socket\n"
         "\tmode:            %s\n"

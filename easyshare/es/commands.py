@@ -847,7 +847,7 @@ remote directory if no <u>DIR</u> is specified"""
 # ============ xCD ================
 
 
-class Cd(CommandInfo):
+class Cd(ListLocalDirsCommandInfo):
 
     @classmethod
     def name(cls):

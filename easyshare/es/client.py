@@ -1103,6 +1103,9 @@ class Client:
         with TracedPyroProxy(get_service_uri) as get_service:
 
             while True:
+                if do_check:
+                    log.d("Taking 20s of time...")
+                    time.sleep(20)
                 log.i("Fetching another file info")
                 # The first next() fetch never implies a new file to be put
                 # on the transfer socket.
