@@ -7,44 +7,45 @@ import time
 import zlib
 from getpass import getpass
 from stat import S_ISDIR, S_ISREG
-from typing import Optional, Callable, List, Dict, Union, Tuple, TypeVar, cast, Any
+from typing import Optional, Callable, List, Dict, Union, Tuple, cast
 
 from Pyro5.errors import PyroError
 
+from easyshare.args import Args as Args, Kwarg, INT_PARAM, PRESENCE_PARAM, ArgsParseError, Pargs, \
+    VariadicPargs, ArgsParser, StopParseArgs
 from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR
+from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
 from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info
 from easyshare.es.common import ServerLocation, SharingLocation
-from easyshare.es.connections import ServerConnection, SharingConnection, ServerConnectionMinimal
+from easyshare.es.connections.server import ServerConnection, ServerConnectionMinimal
+from easyshare.es.connections.sharing import SharingConnection
 from easyshare.es.discover import Discoverer
-from easyshare.es.errors import ClientErrors, print_error
+from easyshare.es.errors import ClientErrors, print_error, ErrorsStrings
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str, server_info_to_short_str
-from easyshare.consts.net import ADDR_BROADCAST
-from easyshare.esd.services import TransferService
+from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
-from easyshare.protocol import FileInfo, FileInfoTreeNode
+from easyshare.progress import FileProgressor
 from easyshare.protocol import FTYPE_DIR, FTYPE_FILE, FileType
+from easyshare.protocol import FileInfo, FileInfoTreeNode
 from easyshare.protocol import IRexecService, IGetService, IPutService
 from easyshare.protocol import OverwritePolicy
 from easyshare.protocol import Response, is_error_response, is_success_response, is_data_response
 from easyshare.protocol import ServerInfoFull, ServerInfo
 from easyshare.protocol import SharingInfo
-from easyshare.progress import FileProgressor
-from easyshare.styling import styled, red, bold
-from easyshare.timer import Timer
-from easyshare.ssl import get_ssl_context
 from easyshare.sockets import SocketTcpOut
+from easyshare.ssl import get_ssl_context
+from easyshare.styling import red, bold
+from easyshare.timer import Timer
 from easyshare.utils.app import eprint
 from easyshare.utils.json import j
+from easyshare.utils.measures import duration_str_human, speed_str, size_str
+from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, relpath
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro.common import pyro_uri
 from easyshare.utils.str import unprefix
-from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
-from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, relpath
-from easyshare.args import Args as Args, Kwarg, INT_PARAM, PRESENCE_PARAM, ArgsParseError, Pargs, \
-    VariadicPargs, ArgsParser, StopParseArgs
 
 log = get_logger(__name__)
 
@@ -154,8 +155,8 @@ class PutArgs(VariadicPargs):
 
 # ==================================================================
 
-def _print(*vargs, **kwargs):
-    print(*vargs, **kwargs)
+def _print(*vargs):
+    print(*vargs)
 
 
 
@@ -175,44 +176,7 @@ def ensure_data_response(resp: Response, *data_fields):
             raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
 
-API = TypeVar('API', bound=Callable[..., None])
-
-# 
-# 
-# def provide_d_sharing_connection(api: API) -> API:
-#     def provide_d_sharing_connection_api_wrapper(client: 'Client', args: Args, _1: ServerConnection, _2: SharingConnection):
-#         # Wraps api providing the connection parameters.
-#         # The provided connection is the es current connection,
-#         # if it is established, or a temporary one that will be closed
-#         # just after the api call.
-#         # The connection is established treating the first arg of
-#         # args as a 'ServerLocation'
-#         log.d("Checking if connection exists before invoking %s", api.__name__)
-# 
-#         sharing_conn, server_conn = \
-#             client._get_current_sharing_connection_or_create_from_sharing_location_args(args)
-# 
-#         if not sharing_conn or not server_conn or \
-#                 not sharing_conn.is_connected() or not server_conn.is_connected():
-#             raise BadOutcome(ClientErrors.NOT_CONNECTED)
-# 
-#         log.d("Connection established, invoking %s", api.__name__)
-#         api(client, args, server_conn, sharing_conn)
-# 
-#         if sharing_conn != client.sharing_connection:
-#             log.d("Closing temporary sharing connection")
-#             sharing_conn.close()
-# 
-#         if server_conn != client.server_connection:
-#             log.d("Closing temporary esd connection")
-#             server_conn.disconnect()
-# 
-#     provide_d_sharing_connection_api_wrapper.__name__ = api.__name__
-#     return provide_d_sharing_connection_api_wrapper
-# 
-# 
-
-def make_sharing_connection_api_wrapper(api: API, ftype: Optional[FileType]) -> API:
+def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
     def wrapper(client: 'Client', args: Args, _1: ServerConnection, _2: SharingConnection, **kwargs):
         # Wraps api providing the connection parameters.
         # The provided connection is the es current connection,
@@ -243,20 +207,22 @@ def make_sharing_connection_api_wrapper(api: API, ftype: Optional[FileType]) -> 
         if server_conn != client.server_connection:
             log.d("Closing temporary esd connection")
             server_conn.disconnect()
-            
+
     wrapper.__name__ = api.__name__
 
     return wrapper
 
-def provide_d_sharing_connection(api: API) -> API:
+
+def provide_d_sharing_connection(api):
     return make_sharing_connection_api_wrapper(api, ftype=FTYPE_DIR)
 
-def provide_d_sharing_connection_if_possible(api: API) -> API:
+
+def provide_sharing_connection(api):
     return make_sharing_connection_api_wrapper(api, ftype=None)
 
 
 def make_server_connection_api_wrapper(api, connect: bool):
-    def wrapper(client: 'Client', args: Args, _1: ServerConnection, _2: SharingConnection, **kwargs):
+    def wrapper(client: 'Client', args: Args, _1: ServerConnection, _2: SharingConnection):
         # Wraps api providing the connection parameters.
         # The provided connection is the es current connection,
         # if it is established, or a temporary one that will be closed
@@ -274,7 +240,7 @@ def make_server_connection_api_wrapper(api, connect: bool):
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         log.d("Server connection established, invoking %s", api.__name__)
-        api(client, args, server_conn, None, **kwargs)
+        api(client, args, server_conn, None)
 
         if server_conn != client.server_connection:
             log.d("Disconnecting temporary esd connection")
@@ -284,10 +250,10 @@ def make_server_connection_api_wrapper(api, connect: bool):
 
     return wrapper
 
-def provide_server_connection_connected(api: API) -> API:
+def provide_server_connection_connected(api):
     return make_server_connection_api_wrapper(api, connect=True)
 
-def provide_server_connection(api: API) -> API:
+def provide_server_connection(api):
     return make_server_connection_api_wrapper(api, connect=False)
 
 # ==================================================================
@@ -335,9 +301,7 @@ class Client:
             str, Tuple[
                 Callable[..., ArgsParser],
                 List[ArgsParser],
-                Callable[..., None]
-                # Callable[[Args, Optional[ServerConnection], Optional[SharingConnection], **kargs], None]
-                # Real signature is ^
+                Callable[[Args, Optional[ServerConnection], Optional[SharingConnection]], None]
             ]
         ] = {
 
@@ -521,7 +485,7 @@ class Client:
         log.i("Parsed command arguments\n%s", args)
 
         try:
-            executor(args, None, None, original_args=args_cpy)
+            executor(args, None, None)
             return 0
 
         except PyroError:
@@ -552,7 +516,7 @@ class Client:
     # === LOCAL Commands ===
 
     @staticmethod
-    def cd(args: Args, _, _2, **kwargs):
+    def cd(args: Args, _, _2):
         directory = pathify(args.get_parg(default="~"))
 
         log.i(">> CD %s", directory)
@@ -563,7 +527,7 @@ class Client:
         os.chdir(directory)
 
     @staticmethod
-    def ls(args: Args, _, _2, **kwargs):
+    def ls(args: Args, _, _2):
 
         def ls_provider(path, **kwargs):
             path = pathify(path or os.getcwd())
@@ -573,7 +537,7 @@ class Client:
         Client._ls(args, data_provider=ls_provider, data_provider_name="LS")
 
     @staticmethod
-    def l(args: Args, _, _2, **kwargs):
+    def l(args: Args, _, _2):
         # Just call ls -la
         # Reuse the parsed args for keep the (optional) path
         args._parsed[Ls.SHOW_ALL[0]] = True
@@ -581,7 +545,7 @@ class Client:
         Client.ls(args, _, _2)
 
     @staticmethod
-    def tree(args: Args, _, _2, **kwargs):
+    def tree(args: Args, _, _2):
 
         def tree_provider(path, **kwargs):
             path = pathify(path or os.getcwd())
@@ -591,7 +555,7 @@ class Client:
         Client._tree(args, data_provider=tree_provider, data_provider_name="TREE")
 
     @staticmethod
-    def mkdir(args: Args, _, _2, **kwargs):
+    def mkdir(args: Args, _, _2):
         directory = pathify(args.get_parg())
 
         if not directory:
@@ -602,13 +566,13 @@ class Client:
         os.makedirs(directory, exist_ok=True)
 
     @staticmethod
-    def pwd(_: Args, _2, _3, **kwargs):
+    def pwd(_: Args, _2, _3):
         log.i(">> PWD")
 
         print(os.getcwd())
 
     @staticmethod
-    def rm(args: Args, _, _2, **kwargs):
+    def rm(args: Args, _, _2):
         paths = [pathify(p) for p in args.get_pargs()]
 
         if not paths:
@@ -620,15 +584,15 @@ class Client:
             rm(p, error_callback=lambda err: eprint(err))
 
     @staticmethod
-    def mv(args: Args, _, _2, **kwargs):
+    def mv(args: Args, _, _2):
         Client._mvcp(args, mv, "MV")
 
     @staticmethod
-    def cp(args: Args, _, _2, **kwargs):
+    def cp(args: Args, _, _2):
         Client._mvcp(args, cp, "CP")
 
     @staticmethod
-    def exec(args: Args, _, _2, **kwargs):
+    def exec(args: Args, _, _2):
         popen_cmd = args.get_pargs(default=[])
         popen_cmd_args = args.get_unparsed_args(default=[])
         popen_full_command = " ".join(popen_cmd + popen_cmd_args)
@@ -645,7 +609,7 @@ class Client:
     # =================================================
 
 
-    def connect(self, args: Args, _1, _2, **kwargs):
+    def connect(self, args: Args, _1, _2):
         log.i(">> CONNECT")
 
         server_location = ServerLocation.parse(args.get_parg())
@@ -678,7 +642,7 @@ class Client:
 
 
     @provide_server_connection_connected
-    def disconnect(self, args: Args, server_conn: ServerConnection, _, **kwargs):
+    def disconnect(self, args: Args, server_conn: ServerConnection, _):
         if not server_conn or not server_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -688,7 +652,7 @@ class Client:
 
         # TODO: cleanup ?
 
-    def open(self, args: Args, _1, _2, **kwargs):
+    def open(self, args: Args, _1, _2):
         log.i(">> OPEN")
 
         new_server_conn: Optional[ServerConnection] = None
@@ -759,7 +723,7 @@ class Client:
 
 
     @provide_server_connection_connected
-    def rexec(self, args: Args, server_conn: ServerConnection, _, **kwargs):
+    def rexec(self, args: Args, server_conn: ServerConnection, _):
         if not server_conn or not server_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -862,7 +826,7 @@ class Client:
             rexec_stdout_receiver_th.join()
 
     @provide_server_connection
-    def ping(self, args: Args, server_conn: ServerConnection, _, **kwargs):
+    def ping(self, args: Args, server_conn: ServerConnection, _):
         if not server_conn:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -890,7 +854,7 @@ class Client:
     # =============== PROBING Commands ================
     # =================================================
 
-    def scan(self, args: Args, _, _2, **kwargs):
+    def scan(self, args: Args, _, _2):
 
         show_sharings_details = Scan.SHOW_SHARINGS_DETAILS in args
         show_all_details = Scan.SHOW_ALL_DETAILS in args
@@ -940,7 +904,7 @@ class Client:
         log.i("======================")
 
     @provide_server_connection
-    def info(self, args: Args, server_conn: ServerConnection, _, **kwargs):
+    def info(self, args: Args, server_conn: ServerConnection, _):
         if not server_conn:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -951,7 +915,7 @@ class Client:
                                         separators=True))
 
     @provide_server_connection
-    def list(self, args: Args, server_conn: ServerConnection, _, **kwargs):
+    def list(self, args: Args, server_conn: ServerConnection, _):
         if not server_conn:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -970,7 +934,7 @@ class Client:
     # =================================================
 
     @provide_d_sharing_connection
-    def close(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def close(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -986,7 +950,7 @@ class Client:
 
 
     @provide_d_sharing_connection
-    def rpwd(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def rpwd(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -998,7 +962,7 @@ class Client:
         print(rcwd)
 
     @provide_d_sharing_connection
-    def rcd(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def rcd(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -1012,7 +976,7 @@ class Client:
         log.d("Current rcwd: %s", sharing_conn._rcwd)
 
     @provide_d_sharing_connection
-    def rls(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def rls(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -1023,7 +987,7 @@ class Client:
 
         Client._ls(args, data_provider=rls_provider, data_provider_name="RLS")
 
-    def rl(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def rl(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         # Just call rls -la
         # Reuse the parsed args for keep the (optional) path
         args._parsed[Ls.SHOW_ALL[0]] = True
@@ -1031,7 +995,7 @@ class Client:
         self.rls(args, server_conn, sharing_conn)
 
     @provide_d_sharing_connection
-    def rtree(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def rtree(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -1043,7 +1007,7 @@ class Client:
         Client._tree(args, data_provider=rtree_provider, data_provider_name="RTREE")
 
     @provide_d_sharing_connection
-    def rmkdir(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def rmkdir(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -1058,7 +1022,7 @@ class Client:
         ensure_success_response(resp)
 
     @provide_d_sharing_connection
-    def rrm(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def rrm(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
@@ -1079,59 +1043,25 @@ class Client:
                 print_error(err)
 
     @provide_d_sharing_connection
-    def rmv(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def rmv(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         Client._rmvcp(args, api=sharing_conn.rmv, api_name="RMV")
 
     @provide_d_sharing_connection
-    def rcp(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def rcp(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
         Client._rmvcp(args, api=sharing_conn.rcp, api_name="RCP")
 
-    @provide_d_sharing_connection_if_possible
-    def get(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
-        files = args.get_pargs()
-
-        # Server connection must be valid
-        if not server_conn or not server_conn.is_connected():
+    @provide_sharing_connection
+    def get(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+        if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-
-        # Sharing connection might be invalid if we are trying to get a 'file sharing'
-        # directly, check it before raise an exception
-        if not sharing_conn or not sharing_conn.is_connected():
-            log.d("Sharing connection is not established, checking whether "
-                  "we are trying to get from 'file sharing'")
-
-            # The hope is that the user wants to get from a file sharing,
-            # otherwise it means that a sharing connection can't be established
-            # and thus is an error
-            # Thus take the original_args from **kwargs and check whether
-            # the arg name matches one of the sharings of the server_conn
-            original_args: Args = kwargs.get("original_args", None)
-            if not original_args:
-                log.w("Can't obtain original args")
-                raise BadOutcome(ClientErrors.COMMAND_EXECUTION_FAILED)
-
-            f_sharing_name = original_args.get_parg()
-
-            log.d("Looking for a sharing named %s", f_sharing_name)
-
-            sh: SharingInfo
-            for sh in server_conn.server_info.get("sharings"):
-                if sh.get("name") == f_sharing_name and sh.get("ftype") == FTYPE_FILE:
-                    log.i("Found the expected 'file sharing'")
-                    break
-            else:
-                log.e("Cannot neither find a file sharing with the expected name"
-                      "nor establish a sharing connection")
-
-                raise BadOutcome(ClientErrors.NOT_CONNECTED)
-
+        files = args.get_pargs()
 
         do_check = PutArgs.CHECK in args
         quiet = PutArgs.QUIET in args
@@ -1379,7 +1309,7 @@ class Client:
 
 
     @provide_d_sharing_connection
-    def put(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection, **kwargs):
+    def put(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
 
         if not sharing_conn or not sharing_conn.is_connected():
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
@@ -1885,7 +1815,7 @@ class Client:
             sharing_location: SharingLocation,
             sharing_ftype: FileType,
     ) -> Tuple[Optional[SharingConnection], ServerConnection]:
-        sharing_conn = None
+
         server_conn = self._create_server_connection(
             connect=True,
             server_name=sharing_location.server_name,
@@ -1898,16 +1828,13 @@ class Client:
         if not server_conn or not server_conn.is_connected():
             raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        if sharing_ftype == FTYPE_DIR:
-            sharing_conn = Client.create_sharing_connection_from_server_connection(
-                server_conn=server_conn,
-                sharing_name=sharing_location.name,
-            )
+        sharing_conn = Client.create_sharing_connection_from_server_connection(
+            server_conn=server_conn,
+            sharing_name=sharing_location.name,
+        )
 
-            if not sharing_conn or not sharing_conn.is_connected():
-                raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
-        else:
-            log.d("Not creating sharing connection since ftype is no DIR")
+        if not sharing_conn or not sharing_conn.is_connected():
+            raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
 
         return sharing_conn, server_conn
 
@@ -2243,6 +2170,8 @@ class Client:
                 if sharing_ftype and a_sharing_info.get("ftype") != sharing_ftype:
                     log.d("Ignoring sharing which does not match the ftype filter '%s'", sharing_ftype)
                     log.w("Found a sharing with the right name but wrong ftype, wrong command maybe?")
+                    # Notify it outside, the user probably wants to know what's happening
+                    print_error("WARNING: " + ErrorsStrings.NOT_ALLOWED_FOR_F_SHARING)
                     continue
 
                 # FOUND

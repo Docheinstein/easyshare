@@ -8,7 +8,8 @@ from easyshare import logging
 from easyshare.args import Kwarg, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
     Pargs, ArgsParser, ActionParam
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
-from easyshare.esd.daemons import get_discover_daemon, get_transfer_daemon
+from easyshare.esd.daemons.discover import get_discover_daemon
+from easyshare.esd.daemons.transfer import get_transfer_daemon
 from easyshare.logging import get_logger
 from easyshare.auth import AuthFactory
 from easyshare.esd.server import Server

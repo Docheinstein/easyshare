@@ -42,6 +42,8 @@ class ErrorsStrings:
     CONNECTION_ERROR = "Connection error"
 
     TRANSFER_CHECK_FAILED = "Check failed"
+    NOT_ALLOWED_FOR_F_SHARING = "Not allowed: action can be performed only on sharings of type directory"
+
 
 
 
@@ -58,6 +60,7 @@ ERRORS_STRINGS_MAP = {
     ServerErrors.AUTHENTICATION_FAILED: ErrorsStrings.AUTHENTICATION_FAILED,
     ServerErrors.INTERNAL_SERVER_ERROR: ErrorsStrings.INTERNAL_SERVER_ERROR,
     ServerErrors.NOT_WRITABLE: ErrorsStrings.NOT_WRITABLE,
+    ServerErrors.NOT_ALLOWED_FOR_F_SHARING: ErrorsStrings.NOT_ALLOWED_FOR_F_SHARING,
 
     ClientErrors.COMMAND_NOT_RECOGNIZED: ErrorsStrings.COMMAND_NOT_RECOGNIZED,
     ClientErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
