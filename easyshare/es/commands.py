@@ -459,8 +459,8 @@ class Trace(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>trace</b>   [<u>0</u> | <u>1</u>]
-<b>t</b>       [<u>0</u> | <u>1</u>]"""
+<b>trace</b> [<u>0</u> | <u>1</u>]
+<b>t</b>     [<u>0</u> | <u>1</u>]"""
 
     @classmethod
     def long_description(cls):
@@ -559,8 +559,8 @@ class Verbose(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>verbose</b>   [<u>LEVEL</u>]
-<b>v</b>   [<u>LEVEL</u>]"""
+<b>verbose</b> [<u>LEVEL</u>]
+<b>v</b>       [<u>LEVEL</u>]"""
 
     @classmethod
     def long_description(cls):
@@ -727,6 +727,7 @@ class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo, FastSharingConnectionComma
     def synopsis(cls):
         return """\
 <b>rls</b> [<u>OPTION</u>]... [<u>DIR</u>]
+
 <b>rls</b> [<u>OPTION</u>]... [<u>SHARING_LOCATION</u>] [<u>DIR</u>]"""
 
     @classmethod
@@ -824,7 +825,7 @@ class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, FastSharingConnectionC
 
     @classmethod
     def name(cls):
-        return "<b>rtree</b>"
+        return "rtree"
 
     @classmethod
     def short_description(cls):
@@ -832,7 +833,10 @@ class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, FastSharingConnectionC
 
     @classmethod
     def synopsis(cls):
-        return "<b>tree</b> [<u>OPTION</u>]... [<u>DIR</u>]"
+        return """
+<b>rtree</b> [<u>OPTION</u>]... [<u>DIR</u>]
+
+<b>rtree</b> [<u>OPTION</u>]... [<u>SHARING_LOCATION</u>] [<u>DIR</u>]"""
 
     @classmethod
     def long_description(cls):
@@ -953,6 +957,7 @@ class Rmkdir(FastSharingConnectionCommandInfo):
     def synopsis(cls):
         return """\
 <b>rmkdir</b> <u>DIR</u>
+
 <b>rmkdir</b> [<u>SHARING_LOCATION</u>] <u>DIR</u>"""
 
     @classmethod
@@ -1007,7 +1012,7 @@ or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 If used with two arguments as "<b>cp</b> <u>SOURCE</u> <u>DEST</u>" the following \
 rules are applied:
   <a>
-- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
+- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>
 - If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be copied into <u>DEST</u>
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
   </a>
@@ -1034,6 +1039,7 @@ class Rcp(FastSharingConnectionCommandInfo):
         return """\
 <b>rcp</b> <u>SOURCE</u> <u>DEST</u>
 <b>rcp</b> <u>SOURCE</u>... <u>DIR</u>
+
 <b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u> <u>DEST</u>
 <b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u>"""
 
@@ -1046,7 +1052,7 @@ or copy multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 If used with two arguments as "<b>rcp</b> <u>SOURCE</u> <u>DEST</u>" the following \
 rules are applied:
   <a>
-- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>.
+- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will copied as <u>DEST</u>
 - If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be copied into <u>DEST</u>
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
   </a>
@@ -1113,7 +1119,7 @@ or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 If used with two arguments as "<b>mv</b> <u>SOURCE</u> <u>DEST</u>" the following \
 rules are applied:
   <a>
-- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>.
+- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>
 - If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be moved into <u>DEST</u>
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
   </a>
@@ -1142,6 +1148,7 @@ class Rmv(FastSharingConnectionCommandInfo):
         return """\
 <b>rmv</b> <u>SOURCE</u> <u>DEST</u>
 <b>rmv</b> <u>SOURCE</u>... <u>DIR</u>
+
 <b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u> <u>DEST</u>
 <b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u>"""
 
@@ -1154,7 +1161,7 @@ or move multiple </u>SOURCE</u>s to the directory <u>DIR</u>.
 If used with two arguments as "<b>rmv</b> <u>SOURCE</u> <u>DEST</u>" the following \
 rules are applied:
   <a>
-- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>.
+- If <u>DEST</u> doesn't exists, <u>SOURCE</u> will moved as <u>DEST</u>
 - If <u>DEST</u> exists and it is a directory, <u>SOURCE</u> will be moved into <u>DEST</u>
 - If <u>DEST</u> exists and it is a file, <u>SOURCE</u> must be a file and it will overwrite <u>DEST</u>
   </a>
@@ -1238,6 +1245,7 @@ class Rrm(FastSharingConnectionCommandInfo):
     def synopsis(cls):
         return """\
 <b>rrm</b> [FILE]...
+
 <b>rrm</b> [<u>SHARING_LOCATION</u>] [FILE]..."""
 
     @classmethod
@@ -1295,8 +1303,8 @@ class Exec(CommandInfo):
     def synopsis(cls):
         return """\
 <b>exec</b> <u>COMMAND</u>
-<b>:</b> <u>COMMAND</u>
-<b>:</b><u>COMMAND</u>"""
+<b>:</b>    <u>COMMAND</u>
+<b>:</b>    <u>COMMAND</u>"""
 
     @classmethod
     def long_description(cls):
@@ -1343,11 +1351,11 @@ class Rexec(FastServerConnectionCommandInfo):
     def synopsis(cls):
         return """\
 <b>rexec</b> <u>COMMAND</u>
-<b>::</b> <u>COMMAND</u>
+<b>::</b>    <u>COMMAND</u>
 <b>::</b><u>COMMAND</u>
 
 <b>rexec</b> [<u>SERVER_LOCATION</u>] <u>COMMAND</u>
-<b>::</b> [<u>SERVER_LOCATION</u>] <u>COMMAND</u>
+<b>::</b>    [<u>SERVER_LOCATION</u>] <u>COMMAND</u>
 <b>::</b>[<u>SERVER_LOCATION</u>] <u>COMMAND</u>"""
 
     @classmethod
@@ -1411,7 +1419,7 @@ class Scan(CommandInfo, NoPargs):
     def synopsis(cls):
         return """\
 <b>scan</b> [<u>OPTION</u>]...
-<b>s</b> [<u>OPTION</u>]..."""
+<b>s</b>    [<u>OPTION</u>]..."""
 
     @classmethod
     def long_description(cls):
@@ -1600,7 +1608,8 @@ class Open(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>open</b> <u>SHARING_LOCATION</u>"""
+<b>open</b> <u>SHARING_LOCATION</u>
+<b>o</b>    <u>SHARING_LOCATION</u>"""
 
     @classmethod
     def long_description(cls):
@@ -1712,7 +1721,8 @@ class Close(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>close</b>"""
+<b>close</b>
+<b>c</b>"""
 
     @classmethod
     def long_description(cls):
@@ -1741,6 +1751,81 @@ Usage example:
     @classmethod
     def see_also(cls):
         return "<b>open</b>, <b>disconnect</b>"
+
+
+# ============ GET ================
+
+
+class Get(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "get"
+
+    @classmethod
+    def short_description(cls):
+        return "get files and directories from the remote sharing"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>get</b> [<u>REMOTE_FILE</u>]...
+<b>g</b>   [<u>REMOTE_FILE</u>]...
+
+<b>get</b> [<u>SHARING_LOCATION</u>] [<u>REMOTE_FILE</u>]...
+<b>g</b>   [<u>SHARING_LOCATION</u>] [<u>REMOTE_FILE</u>]..."""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Get files and directories from a remote sharing to the local machine.
+
+
+This command can be used for two similar purpose:
+1. Download either files or directory from a "directory sharing"
+2. Download a "file sharing" (i.e. a single file with a sharing name assigned to it).
+
+In case 1. a connection to the remote sharing have to be established in one of \
+the following manners:
+    <A>
+1a. Create a connection to the sharing with <b>connect</b> and/or <b>open</b>
+1b. Provide a <u>SHARING_LOCATION</u> to the <b>get</b> command (e.g. get alice-arch temp)
+    </a>
+If execute while connected to a "directory sharing" (1.) the following rules are applied:
+  <A>
+- If <u>REMOTE_FILE</u>s arguments are given, then the specified remote files \
+are downloaded into the local directory
+- If no <u>REMOTE_FILE</u> argument is given, then the entire sharing is downloaded \
+into the local directory within a folder that has he same name as the sharing
+- If <u>REMOTE_FILE</u> is "*", then the entire sharing is downloaded \
+into the local directory (without wrapping it into a folder)
+
+For download a "file sharing" (2.), <b>get</b> must be used in the form \
+"<b>get</b> [<u>SHARING_LOCATION</u>]" (e.g. get alice-arch file) and there is no \
+need to <b>open</b> the sharing before (since it's a file), as in case 1. 
+
+<u>REMOTE_FILE</u> can be:
+  <A>
+- a path relative to the current remote working directory (<b>rpwd</b>), (e.g. afile, adir/afile)
+- a path absolute with respect to the sharing root, which is defined by a leading slash (e.g. /f1)
+  </a>
+  
+The files will be placed into the current local directory (which can be \
+changed with <b>cd</b>, inside or outside <b>es</b>).
+
+Directories are automatically downloaded recursively.
+"""
+
+    @classmethod
+    def examples(cls):
+        return f"""
+
+"""
+
+    @classmethod
+    def see_also(cls):
+        return "<b>open</b>, <b>put</b>"
+
 
 
 # ============ LIST ================
@@ -1822,7 +1907,10 @@ class Info(FastServerConnectionCommandInfo, NoPargs):
     def synopsis(cls):
         return """\
 <b>info</b> [<u>OPTION</u>]...
-<b>info</b> [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]..."""
+<b>i</b>    [<u>OPTION</u>]...
+
+<b>info</b> [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]...
+<b>i</b>    [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]..."""
 
     @classmethod
     def long_description(cls):
@@ -1915,6 +2003,7 @@ class Ping(FastServerConnectionCommandInfo, NoPargs):
     def synopsis(cls):
         return """\
 <b>ping</b> [<u>OPTION</u>]...
+
 <b>ping</b> [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]..."""
 
     @classmethod
@@ -2033,11 +2122,11 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.CLOSE: Close,
     Commands.CLOSE_SHORT: Close,
 
-    # GET = "get"
-    # GET_SHORT = "g"
+    Commands.GET: Get,
+    Commands.GET_SHORT: Get,
+
     # PUT = "put"
     # PUT_SHORT = "p"
-    #
 
     Commands.LIST: ListSharings,
     Commands.INFO: Info,

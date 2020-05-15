@@ -1,11 +1,13 @@
-from abc import ABC, abstractmethod
+import copy
+
+from abc import ABC
 from enum import Enum
 from typing import List, Any, Optional, Union, Tuple, Callable, Dict
 
 from easyshare.logging import get_logger
 from easyshare.utils.json import j
 from easyshare.utils.str import unprefix
-from easyshare.utils.types import to_int, list_wrap, is_int
+from easyshare.utils.types import to_int, list_wrap
 
 log = get_logger(__name__)
 
@@ -52,6 +54,7 @@ class ArgType(Enum):
 
 class Args:
     def __init__(self, parsed: Dict, unparsed: List[Any] = None):
+        unparsed = unparsed or []
         self._parsed = parsed
         self._unparsed = unparsed
 
@@ -98,6 +101,12 @@ class Args:
 
     def get_unparsed_args(self, default=None) -> Optional[List[str]]:
         return self._unparsed or default
+
+    def clone(self) -> 'Args':
+        return Args(
+            parsed=copy.deepcopy(self._parsed),
+            unparsed=copy.deepcopy(self._unparsed),
+        )
 
     @staticmethod
     def parse(args: List[str], *,
