@@ -2,7 +2,7 @@ import os
 from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
-from easyshare.args import Kwarg, PRESENCE_PARAM, INT_PARAM, NoPargs, Pargs
+from easyshare.args import Kwarg, PRESENCE_PARAM, INT_PARAM, NoPargs, Pargs, VariadicPargs
 from easyshare.es.ui import StyledString
 from easyshare.logging import get_logger
 from easyshare.protocol import FileInfo
@@ -16,11 +16,15 @@ from easyshare.utils.str import rightof
 log = get_logger(__name__)
 
 
+# Contains only help and meta information
+# of the commands, not the real implementation
+
+
 # =============================================
 # =============== COMMANDS ====================
 # =============================================
 
-SPECIAL_COMMAND_MARK = ":"
+SPECIAL_COMMAND_MARK = ":" # exec and rexec begin with this marker
 
 class Commands:
     HELP = "help"
@@ -81,11 +85,10 @@ class Commands:
     PING = "ping"
 
 
-def is_special_command(s: str):
+def is_special_command(s: str) -> bool:
     return s.startswith(SPECIAL_COMMAND_MARK)
 
-def matches_special_command(s: str, sp_comm: str):
-
+def matches_special_command(s: str, sp_comm: str) -> bool:
     return is_special_command(sp_comm) and \
            s.startswith(sp_comm) and \
            (len(s) == len(sp_comm) or s[len(sp_comm)] != SPECIAL_COMMAND_MARK)
@@ -111,10 +114,11 @@ class SuggestionsIntent:
     def __str__(self):
         return "".join([str(s) for s in self.suggestions])
 
-# CommandOptionInfo = Tuple[List[str], str]
-
 class CommandOptionInfo:
-    def __init__(self, aliases: Optional[List[str]], description: str, params: Optional[List[str]] = None):
+    def __init__(self,
+                 aliases: Optional[List[str]],
+                 description: str,
+                 params: Optional[List[str]] = None):
         self.aliases = aliases
         self.description = description
         self.params = params
@@ -140,6 +144,7 @@ class CommandOptionInfo:
     @staticmethod
     def _to_string(aliases: str, param: str, description: str, justification: int):
         return f"{(aliases + ' ' + param).ljust(justification)}{description}"
+
 
 class CommandInfo(ABC):
     @classmethod
@@ -218,19 +223,15 @@ class CommandInfo(ABC):
                                  max_columns=1)
 
 
-# ==================================================
-# ============== LIST COMMAND INFO =================
-# ==================================================
-
-class ListCommandInfo(CommandInfo, ABC):
+class FilesSuggestionsCommandInfo(CommandInfo):
     @classmethod
     @abstractmethod
-    def display_path_filter(cls, finfo: FileInfo) -> bool:
+    def _file_info_filter(cls, finfo: FileInfo) -> bool:
         pass
 
     @classmethod
     @abstractmethod
-    def list(cls, token: str, line: str, client) -> List[FileInfo]:
+    def _provide_file_info_list(cls, token: str, line: str, client) -> List[FileInfo]:
         pass
 
     @classmethod
@@ -242,12 +243,12 @@ class ListCommandInfo(CommandInfo, ABC):
             return suggestions_intent
 
         suggestions = []
-        for finfo in cls.list(token, line, client):
+        for finfo in cls._provide_file_info_list(token, line, client):
             log.d("Suggestion finfo: %s", finfo)
 
             fname = finfo.get("name")
 
-            if not cls.display_path_filter(finfo):
+            if not cls._file_info_filter(finfo):
                 log.d("%s doesn't pass the filter", fname)
                 continue
 
@@ -272,9 +273,15 @@ class ListCommandInfo(CommandInfo, ABC):
                                  space_after_completion=lambda s: not s.endswith("/"))
 
 
-class ListLocalCommandInfo(ListCommandInfo, ABC):
+
+# ==================================================
+# =========== LOCAL/REMOTE FILES SUGGESTIONS =======
+# ==================================================
+
+
+class LocalFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
     @classmethod
-    def list(cls, token: str, line: str, client) -> List[FileInfo]:
+    def _provide_file_info_list(cls, token: str, line: str, client) -> List[FileInfo]:
         log.i("List on token = '%s', line = '%s'", token, line)
         pattern = rightof(line, " ", from_end=True)
         path_dir, path_trail = os.path.split(os.path.join(os.getcwd(), pattern))
@@ -282,9 +289,9 @@ class ListLocalCommandInfo(ListCommandInfo, ABC):
         return ls(path_dir)
 
 
-class ListRemoteCommandInfo(ListCommandInfo, ABC):
+class RemoteFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
     @classmethod
-    def list(cls, token: str, line: str, client) -> List[FileInfo]:
+    def _provide_file_info_list(cls, token: str, line: str, client) -> List[FileInfo]:
         if not client or not client.is_connected_to_sharing():
             log.w("Cannot list suggestions on a non connected es")
             return []
@@ -303,50 +310,55 @@ class ListRemoteCommandInfo(ListCommandInfo, ABC):
         return resp.get("data")
 
 
-
 # ==================================================
-# ================== LIST FILTERS ==================
+# ================ FILE INFO FILTERS ===============
 # ==================================================
 
-class ListAllFilter(ListCommandInfo, ABC):
+
+class AllFilesFilter(FilesSuggestionsCommandInfo, ABC):
     @classmethod
-    def display_path_filter(cls, finfo: FileInfo) -> bool:
-        return True
+    def _file_info_filter(cls, finfo: FileInfo) -> bool:
+        return True # show files and directories
 
 
-class ListDirsFilter(ListCommandInfo, ABC):
+class DirsOnlyFilter(FilesSuggestionsCommandInfo, ABC):
     @classmethod
-    def display_path_filter(cls, finfo: FileInfo) -> bool:
+    def _file_info_filter(cls, finfo: FileInfo) -> bool:
         return finfo.get("ftype") == FTYPE_DIR
 
 
-class ListFilesFilter(ListCommandInfo, ABC):
+class FilesOnlyFilter(FilesSuggestionsCommandInfo, ABC):
     @classmethod
-    def display_path_filter(cls, finfo: FileInfo) -> bool:
+    def _file_info_filter(cls, finfo: FileInfo) -> bool:
         return finfo.get("ftype") == FTYPE_FILE
 
 
-class ListLocalAllCommandInfo(ListLocalCommandInfo, ListAllFilter, ABC):
+# ==================================================
+# ==== REAL IMPL LOCAL/REMOTE FILES SUGGESTIONS ====
+# ==================================================
+
+
+class LocalAllFilesSuggestionsCommandInfo(LocalFilesSuggestionsCommandInfo, AllFilesFilter, ABC):
     pass
 
 
-class ListLocalDirsCommandInfo(ListLocalCommandInfo, ListDirsFilter, ABC):
+class LocalDirsOnlySuggestionsCommandInfo(LocalFilesSuggestionsCommandInfo, DirsOnlyFilter, ABC):
     pass
 
 
-class ListLocalFilesCommandInfo(ListLocalCommandInfo, ListFilesFilter, ABC):
+class LocalFilesOnlySuggestionsCommandInfo(LocalFilesSuggestionsCommandInfo, FilesOnlyFilter, ABC):
     pass
 
 
-class ListRemoteAllCommandInfo(ListRemoteCommandInfo, ListAllFilter, ABC):
+class RemoteAllFilesSuggestionsCommandInfo(RemoteFilesSuggestionsCommandInfo, AllFilesFilter, ABC):
     pass
 
 
-class ListRemoteDirsCommandInfo(ListRemoteCommandInfo, ListDirsFilter, ABC):
+class RemoteDirsOnlySuggestionsCommandInfo(RemoteFilesSuggestionsCommandInfo, DirsOnlyFilter, ABC):
     pass
 
 
-class ListRemoteFilesCommandInfo(ListRemoteCommandInfo, ListFilesFilter, ABC):
+class RemoteFilesOnlySuggestionsCommandInfo(RemoteFilesSuggestionsCommandInfo, FilesOnlyFilter, ABC):
     pass
 
 
@@ -374,6 +386,9 @@ connected to a remote server. In that case the connection will be \
 established before execute the command, as "<b>connect</b> <u>SERVER_LOCATION</u>" would do.
 
 Type "<b>help connect</b>" for more information about <u>SERVER_LOCATION</u> format."""
+
+
+
 
 # ==================================================
 # ========== REAL COMMANDS INFO IMPL ===============
@@ -686,7 +701,7 @@ class BaseLsCommandInfo(CommandInfo, ABC, Pargs):
             CommandOptionInfo(cls.SHOW_DETAILS, "show more details")
         ]
 
-class Ls(BaseLsCommandInfo, ListLocalAllCommandInfo):
+class Ls(LocalAllFilesSuggestionsCommandInfo, BaseLsCommandInfo):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
@@ -711,7 +726,7 @@ List content of the local <u>DIR</u> or the current local directory if no <u>DIR
     def see_also(cls):
         return """Type "<b>help rls</b>" for the remote analogous."""
 
-class Rls(BaseLsCommandInfo, ListLocalAllCommandInfo, FastSharingConnectionCommandInfo):
+class Rls(RemoteAllFilesSuggestionsCommandInfo, BaseLsCommandInfo, FastSharingConnectionCommandInfo):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
@@ -746,7 +761,6 @@ class L(CommandInfo):
     @classmethod
     def custom(cls):
         return "alias for ls -la"
-
 
 # noinspection PyAbstractClass
 class Rl(CommandInfo):
@@ -792,7 +806,7 @@ class BaseTreeCommandInfo(CommandInfo, ABC, Pargs):
         ]
 
 
-class Tree(BaseTreeCommandInfo, ListLocalAllCommandInfo):
+class Tree(BaseTreeCommandInfo, LocalAllFilesSuggestionsCommandInfo):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
@@ -819,7 +833,7 @@ local directory if no <u>DIR</u> is specified."""
         return """Type "<b>help rtree</b>" for the remote analogous."""
 
 
-class Rtree(BaseTreeCommandInfo, ListLocalAllCommandInfo, FastSharingConnectionCommandInfo):
+class Rtree(BaseTreeCommandInfo, RemoteAllFilesSuggestionsCommandInfo, FastSharingConnectionCommandInfo):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
@@ -851,7 +865,7 @@ remote directory if no <u>DIR</u> is specified"""
 # ============ xCD ================
 
 
-class Cd(ListLocalDirsCommandInfo):
+class Cd(LocalDirsOnlySuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -876,7 +890,7 @@ directory if <u>DIR</u> is not specified."""
         return """Type "<b>help rcd</b>" for the remote analogous."""
 
 
-class Rcd(CommandInfo):
+class Rcd(RemoteDirsOnlySuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -915,7 +929,7 @@ Usage example:
 # ============ xMKDIR ================
 
 
-class Mkdir(CommandInfo):
+class Mkdir(LocalDirsOnlySuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -943,7 +957,7 @@ If <u>DIR</u> already exists, it does nothing."""
         return """Type "<b>help rmkdir</b>" for the remote analogous."""
 
 
-class Rmkdir(FastSharingConnectionCommandInfo):
+class Rmkdir(FastSharingConnectionCommandInfo, RemoteDirsOnlySuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -987,7 +1001,7 @@ Usage example:
 # ============ xCP ================
 
 
-class Cp(CommandInfo):
+class Cp(LocalAllFilesSuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -1024,7 +1038,7 @@ be an existing directory and <u>SOURCE</u>s will be copied into it."""
         return """Type "<b>help rcp</b>" for the remote analogous."""
 
 
-class Rcp(FastSharingConnectionCommandInfo):
+class Rcp(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -1094,7 +1108,7 @@ f1      f2
 # ============ xMV ================
 
 
-class Mv(CommandInfo):
+class Mv(LocalAllFilesSuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -1133,7 +1147,7 @@ be an existing directory and <u>SOURCE</u>s will be moved into it."""
 
 
 
-class Rmv(FastSharingConnectionCommandInfo):
+class Rmv(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -1199,7 +1213,7 @@ f2
 # ============ xRM ================
 
 
-class Rm(CommandInfo):
+class Rm(LocalAllFilesSuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -1231,7 +1245,7 @@ This commands never prompts: essentially acts like unix's rm -rf."""
 
 
 
-class Rrm(FastSharingConnectionCommandInfo):
+class Rrm(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -1289,7 +1303,7 @@ f1
 # ============ xEXEC ================
 
 
-class Exec(CommandInfo):
+class Exec(LocalAllFilesSuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -1337,7 +1351,7 @@ hello"""
         return """Type "<b>help rexec</b>" for the remote analogous."""
 
 
-class Rexec(FastServerConnectionCommandInfo):
+class Rexec(FastServerConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo):
 
     @classmethod
     def name(cls):
@@ -1756,12 +1770,21 @@ Usage example:
 # ============ GET ================
 
 
-class Get(CommandInfo):
+class Get(RemoteAllFilesSuggestionsCommandInfo, VariadicPargs):
     OVERWRITE_YES = ["-y", "--yes"]
     OVERWRITE_NO = ["-n", "--no"]
     OVERWRITE_NEWER = ["-N", "--newer"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
+
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
+        return [
+            (self.OVERWRITE_YES, PRESENCE_PARAM),
+            (self.OVERWRITE_NO, PRESENCE_PARAM),
+            (self.OVERWRITE_NEWER, PRESENCE_PARAM),
+            (self.CHECK, PRESENCE_PARAM),
+            (self.QUIET, PRESENCE_PARAM),
+        ]
 
     @classmethod
     def name(cls):
@@ -1774,11 +1797,11 @@ class Get(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>get</b> [<u>REMOTE_FILE</u>]...
-<b>g</b>   [<u>REMOTE_FILE</u>]...
+<b>get</b> [OPTION]... [<u>REMOTE_FILE</u>]...
+<b>g</b>   [OPTION]... [<u>REMOTE_FILE</u>]...
 
-<b>get</b> [<u>SHARING_LOCATION</u>] [<u>REMOTE_FILE</u>]...
-<b>g</b>   [<u>SHARING_LOCATION</u>] [<u>REMOTE_FILE</u>]..."""
+<b>get</b> [OPTION]... [<u>SHARING_LOCATION</u>] [<u>REMOTE_FILE</u>]...
+<b>g</b>   [OPTION]... [<u>SHARING_LOCATION</u>] [<u>REMOTE_FILE</u>]..."""
 
     @classmethod
     def long_description(cls):
@@ -1939,12 +1962,21 @@ Avg. speed   1MB/s
 # ============ PUT ================
 
 
-class Put(CommandInfo):
+class Put(LocalAllFilesSuggestionsCommandInfo, VariadicPargs):
     OVERWRITE_YES = ["-y", "--yes"]
     OVERWRITE_NO = ["-n", "--no"]
     OVERWRITE_NEWER = ["-N", "--newer"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
+
+    def kwargs_specs(self) -> Optional[List[Kwarg]]:
+        return [
+            (self.OVERWRITE_YES, PRESENCE_PARAM),
+            (self.OVERWRITE_NO, PRESENCE_PARAM),
+            (self.OVERWRITE_NEWER, PRESENCE_PARAM),
+            (self.CHECK, PRESENCE_PARAM),
+            (self.QUIET, PRESENCE_PARAM),
+        ]
 
     @classmethod
     def name(cls):
@@ -1957,11 +1989,11 @@ class Put(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>put</b> [<u>LOCAL_FILE</u>]...
-<b>p</b>   [<u>LOCAL_FILE</u>]...
+<b>put</b> [OPTION]... [<u>LOCAL_FILE</u>]...
+<b>p</b>   [OPTION]... [<u>LOCAL_FILE</u>]...
 
-<b>put</b> [<u>SHARING_LOCATION</u>] [<u>LOCAL_FILE</u>]...
-<b>p</b>   [<u>SHARING_LOCATION</u>] [<u>LOCAL_FILE</u>]..."""
+<b>put</b> [OPTION]... [<u>SHARING_LOCATION</u>] [<u>LOCAL_FILE</u>]...
+<b>p</b>   [OPTION]... [<u>SHARING_LOCATION</u>] [<u>LOCAL_FILE</u>]..."""
 
     @classmethod
     def long_description(cls):
@@ -2093,7 +2125,7 @@ Avg. speed   1MB/s
 # ============ LIST ================
 
 
-class ListSharings(FastServerConnectionCommandInfo, NoPargs):
+class ListSharings(FastServerConnectionCommandInfo, Pargs):
     SHOW_DETAILS = ["-l"]
 
     def kwargs_specs(self) -> Optional[List[Kwarg]]:
@@ -2149,7 +2181,7 @@ FILES
 # ============ INFO ================
 
 
-class Info(FastServerConnectionCommandInfo, NoPargs):
+class Info(FastServerConnectionCommandInfo, Pargs):
     SHOW_SHARINGS_DETAILS = ["-l"]
 
     def kwargs_specs(self) -> Optional[List[Kwarg]]:
@@ -2245,12 +2277,12 @@ SHARINGS
 # ============ PING ================
 
 
-class Ping(FastServerConnectionCommandInfo, NoPargs):
+class Ping(FastServerConnectionCommandInfo, Pargs):
     COUNT = ["-c", "--count"]
 
     def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
-            (self.COUNT, PRESENCE_PARAM),
+            (self.COUNT, INT_PARAM),
         ]
 
     @classmethod
@@ -2266,12 +2298,12 @@ class Ping(FastServerConnectionCommandInfo, NoPargs):
         return """\
 <b>ping</b> [<u>OPTION</u>]...
 
-<b>ping</b> [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]..."""
+<b>ping</b> [<u>OPTION</u>]... [<u>SERVER_LOCATION</u>]"""
 
     @classmethod
     def long_description(cls):
         return """\
-Test the connectivity with the server by sending an application-level message."""
+Test the connectivity with the server by sending application-level messages."""
 
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
@@ -2295,46 +2327,6 @@ Usage example:
 
 <b>/tmp></b> <b>ping</b> <u>192.168.1.185</u> <b>-c</b> <u>1</u>
 [1] PONG from bob-debian (192.168.1.185:12020)  |  time=10.3ms"""
-
-# class LsEnhancedCommandInfo(ListLocalAllCommandInfo):
-#     pass
-#
-#
-# class RlsCommandInfo(BaseLsCommandInfo, ListRemoteAllCommandInfo):
-#     pass
-#
-#
-# class BaseTreeCommandInfo(CommandWithArgsInfo):
-#     SORT_BY_SIZE = CommandArgInfo(["-s", "--sort-size"], "Sort by size")
-#     REVERSE = CommandArgInfo(["-r", "--reverse"], "Reverse sort order")
-#     GROUP = CommandArgInfo(["-g", "--group"], "Group by file type")
-#     MAX_DEPTH = CommandArgInfo(["-d", "--depth"], "Maximum depth")
-#     SIZE = CommandArgInfo(["-S"], "Show file size")
-#     DETAILS = CommandArgInfo(["-l"], "Show all the details")
-#
-#
-# class TreeCommandInfo(BaseTreeCommandInfo, ListLocalAllCommandInfo):
-#     pass
-#
-#
-# class RtreeCommandInfo(BaseTreeCommandInfo, ListRemoteAllCommandInfo):
-#     pass
-#
-#
-# class GetCommandInfo(ListRemoteAllCommandInfo):
-#     YES_TO_ALL = CommandArgInfo(["-Y", "--yes"], "Always overwrite existing files")
-#     NO_TO_ALL = CommandArgInfo(["-N", "--no"], "Never overwrite existing files")
-#
-#
-# class PutCommandInfo(ListLocalAllCommandInfo):
-#     YES_TO_ALL = CommandArgInfo(["-Y", "--yes"], "Always overwrite existing files")
-#     NO_TO_ALL = CommandArgInfo(["-N", "--no"], "Never overwrite existing files")
-#
-#
-# class ScanCommandInfo(CommandWithArgsInfo):
-#     DETAILS = CommandArgInfo(["-l"], "Show all the details")
-#
-
 
 COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.HELP: Help,
@@ -2395,4 +2387,3 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.INFO_SHORT: Info,
     Commands.PING: Ping,
 }
-

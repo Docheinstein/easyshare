@@ -11,12 +11,13 @@ from typing import Optional, Callable, List, Dict, Union, Tuple, cast
 
 from Pyro5.errors import PyroError
 
-from easyshare.args import Args as Args, Kwarg, INT_PARAM, PRESENCE_PARAM, ArgsParseError, Pargs, \
+from easyshare.args import Args as Args, ArgsParseError, Pargs, \
     VariadicPargs, ArgsParser, StopParseArgs
 from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
-from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info
+from easyshare.es.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
+    ListSharings, Ping
 from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connections.server import ServerConnection, ServerConnectionMinimal
 from easyshare.es.connections.sharing import SharingConnection
@@ -49,111 +50,6 @@ from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
 
 log = get_logger(__name__)
 
-
-# ==================================================================
-
-
-
-class TreeArgs(Pargs):
-    SORT_BY_SIZE = ["-s", "--sort-size"]
-    REVERSE = ["-r", "--reverse"]
-    GROUP = ["-g", "--group"]
-
-    SHOW_ALL = ["-a", "--all"]
-    SHOW_DETAILS = ["-l"]
-    SHOW_SIZE = ["-S"]
-
-    MAX_DEPTH = ["-d", "--depth"]
-
-    def __init__(self, mandatory: int):
-        super().__init__(mandatory, 1)
-
-    def kwargs_specs(self) -> Optional[List[Kwarg]]:
-        return [
-            (TreeArgs.SORT_BY_SIZE, PRESENCE_PARAM),
-            (TreeArgs.REVERSE, PRESENCE_PARAM),
-            (TreeArgs.GROUP, PRESENCE_PARAM),
-            (TreeArgs.SHOW_ALL, PRESENCE_PARAM),
-            (TreeArgs.SHOW_DETAILS, PRESENCE_PARAM),
-            (TreeArgs.SHOW_SIZE, PRESENCE_PARAM),
-            (TreeArgs.MAX_DEPTH, INT_PARAM),
-        ]
-
-
-class ScanArgs(Pargs):
-    SHOW_DETAILS = ["-l"]
-
-    def __init__(self):
-        super().__init__(0, 0)
-
-    def kwargs_specs(self) -> Optional[List[Kwarg]]:
-        return [
-            (ScanArgs.SHOW_DETAILS, PRESENCE_PARAM),
-        ]
-
-
-class ListArgs(Pargs):
-    SHOW_DETAILS = ["-l"]
-
-    def __init__(self, mandatory: int):
-        super().__init__(mandatory, 0)
-
-    def kwargs_specs(self) -> Optional[List[Kwarg]]:
-        return [
-            (ListArgs.SHOW_DETAILS, PRESENCE_PARAM),
-        ]
-
-
-class PingArgs(Pargs):
-    COUNT = ["-c", "--count"]
-
-    def __init__(self, mandatory: int):
-        super().__init__(mandatory, 0)
-
-    def kwargs_specs(self) -> Optional[List[Kwarg]]:
-        return [
-            (PingArgs.COUNT, INT_PARAM),
-        ]
-
-class GetArgs(VariadicPargs):
-    OVERWRITE_YES = ["-y", "--yes"]
-    OVERWRITE_NO = ["-n", "--no"]
-    OVERWRITE_NEWER = ["-N", "--newer"]
-    CHECK = ["-c", "--check"]
-    QUIET = ["-q", "--quiet"]
-
-    def kwargs_specs(self) -> Optional[List[Kwarg]]:
-        return [
-            (GetArgs.OVERWRITE_YES, PRESENCE_PARAM),
-            (GetArgs.OVERWRITE_NO, PRESENCE_PARAM),
-            (GetArgs.OVERWRITE_NEWER, PRESENCE_PARAM),
-            (GetArgs.CHECK, PRESENCE_PARAM),
-            (GetArgs.QUIET, PRESENCE_PARAM),
-        ]
-
-class PutArgs(VariadicPargs):
-    OVERWRITE_YES = ["-y", "--yes"]
-    OVERWRITE_NO = ["-n", "--no"]
-    OVERWRITE_NEWER = ["-N", "--newer"]
-    NEWER = ["-N", "--newer"]
-    CHECK = ["-c", "--check"]
-    QUIET = ["-q", "--quiet"]
-
-
-    def kwargs_specs(self) -> Optional[List[Kwarg]]:
-        return [
-            (PutArgs.OVERWRITE_YES, PRESENCE_PARAM),
-            (PutArgs.OVERWRITE_NO, PRESENCE_PARAM),
-            (PutArgs.OVERWRITE_NEWER, PRESENCE_PARAM),
-            (PutArgs.CHECK, PRESENCE_PARAM),
-            (GetArgs.QUIET, PRESENCE_PARAM),
-        ]
-
-
-# ==================================================================
-
-
-# ==================================================================
 
 def _print(*vargs):
     print(*vargs)
@@ -319,7 +215,7 @@ class Client:
                 Client.l),
             Commands.LOCAL_TREE_DIRECTORY: (
                 LOCAL,
-                [TreeArgs(0)],
+                [Tree(0)],
                 Client.tree),
             Commands.LOCAL_CREATE_DIRECTORY: (
                 LOCAL,
@@ -360,7 +256,7 @@ class Client:
                 self.rl),
             Commands.REMOTE_TREE_DIRECTORY: (
                 SHARING,
-                [TreeArgs(0), TreeArgs(1)],
+                [Tree(0), Tree(1)],
                 self.rtree),
             Commands.REMOTE_CREATE_DIRECTORY: (
                 SHARING,
@@ -389,12 +285,12 @@ class Client:
 
             Commands.GET: (
                 SHARING,
-                [GetArgs(0), GetArgs(1)],
+                [Get(0), Get(1)],
                 self.get),
 
             Commands.PUT: (
                 SHARING,
-                [PutArgs(0), PutArgs(1)],
+                [Put(0), Put(1)],
                 self.put),
 
 
@@ -410,7 +306,7 @@ class Client:
 
             Commands.LIST: (
                 SERVER,
-                [ListArgs(0), ListArgs(1)],
+                [ListSharings(0), ListSharings(1)],
                 self.list),
 
             Commands.CONNECT: (
@@ -433,7 +329,7 @@ class Client:
 
             Commands.PING: (
                 SERVER,
-                [PingArgs(0), PingArgs(1)],
+                [Ping(0), Ping(1)],
                 self.ping),
         }
 
@@ -797,6 +693,8 @@ class Client:
             # try:
             while retcode is None:
                 try:
+                    # Do not block so that we can exit when the process
+                    # finishes
                     rlist, wlist, xlist = select.select([sys.stdin], [], [], 0.04)
 
                     if sys.stdin in rlist:
@@ -828,7 +726,7 @@ class Client:
         if not server_conn:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        count = args.get_kwarg_param(PingArgs.COUNT, default=None)
+        count = args.get_kwarg_param(Ping.COUNT, default=None)
 
         i = 1
         while not count or i <= count:
@@ -917,7 +815,7 @@ class Client:
         if not server_conn:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        show_details = ScanArgs.SHOW_DETAILS in args
+        show_details = ListSharings.SHOW_DETAILS in args
 
         log.i(">> LIST")
 
@@ -1061,8 +959,8 @@ class Client:
 
         files = args.get_pargs()
 
-        do_check = PutArgs.CHECK in args
-        quiet = PutArgs.QUIET in args
+        do_check = Put.CHECK in args
+        quiet = Put.QUIET in args
 
         resp = sharing_conn.get(files, check=do_check)
         ensure_data_response(resp, "uid")
@@ -1082,18 +980,18 @@ class Client:
 
         # Overwrite preference
 
-        if [GetArgs.OVERWRITE_YES in args, GetArgs.OVERWRITE_NO in args,
-            GetArgs.OVERWRITE_NEWER].count(True) > 1:
+        if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
+            Get.OVERWRITE_NEWER].count(True) > 1:
             log.e("Only one between -n, -y and -N can be specified")
             raise BadOutcome("Only one between -n, -y and -N can be specified")
 
         overwrite_policy = OverwritePolicy.PROMPT
 
-        if GetArgs.OVERWRITE_YES in args:
+        if Get.OVERWRITE_YES in args:
             overwrite_policy = OverwritePolicy.YES
-        elif GetArgs.OVERWRITE_NO in args:
+        elif Get.OVERWRITE_NO in args:
             overwrite_policy = OverwritePolicy.NO
-        elif GetArgs.OVERWRITE_NEWER in args:
+        elif Get.OVERWRITE_NEWER in args:
             overwrite_policy = OverwritePolicy.NEWER
 
         log.i("Overwrite policy: %s", str(overwrite_policy))
@@ -1318,8 +1216,8 @@ class Client:
         if len(files) == 0:
             files = ["."]
 
-        do_check = PutArgs.CHECK in args
-        quiet = PutArgs.QUIET in args
+        do_check = Put.CHECK in args
+        quiet = Put.QUIET in args
 
         resp = sharing_conn.put(check=do_check)
         ensure_data_response(resp, "uid")
@@ -1376,18 +1274,18 @@ class Client:
 
         # Overwrite preference
 
-        if [GetArgs.OVERWRITE_YES in args, GetArgs.OVERWRITE_NO in args,
-            GetArgs.OVERWRITE_NEWER].count(True) > 1:
+        if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
+            Get.OVERWRITE_NEWER].count(True) > 1:
             log.e("Only one between -n, -y and -N can be specified")
             raise BadOutcome("Only one between -n, -y and -N can be specified")
 
         overwrite_policy = OverwritePolicy.PROMPT
 
-        if PutArgs.OVERWRITE_YES in args:
+        if Put.OVERWRITE_YES in args:
             overwrite_policy = OverwritePolicy.YES
-        elif PutArgs.OVERWRITE_NO in args:
+        elif Put.OVERWRITE_NO in args:
             overwrite_policy = OverwritePolicy.NO
-        elif PutArgs.OVERWRITE_NEWER in args:
+        elif Put.OVERWRITE_NEWER in args:
             overwrite_policy = OverwritePolicy.NEWER
 
         log.i("Overwrite policy: %s", str(overwrite_policy))
@@ -1655,15 +1553,15 @@ class Client:
               data_provider_name: str = "TREE"):
 
         path = args.get_parg()
-        reverse = TreeArgs.REVERSE in args
-        show_hidden = TreeArgs.SHOW_ALL in args
-        max_depth = args.get_kwarg_param(TreeArgs.MAX_DEPTH, default=None)
+        reverse = Tree.REVERSE in args
+        show_hidden = Tree.SHOW_ALL in args
+        max_depth = args.get_kwarg_param(Tree.MAX_DEPTH, default=None)
 
         sort_by = ["name"]
 
-        if TreeArgs.SORT_BY_SIZE in args:
+        if Tree.SORT_BY_SIZE in args:
             sort_by.append("size")
-        if TreeArgs.GROUP in args:
+        if Tree.GROUP in args:
             sort_by.append("ftype")
 
         log.i(">> %s %s (sort by %s%s)",
@@ -1681,7 +1579,7 @@ class Client:
         print_files_info_tree(tree_result,
                               max_depth=max_depth,
                               show_hidden=show_hidden,
-                              show_size=TreeArgs.SHOW_SIZE in args or TreeArgs.SHOW_DETAILS in args)
+                              show_size=Tree.SHOW_SIZE in args or Tree.SHOW_DETAILS in args)
 
     @staticmethod
     def _mvcp(args: Args,
