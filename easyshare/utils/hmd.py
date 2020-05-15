@@ -301,7 +301,7 @@ class HelpMarkdown:
                         # Keep the alignment into account for the available space
                         available_space = cols - self._current_indent() - (do_align * self._current_align())
 
-                        log.w("--> still longer after break:  '%s'", line_no_fit_part)
+                        log.d("--> still longer after break:  '%s'", line_no_fit_part)
                         line_fit_part = line_no_fit_part[:available_space - 1] # make room for "-"
                         line_no_fit_part = line_no_fit_part[available_space - 1:]
 

@@ -54,7 +54,7 @@ class ArgType(Enum):
 
 class Args:
     def __init__(self, parsed: Dict, unparsed: List[Any] = None):
-        unparsed = unparsed or []
+        unparsed = [] if unparsed is None else unparsed
         self._parsed = parsed
         self._unparsed = unparsed
 
@@ -177,8 +177,6 @@ class Args:
                         log.i("Parsed stopped by the continue hook")
                         # Add the remaining args as positional arguments
                         unparsed += args[cursor:]
-                        log.d("Unparsed args: %s", unparsed)
-
                         break
 
                 # The hook didn't block us, go on
@@ -243,7 +241,8 @@ class Args:
                 cursor += 1
 
             # Parse positionals
-            log.d("%d positional arguments", len(positionals))
+            log.d("%d unparsed args w/o positional: %s", len(unparsed), unparsed)
+            log.d("%d positional arguments: %s", len(positionals), positionals)
 
             positionals_bucket = parsed.setdefault(None, [])
             positionals_count = Args._append_to_bucket(
@@ -258,7 +257,7 @@ class Args:
 
             # Eventually add the remaining to the unparsed
             unparsed += positionals[positionals_count:]
-
+            log.d("%d unparsed args: %s", len(unparsed), unparsed)
             return ret
 
         except Exception as err:
@@ -362,7 +361,7 @@ class Args:
 
         except Exception:
             log.w("Exception occurred while parsing optional argument; "
-                  "considering it as a differnt argument")
+                  "considering it as a different argument")
 
             return pre_optionals_param_cursor
 

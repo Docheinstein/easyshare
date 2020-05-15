@@ -26,7 +26,7 @@ from easyshare.utils.hmd import HelpMarkdown, HelpMarkdownParseError
 from easyshare.utils.json import str_to_json
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
-from easyshare.utils.pyro.common import enable_pyro_logging, is_pyro_logging_enabled
+from easyshare.utils.pyro import enable_pyro_logging, is_pyro_logging_enabled
 from easyshare.utils.resources import read_resource_string
 from easyshare.utils.types import is_bool, is_int, is_str, bool_to_str
 

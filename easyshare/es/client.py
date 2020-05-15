@@ -43,7 +43,7 @@ from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, relpath
 from easyshare.utils.pyro.client import TracedPyroProxy
-from easyshare.utils.pyro.common import pyro_uri
+from easyshare.utils.pyro import pyro_uri
 from easyshare.utils.str import unprefix
 from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
 
@@ -477,7 +477,6 @@ class Client:
         # Parse args using the parsed bound to the command
         try:
             args = parser.parse(command_args_normalized)
-            args_cpy = args.clone()  # make a copy
         except ArgsParseError as err:
             log.e("Command's arguments parse failed: %s", str(err))
             return ClientErrors.INVALID_COMMAND_SYNTAX
@@ -593,13 +592,12 @@ class Client:
 
     @staticmethod
     def exec(args: Args, _, _2):
-        popen_cmd = args.get_pargs(default=[])
-        popen_cmd_args = args.get_unparsed_args(default=[])
-        popen_full_command = " ".join(popen_cmd + popen_cmd_args)
+        popen_args = args.get_unparsed_args(default=[])
+        popen_cmd = " ".join(popen_args)
 
-        log.i(">> EXEC %s", popen_full_command)
+        log.i(">> >> EXEC %s", popen_cmd)
 
-        retcode = run_attached(popen_full_command)
+        retcode = run_attached(popen_cmd)
         if retcode != 0:
             log.w("Command failed with return code: %d", retcode)
 
@@ -1813,7 +1811,7 @@ class Client:
     def _create_sharing_connection_from_sharing_location(
             self,
             sharing_location: SharingLocation,
-            sharing_ftype: FileType,
+            sharing_ftype: FileType = None,
     ) -> Tuple[Optional[SharingConnection], ServerConnection]:
 
         server_conn = self._create_server_connection(

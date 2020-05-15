@@ -19,7 +19,7 @@ from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.styling import enable_colors
 from easyshare.utils.net import is_valid_port
-from easyshare.utils.pyro.common import enable_pyro_logging
+from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfy
 

@@ -15,7 +15,7 @@ from easyshare.styling import enable_colors
 from easyshare.utils.env import is_stdout_terminal
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
-from easyshare.utils.pyro.common import enable_pyro_logging
+from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.types import is_int, is_str
 from easyshare.args import Args as Args, Kwarg, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, \
     ArgsParseError, ArgType, ArgsParser, ActionParam

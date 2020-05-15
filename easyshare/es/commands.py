@@ -1757,6 +1757,11 @@ Usage example:
 
 
 class Get(CommandInfo):
+    OVERWRITE_YES = ["-y", "--yes"]
+    OVERWRITE_NO = ["-n", "--no"]
+    OVERWRITE_NEWER = ["-N", "--newer"]
+    CHECK = ["-c", "--check"]
+    QUIET = ["-q", "--quiet"]
 
     @classmethod
     def name(cls):
@@ -1790,7 +1795,8 @@ the following manners:
     <A>
 1a. Create a connection to the sharing with <b>connect</b> and/or <b>open</b>
 1b. Provide a <u>SHARING_LOCATION</u> to the <b>get</b> command (e.g. get alice-arch temp)
-    </a>
+    </A>
+    
 If execute while connected to a "directory sharing" (1.) the following rules are applied:
   <A>
 - If <u>REMOTE_FILE</u>s arguments are given, then the specified remote files \
@@ -1799,7 +1805,8 @@ are downloaded into the local directory
 into the local directory within a folder that has he same name as the sharing
 - If <u>REMOTE_FILE</u> is "*", then the entire sharing is downloaded \
 into the local directory (without wrapping it into a folder)
-
+  </A>
+  
 For download a "file sharing" (2.), <b>get</b> must be used in the form \
 "<b>get</b> [<u>SHARING_LOCATION</u>]" (e.g. get alice-arch file) and there is no \
 need to <b>open</b> the sharing before (since it's a file), as in case 1. 
@@ -1808,23 +1815,278 @@ need to <b>open</b> the sharing before (since it's a file), as in case 1.
   <A>
 - a path relative to the current remote working directory (<b>rpwd</b>), (e.g. afile, adir/afile)
 - a path absolute with respect to the sharing root, which is defined by a leading slash (e.g. /f1)
-  </a>
+  </A>
   
 The files will be placed into the current local directory (which can be \
 changed with <b>cd</b>, inside or outside <b>es</b>).
 
 Directories are automatically downloaded recursively.
-"""
+
+If a remote file has the same name of a local file, you will be asked \
+whether overwrite it or not. The default overwrite behaviour can be specified \
+with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
+
+    @classmethod
+    def options(cls) -> List[CommandOptionInfo]:
+        return [
+            CommandOptionInfo(cls.OVERWRITE_YES, "always overwrite files"),
+            CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
+            CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
+            CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
+            CommandOptionInfo(cls.QUIET, "doesn't show progress"),
+        ]
 
     @classmethod
     def examples(cls):
         return f"""
+1. Get all the content of a directory sharing (wrapped into a folder)
+<b>/tmp></b> connect alice-arch
+<b>alice-arch</b> - <b>/tmp></b> open shared
+<b>alice-arch.shared:/</b> - <b>/tmp></b> tree
+|-- f1
++-- f2
+<b>alice-arch.shared:/</b> - <b>/tmp></b> rls
+f_remote_1
+<b>alice-arch.shared:/</b> - <b>/tmp></b> <b>get</b>
+GET shared/f_remote_1    │███████████████████│ 100%  745KB/745KB
+GET outcome: OK
+Files        1  (745KB)
+Time         1s
+Avg. speed   1MB/s
+<b>alice-arch.shared:/</b> - <b>/tmp></b> tree
+|-- f1
+|-- f2
++-- shared
+    +-- f_remote_1
 
-"""
+2. Get all the content of a directory sharing (into the current directory)
+<b>/tmp></b> connect alice-arch
+<b>alice-arch</b> - <b>/tmp></b> open shared
+<b>alice-arch.shared:/</b> - <b>/tmp></b> tree
+|-- f1
++-- f2
+<b>alice-arch.shared:/</b> - <b>/tmp></b> rls
+f_remote_1
+<b>alice-arch.shared:/</b> - <b>/tmp></b> <b>get</b> <u>*</u>
+GET f_remote_1    │███████████████████│ 100%  745KB/745KB
+GET outcome: OK
+Files        1  (745KB)
+Time         1s
+Avg. speed   1MB/s
+<b>alice-arch.shared:/</b> - <b>/tmp></b> tree
+|-- f1
+|-- f2
++-- f_remote_1
+
+3. Get specific files from a directory sharing
+<b>/tmp></b> connect alice-arch
+<b>alice-arch</b> - <b>/tmp></b> open shared
+<b>alice-arch.shared:/</b> - <b>/tmp></b> tree
+|-- f1
++-- f2
+<b>alice-arch.shared:/</b> - <b>/tmp></b> rls
+f_remote_1      f_remote_2      f_remote_another
+<b>alice-arch.shared:/</b> - <b>/tmp></b> <b>get</b> <u>f_remote_1</u> u>f_remote_2</u>
+GET f_remote_1    │███████████████████│ 100%  745KB/745KB
+GET f_remote_2    │███████████████████│ 100%  745KB/745KB
+GET outcome: OK
+Files        2  (1.4MB)
+Time         1s
+Avg. speed   1MB/s
+<b>alice-arch.shared:/</b> - <b>/tmp></b> tree
+|-- f1
+|-- f2
+|-- f_remote_1
++-- f_remote_2
+
+4. Get without establish a connection before
+<b>/tmp></b> tree
+|-- f1
++-- f2
+<b>/tmp></b> <b>get</b> <u>shared</u>
+GET f_remote_1    │███████████████████│ 100%  745KB/745KB
+GET outcome: OK
+Files        1  (745KB)
+Time         1s
+Avg. speed   1MB/s
+<b>/tmp></b> tree
+|-- f1
+|-- f2
++-- shared
+    +-- f_remote_1
+
+5. Get a file sharing (without establish a connection before)
+<b>/tmp></b> tree
+|-- f1
++-- f2
+<b>/tmp></b> <b>get</b> <u>f_share</u>
+GET f_share    │███████████████████│ 100%  745KB/745KB
+GET outcome: OK
+Files        1  (745KB)
+Time         1s
+Avg. speed   1MB/s
+<b>/tmp></b> tree
+|-- f1
+|-- f2
++-- f_share"""
 
     @classmethod
     def see_also(cls):
         return "<b>open</b>, <b>put</b>"
+
+
+
+# ============ PUT ================
+
+
+class Put(CommandInfo):
+    OVERWRITE_YES = ["-y", "--yes"]
+    OVERWRITE_NO = ["-n", "--no"]
+    OVERWRITE_NEWER = ["-N", "--newer"]
+    CHECK = ["-c", "--check"]
+    QUIET = ["-q", "--quiet"]
+
+    @classmethod
+    def name(cls):
+        return "put"
+
+    @classmethod
+    def short_description(cls):
+        return "put files and directories to the remote sharing"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+<b>put</b> [<u>LOCAL_FILE</u>]...
+<b>p</b>   [<u>LOCAL_FILE</u>]...
+
+<b>put</b> [<u>SHARING_LOCATION</u>] [<u>LOCAL_FILE</u>]...
+<b>p</b>   [<u>SHARING_LOCATION</u>] [<u>LOCAL_FILE</u>]..."""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Put files and directories into a remote sharing.
+
+The remote sharing must be of type "directory sharing", otherwise <b>put</b> will fail.
+
+The connection to the remote sharing have to be established in one of \
+the following manners:
+  <A>
+- Create a connection to the sharing with <b>connect</b> and/or <b>open</b>
+- Provide a <u>SHARING_LOCATION</u> to the <b>put</b> command (e.g. put alice-arch f1)
+  </A>
+    
+If execute while connected to a "directory sharing" (1.) the following rules are applied:
+  <A>
+- If <u>LOCAL_FILE</u>s arguments are given, then the specified local files \
+are uploaded into the remote directory
+- If no <u>LOCAL_FILE</u> argument is given, then the entire local folder is uploaded \
+into the remote sharing within a folder that has he same name as the folder
+- If <u>LOCAL_FILE</u> is "*", then the entire local folder is uploaded \
+into the remote sharing (without wrapping it into a folder)
+  </A>
+
+<u>LOCAL_FILE</u> must be a path to a local valid file or directory, either relative or absolute.
+  
+The files will be placed into the current remote directory (which can be \
+changed with <b>rcd</b>).
+The default remote directory is the root of the "directory sharing".
+
+Directories are automatically uploaded recursively.
+
+If a remote file has the same name of a local file, you will be asked \
+whether overwrite it or not. The default overwrite behaviour can be specified \
+with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
+
+    @classmethod
+    def options(cls) -> List[CommandOptionInfo]:
+        return [
+            CommandOptionInfo(cls.OVERWRITE_YES, "always overwrite files"),
+            CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
+            CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
+            CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
+            CommandOptionInfo(cls.QUIET, "doesn't show progress"),
+        ]
+
+    @classmethod
+    def examples(cls):
+        return f"""
+1. Put all the content of a directory into a sharing (wrapped into a folder)
+<b>/tmp/localdir></b> connect alice-arch
+<b>alice-arch</b> - <b>/tmp></b> open shared
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> tree
+|-- f1
++-- f2
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> rls
+f_remote_1
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> <b>put</b>
+PUT localdir/f1    │███████████████████│ 100%  745KB/745KB
+PUT localdir/f2    │███████████████████│ 100%  745KB/745KB
+PUT outcome: OK
+Files        2  (1.4MB)
+Time         1s
+Avg. speed   1MB/s
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> rtree
+|-- f_remote_1
++-- localdir
+    |-- f1
+    +-- f2
+
+2. Put all the content of a directory into a sharing (not wrapped into a folder)
+<b>/tmp/localdir></b> connect alice-arch
+<b>alice-arch</b> - <b>/tmp></b> open shared
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> tree
+|-- f1
++-- f2
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> rls
+f_remote_1
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> <b>put</b> <u>*</u>
+PUT f1    │███████████████████│ 100%  745KB/745KB
+PUT f2    │███████████████████│ 100%  745KB/745KB
+PUT outcome: OK
+Files        2  (1.4MB)
+Time         1s
+Avg. speed   1MB/s
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> rtree
+|-- f_remote_1
+|-- f1
++-- f2
+
+3. Put specific files into a sharing (not wrapped into a folder)
+<b>/tmp/localdir></b> connect alice-arch
+<b>alice-arch</b> - <b>/tmp></b> open shared
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> tree
+|-- f1
+|-- f2
++-- f3
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> rls
+f_remote_1
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> <b>put</b> <u>f1</u> <u>f2</u>
+PUT f1    │███████████████████│ 100%  745KB/745KB
+PUT f2    │███████████████████│ 100%  745KB/745KB
+PUT outcome: OK
+Files        2  (1.4MB)
+Time         1s
+Avg. speed   1MB/s
+<b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> rtree
+|-- f_remote_1
+|-- f1
++-- f2
+
+4. Put without establish a connection before
+<b>/tmp/localdir></b> <b>put</b> <u>shared</u> <u>f1</u>
+PUT f1    │███████████████████│ 100%  745KB/745KB
+PUT outcome: OK
+Files        1  (745KB)
+Time         1s
+Avg. speed   1MB/s
+<b>/tmp/localdir></b> rtree shared
++-- f1"""
+
+    @classmethod
+    def see_also(cls):
+        return "<b>open</b>, <b>get</b>"
 
 
 
@@ -2125,8 +2387,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.GET: Get,
     Commands.GET_SHORT: Get,
 
-    # PUT = "put"
-    # PUT_SHORT = "p"
+    Commands.PUT: Put,
+    Commands.PUT_SHORT: Put,
 
     Commands.LIST: ListSharings,
     Commands.INFO: Info,

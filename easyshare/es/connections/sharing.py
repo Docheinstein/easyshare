@@ -7,7 +7,7 @@ from easyshare.protocol import ServerErrors, SharingInfo, ISharingService, creat
 from easyshare.protocol import ServerInfoFull
 from easyshare.utils.json import j
 from easyshare.utils.pyro.client import TracedPyroProxy
-from easyshare.utils.pyro.common import pyro_uri
+from easyshare.utils.pyro import pyro_uri
 
 log = get_logger(__name__)
 

@@ -11,7 +11,7 @@ from easyshare.protocol import ServerInfoFull, ServerInfo
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.utils.json import j
 from easyshare.utils.pyro.client import TracedPyroProxy
-from easyshare.utils.pyro.common import pyro_uri
+from easyshare.utils.pyro import pyro_uri
 from easyshare.utils.ssl import create_client_ssl_context
 
 log = get_logger(__name__)
