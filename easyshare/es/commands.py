@@ -2239,7 +2239,7 @@ Usage example:
 SERVER INFO
 
 Name:           alice-arch
-IP:             192.168.1.105
+Address:        192.168.1.105
 Port:           12020
 Discoverable:   True
 Discover Port:  12019

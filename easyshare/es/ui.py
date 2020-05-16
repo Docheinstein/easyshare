@@ -178,10 +178,10 @@ def server_info_to_pretty_str(info: ServerInfoFull, sharing_details: bool = Fals
         s = SEP_FIRST + \
             styled("SERVER INFO", attrs=ansi.ATTR_BOLD) + "\n\n" + \
             "Name:           {}\n".format(info.get("name")) + \
-            "IP:             {}\n".format(info.get("ip")) + \
+            "Address:        {}\n".format(info.get("ip")) + \
             "Port:           {}\n".format(info.get("port")) + \
             "Discoverable:   {}\n".format(info.get("discoverable", False)) + \
-            ("Discover Port:  {}\n".format(info.get("discover_port")) if info.get("discoverable", False) else "") + \
+            ("Discover Port: {}\n".format(info.get("discover_port")) if info.get("discoverable", False) else "") + \
             "Auth:           {}\n".format(info.get("auth")) + \
             "SSL:            {}\n".format(info.get("ssl")) + \
             SEP_MID

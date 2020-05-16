@@ -93,20 +93,19 @@ class Shell:
     def input_loop(self):
         while True:
             try:
-                log.d("========================\n"
-                      "Connected to esd : %s%s\n"
-                      "Connected to sharing: %s%s",
+                log.d("Connected to esd : %s%s",
                       self._client.is_connected_to_server(),
                       " ({}:{} {})".format(
                           self._client.server_connection.server_info.get("ip"),
                           self._client.server_connection.server_info.get("port"),
                           self._client.server_connection.server_info.get("name") or ""
-                      ) if self._client.is_connected_to_server() else "",
+                      ) if self._client.is_connected_to_server() else "")
+
+                log.d("Connected to sharing: %s%s",
                       self._client.is_connected_to_sharing(),
                       " ({})".format(
                           self._client.sharing_connection.sharing_info.get("name")
-                      ) if self._client.is_connected_to_sharing() else "",
-                )
+                      ) if self._client.is_connected_to_sharing() else "")
 
                 self._prompt = self._build_prompt_string()
 

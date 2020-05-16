@@ -17,7 +17,7 @@ from easyshare.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALP
 from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
-from easyshare.styling import enable_colors
+from easyshare.styling import enable_colors, bold
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context
@@ -454,27 +454,44 @@ def main():
         rexec=server_rexec
     )
 
-    print("Server name:           ", server.name())
-    print("Server auth:           ", server.auth_type())
-    print("Server address:        ", server.endpoint()[0])
-    print("Server port:           ", server.endpoint()[1])
-    print("Server transfer port:  ", get_transfer_daemon().endpoint()[1])
-    print("Discover port:         ", get_discover_daemon().endpoint()[1] if server.is_discoverable() else "DISABLED")
-    print("SSL:                   ", True if get_ssl_context() else False)
-    print("Remote execution       ", server_rexec)
-    print("------------------------")
+    SEP = "================================"
+
+    SEP_FIRST = SEP + "\n\n"
+    SEP_MID = "\n" + SEP + "\n\n"
+    SEP_LAST = "\n" + SEP
+
+    # Server info
+    s = SEP_FIRST + \
+        bold("SERVER INFO") + "\n\n" + \
+        "Name:              {}\n".format(server.name()) + \
+        "Address:           {}\n".format(server.endpoint()[0]) + \
+        "Server port:       {}\n".format(server.endpoint()[1]) + \
+        "Transfer port:     {}\n".format(get_transfer_daemon().endpoint()[1]) + \
+        "Discover port:     {}\n".format(get_discover_daemon().endpoint()[1] if server.is_discoverable() else "disabeld") + \
+        "Auth:              {}\n".format(server.auth_type()) + \
+        "SSL:               {}\n".format(True if get_ssl_context() else False) + \
+        "Remote execution:  {}\n".format(server.is_rexec_enabled())
+
+    # Sharings
+    s += SEP_MID + bold("SHARINGS") + "\n\n"
+    for sharing in sharings.values():
+        s += "* " + sharing.name + " --> " + sharing.path + "\n"
+    s += SEP_MID
+
+    s += bold("RUNNING...") + "\n"
 
     if sharings:
         # Add every sharing to the esd
         for sharing in sharings.values():
-            print("* " + sharing.name + " --> " + sharing.path)
             server.add_sharing(sharing)
-        print("------------------------")
     else:
         log.w("No sharings found, it will be an empty esd")
 
-    print("STARTED")
+    print(s)
+
     server.start()
+
+    print("\n" + bold("DONE"))
 
 
 if __name__ == "__main__":

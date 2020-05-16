@@ -113,7 +113,7 @@ class Server(IServer):
         log.i("Handling discover %s", str(data))
 
 
-        response = create_success_response(self._server_info_full())
+        response = create_success_response(self.server_info_full())
 
         client_discover_response_port = bytes_to_int(data)
 
@@ -243,7 +243,7 @@ class Server(IServer):
         log.i("<< INFO [%s]", client_endpoint)
 
         return create_success_response(
-            self._server_info()
+            self.server_info()
         )
 
 
@@ -272,11 +272,11 @@ class Server(IServer):
             end_callback=lambda cs: cs.unpublish()
         )
 
-        uri = serving.publish()
+        uid = serving.publish()
 
-        log.i("Opened sharing URI: %s", uri)
+        log.i("Opened sharing UID: %s", uid)
 
-        return create_success_response(uri)
+        return create_success_response(uid)
 
 
     @expose
@@ -312,7 +312,7 @@ class Server(IServer):
         log.d("Rexec handler initialized; uri: %s", uri)
         return create_success_response(uri)
 
-    def _server_info(self) -> ServerInfo:
+    def server_info(self) -> ServerInfo:
         si = {
             "name": self._name,
             "sharings": [sh.info() for sh in self._sharings.values()],
@@ -323,8 +323,8 @@ class Server(IServer):
         return si
 
 
-    def _server_info_full(self) -> ServerInfoFull:
-        si: ServerInfoFull = cast(ServerInfoFull, self._server_info())
+    def server_info_full(self) -> ServerInfoFull:
+        si: ServerInfoFull = cast(ServerInfoFull, self.server_info())
         si["ip"] = self.endpoint()[0]
         si["port"] = self.endpoint()[1]
 
@@ -394,6 +394,9 @@ class Server(IServer):
 
     def auth_type(self) -> str:
         return self._auth.algo_type()
+
+    def is_rexec_enabled(self) -> bool:
+        return self._rexec_enabled
 
     def is_discoverable(self) -> bool:
         return self._enable_discover_server

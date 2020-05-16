@@ -12,3 +12,8 @@
 - better error handling and server errors (err+errcode?)
 - pyro logging on pyro utils?
 - refactor styledstring ansistr
+- es --help
+- esd --help
+- man es esd
+- refactor with Path
+- test on windows
