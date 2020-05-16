@@ -12,10 +12,11 @@ from easyshare.utils.types import to_int
 
 log = get_logger(__name__)
 
-A_START_REGEX = re.compile("<a>")
+A_START_REGEX = re.compile("<([aA])>")
+A_END_REGEX = re.compile("</([aA])>")
 
-I_START_REGEX = re.compile(r"^<([iI])(\+?)(\d+)>")
-I_END_REGEX = re.compile(r"</([iI]\d*)>$")
+I_START_REGEX = re.compile(r"<([iI])(\+?)(\d+)>")
+I_END_REGEX = re.compile(r"</([iI]\d*)>")
 
 ANSI_REGEX = re.compile(r"(\033\[\d+m)")
 # I_END_REGEX = re.compile(r"</([iI]\d+)>")
@@ -164,14 +165,14 @@ class HelpMarkdown:
         self._markdown = markdown
 
 
-    def to_term_str(self, cols = None) -> str:
+    def to_term_str(self, cols = None, styled = True) -> str:
         try:
-            return self._to_term_str(cols)
+            return self._to_term_str(cols, styled)
         except Exception as err:
             raise HelpMarkdownParseError(str(err))
 
 
-    def _to_term_str(self, cols = None) -> str:
+    def _to_term_str(self, cols = None, styled = True) -> str:
         if not cols:
             cols, rows = terminal_size()
             cols -= 1  # stay on the safe side,
@@ -185,8 +186,8 @@ class HelpMarkdown:
         self._output = ""
 
         for line_in in self._markdown.splitlines(keepends=False):
-            pop_i = False
-            pop_a = False
+            pop_i = 0
+            pop_a = 0
             keep_line = True
 
             log.d("READ '%s'", line_in)
@@ -199,40 +200,42 @@ class HelpMarkdown:
             # <i*>
             indents = re.findall(I_START_REGEX, line_in)
             if indents:
+
                 if len(indents) > 1:
-                    log.w("Only an <i> tag is allowed per line, only the last will be kept")
+                    log.w("Found more than an indent per line")
 
-                i, plus, val = indents[len(indents) - 1]
-                indent_value = to_int(val, raise_exceptions=True)
+                for indent in indents:
+                    i, plus, val = indent
+                    indent_value = to_int(val, raise_exceptions=True)
 
-                if plus:
-                    log.d("Detect relative indent increasing")
-                    indent_value += self._current_indent()
+                    if plus:
+                        log.d("Detect relative indent increasing")
+                        indent_value += self._current_indent()
 
-                self._set_indent(indent_value)
+                    self._set_indent(indent_value)
 
-                if i == "I": # <I*>
-                    keep_line = False # don't keep the line into account
+                    if i == "I": # <I*>
+                        keep_line = False # don't keep the line into account
 
             # </i*>
             indents = re.findall(I_END_REGEX, line_in)
             if indents:
-                if len(indents) > 1:
-                    log.w("Only an <i> tag is allowed per line, only the last will be kept")
+                pop_i = len(indents)
 
-                # At the end of the iter pop the current indentation from the stack
-                pop_i = True
+                for indent in indents:
+                    # At the end of the iter pop the current indentation from the stack
 
-                indent_match = indents[len(indents) - 1]
+                    indent_match = indent
 
-                if indent_match[0] == "I":
-                    keep_line = False # don't keep the line into account
+                    if indent_match[0] == "I":
+                        keep_line = False # don't keep the line into account
 
             # --------------------------------------
             # ALIGNMENT
             # <a> will be stripped out lonely
             # <A> will be stripped out with the entire line
 
+            # TODO: multiple <a> per line will break
             al_start_idx = line_in.find("<a>")
             au_start_idx = line_in.find("<A>")
             a_start_idx = max(al_start_idx, au_start_idx)
@@ -249,15 +252,15 @@ class HelpMarkdown:
                           a_start_idx + self._current_indent(), cols)
                     self._set_align(0)
 
-            al_end_idx = line_in.find("</a>")
-            au_end_idx = line_in.find("</A>")
-            a_end_idx = max(al_end_idx, au_end_idx)
+            # </a>
+            aligns = re.findall(A_END_REGEX, line_in)
+            if aligns:
+                pop_a = len(aligns)
 
-            keep_line = keep_line and (au_end_idx == -1)
-
-            if a_end_idx != -1:
-                # At the end of the iter pop the current align from the stack
-                pop_a = True
+                for align in aligns:
+                    # At the end of the iter pop the current indentation from the stack
+                    if align[0] == "A":
+                        keep_line = False  # don't keep the line into account
 
             # --------------------------------------
             # LINE BREAKING and real insertion
@@ -268,10 +271,10 @@ class HelpMarkdown:
                    str_replacements=[
                        ("<a>", ""),
                        ("</a>", ""),
-                       ("<b>", ansi.ATTR_BOLD),
-                       ("</b>", ansi.RESET),
-                       ("<u>", ansi.ATTR_UNDERLINE),
-                       ("</u>", ansi.RESET),
+                       ("<b>", ansi.ATTR_BOLD if styled else ""),
+                       ("</b>", ansi.RESET if styled else ""),
+                       ("<u>", ansi.ATTR_UNDERLINE if styled else ""),
+                       ("</u>", ansi.RESET if styled else ""),
                    ],
                    re_replacements=[
                        (I_START_REGEX, ""),
@@ -329,16 +332,16 @@ class HelpMarkdown:
                 log.d("Ignoring line due to upper case tag")
 
             # Cleanup due to end tags
-            if pop_a:
+            for _ in range(0, pop_a):
                 self._unset_align()
 
-            if pop_i:
+            for _ in range(0, pop_i):
                 self._unset_indent()
 
         if self._a_stack:
-            log.w("Detected unclosed <a> tags at the end of the parsing")
+            log.w("Detected unclosed <a> tags at the end of the parsing, had value = %d", self._current_align())
         if self._i_stack:
-            log.w("Detected unclosed <i> tags at the end of the parsing")
+            log.w("Detected unclosed <i> tags at the end of the parsing, had value = %d", self._current_indent())
 
         return self._output
 

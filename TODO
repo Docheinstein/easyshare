@@ -2,16 +2,12 @@
 - benchmark GET, for decide buffer size, ...
 - timeout (global, float)
 - Server concurrency on shared structures
-- help (usage), man
 - decide whether catch or raise exceptions in utils.os
 - return string instead of int for response errors
 - timeouts pyro, keepalive, cleaning up,...
-- test lock multiclient
 - recap at the end of get/put or error at the mid
-- help for command completion
 - better error handling and server errors (err+errcode?)
-- pyro logging on pyro utils?
-- refactor styledstring ansistr
+- refactor (and unify?) styledstring ansistr
 - es --help
 - esd --help
 - man es esd

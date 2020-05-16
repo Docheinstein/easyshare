@@ -1,24 +1,25 @@
 import sys
-from typing import Optional, List, Callable
 
 from easyshare import logging
 from easyshare.es.client import Client
-from easyshare.es.commands import Commands, is_special_command
+from easyshare.help.commands import Commands, is_special_command
 from easyshare.es.errors import errcode_string
 from easyshare.es.shell import Shell
+from easyshare.help.es import Es
 from easyshare.logging import get_logger
-from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup, APP_INFO, \
-    DEFAULT_DISCOVER_TIMEOUT
+from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup, \
+    DEFAULT_DISCOVER_TIMEOUT, APP_INFO
+from easyshare.res.helps import get_command_man, get_command_usage
 from easyshare.tracing import enable_tracing
-from easyshare.utils.app import terminate, abort
+from easyshare.utils.app import abort, terminate
 from easyshare.styling import enable_colors
 from easyshare.utils.env import is_stdout_terminal
+from easyshare.utils.hmd import HelpMarkdown
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
 from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.types import is_int, is_str
-from easyshare.args import Args as Args, Kwarg, INT_PARAM, PRESENCE_PARAM, INT_PARAM_OPT, \
-    ArgsParseError, ArgType, ArgsParser, ActionParam
+from easyshare.args import ArgsParseError
 
 log = get_logger(__name__)
 
@@ -40,31 +41,6 @@ NON_CLI_COMMANDS = [
 CLI_COMMANDS = [k for k in values(Commands) if k not in NON_CLI_COMMANDS]
 
 
-class EsArgs(ArgsParser):
-    HELP =          ["-h", "--help"]
-    VERSION =       ["-V", "--version"]
-
-    DISCOVER_PORT = ["-d", "--discover-port"]
-    DISCOVER_TIMEOUT = ["-w", "--discover-wait"]
-
-    VERBOSE =       ["-v", "--verbose"]
-    TRACE =         ["-t", "--trace"]
-
-    NO_COLOR =      ["--no-color"]
-
-    def kwargs_specs(self) -> Optional[List[Kwarg]]:
-        return [
-            (EsArgs.HELP, ActionParam(lambda _: terminate("help"))),
-            (EsArgs.VERSION, ActionParam(lambda _: terminate(APP_INFO))),
-            (EsArgs.DISCOVER_PORT, INT_PARAM),
-            (EsArgs.DISCOVER_TIMEOUT, INT_PARAM),
-            (EsArgs.VERBOSE, INT_PARAM_OPT),
-            (EsArgs.TRACE, INT_PARAM_OPT),
-            (EsArgs.NO_COLOR, PRESENCE_PARAM),
-        ]
-
-    def continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
-        return lambda argname, argtype, idx, args, positionals: argtype != ArgType.PARG
 
 # ==================================================================
 
@@ -76,7 +52,7 @@ def main():
     args = None
 
     try:
-        args = EsArgs().parse(sys.argv[1:])
+        args = Es().parse(sys.argv[1:])
     except ArgsParseError as err:
         log.exception("Exception occurred while parsing args")
         abort("Parse of arguments failed: {}".format(str(err)))
@@ -85,12 +61,20 @@ def main():
     # so that the rest of the startup (config parsing, ...)
     # can be logged
     # Verbosity over VERBOSITY_MAX enables pyro logging too
-    if args.has_kwarg(EsArgs.VERBOSE):
-        log.set_verbosity(args.get_kwarg_param(EsArgs.VERBOSE,
+    if args.has_kwarg(Es.VERBOSE):
+        log.set_verbosity(args.get_kwarg_param(Es.VERBOSE,
                                                default=logging.VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_CLIENT_SHORT, APP_VERSION))
     log.i("Starting with arguments\n%s", args)
+
+    # Help?
+    if Es.HELP in args:
+        terminate(get_command_usage("es"))
+
+    # Version?
+    if Es.VERSION in args:
+        terminate(APP_INFO)
 
     verbosity = 0
     tracing = 0
@@ -98,38 +82,37 @@ def main():
     discover_port = DEFAULT_DISCOVER_PORT
     discover_timeout = DEFAULT_DISCOVER_TIMEOUT
 
-
     # Colors
-    if args.has_kwarg(EsArgs.NO_COLOR):
+    if Es.NO_COLOR in args:
         no_colors = True
 
     # Packet tracing
-    if args.has_kwarg(EsArgs.TRACE):
+    if Es.TRACE in args:
         # The param of -v is optional:
         # if not specified the default is DEBUG
         tracing = args.get_kwarg_param(
-            EsArgs.TRACE,
+            Es.TRACE,
             default=1
         )
 
     # Verbosity
-    if args.has_kwarg(EsArgs.VERBOSE):
+    if Es.VERBOSE in args:
         # The param of -v is optional:
         # if not specified the default is DEBUG
         verbosity = args.get_kwarg_param(
-            EsArgs.VERBOSE,
+            Es.VERBOSE,
             default=logging.VERBOSITY_MAX
         )
 
     # Discover port
     discover_port = args.get_kwarg_param(
-        EsArgs.DISCOVER_PORT,
+        Es.DISCOVER_PORT,
         default=discover_port
     )
 
     # Discover port
     discover_timeout = args.get_kwarg_param(
-        EsArgs.DISCOVER_TIMEOUT,
+        Es.DISCOVER_TIMEOUT,
         default=discover_timeout
     )
 

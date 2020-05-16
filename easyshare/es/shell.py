@@ -14,11 +14,12 @@ from easyshare.common import RESOURCES_PKG
 from easyshare.consts import ansi
 
 from easyshare.es.client import Client
-from easyshare.es.commands import Commands, matches_special_command, Verbose
+from easyshare.help.commands import Commands, matches_special_command, Verbose
 from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.es.errors import print_error, ClientErrors
-from easyshare.es.commands import SuggestionsIntent, COMMANDS_INFO
+from easyshare.help.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
+from easyshare.res.helps import get_command_man
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
 from easyshare.utils.env import is_unicode_supported
@@ -318,34 +319,14 @@ class Shell:
         return prompt
 
     def _help(self, args: Args) -> NoReturn:
-        if not self._help_map:
-            log.i("Loading helps map")
-            self._help_map = str_to_json(read_resource_string(RESOURCES_PKG, "helps.json"))
-
-        if not self._help_map:
-            eprint("Failed to load helps")
-            return
-
         cmd = args.get_parg()
-        if cmd == "all":
-            for v in self._help_map.values():
-                pydoc.pager(HelpMarkdown(v).to_term_str())
-            return
-        # REMOVE ^
 
-        if not cmd:
-            cmd_help = self._help_map["usage"]
-        else:
-            # Show the help of cmd if found on helps.py
-            # cmd_help = getattr(helps, cmd.upper(), None)
-            cmd_help = self._help_map.get(cmd)
-
-        if not cmd_help:
-            eprint("Can't find help for command '{}'".format(cmd))
+        if cmd is not None and cmd not in COMMANDS_INFO:
+            eprint("Can't provide help for command '{}'".format(cmd))
             return
 
         try:
-            formatted_cmd_help = HelpMarkdown(cmd_help).to_term_str()
+            formatted_cmd_help = get_command_man(cmd)
         except HelpMarkdownParseError:
             log.exception("Exception occurred while parsing markdown of help")
             eprint("Can't provide help for command '{}'".format(cmd))

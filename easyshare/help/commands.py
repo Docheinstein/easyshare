@@ -4,6 +4,7 @@ from typing import List, Callable, Union, Optional, Dict, Type
 
 from easyshare.args import Kwarg, PRESENCE_PARAM, INT_PARAM, NoPargs, Pargs, VariadicPargs
 from easyshare.es.ui import StyledString
+from easyshare.help import CommandHelp, CommandOptionHelp
 from easyshare.logging import get_logger
 from easyshare.protocol import FileInfo
 from easyshare.protocol import FTYPE_DIR, FTYPE_FILE
@@ -114,79 +115,9 @@ class SuggestionsIntent:
     def __str__(self):
         return "".join([str(s) for s in self.suggestions])
 
-class CommandOptionInfo:
-    def __init__(self,
-                 aliases: Optional[List[str]],
-                 description: str,
-                 params: Optional[List[str]] = None):
-        self.aliases = aliases
-        self.description = description
-        self.params = params
-
-    def aliases_string(self) -> str:
-        if not self.aliases:
-            return ''
-        return ', '.join(self.aliases)
-
-    def params_string(self) -> str:
-        if not self.params:
-            return ''
-        return ' '.join(self.params)
-
-    def to_string(self, justification: int = 0):
-        return CommandOptionInfo._to_string(
-            self.aliases_string(),
-            self.params_string(),
-            self.description,
-            justification
-        )
-
-    @staticmethod
-    def _to_string(aliases: str, param: str, description: str, justification: int):
-        return f"{(aliases + ' ' + param).ljust(justification)}{description}"
 
 
-class CommandInfo(ABC):
-    @classmethod
-    @abstractmethod
-    def name(cls):
-        pass
-
-    @classmethod
-    @abstractmethod
-    def short_description(cls):
-        pass
-
-    @classmethod
-    @abstractmethod
-    def synopsis(cls):
-        pass
-
-    @classmethod
-    def synopsis_extra(cls):
-        return None
-
-    @classmethod
-    @abstractmethod
-    def long_description(cls):
-        pass
-
-    @classmethod
-    def options(cls) -> List[CommandOptionInfo]:
-        return []
-
-    @classmethod
-    def examples(cls):
-        return []
-
-    @classmethod
-    def see_also(cls):
-        return None
-
-    @classmethod
-    def custom(cls):
-        return None
-
+class CommandInfo(CommandHelp, ABC):
     @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
         options = cls.options()
@@ -543,8 +474,8 @@ Tracing = 1 (enabled)
         return SuggestionsIntent(
             [StyledString(info.to_string(justification=15 + 6))
              for info in [
-                 CommandOptionInfo(None, params=Trace.T0[0], description=Trace.T0[1]),
-                 CommandOptionInfo(None, params=Trace.T1[0], description=Trace.T1[1])
+                 CommandOptionHelp(None, params=Trace.T0[0], description=Trace.T0[1]),
+                 CommandOptionHelp(None, params=Trace.T1[0], description=Trace.T1[1])
                 ]
             ],
             completion=False,
@@ -600,12 +531,12 @@ it to <u>0</u> if it exceeds the maximum."""
         return SuggestionsIntent(
             [StyledString(info.to_string(justification=15 + 6))
              for info in [
-                 CommandOptionInfo(None, params=Verbose.V0[0], description=Verbose.V0[1]),
-                 CommandOptionInfo(None, params=Verbose.V1[0], description=Verbose.V1[1]),
-                 CommandOptionInfo(None, params=Verbose.V2[0], description=Verbose.V2[1]),
-                 CommandOptionInfo(None, params=Verbose.V3[0], description=Verbose.V3[1]),
-                 CommandOptionInfo(None, params=Verbose.V4[0], description=Verbose.V4[1]),
-                 CommandOptionInfo(None, params=Verbose.V5[0], description=Verbose.V5[1]),
+                 CommandOptionHelp(None, params=Verbose.V0[0], description=Verbose.V0[1]),
+                 CommandOptionHelp(None, params=Verbose.V1[0], description=Verbose.V1[1]),
+                 CommandOptionHelp(None, params=Verbose.V2[0], description=Verbose.V2[1]),
+                 CommandOptionHelp(None, params=Verbose.V3[0], description=Verbose.V3[1]),
+                 CommandOptionHelp(None, params=Verbose.V4[0], description=Verbose.V4[1]),
+                 CommandOptionHelp(None, params=Verbose.V5[0], description=Verbose.V5[1]),
                 ]
             ],
             completion=False,
@@ -691,14 +622,14 @@ class BaseLsCommandInfo(CommandInfo, ABC, Pargs):
 
 
     @classmethod
-    def options(cls) -> List[CommandOptionInfo]:
+    def options(cls) -> List[CommandOptionHelp]:
         return [
-            CommandOptionInfo(cls.SORT_BY_SIZE, "sort by size"),
-            CommandOptionInfo(cls.REVERSE, "reverse sort order"),
-            CommandOptionInfo(cls.GROUP, "group by file type"),
-            CommandOptionInfo(cls.SHOW_ALL, "show hidden files too"),
-            CommandOptionInfo(cls.SHOW_SIZE, "show files size"),
-            CommandOptionInfo(cls.SHOW_DETAILS, "show more details")
+            CommandOptionHelp(cls.SORT_BY_SIZE, "sort by size"),
+            CommandOptionHelp(cls.REVERSE, "reverse sort order"),
+            CommandOptionHelp(cls.GROUP, "group by file type"),
+            CommandOptionHelp(cls.SHOW_ALL, "show hidden files too"),
+            CommandOptionHelp(cls.SHOW_SIZE, "show files size"),
+            CommandOptionHelp(cls.SHOW_DETAILS, "show more details")
         ]
 
 class Ls(LocalAllFilesSuggestionsCommandInfo, BaseLsCommandInfo):
@@ -794,15 +725,15 @@ class BaseTreeCommandInfo(CommandInfo, ABC, Pargs):
         ]
 
     @classmethod
-    def options(cls) -> List[CommandOptionInfo]:
+    def options(cls) -> List[CommandOptionHelp]:
         return [
-            CommandOptionInfo(cls.SORT_BY_SIZE, "sort by size"),
-            CommandOptionInfo(cls.REVERSE, "reverse sort order"),
-            CommandOptionInfo(cls.GROUP, "group by file type"),
-            CommandOptionInfo(cls.SHOW_ALL, "show hidden files too"),
-            CommandOptionInfo(cls.SHOW_SIZE, "show files size"),
-            CommandOptionInfo(cls.SHOW_DETAILS, "show more details"),
-            CommandOptionInfo(cls.MAX_DEPTH, "maximum display depth of tree", params=["depth"])
+            CommandOptionHelp(cls.SORT_BY_SIZE, "sort by size"),
+            CommandOptionHelp(cls.REVERSE, "reverse sort order"),
+            CommandOptionHelp(cls.GROUP, "group by file type"),
+            CommandOptionHelp(cls.SHOW_ALL, "show hidden files too"),
+            CommandOptionHelp(cls.SHOW_SIZE, "show files size"),
+            CommandOptionHelp(cls.SHOW_DETAILS, "show more details"),
+            CommandOptionHelp(cls.MAX_DEPTH, "maximum display depth of tree", params=["depth"])
         ]
 
 
@@ -1451,10 +1382,10 @@ The scan time is two seconds unless it has been specified to <b>es</b> via <b>-w
 Only details about the sharings are shown, unless <b>-L</b> is given."""
 
     @classmethod
-    def options(cls) -> List[CommandOptionInfo]:
+    def options(cls) -> List[CommandOptionHelp]:
         return [
-            CommandOptionInfo(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
-            CommandOptionInfo(cls.SHOW_ALL_DETAILS, "show more details of both servers and sharings"),
+            CommandOptionHelp(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
+            CommandOptionHelp(cls.SHOW_ALL_DETAILS, "show more details of both servers and sharings"),
         ]
 
     @classmethod
@@ -1850,13 +1781,13 @@ whether overwrite it or not. The default overwrite behaviour can be specified \
 with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
 
     @classmethod
-    def options(cls) -> List[CommandOptionInfo]:
+    def options(cls) -> List[CommandOptionHelp]:
         return [
-            CommandOptionInfo(cls.OVERWRITE_YES, "always overwrite files"),
-            CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
-            CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
-            CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
-            CommandOptionInfo(cls.QUIET, "doesn't show progress"),
+            CommandOptionHelp(cls.OVERWRITE_YES, "always overwrite files"),
+            CommandOptionHelp(cls.OVERWRITE_NO, "never overwrite files"),
+            CommandOptionHelp(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
+            CommandOptionHelp(cls.CHECK, "performs a check of files consistency"),
+            CommandOptionHelp(cls.QUIET, "doesn't show progress"),
         ]
 
     @classmethod
@@ -2032,13 +1963,13 @@ whether overwrite it or not. The default overwrite behaviour can be specified \
 with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
 
     @classmethod
-    def options(cls) -> List[CommandOptionInfo]:
+    def options(cls) -> List[CommandOptionHelp]:
         return [
-            CommandOptionInfo(cls.OVERWRITE_YES, "always overwrite files"),
-            CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
-            CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
-            CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
-            CommandOptionInfo(cls.QUIET, "doesn't show progress"),
+            CommandOptionHelp(cls.OVERWRITE_YES, "always overwrite files"),
+            CommandOptionHelp(cls.OVERWRITE_NO, "never overwrite files"),
+            CommandOptionHelp(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
+            CommandOptionHelp(cls.CHECK, "performs a check of files consistency"),
+            CommandOptionHelp(cls.QUIET, "doesn't show progress"),
         ]
 
     @classmethod
@@ -2153,9 +2084,9 @@ class ListSharings(FastServerConnectionCommandInfo, Pargs):
 List the sharings of the remote server to which the connection is established."""
 
     @classmethod
-    def options(cls) -> List[CommandOptionInfo]:
+    def options(cls) -> List[CommandOptionHelp]:
         return [
-            CommandOptionInfo(cls.SHOW_DETAILS, "show more details of sharings"),
+            CommandOptionHelp(cls.SHOW_DETAILS, "show more details of sharings"),
         ]
 
     @classmethod
@@ -2222,9 +2153,9 @@ The reported information are:
 - Sharings"""
 
     @classmethod
-    def options(cls) -> List[CommandOptionInfo]:
+    def options(cls) -> List[CommandOptionHelp]:
         return [
-            CommandOptionInfo(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
+            CommandOptionHelp(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
         ]
 
     @classmethod
@@ -2306,9 +2237,9 @@ class Ping(FastServerConnectionCommandInfo, Pargs):
 Test the connectivity with the server by sending application-level messages."""
 
     @classmethod
-    def options(cls) -> List[CommandOptionInfo]:
+    def options(cls) -> List[CommandOptionHelp]:
         return [
-            CommandOptionInfo(cls.COUNT, "stop after <u>count</u> messages", ["count"]),
+            CommandOptionHelp(cls.COUNT, "stop after <u>count</u> messages", ["count"]),
         ]
 
     @classmethod
@@ -2327,6 +2258,7 @@ Usage example:
 
 <b>/tmp></b> <b>ping</b> <u>192.168.1.185</u> <b>-c</b> <u>1</u>
 [1] PONG from bob-debian (192.168.1.185:12020)  |  time=10.3ms"""
+
 
 COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.HELP: Help,

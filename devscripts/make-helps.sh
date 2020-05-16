@@ -7,7 +7,8 @@ SCRIPT_DIR="$(dirname "$0")"
 
 cd "$SCRIPT_DIR" || exit
 
-HELPS_FILE="../easyshare/res/helps.json"
-HELPS_DUMP_FILE="/tmp/helps.txt"
+MANS="../easyshare/res/helps/mans.json"
+USAGES="../easyshare/res/helps/usages.json"
 
-python make-helps.py > "$HELPS_FILE" 2> "$HELPS_DUMP_FILE"
+python make_helps.py man > "$MANS"
+python make_helps.py usage > "$USAGES"

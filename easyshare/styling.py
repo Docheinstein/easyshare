@@ -112,6 +112,10 @@ def bold(s: str) -> str:
     return styled(s, attrs=ansi.ATTR_BOLD)
 
 
+def underline(s: str) -> str:
+    return styled(s, attrs=ansi.ATTR_UNDERLINE)
+
+
 if __name__ == "__main__":
     print(red("Hello"))
     print(bold("Hello"))

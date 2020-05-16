@@ -4,16 +4,18 @@ from typing import List, Optional
 
 from easyshare.esd.common import Sharing
 
-from easyshare import logging
+from easyshare import logging, args
 from easyshare.args import Kwarg, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
     Pargs, ArgsParser, ActionParam
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.daemons.discover import get_discover_daemon
 from easyshare.esd.daemons.transfer import get_transfer_daemon
+from easyshare.help.esd import Esd
 from easyshare.logging import get_logger
 from easyshare.auth import AuthFactory
 from easyshare.esd.server import Server
-from easyshare.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup
+from easyshare.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO
+from easyshare.res.helps import get_command_man, get_command_usage
 from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
@@ -28,13 +30,6 @@ from easyshare.utils.str import satisfy
 log = get_logger(__name__)
 
 
-# === HELPS ===
-
-HELP_APP = """easyshare deamon (esd)
-...
-"""
-
-
 # === ARGUMENTS ===
 
 class SharingArgs(Pargs):
@@ -47,49 +42,49 @@ class SharingArgs(Pargs):
         return [
             (SharingArgs.READ_ONLY, PRESENCE_PARAM),
         ]
-
-class EsdArgs(ArgsParser):
-    HELP = ["-h", "--help"]
-    VERSION = ["-V", "--version"]
-
-    CONFIG = ["-c", "--config"]
-
-    NAME = ["-n", "--name"]
-    ADDRESS = ["-a", "--address"]
-    PORT = ["-p", "--port"]
-    DISCOVER_PORT = ["-d", "--discover-port"]
-    PASSWORD = ["-P", "--password"]
-
-    SSL_CERT = ["--ssl-cert"]
-    SSL_PRIVKEY = ["--ssl-privkey"]
-    REXEC = ["-e", "--rexec"]
-
-    VERBOSE =   ["-v", "--verbose"]
-    TRACE =     ["-t", "--trace"]
-    NO_COLOR =  ["--no-color"]
-
-    def kwargs_specs(self) -> Optional[List[Kwarg]]:
-        return [
-            (EsdArgs.HELP, ActionParam(lambda _: terminate("help"))),
-            (EsdArgs.VERSION, ActionParam(lambda _: terminate("version"))),
-
-            (EsdArgs.CONFIG, STR_PARAM),
-
-            (EsdArgs.NAME, STR_PARAM),
-            (EsdArgs.ADDRESS, STR_PARAM),
-            (EsdArgs.PORT, INT_PARAM),
-            (EsdArgs.DISCOVER_PORT, INT_PARAM),
-            (EsdArgs.PASSWORD, STR_PARAM),
-            (EsdArgs.SSL_CERT, STR_PARAM),
-            (EsdArgs.SSL_PRIVKEY, STR_PARAM),
-
-            (EsdArgs.REXEC, PRESENCE_PARAM),
-
-            (EsdArgs.VERBOSE, INT_PARAM_OPT),
-            (EsdArgs.TRACE, INT_PARAM_OPT),
-            (EsdArgs.NO_COLOR, PRESENCE_PARAM),
-
-        ]
+# 
+# class Esd(ArgsParser):
+#     HELP = ["-h", "--help"]
+#     VERSION = ["-V", "--version"]
+# 
+#     CONFIG = ["-c", "--config"]
+# 
+#     NAME = ["-n", "--name"]
+#     ADDRESS = ["-a", "--address"]
+#     PORT = ["-p", "--port"]
+#     DISCOVER_PORT = ["-d", "--discover-port"]
+#     PASSWORD = ["-P", "--password"]
+# 
+#     SSL_CERT = ["--ssl-cert"]
+#     SSL_PRIVKEY = ["--ssl-privkey"]
+#     REXEC = ["-e", "--rexec"]
+# 
+#     VERBOSE =   ["-v", "--verbose"]
+#     TRACE =     ["-t", "--trace"]
+#     NO_COLOR =  ["--no-color"]
+# 
+#     def kwargs_specs(self) -> Optional[List[Kwarg]]:
+#         return [
+#             (Esd.HELP, ActionParam(lambda _: terminate("help"))),
+#             (Esd.VERSION, ActionParam(lambda _: terminate("version"))),
+# 
+#             (Esd.CONFIG, STR_PARAM),
+# 
+#             (Esd.NAME, STR_PARAM),
+#             (Esd.ADDRESS, STR_PARAM),
+#             (Esd.PORT, INT_PARAM),
+#             (Esd.DISCOVER_PORT, INT_PARAM),
+#             (Esd.PASSWORD, STR_PARAM),
+#             (Esd.SSL_CERT, STR_PARAM),
+#             (Esd.SSL_PRIVKEY, STR_PARAM),
+# 
+#             (Esd.REXEC, PRESENCE_PARAM),
+# 
+#             (Esd.VERBOSE, INT_PARAM_OPT),
+#             (Esd.TRACE, INT_PARAM_OPT),
+#             (Esd.NO_COLOR, PRESENCE_PARAM),
+# 
+#         ]
 
     # def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
     #     return lambda argname, argtype, idx, args, positionals: argtype != ArgType.PARG
@@ -144,13 +139,13 @@ def main():
     easyshare_setup()
 
     if len(sys.argv) <= 1:
-        terminate(HELP_APP)
+        terminate(get_command_usage("esd"))
 
     # Parse arguments
     g_args = None
 
     try:
-        g_args = EsdArgs().parse(sys.argv[1:])
+        g_args = Esd().parse(sys.argv[1:])
     except ArgsParseError as err:
         log.exception("Exception occurred while parsing args")
         abort("Parse of global arguments failed: {}".format(str(err)))
@@ -159,12 +154,20 @@ def main():
     # so that the rest of the startup (config parsing, ...)
     # can be logged
     # Verbosity over VERBOSITY_MAX enables pyro logging too
-    if g_args.has_kwarg(EsdArgs.VERBOSE):
-        log.set_verbosity(g_args.get_kwarg_param(EsdArgs.VERBOSE,
+    if g_args.has_kwarg(Esd.VERBOSE):
+        log.set_verbosity(g_args.get_kwarg_param(Esd.VERBOSE,
                                                  default=logging.VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_SERVER_SHORT, APP_VERSION))
     log.i("Starting with arguments\n%s", g_args)
+
+    # Help?
+    if Esd.HELP in g_args:
+        terminate(get_command_usage("esd"))
+
+    # Version?
+    if Esd.VERSION in g_args:
+        terminate(APP_INFO)
 
     # Default values
     verbosity = 0
@@ -204,12 +207,12 @@ def main():
 
     # Take out config settings
 
-    if EsdArgs.CONFIG in g_args:
+    if Esd.CONFIG in g_args:
         cfg = None
 
         try:
             cfg = Conf.parse(
-                path=g_args.get_kwarg_param(EsdArgs.CONFIG),
+                path=g_args.get_kwarg_param(Esd.CONFIG),
                 sections_parsers=ESD_CONF_SPEC,
                 comment_prefixes=["#", ";"]
             )
@@ -293,43 +296,43 @@ def main():
 
     # Name
     server_name = g_args.get_kwarg_param(
-        EsdArgs.NAME,
+        Esd.NAME,
         default=server_name
     )
 
     # Server address
     server_address = g_args.get_kwarg_param(
-        EsdArgs.ADDRESS,
+        Esd.ADDRESS,
         default=server_address
     )
 
     # Server port
     server_port = g_args.get_kwarg_param(
-        EsdArgs.PORT,
+        Esd.PORT,
         default=server_port
     )
 
     # Discover port
     server_discover_port = g_args.get_kwarg_param(
-        EsdArgs.DISCOVER_PORT,
+        Esd.DISCOVER_PORT,
         default=server_discover_port
     )
 
     # Password
     server_password = g_args.get_kwarg_param(
-        EsdArgs.PASSWORD,
+        Esd.PASSWORD,
         default=server_password
     )
 
     # SSL cert
     server_ssl_cert = g_args.get_kwarg_param(
-        EsdArgs.SSL_CERT,
+        Esd.SSL_CERT,
         default=server_ssl_cert
     )
 
     # SSL privkey
     server_ssl_privkey = g_args.get_kwarg_param(
-        EsdArgs.SSL_PRIVKEY,
+        Esd.SSL_PRIVKEY,
         default=server_ssl_privkey
     )
 
@@ -339,28 +342,28 @@ def main():
     server_ssl_enabled = server_ssl_enabled or server_ssl_cert or server_ssl_privkey
 
     # Rexec
-    if g_args.has_kwarg(EsdArgs.REXEC):
+    if g_args.has_kwarg(Esd.REXEC):
         server_rexec = True
 
     # Colors
-    if g_args.has_kwarg(EsdArgs.NO_COLOR):
+    if g_args.has_kwarg(Esd.NO_COLOR):
         no_colors = True
 
     # Packet tracing
-    if g_args.has_kwarg(EsdArgs.TRACE):
+    if g_args.has_kwarg(Esd.TRACE):
         # The param of -v is optional:
         # if not specified the default is DEBUG
         tracing = g_args.get_kwarg_param(
-            EsdArgs.TRACE,
+            Esd.TRACE,
             default=1
         )
 
     # Verbosity
-    if g_args.has_kwarg(EsdArgs.VERBOSE):
+    if g_args.has_kwarg(Esd.VERBOSE):
         # The param of -v is optional:
         # if not specified the default is DEBUG
         verbosity = g_args.get_kwarg_param(
-            EsdArgs.VERBOSE,
+            Esd.VERBOSE,
             default=logging.VERBOSITY_MAX
         )
 
