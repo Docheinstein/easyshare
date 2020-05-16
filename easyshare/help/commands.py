@@ -1473,19 +1473,19 @@ not place you inside any server's sharing. Use <b>open</b> for that."""
     def examples(cls):
         return f"""\
 Usage example:
-
-1. Connection by server name (discover)
+   <a>
+1. Connection by server name (discover)</a>
 <b>/tmp></b> <b>connect</b> <u>alice-arch</u>
 <b>alice-arch</b> - <b>/tmp></b> list
 DIRECTORIES
 - shared
 - tmp
-
-2. Connection by address (direct attempt, discover if fails)
+   <a>
+2. Connection by address (direct attempt, discover if fails)</a>
 <b>/tmp></b> <b>connect</b> <u>192.168.1.105</u>
 <b>alice-arch</b> - <b>/tmp></b>
-
-3. Connection by address and port (direct)
+   <a>
+3. Connection by address and port (direct)</a>
 <b>/tmp></b> <b>connect</b> <u>89.1.2.84:22020</u>
 <b>eve-kali</b> - <b>/tmp></b>"""
 
@@ -1621,27 +1621,27 @@ connection will be created for you automatically."""
     def examples(cls):
         return f"""\
 Usage example:
-
-1. Connection by sharing name (while connected)
+   <a>
+1. Connection by sharing name (while connected)</a>
 <b>/tmp></b> connect alice-arch
 <b>alice-arch</b> - <b>/tmp></b> <b>open</b> <u>temp</u>
 <b>alice-arch.temp:/</b> - <b>/tmp></b> rls
 f1      f2
-
-1. Connection by sharing name (discover)
+    <a>
+1b. Connection by sharing name (discover)</a>
 <b>/tmp></b> <b>open<b> temp
 <b>alice-arch.temp:/</b> - <b>/tmp></b> rls
 f1      f2
-
-2. Connection by sharing name with server name filter (discover)
+   <a>
+2. Connection by sharing name with server name filter (discover)</a>
 <b>/tmp></b> <b>open</b> <u>temp@alice-arch</u>
 <b>alice-arch.temp:/</b> - <b>/tmp></b>
-
-3. Connection by sharing name with address (attempt direct, discover if fails)
+   <a>
+3. Connection by sharing name with address (attempt direct, discover if fails)</a>
 <b>/tmp></b> <b>open</b> <u>temp@alice-arch</u>
 <b>alice-arch.temp:/</b> - <b>/tmp></b>
-
-4. Connection by sharing name with address and port (direct)
+   <a>
+4. Connection by sharing name with address and port (direct)</a>
 <b>/tmp></b> <b>open</b> <u>temp@192.168.1.105:12020</u>
 <b>alice-arch.temp:/</b> - <b>/tmp></b>"""
 
@@ -1681,14 +1681,14 @@ If the sharing connection has been created directly with <b>open</b> instead of 
     def examples(cls):
         return f"""\
 Usage example:
-
-1. Close sharing connection only
+   <a>
+1. Close sharing connection only</a>
 <b>/tmp></b> connect alice-arch
 <b>alice-arch</b> - <b>/tmp></b> open shared
 <b>alice-arch.shared:/</b> - <b>/tmp></b> <b>close</b>
 <b>alice-arch</b> - <b>/tmp></b> <b>close</b>
-
-2. Close both sharing and server connection
+   <a>
+2. Close both sharing and server connection</a>
 <b>/tmp></b> open music
 <b>bob-debian.music:/</b> - <b>/tmp></b> <b>close</b>
 <b>/tmp></b>"""
@@ -1741,9 +1741,10 @@ Get files and directories from a remote sharing to the local machine.
 
 
 This command can be used for two similar purpose:
+   <A>
 1. Download either files or directory from a "directory sharing"
 2. Download a "file sharing" (i.e. a single file with a sharing name assigned to it).
-
+</a>
 In case 1. a connection to the remote sharing have to be established in one of \
 the following manners:
     <A>
@@ -1793,7 +1794,8 @@ with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
     @classmethod
     def examples(cls):
         return f"""
-1. Get all the content of a directory sharing (wrapped into a folder)
+   <a>
+1. Get all the content of a directory sharing (wrapped into a folder)</a>
 <b>/tmp></b> connect alice-arch
 <b>alice-arch</b> - <b>/tmp></b> open shared
 <b>alice-arch.shared:/</b> - <b>/tmp></b> tree
@@ -1802,7 +1804,7 @@ with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
 <b>alice-arch.shared:/</b> - <b>/tmp></b> rls
 f_remote_1
 <b>alice-arch.shared:/</b> - <b>/tmp></b> <b>get</b>
-GET shared/f_remote_1    │███████████████████│ 100%  745KB/745KB
+GET shared/f_remote_1    [===================] 100%  745KB/745KB
 GET outcome: OK
 Files        1  (745KB)
 Time         1s
@@ -1812,8 +1814,8 @@ Avg. speed   1MB/s
 |-- f2
 +-- shared
     +-- f_remote_1
-
-2. Get all the content of a directory sharing (into the current directory)
+   <a>
+2. Get all the content of a directory sharing (into the current directory)</a>
 <b>/tmp></b> connect alice-arch
 <b>alice-arch</b> - <b>/tmp></b> open shared
 <b>alice-arch.shared:/</b> - <b>/tmp></b> tree
@@ -1822,7 +1824,7 @@ Avg. speed   1MB/s
 <b>alice-arch.shared:/</b> - <b>/tmp></b> rls
 f_remote_1
 <b>alice-arch.shared:/</b> - <b>/tmp></b> <b>get</b> <u>*</u>
-GET f_remote_1    │███████████████████│ 100%  745KB/745KB
+GET f_remote_1    [===================] 100%  745KB/745KB
 GET outcome: OK
 Files        1  (745KB)
 Time         1s
@@ -1831,8 +1833,8 @@ Avg. speed   1MB/s
 |-- f1
 |-- f2
 +-- f_remote_1
-
-3. Get specific files from a directory sharing
+   <a>
+3. Get specific files from a directory sharing</a>
 <b>/tmp></b> connect alice-arch
 <b>alice-arch</b> - <b>/tmp></b> open shared
 <b>alice-arch.shared:/</b> - <b>/tmp></b> tree
@@ -1841,8 +1843,8 @@ Avg. speed   1MB/s
 <b>alice-arch.shared:/</b> - <b>/tmp></b> rls
 f_remote_1      f_remote_2      f_remote_another
 <b>alice-arch.shared:/</b> - <b>/tmp></b> <b>get</b> <u>f_remote_1</u> u>f_remote_2</u>
-GET f_remote_1    │███████████████████│ 100%  745KB/745KB
-GET f_remote_2    │███████████████████│ 100%  745KB/745KB
+GET f_remote_1    [===================] 100%  745KB/745KB
+GET f_remote_2    [===================] 100%  745KB/745KB
 GET outcome: OK
 Files        2  (1.4MB)
 Time         1s
@@ -1852,13 +1854,13 @@ Avg. speed   1MB/s
 |-- f2
 |-- f_remote_1
 +-- f_remote_2
-
-4. Get without establish a connection before
+   <a>
+4. Get without establish a connection before</a>
 <b>/tmp></b> tree
 |-- f1
 +-- f2
 <b>/tmp></b> <b>get</b> <u>shared</u>
-GET f_remote_1    │███████████████████│ 100%  745KB/745KB
+GET f_remote_1    [===================] 100%  745KB/745KB
 GET outcome: OK
 Files        1  (745KB)
 Time         1s
@@ -1868,13 +1870,13 @@ Avg. speed   1MB/s
 |-- f2
 +-- shared
     +-- f_remote_1
-
-5. Get a file sharing (without establish a connection before)
+   <a>
+5. Get a file sharing (without establish a connection before)</a>
 <b>/tmp></b> tree
 |-- f1
 +-- f2
 <b>/tmp></b> <b>get</b> <u>f_share</u>
-GET f_share    │███████████████████│ 100%  745KB/745KB
+GET f_share    [===================] 100%  745KB/745KB
 GET outcome: OK
 Files        1  (745KB)
 Time         1s
@@ -1975,7 +1977,8 @@ with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
     @classmethod
     def examples(cls):
         return f"""
-1. Put all the content of a directory into a sharing (wrapped into a folder)
+   <a>
+1. Put all the content of a directory into a sharing (wrapped into a folder)</a>
 <b>/tmp/localdir></b> connect alice-arch
 <b>alice-arch</b> - <b>/tmp></b> open shared
 <b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> tree
@@ -1984,8 +1987,8 @@ with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
 <b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> rls
 f_remote_1
 <b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> <b>put</b>
-PUT localdir/f1    │███████████████████│ 100%  745KB/745KB
-PUT localdir/f2    │███████████████████│ 100%  745KB/745KB
+PUT localdir/f1    [===================] 100%  745KB/745KB
+PUT localdir/f2    [===================] 100%  745KB/745KB
 PUT outcome: OK
 Files        2  (1.4MB)
 Time         1s
@@ -1995,8 +1998,8 @@ Avg. speed   1MB/s
 +-- localdir
     |-- f1
     +-- f2
-
-2. Put all the content of a directory into a sharing (not wrapped into a folder)
+   <a>
+2. Put all the content of a directory into a sharing (not wrapped into a folder)</a>
 <b>/tmp/localdir></b> connect alice-arch
 <b>alice-arch</b> - <b>/tmp></b> open shared
 <b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> tree
@@ -2005,8 +2008,8 @@ Avg. speed   1MB/s
 <b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> rls
 f_remote_1
 <b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> <b>put</b> <u>*</u>
-PUT f1    │███████████████████│ 100%  745KB/745KB
-PUT f2    │███████████████████│ 100%  745KB/745KB
+PUT f1    [===================] 100%  745KB/745KB
+PUT f2    [===================] 100%  745KB/745KB
 PUT outcome: OK
 Files        2  (1.4MB)
 Time         1s
@@ -2015,8 +2018,8 @@ Avg. speed   1MB/s
 |-- f_remote_1
 |-- f1
 +-- f2
-
-3. Put specific files into a sharing (not wrapped into a folder)
+   <a>
+3. Put specific files into a sharing (not wrapped into a folder)</a>
 <b>/tmp/localdir></b> connect alice-arch
 <b>alice-arch</b> - <b>/tmp></b> open shared
 <b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> tree
@@ -2026,8 +2029,8 @@ Avg. speed   1MB/s
 <b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> rls
 f_remote_1
 <b>alice-arch.shared:/</b> - <b>/tmp/localdir></b> <b>put</b> <u>f1</u> <u>f2</u>
-PUT f1    │███████████████████│ 100%  745KB/745KB
-PUT f2    │███████████████████│ 100%  745KB/745KB
+PUT f1    [===================] 100%  745KB/745KB
+PUT f2    [===================] 100%  745KB/745KB
 PUT outcome: OK
 Files        2  (1.4MB)
 Time         1s
@@ -2036,10 +2039,10 @@ Avg. speed   1MB/s
 |-- f_remote_1
 |-- f1
 +-- f2
-
-4. Put without establish a connection before
+   <a>
+4. Put without establish a connection before</a>
 <b>/tmp/localdir></b> <b>put</b> <u>shared</u> <u>f1</u>
-PUT f1    │███████████████████│ 100%  745KB/745KB
+PUT f1    [===================] 100%  745KB/745KB
 PUT outcome: OK
 Files        1  (745KB)
 Time         1s

@@ -20,6 +20,7 @@ from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
 from easyshare.styling import enable_colors, bold
+from easyshare.utils.env import are_colors_supported
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context
@@ -40,7 +41,7 @@ class SharingArgs(Pargs):
 
     def kwargs_specs(self) -> Optional[List[Kwarg]]:
         return [
-            (SharingArgs.READ_ONLY, PRESENCE_PARAM),
+            (self.READ_ONLY, PRESENCE_PARAM),
         ]
 # 
 # class Esd(ArgsParser):
@@ -384,7 +385,7 @@ def main():
     log.d("Tracing: %s", tracing)
     log.d("Verbosity: %s", verbosity)
 
-    enable_colors(not no_colors)
+    enable_colors(are_colors_supported() and not no_colors)
     enable_tracing(tracing)
     if verbosity:
         log.set_verbosity(verbosity)

@@ -3,15 +3,21 @@ from typing import List, Union, Optional
 import colorama
 
 from easyshare.consts import ansi
+from easyshare.utils.app import eprint
 
 _colorful = True
 
 def enable_colors(enabled: bool = True):
     global _colorful
     _colorful = enabled
-
     if enabled:
+        if not are_colors_enabled():
+            eprint("Colors enabled but output stream doesn't support colors")
         colorama.init()
+
+def are_colors_enabled():
+    return _colorful
+
 
 def styled(s: str,
            fg: Optional[ansi.ansi_fg] = None,

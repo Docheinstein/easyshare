@@ -17,6 +17,8 @@ def is_terminal(fileno: int):
 def is_stdout_terminal():
     return is_terminal(sys.stdout.fileno())
 
+def are_colors_supported():
+    return is_stdout_terminal()
 
 def terminal_size(fallback=(80, 24)) -> Tuple[int, int]:
     try:

@@ -40,6 +40,9 @@ class ansistr:
         # print(self._escaped_string)
         # print(self._ansis)
 
+    def __repr__(self):
+        return repr(self._string)
+
     def __str__(self):
         return self._string
 
@@ -101,21 +104,26 @@ class ansistr:
 
 
     def sliced(self, slicing) -> 'ansistr':
-        # print("__getitem__", slicing)
+        # print("slicing {} by {}".format(repr(self), slicing))
+        # print("ansistr._ansis is: {}".format(self._ansis))
+
         slicing_start = slicing.start or 0
         slicing_stop = slicing.stop or len(self._escaped_string)
         new_s = self._escaped_string[slicing_start:slicing_stop]
 
-        # print("new_s before", new_s)
+        # print("> _escaped_string sliced '{}'".format(new_s))
 
         for el in self._ansis:
             ansi_pos, ansi_sequence = el
-            if slicing_start <= ansi_pos < slicing_stop:
+            if slicing_start <= ansi_pos <= slicing_stop:
                 ansi_pos_correct = ansi_pos - slicing_start
-                # print(f"ansi pos {ansi_pos} ({ansi_pos_correct}) within {slicing_start}:{slicing_stop}")
+                # print(f"> ansi pos {ansi_pos} ({ansi_pos_correct}) within {slicing_start}:{slicing_stop}")
                 new_s = new_s[:ansi_pos_correct] + ansi_sequence + new_s[ansi_pos_correct:]
 
-        return ansistr(new_s)
+        astr = ansistr(new_s)
+        # print("> sliced astr =", repr(astr))
+
+        return astr
 
     def raw(self) -> str:
         return self._string
@@ -300,13 +308,17 @@ class HelpMarkdown:
                     line_no_fit_part = line_in
                     do_align = False
 
-                    while len(line_no_fit_part) > available_space:
+                    while True:
                         # Keep the alignment into account for the available space
                         available_space = cols - self._current_indent() - (do_align * self._current_align())
 
+                        if len(line_no_fit_part) <= available_space:
+                            break
+
+                        log.d("--> available space = %d (need align = %s)", available_space, do_align)
                         log.d("--> still longer after break:  '%s'", line_no_fit_part)
-                        line_fit_part = line_no_fit_part[:available_space - 1] # make room for "-"
-                        line_no_fit_part = line_no_fit_part[available_space - 1:]
+                        line_fit_part = line_no_fit_part[:available_space] # make room for "-"
+                        line_no_fit_part = line_no_fit_part[available_space:]
 
                         if len(line_no_fit_part) >= 2:
                             line_no_fit_c1 = line_no_fit_part[0]
@@ -318,7 +330,7 @@ class HelpMarkdown:
                         # Add a trailing "-" if there's still something to render
                         # and if the line doesn't end with a space
                         if not line_fit_part.endswith(" ") and len(line_no_fit_part) > 0:
-                            log.d("--> adding trailing '-'")
+                            log.d("--> adding trailing '-' to fit part %s", repr(line_fit_part))
                             line_fit_part += "-"
 
                         self._add_line(line_fit_part, align=do_align)
@@ -386,8 +398,9 @@ class HelpMarkdown:
 
 
     def _add_line(self, astr: ansistr, *, align: bool = False):
-        log.d("add_line | astr raw = '%s'", astr.raw())
-        log.d("add_line | do align = %s", align)
+        log.d("add_line()")
+        log.d("-> raw = '%s'", astr.raw())
+        log.d("-> raw repr = %s", repr(astr.raw()))
         log.d("-> current indent = %d", self._current_indent())
         log.d("-> current align = %d", self._current_align())
 
@@ -410,7 +423,7 @@ class HelpMarkdown:
             self._awaiting_ansi = astr.last_ansi()
 
             if self._awaiting_ansi and self._awaiting_ansi != ansi.RESET:
-                log.w("There is an open ansi tag before breaking line; adding RESET")
+                log.w("There is an open ansi tag %s before breaking line; adding RESET", repr(self._awaiting_ansi))
                 line += ansi.RESET
         else:
             log.d("Empty line detected")
@@ -420,7 +433,8 @@ class HelpMarkdown:
 
         line += "\n"
 
-        log.d("[+]'%s'", line)
+        log.d("[+]%s", repr(line))
+        log.d("=> '%s'", line)
         self._output += line
 #
 #

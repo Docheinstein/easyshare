@@ -122,7 +122,8 @@ def init_logging():
 def get_logger(name: str = ROOT_LOGGER_NAME,
                force_initialize: bool = False,
                verbosity: int = None) -> Logger:
-    init_logging()
+    # Dont' call init_logging() even if is attempting
+    # We have to call it manually after checking the colors support
 
     fetch_name = ROOT_LOGGER_DISPLAY_NAME if name == ROOT_LOGGER_NAME else name
 

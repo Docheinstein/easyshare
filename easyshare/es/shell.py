@@ -321,9 +321,9 @@ class Shell:
     def _help(self, args: Args) -> NoReturn:
         cmd = args.get_parg()
 
-        if cmd is not None and cmd not in COMMANDS_INFO:
-            eprint("Can't provide help for command '{}'".format(cmd))
-            return
+        # if cmd is not None and cmd not in COMMANDS_INFO:
+        #     eprint("Can't provide help for command '{}'".format(cmd))
+        #     return
 
         try:
             formatted_cmd_help = get_command_man(cmd)

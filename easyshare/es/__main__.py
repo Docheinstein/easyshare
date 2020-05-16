@@ -13,7 +13,7 @@ from easyshare.res.helps import get_command_man, get_command_usage
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import abort, terminate
 from easyshare.styling import enable_colors
-from easyshare.utils.env import is_stdout_terminal
+from easyshare.utils.env import is_stdout_terminal, are_colors_supported
 from easyshare.utils.hmd import HelpMarkdown
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
@@ -133,7 +133,7 @@ def main():
         log.w("Disabling colors since detected non-terminal output file")
         no_colors = True
 
-    enable_colors(not no_colors)
+    enable_colors(are_colors_supported() and not no_colors)
 
     enable_tracing(tracing)
     if verbosity:
