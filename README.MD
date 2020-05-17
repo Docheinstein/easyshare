@@ -31,13 +31,13 @@ WHAT IT LOOKS LIKE
 
 ##### es (client)
 
-![es](img/es.png)
+![es](img/es.shrink.png)
 
 
 
 ##### esd (server)
 
-![es](img/esd-inline.png)
+![es](img/esd-inline.shrink.png)
 
 
 ## esd
