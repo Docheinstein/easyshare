@@ -16,7 +16,7 @@ from easyshare.args import Args as Args, ArgsParseError, Pargs, \
 from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
-from easyshare.help.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
+from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
     ListSharings, Ping
 from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connections.server import ServerConnection, ServerConnectionMinimal

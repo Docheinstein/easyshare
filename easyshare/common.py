@@ -6,7 +6,7 @@ from easyshare.consts import ansi
 from easyshare.logging import get_logger, init_logging
 from easyshare.styling import enable_colors
 from easyshare.utils.env import are_colors_supported
-from easyshare.utils.str import satisfy
+from easyshare.utils.str import satisfychars
 from easyshare.utils.types import to_int
 
 
@@ -27,7 +27,7 @@ APP_INFO = "{} {}".format(APP_NAME, APP_VERSION)
 # ===== RESOURCES =====
 # =====================
 
-RESOURCES_PKG = "easyshare.res"
+EASYSHARE_RESOURCES_PKG = "easyshare.res"
 
 
 # =====================
@@ -76,11 +76,11 @@ SERVER_NAME_ALPHABET = string.ascii_letters + "_-"
 SHARING_NAME_ALPHABET = string.ascii_letters + "_-."
 
 def is_sharing_name(s: str):
-    return satisfy(s, SHARING_NAME_ALPHABET)
+    return satisfychars(s, SHARING_NAME_ALPHABET)
 
 
 def is_server_name(s: str):
-    return satisfy(s, SERVER_NAME_ALPHABET)
+    return satisfychars(s, SERVER_NAME_ALPHABET)
 
 
 # =====================

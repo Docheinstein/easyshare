@@ -11,6 +11,7 @@ b64 = str
 
 def scrypt(plain: Union[str, bytes], salt: Union[b64, bytes],
            n: int = 2048, r: int = 8, p: int = 1, dklen: int = 64) -> Optional[bytes]:
+    """ Create the scrypt hash of the given plaintext, salt """
 
     plain_b = to_bytes(plain)
     salt_b = salt if is_bytes(salt) else b64_to_bytes(salt)
@@ -37,6 +38,7 @@ def scrypt(plain: Union[str, bytes], salt: Union[b64, bytes],
 
 def scrypt_new(plain: Union[str, bytes], salt_length: int = 32,
                n: int = 2048, r: int = 8, p: int = 1, dklen: int = 64) -> Tuple[bytes, bytes]:
+    """ Create a scrypt hash of the given plaintext, generating a salt of the given length """
     salt_b = os.urandom(salt_length)
     hash_b = scrypt(plain, salt_b, n, r, p, dklen)
     return salt_b, hash_b
@@ -52,20 +54,3 @@ def bytes_to_b64(b: bytes) -> b64:
 
 def b64_to_bytes(s: b64) -> bytes:
     return b64decode(s)
-
-
-def main():
-    plain = "hello"
-
-    salt_b, hash_b = scrypt_new(plain, salt_length=16)
-    hash_b2 = scrypt(plain, salt_b)
-
-    assert hash_b == hash_b2
-
-    salt_s = bytes_to_b64(salt_b)
-    hash_b3 = scrypt(plain, salt_s)
-
-    assert hash_b == hash_b3
-
-if __name__ == "__main__":
-    main()

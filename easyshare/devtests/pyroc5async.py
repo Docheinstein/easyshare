@@ -5,7 +5,7 @@ from typing import Union
 
 from Pyro5.api import Proxy
 
-from easyshare.tests.pyros import PyroServer
+from easyshare.devtests.pyros import PyroServer
 from easyshare.tracing import enable_tracing
 from easyshare.utils.pyro import TracedPyroProxy
 

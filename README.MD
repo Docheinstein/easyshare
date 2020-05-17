@@ -445,6 +445,8 @@ If neither -c nor -p is given, an interactive script is started and you will be 
 * *find* and *rfind* command that finds files by name and tag those with incremental IDs (1, 2)
 which can be used in other command (something like $1, $2)
 * Behind NAT section in README (open two external ports internally forwarded to 12020 and 12021)
+* Add unit tests
+* Handle addresses instead of numeric IPs
 
 LICENSE
 -------

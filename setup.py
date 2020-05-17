@@ -41,7 +41,7 @@ setup(
     ],
 
     # Tests
-    # test_suite="tests",
+    test_suite="tests",
 
     # Metadata
     author="Stefano Dottore",

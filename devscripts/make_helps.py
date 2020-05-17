@@ -12,13 +12,13 @@ SCRIPT_PARENT_DIR, _ = os.path.split(SCRIPT_DIR)
 
 sys.path.append(SCRIPT_PARENT_DIR)
 
-from easyshare.help.es import Es
-from easyshare.help.esd import Esd
-from easyshare.help.estools import EsTools
-from easyshare.help import CommandHelp, CommandOptionHelp
+from easyshare.helps.es import Es, USAGE
+from easyshare.helps.esd import Esd
+from easyshare.helps.estools import EsTools
+from easyshare.helps import CommandHelp, CommandOptionInfo, CommandUsage
 from easyshare.utils.json import j
-from easyshare.utils.str import sorted_i
-from easyshare.help.commands import COMMANDS_INFO
+from easyshare.utils.str import isorted
+from easyshare.helps.commands import COMMANDS_INFO
 from easyshare.utils.app import eprint
 
 
@@ -46,14 +46,8 @@ def make_section(name: Optional[str], content: str, *,
 
 
 
-def generate_command_usage_markdown(info: Type[CommandHelp]):
+def generate_command_usage_markdown(info: Type[CommandUsage]):
     OPTIONS_DESC_SPACING = 4
-
-    info_custom = info.custom()
-
-    if info_custom:
-        # Custom format
-        return info_custom
 
     info_options = None
 
@@ -67,10 +61,10 @@ def generate_command_usage_markdown(info: Type[CommandHelp]):
 
         # TODO: refactor using ansistr
 
-        def aliases_string(opt: CommandOptionHelp) -> str:
+        def aliases_string(opt: CommandOptionInfo) -> str:
             return ", ".join(f"{a}" for a in opt.aliases) if opt.aliases else ""
 
-        def params_string(opt: CommandOptionHelp) -> str:
+        def params_string(opt: CommandOptionInfo) -> str:
             return " ".join(f"<{p}>" for p in opt.params) if opt.params else ""
 
         for opt in options:
@@ -84,14 +78,14 @@ def generate_command_usage_markdown(info: Type[CommandHelp]):
         options_alignment = longest_aliases_w_params + OPTIONS_DESC_SPACING
 
         for opt in options:
-            options_strings.append(opt._to_string(
+            options_strings.append(opt.as_string(
                 aliases=aliases_string(opt),
                 params=params_string(opt),
                 description=opt.description,
                 justification=options_alignment)
             )
 
-        options_strings = sorted_i(options_strings, not_in_subset="-")
+        options_strings = isorted(options_strings, not_in_subset="-")
         info_options = "\n".join(options_strings)
 
     section_synopsis = make_section(
@@ -102,7 +96,7 @@ def generate_command_usage_markdown(info: Type[CommandHelp]):
 
     section_trail = make_section(
         None,
-        info.see_more(),
+        info.see_also(),
         leading_endl=2,
         indent=0
     )
@@ -125,7 +119,7 @@ Options:
 
     return s
 
-def generate_command_man_markdown(info: Type[CommandHelp], styled: bool = True):
+def generate_command_help_markdown(info: Type[CommandHelp], styled: bool = True):
     # PARAGRAPH_INDENT = 4
     OPTIONS_DESC_SPACING = 4
 
@@ -135,7 +129,7 @@ def generate_command_man_markdown(info: Type[CommandHelp], styled: bool = True):
         # Custom format
         return info_custom
 
-    # Standard help format
+    # Standard helps format
 
     # Compute optional parts
     info_synopsis_extra = info.synopsis_extra()
@@ -154,14 +148,14 @@ def generate_command_man_markdown(info: Type[CommandHelp], styled: bool = True):
 
         # TODO: refactor using ansistr
 
-        def aliases_string(opt: CommandOptionHelp) -> Tuple[str, int]: # string, ansi count
+        def aliases_string(opt: CommandOptionInfo) -> Tuple[str, int]: # string, ansi count
             aliases_len = len(opt.aliases) if opt.aliases else 0
             open_tag = "<b>" if styled else ""
             end_tag = "</b>" if styled else ""
             return ", ".join(f"{open_tag}{a}{end_tag}" for a in opt.aliases) if opt.aliases else "", \
                    ((len("<b></b>") * aliases_len) if styled else 0)
 
-        def params_string(opt: CommandOptionHelp) -> Tuple[str, int]:
+        def params_string(opt: CommandOptionInfo) -> Tuple[str, int]:
             params_len = len(opt.params) if opt.params else 0
             open_tag = "<u>" if styled else "<"
             end_tag = "</u>" if styled else ">"
@@ -188,7 +182,7 @@ def generate_command_man_markdown(info: Type[CommandHelp], styled: bool = True):
         for opt in options:
             aliases_str, aliases_str_style_chars = aliases_string(opt)
             params_srt, params_str_style_chars = params_string(opt)
-            options_strings.append(opt._to_string(
+            options_strings.append(opt.as_string(
                 aliases=aliases_str,
                 params=params_srt,
                 description=opt.description,
@@ -199,7 +193,7 @@ def generate_command_man_markdown(info: Type[CommandHelp], styled: bool = True):
             #        options_alignment, " + ",
             #     aliases_str_style_chars, params_str_style_chars)
 
-        options_strings = sorted_i(options_strings, not_in_subset="-")
+        options_strings = isorted(options_strings, not_in_subset="-")
         info_options = "\n".join(options_strings)
 
     subsection_synopsis_extra = ("\n\n" + info_synopsis_extra) if info_synopsis_extra else ""
@@ -241,69 +235,9 @@ def generate_command_man_markdown(info: Type[CommandHelp], styled: bool = True):
 
 
 
-USAGE = """\
-Type <b>es<b> <u>--help</u> for see <b>es</b> usage and options.
-Type <b>help <u>command</u> for the full documentation of a <u>command</u>.
-
-Available commands are:     
-                    <a>
-<b>General commands</b>
-<I4>
-help                show this help
-exit, quit, q       exit from the interactive shell
-trace, t            enable/disable packet tracing
-verbose, v          change verbosity level
-</i>
-<b>Connection establishment commands</b>
-<I4>
-scan, s             scan the network for easyshare servers
-connect             connect to a remote server
-disconnect          disconnect from a remote server
-open, o             open a remote sharing (eventually discovering it)
-close, c            close the remote sharing
-</i>
-<b>Transfer commands</b>
-<I4>
-get, g              get files and directories from the remote sharing
-put, p              put files and directories in the remote sharing
-</i>
-<b>Local commands</b>
-<I4>
-pwd                 show the name of current local working directory
-ls                  list local directory content
-l                   alias for ls -la
-tree                list local directory contents in a tree-like format
-cd                  change local working directory
-mkdir               create a local directory
-cp                  copy files and directories locally
-mv                  move files and directories locally
-rm                  remove files and directories locally
-exec, :             execute an arbitrary command locally
-</i>
-<b>Remote commands</b>
-<I4>
-rpwd                show the name of current remote working directory
-rls                 list remote directory content
-rl                  alias for rls -la
-rtree               list remote directory contents in a tree-like format
-rcd                 change remote working directory
-rmkdir              create a remote directory
-rcp                 copy files and directories remotely
-rmv                 move files and directories remotely
-rrm                 remove files and directories remotely
-rexec, ::           execute an arbitrary command remotely (disabled by default) since it will compromise server security
-</i>
-<b>Server information commands</b>
-<I4>
-info, i             show information about the remote server
-list                list the sharings of the remote server
-ping                test the connection with the remote server</i></a>"""
-
-
-
 if __name__ == "__main__":
     GENERATORS_MAPS = {
-        "man": generate_command_man_markdown,
+        "man": generate_command_help_markdown,
         "usage": generate_command_usage_markdown
     }
     style = "man"
@@ -313,8 +247,9 @@ if __name__ == "__main__":
 
     eprint(f"Generating '{style}' help")
 
+    # noinspection PyTypeChecker
     cmds: List[Tuple[str, Type[CommandHelp]]] = \
-        list(COMMANDS_INFO.items()) + [
+        [(k, v) for k, v in COMMANDS_INFO.items()] + [
             (Es.name(), Es),
             (Esd.name(), Esd),
             (EsTools.name(), EsTools)

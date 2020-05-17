@@ -39,6 +39,7 @@ except:
 
 
 def create_server_ssl_context(cert: str, privkey: str) -> Optional[ssl.SSLContext]:
+    """ Create a server ssl.SSLContext from the given certificate an private key paths """
     if not os.path.isfile(cert) or not os.path.isfile(privkey):
         return None
 
@@ -54,8 +55,8 @@ def create_server_ssl_context(cert: str, privkey: str) -> Optional[ssl.SSLContex
 
 
 def create_client_ssl_context() -> Optional[ssl.SSLContext]:
+    """ Create a client ssl.SSLContext (trust-all) """
     try:
-        # ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
@@ -67,7 +68,8 @@ def create_client_ssl_context() -> Optional[ssl.SSLContext]:
 
 
 def sslify_socket(sock: socket.socket, ssl_context: ssl.SSLContext,
-                  server_side: bool = False, server_hostname: str = None):
+                  server_side: bool = False, server_hostname: str = None) -> ssl.SSLSocket:
+    """ Wraps the socket creating an ssl.SSLSocket for client or server side """
     ssock = sock
     if ssl_context:
         if server_side:
@@ -79,25 +81,12 @@ def sslify_socket(sock: socket.socket, ssl_context: ssl.SSLContext,
     return ssock
 
 
-
-_SSL_CERT_PARSING_MAP = {
-    "serialNumber": "serial",
-    "notBefore": "valid_from",
-    "notAfter": "valid_to",
-
-    "countryName": "country",
-    "stateOrProvinceName": "state",
-    "localityName": "locality",
-    "organizationName": "organization",
-    "organizationalUnitName": "organization_unit",
-    "commonName": "common_name",
-    "emailAddress": "email",
-}
-
-
 def parse_ssl_certificate(cert_der: bytes) -> Optional[SSLCertificate]:
-    # Takes a dict certificate as given by_test_decode_cert and parse
-    # it to a 'SSLCertificate'
+    """
+    Takes dict certificate as given by_test_decode_cert and parse
+    it to an'SSLCertificate'
+    """
+
     d = _parse_ssl_certificate_der(cert_der)
     if not d:
         return None
@@ -121,7 +110,7 @@ def parse_ssl_certificate(cert_der: bytes) -> Optional[SSLCertificate]:
         elif rootfield_k in _SSL_CERT_PARSING_MAP:
             cert[_SSL_CERT_PARSING_MAP[rootfield_k]] = rootfield_v
 
-    # Check wheter is self signed (issuer its the same as the subject)
+    # Check whether is self signed (issuer its the same as the subject)
     self_signed = (cert.get("subject", 1) == cert.get("issuer", 2))
 
     cert["self_signed"] = self_signed
@@ -130,16 +119,36 @@ def parse_ssl_certificate(cert_der: bytes) -> Optional[SSLCertificate]:
 
 
 def _parse_ssl_certificate_der(cert_der: bytes) -> Optional[Dict]:
+    """ Parse a certificate in binary form """
     cert_pem = ssl.DER_cert_to_PEM_cert(cert_der)
     return _parse_ssl_certificate_pem(cert_pem)
 
 
 def _parse_ssl_certificate_pem(cert_pem: str) -> Optional[Dict]:
+    """ Parse a certificate in string form """
     # Uses '_test_decode_cert', an internal API of cpython
     # which takes a file as an input, so we have to create a temporary file
     # and fill it with the pem content
     with tempfile.NamedTemporaryFile(mode="w") as tmpf:
         tmpf.write(cert_pem)
         tmpf.flush()
+        # noinspection PyProtectedMember
+        # noinspection PyUnresolvedReferences
         cert_info = ssl._ssl._test_decode_cert(tmpf.name)
         return cert_info
+
+
+# Map python's SSL certificate fields to our SSLCertificate fields
+_SSL_CERT_PARSING_MAP = {
+    "serialNumber": "serial",
+    "notBefore": "valid_from",
+    "notAfter": "valid_to",
+
+    "countryName": "country",
+    "stateOrProvinceName": "state",
+    "localityName": "locality",
+    "organizationName": "organization",
+    "organizationalUnitName": "organization_unit",
+    "commonName": "common_name",
+    "emailAddress": "email",
+}

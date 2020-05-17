@@ -10,20 +10,20 @@ from Pyro5.errors import PyroError
 
 from easyshare import logging
 from easyshare.args import Args, ArgsParseError, VariadicPargs, OptIntArg, ArgsParser
-from easyshare.common import RESOURCES_PKG
+from easyshare.common import EASYSHARE_RESOURCES_PKG
 from easyshare.consts import ansi
 
 from easyshare.es.client import Client
-from easyshare.help.commands import Commands, matches_special_command, Verbose
+from easyshare.helps.commands import Commands, matches_special_command, Verbose
 from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.es.errors import print_error, ClientErrors
-from easyshare.help.commands import SuggestionsIntent, COMMANDS_INFO
+from easyshare.helps.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
-from easyshare.res.helps import get_command_man
+from easyshare.res.helps import get_command_help
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils.app import eprint
 from easyshare.utils.env import is_unicode_supported
-from easyshare.utils.hmd import HelpMarkdown, HelpMarkdownParseError
+from easyshare.utils.helpmarkdown import HelpMarkdown, HelpMarkdownParseError
 from easyshare.utils.json import str_to_json
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
@@ -322,17 +322,17 @@ class Shell:
         cmd = args.get_parg()
 
         # if cmd is not None and cmd not in COMMANDS_INFO:
-        #     eprint("Can't provide help for command '{}'".format(cmd))
+        #     eprint("Can't provide helps for command '{}'".format(cmd))
         #     return
 
         try:
-            formatted_cmd_help = get_command_man(cmd)
+            formatted_cmd_help = get_command_help(cmd)
         except HelpMarkdownParseError:
-            log.exception("Exception occurred while parsing markdown of help")
-            eprint("Can't provide help for command '{}'".format(cmd))
+            log.exception("Exception occurred while parsing markdown of helps")
+            eprint("Can't provide helps for command '{}'".format(cmd))
             return
 
-        # Pass the help to the available help (typically less)
+        # Pass the helps to the available helps (typically less)
         pydoc.pager(formatted_cmd_help)
 
 

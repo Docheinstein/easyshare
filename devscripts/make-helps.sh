@@ -7,7 +7,7 @@ SCRIPT_DIR="$(dirname "$0")"
 
 cd "$SCRIPT_DIR" || exit
 
-MANS="../easyshare/res/helps/mans.json"
+MANS="../easyshare/res/helps/helps.json"
 USAGES="../easyshare/res/helps/usages.json"
 
 python make_helps.py man > "$MANS"

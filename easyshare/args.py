@@ -11,7 +11,6 @@ from easyshare.utils.types import to_int, list_wrap
 
 log = get_logger(__name__)
 
-
 class ArgsParseError(Exception):
     pass
 

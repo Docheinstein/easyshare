@@ -8,8 +8,10 @@
 - recap at the end of get/put or error at the mid
 - better error handling and server errors (err+errcode?)
 - refactor (and unify?) styledstring ansistr
-- es --help
-- esd --help
-- man es esd
 - refactor with Path
 - test on windows
+- use f-strings when possible
+- consistent args-options-params-operands naming
+- used bool2string instead of ternary operator
+- Add unit tests
+- Handle addresses instead of numeric IPs

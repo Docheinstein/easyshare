@@ -136,34 +136,6 @@ class ansistr:
         return length
 
 
-if __name__ == "__main__":
-    from easyshare.styling import bold
-
-    log.set_verbosity(logging.VERBOSITY_MAX)
-
-    assert ansistr(bold("some text")).endswith("t")
-
-    s = ansistr(bold("a str") + "text")
-    assert s.startswith("a")
-    assert s.endswith("ext")
-    # print(s.len())
-    # print(s.len_raw())
-
-    sl_smart = s.sliced(slice(0, 7))
-    sl_raw = s.sliced_raw(slice(0, 7))
-    print(f"sl_ansi |{len(sl_smart)}| {sl_smart}")
-    print(f"sl_raw |{len(sl_raw)}| {sl_raw}")
-
-    # sl_smart = s.sliced(slice(2, 7))
-    # sl_raw = s.sliced_raw(slice(2, 7))
-    # print(f"sl_ansi |{len(sl_smart)}| {sl_smart}")
-    # print(f"sl_raw |{len(sl_raw)}| {sl_raw}")
-    # #
-    # sl_smart = s.sliced(slice(2, 5))
-    # sl_raw = s.sliced_raw(slice(2, 5))
-    # print(f"sl_ansi |{len(sl_smart)}| {sl_smart}")
-    # print(f"sl_raw |{len(sl_raw)}| {sl_raw}")
-
 class HelpMarkdownParseError(Exception):
     pass
 

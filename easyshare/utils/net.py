@@ -26,6 +26,8 @@ class SocketDirection(enum.Enum):
 
 
 def get_primary_ip():
+    """ Returns the ip of the primary interface """
+    # https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         # doesn't even have to be reachable
@@ -39,10 +41,13 @@ def get_primary_ip():
 
 
 def is_valid_ip(ip: str) -> bool:
+    """ Returns true if the IP is valid """
+    # Not a complete check, just a filter
     return True if IP_REGEX.match(ip) else False
 
 
 def is_valid_port(p: int) -> bool:
+    """ Returns true if the port is valid """
     return is_int(p) and 0 <= p <= 65535
 
 
@@ -76,6 +81,7 @@ def _socket(mode: SocketMode, direction: SocketDirection,
             address: str = None, port: int = None,
             timeout: float = None, broadcast: bool = False,
             pending_connections: int = 0, reuse_addr: bool = True) -> Optional[socket.socket]:
+    """ Utility for create a socket for the given parameters """
 
     log.d("Creating raw_socket\n"
         "\tmode:            %s\n"

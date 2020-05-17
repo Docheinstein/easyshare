@@ -4,7 +4,7 @@ from typing import List, Callable, Union, Optional, Dict, Type
 
 from easyshare.args import Kwarg, PRESENCE_PARAM, INT_PARAM, NoPargs, Pargs, VariadicPargs
 from easyshare.es.ui import StyledString
-from easyshare.help import CommandHelp, CommandOptionHelp
+from easyshare.helps import CommandHelp, CommandOptionInfo
 from easyshare.logging import get_logger
 from easyshare.protocol import FileInfo
 from easyshare.protocol import FTYPE_DIR, FTYPE_FILE
@@ -17,7 +17,7 @@ from easyshare.utils.str import rightof
 log = get_logger(__name__)
 
 
-# Contains only help and meta information
+# Contains only helps and meta information
 # of the commands, not the real implementation
 
 
@@ -28,7 +28,7 @@ log = get_logger(__name__)
 SPECIAL_COMMAND_MARK = ":" # exec and rexec begin with this marker
 
 class Commands:
-    HELP = "help"
+    HELP = "helps"
     HELP_SHORT = "h"
     EXIT = "exit"
     QUIT = "quit"
@@ -87,9 +87,11 @@ class Commands:
 
 
 def is_special_command(s: str) -> bool:
+    # Only exec an rexec are special commands
     return s.startswith(SPECIAL_COMMAND_MARK)
 
 def matches_special_command(s: str, sp_comm: str) -> bool:
+    # Returns true for :command or ::command
     return is_special_command(sp_comm) and \
            s.startswith(sp_comm) and \
            (len(s) == len(sp_comm) or s[len(sp_comm)] != SPECIAL_COMMAND_MARK)
@@ -135,7 +137,7 @@ class CommandInfo(CommandHelp, ABC):
         log.d("Computing (%d) args suggestions", len(options))
 
         longest_option_length = max(
-            [len(o.aliases_string()) + len(" ") + len(o.params_string()) for o in options]
+            [len(o.aliases_str()) + len(" ") + len(o.params_str()) for o in options]
         )
 
         log.d("longest_option string length: %d", longest_option_length)
@@ -146,7 +148,7 @@ class CommandInfo(CommandHelp, ABC):
 
         for opt in options:
             suggestions.append(StyledString(
-                opt.to_string(justification=longest_option_length + 6)
+                opt.to_str(justification=longest_option_length + 6)
             ))
 
         return SuggestionsIntent(suggestions,
@@ -306,7 +308,7 @@ class FastSharingConnectionCommandInfo(CommandInfo, ABC):
 connected to a remote sharing. In that case the connection will be \
 established before execute the command, as "<b>open</b> <u>SHARING_LOCATION</u>" would do.
 
-Type "<b>help open</b>" for more information about <u>SHARING_LOCATION</u> format."""
+Type "<b>helps open</b>" for more information about <u>SHARING_LOCATION</u> format."""
 
 class FastServerConnectionCommandInfo(CommandInfo, ABC):
     @classmethod
@@ -316,7 +318,7 @@ class FastServerConnectionCommandInfo(CommandInfo, ABC):
 connected to a remote server. In that case the connection will be \
 established before execute the command, as "<b>connect</b> <u>SERVER_LOCATION</u>" would do.
 
-Type "<b>help connect</b>" for more information about <u>SERVER_LOCATION</u> format."""
+Type "<b>helps connect</b>" for more information about <u>SERVER_LOCATION</u> format."""
 
 
 
@@ -331,23 +333,23 @@ class Help(CommandInfo):
 
     @classmethod
     def name(cls):
-        return "help"
+        return "helps"
 
     @classmethod
     def short_description(cls):
-        return "show the help of a command"
+        return "show the helps of a command"
 
     @classmethod
     def synopsis(cls):
         return """\
-help <A> # just for alignment
-<b>help</b> [<u>COMMAND</u>]</a>"""
+helps <A> # just for alignment
+<b>helps</b> [<u>COMMAND</u>]</a>"""
 
     @classmethod
     def long_description(cls):
         comms = "\n".join(["    " + comm for comm in sorted(COMMANDS_INFO.keys())])
         return f"""\
-Show the help of COMMAND if specified, or show the list of commands if no COMMAND is given.
+Show the helps of COMMAND if specified, or show the list of commands if no COMMAND is given.
 
 Available commands are:
 {comms}"""
@@ -475,10 +477,10 @@ Tracing = 1 (enabled)
     @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
-            [StyledString(info.to_string(justification=15 + 6))
+            [StyledString(info.to_str(justification=15 + 6))
              for info in [
-                 CommandOptionHelp(None, params=Trace.T0[0], description=Trace.T0[1]),
-                 CommandOptionHelp(None, params=Trace.T1[0], description=Trace.T1[1])
+                 CommandOptionInfo(None, params=Trace.T0[0], description=Trace.T0[1]),
+                 CommandOptionInfo(None, params=Trace.T1[0], description=Trace.T1[1])
                 ]
             ],
             completion=False,
@@ -533,14 +535,14 @@ it to <u>0</u> if it exceeds the maximum."""
     @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
-            [StyledString(info.to_string(justification=15 + 6))
+            [StyledString(info.to_str(justification=15 + 6))
              for info in [
-                 CommandOptionHelp(None, params=Verbose.V0[0], description=Verbose.V0[1]),
-                 CommandOptionHelp(None, params=Verbose.V1[0], description=Verbose.V1[1]),
-                 CommandOptionHelp(None, params=Verbose.V2[0], description=Verbose.V2[1]),
-                 CommandOptionHelp(None, params=Verbose.V3[0], description=Verbose.V3[1]),
-                 CommandOptionHelp(None, params=Verbose.V4[0], description=Verbose.V4[1]),
-                 CommandOptionHelp(None, params=Verbose.V5[0], description=Verbose.V5[1]),
+                 CommandOptionInfo(None, params=Verbose.V0[0], description=Verbose.V0[1]),
+                 CommandOptionInfo(None, params=Verbose.V1[0], description=Verbose.V1[1]),
+                 CommandOptionInfo(None, params=Verbose.V2[0], description=Verbose.V2[1]),
+                 CommandOptionInfo(None, params=Verbose.V3[0], description=Verbose.V3[1]),
+                 CommandOptionInfo(None, params=Verbose.V4[0], description=Verbose.V4[1]),
+                 CommandOptionInfo(None, params=Verbose.V5[0], description=Verbose.V5[1]),
                 ]
             ],
             completion=False,
@@ -574,7 +576,7 @@ The local working directory can be changed with the command <b>cd</b>."""
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help rpwd</b>" for the remote analogous."""
+        return """Type "<b>helps rpwd</b>" for the remote analogous."""
 
 
 class Rpwd(CommandInfo):
@@ -600,7 +602,7 @@ The remote working directory can be changed with the command <b>rcd</b>."""
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help pwd</b>" for the local analogous."""
+        return """Type "<b>helps pwd</b>" for the local analogous."""
 
 # ============ xLS ================
 
@@ -626,14 +628,14 @@ class BaseLsCommandInfo(CommandInfo, ABC, Pargs):
 
 
     @classmethod
-    def options(cls) -> List[CommandOptionHelp]:
+    def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionHelp(cls.SORT_BY_SIZE, "sort by size"),
-            CommandOptionHelp(cls.REVERSE, "reverse sort order"),
-            CommandOptionHelp(cls.GROUP, "group by file type"),
-            CommandOptionHelp(cls.SHOW_ALL, "show hidden files too"),
-            CommandOptionHelp(cls.SHOW_SIZE, "show files size"),
-            CommandOptionHelp(cls.SHOW_DETAILS, "show more details")
+            CommandOptionInfo(cls.SORT_BY_SIZE, "sort by size"),
+            CommandOptionInfo(cls.REVERSE, "reverse sort order"),
+            CommandOptionInfo(cls.GROUP, "group by file type"),
+            CommandOptionInfo(cls.SHOW_ALL, "show hidden files too"),
+            CommandOptionInfo(cls.SHOW_SIZE, "show files size"),
+            CommandOptionInfo(cls.SHOW_DETAILS, "show more details")
         ]
 
 class Ls(LocalAllFilesSuggestionsCommandInfo, BaseLsCommandInfo):
@@ -661,7 +663,7 @@ List content of the local <u>DIR</u> or the current local directory if no <u>DIR
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help rls</b>" for the remote analogous."""
+        return """Type "<b>helps rls</b>" for the remote analogous."""
 
 class Rls(RemoteAllFilesSuggestionsCommandInfo, BaseLsCommandInfo, FastSharingConnectionCommandInfo):
     def __init__(self, mandatory: int):
@@ -690,7 +692,7 @@ List content of the remote <u>DIR</u> or the current remote directory if no <u>D
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help ls</b>" for the local analogous."""
+        return """Type "<b>helps ls</b>" for the local analogous."""
 
 # ============ xL ================
 
@@ -732,15 +734,15 @@ class BaseTreeCommandInfo(CommandInfo, ABC, Pargs):
         ]
 
     @classmethod
-    def options(cls) -> List[CommandOptionHelp]:
+    def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionHelp(cls.SORT_BY_SIZE, "sort by size"),
-            CommandOptionHelp(cls.REVERSE, "reverse sort order"),
-            CommandOptionHelp(cls.GROUP, "group by file type"),
-            CommandOptionHelp(cls.SHOW_ALL, "show hidden files too"),
-            CommandOptionHelp(cls.SHOW_SIZE, "show files size"),
-            CommandOptionHelp(cls.SHOW_DETAILS, "show more details"),
-            CommandOptionHelp(cls.MAX_DEPTH, "maximum display depth of tree", params=["depth"])
+            CommandOptionInfo(cls.SORT_BY_SIZE, "sort by size"),
+            CommandOptionInfo(cls.REVERSE, "reverse sort order"),
+            CommandOptionInfo(cls.GROUP, "group by file type"),
+            CommandOptionInfo(cls.SHOW_ALL, "show hidden files too"),
+            CommandOptionInfo(cls.SHOW_SIZE, "show files size"),
+            CommandOptionInfo(cls.SHOW_DETAILS, "show more details"),
+            CommandOptionInfo(cls.MAX_DEPTH, "maximum display depth of tree", params=["depth"])
         ]
 
 
@@ -780,7 +782,7 @@ local directory if no <u>DIR</u> is specified."""
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help rtree</b>" for the remote analogous."""
+        return """Type "<b>helps rtree</b>" for the remote analogous."""
 
 
 class Rtree(BaseTreeCommandInfo, RemoteAllFilesSuggestionsCommandInfo, FastSharingConnectionCommandInfo):
@@ -820,7 +822,7 @@ remote directory if no <u>DIR</u> is specified"""
 +-- f2"""
     @classmethod
     def see_also(cls):
-        return """Type "<b>help tree</b>" for the local analogous."""
+        return """Type "<b>helps tree</b>" for the local analogous."""
 
 # ============ xCD ================
 
@@ -849,7 +851,7 @@ directory if <u>DIR</u> is not specified."""
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help rcd</b>" for the remote analogous."""
+        return """Type "<b>helps rcd</b>" for the remote analogous."""
 
 
 class Rcd(RemoteDirsOnlySuggestionsCommandInfo):
@@ -886,7 +888,7 @@ Usage example:
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help cd</b>" for the local analogous."""
+        return """Type "<b>helps cd</b>" for the local analogous."""
 
 
 # ============ xMKDIR ================
@@ -919,7 +921,7 @@ If <u>DIR</u> already exists, it does nothing."""
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help rmkdir</b>" for the remote analogous."""
+        return """Type "<b>helps rmkdir</b>" for the remote analogous."""
 
 
 class Rmkdir(FastSharingConnectionCommandInfo, RemoteDirsOnlySuggestionsCommandInfo):
@@ -962,7 +964,7 @@ Usage example:
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help mkdir</b>" for the local analogous."""
+        return """Type "<b>helps mkdir</b>" for the local analogous."""
 
 
 # ============ xCP ================
@@ -1003,7 +1005,7 @@ be an existing directory and <u>SOURCE</u>s will be copied into it."""
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help rcp</b>" for the remote analogous."""
+        return """Type "<b>helps rcp</b>" for the remote analogous."""
 
 
 class Rcp(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo):
@@ -1070,7 +1072,7 @@ f1      f2
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help cp</b>" for the local analogous."""
+        return """Type "<b>helps cp</b>" for the local analogous."""
 
 
 
@@ -1113,7 +1115,7 @@ be an existing directory and <u>SOURCE</u>s will be moved into it."""
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help rmv</b>" for the remote analogous."""
+        return """Type "<b>helps rmv</b>" for the remote analogous."""
 
 
 
@@ -1178,7 +1180,7 @@ f2
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help mv</b>" for the local analogous."""
+        return """Type "<b>helps mv</b>" for the local analogous."""
 
 
 # ============ xRM ================
@@ -1213,7 +1215,7 @@ This commands never prompts: essentially acts like unix's rm -rf."""
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help rrm</b>" for the remote analogous."""
+        return """Type "<b>helps rrm</b>" for the remote analogous."""
 
 
 
@@ -1270,7 +1272,7 @@ f1
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help rm</b>" for the local analogous."""
+        return """Type "<b>helps rm</b>" for the local analogous."""
 
 
 # ============ xEXEC ================
@@ -1322,7 +1324,7 @@ hello"""
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help rexec</b>" for the remote analogous."""
+        return """Type "<b>helps rexec</b>" for the remote analogous."""
 
 
 class Rexec(FastServerConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo):
@@ -1380,7 +1382,7 @@ hello"""
 
     @classmethod
     def see_also(cls):
-        return """Type "<b>help exec</b>" for the local analogous."""
+        return """Type "<b>helps exec</b>" for the local analogous."""
 
 
 # ============ SCAN ================
@@ -1427,10 +1429,10 @@ The scan time is two seconds unless it has been specified to <b>es</b> via <b>-w
 Only details about the sharings are shown, unless <b>-L</b> is given."""
 
     @classmethod
-    def options(cls) -> List[CommandOptionHelp]:
+    def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionHelp(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
-            CommandOptionHelp(cls.SHOW_ALL_DETAILS, "show more details of both servers and sharings"),
+            CommandOptionInfo(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
+            CommandOptionInfo(cls.SHOW_ALL_DETAILS, "show more details of both servers and sharings"),
         ]
 
     @classmethod
@@ -1830,13 +1832,13 @@ whether overwrite it or not. The default overwrite behaviour can be specified \
 with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
 
     @classmethod
-    def options(cls) -> List[CommandOptionHelp]:
+    def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionHelp(cls.OVERWRITE_YES, "always overwrite files"),
-            CommandOptionHelp(cls.OVERWRITE_NO, "never overwrite files"),
-            CommandOptionHelp(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
-            CommandOptionHelp(cls.CHECK, "performs a check of files consistency"),
-            CommandOptionHelp(cls.QUIET, "doesn't show progress"),
+            CommandOptionInfo(cls.OVERWRITE_YES, "always overwrite files"),
+            CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
+            CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
+            CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
+            CommandOptionInfo(cls.QUIET, "doesn't show progress"),
         ]
 
     @classmethod
@@ -2014,13 +2016,13 @@ whether overwrite it or not. The default overwrite behaviour can be specified \
 with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
 
     @classmethod
-    def options(cls) -> List[CommandOptionHelp]:
+    def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionHelp(cls.OVERWRITE_YES, "always overwrite files"),
-            CommandOptionHelp(cls.OVERWRITE_NO, "never overwrite files"),
-            CommandOptionHelp(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
-            CommandOptionHelp(cls.CHECK, "performs a check of files consistency"),
-            CommandOptionHelp(cls.QUIET, "doesn't show progress"),
+            CommandOptionInfo(cls.OVERWRITE_YES, "always overwrite files"),
+            CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
+            CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
+            CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
+            CommandOptionInfo(cls.QUIET, "doesn't show progress"),
         ]
 
     @classmethod
@@ -2137,9 +2139,9 @@ list <A> # just for alignment
 List the sharings of the remote server to which the connection is established."""
 
     @classmethod
-    def options(cls) -> List[CommandOptionHelp]:
+    def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionHelp(cls.SHOW_DETAILS, "show more details of sharings"),
+            CommandOptionInfo(cls.SHOW_DETAILS, "show more details of sharings"),
         ]
 
     @classmethod
@@ -2207,9 +2209,9 @@ The reported information are:
 - Sharings"""
 
     @classmethod
-    def options(cls) -> List[CommandOptionHelp]:
+    def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionHelp(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
+            CommandOptionInfo(cls.SHOW_SHARINGS_DETAILS, "show more details of sharings"),
         ]
 
     @classmethod
@@ -2292,9 +2294,9 @@ ping <A> # just for alignment
 Test the connectivity with the server by sending application-level messages."""
 
     @classmethod
-    def options(cls) -> List[CommandOptionHelp]:
+    def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionHelp(cls.COUNT, "stop after <u>count</u> messages", ["count"]),
+            CommandOptionInfo(cls.COUNT, "stop after <u>count</u> messages", ["count"]),
         ]
 
     @classmethod
@@ -2314,6 +2316,8 @@ Usage example:
 <b>/tmp></b> <b>ping</b> <u>192.168.1.185</u> <b>-c</b> <u>1</u>
 [1] PONG from bob-debian (192.168.1.185:12020)  |  time=10.3ms"""
 
+
+# Maps command name -> command info
 
 COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.HELP: Help,

@@ -3,7 +3,6 @@ from typing import List, Union, Optional
 import colorama
 
 from easyshare.consts import ansi
-from easyshare.utils.app import eprint
 
 _colorful = True
 
@@ -20,9 +19,9 @@ def are_colors_enabled():
 
 
 def styled(s: str,
-           fg: Optional[ansi.ansi_fg] = None,
-           bg: Optional[ansi.ansi_bg] = None,
-           attrs: Union[ansi.ansi_attr, List[ansi.ansi_attr]] = ()) -> str:
+           fg: Optional[str] = None,
+           bg: Optional[str] = None,
+           attrs: Union[str, List[str]] = ()) -> str:
     if not _colorful:
         return s
     return _styled(s, fg, bg, *attrs)
@@ -39,11 +38,11 @@ def _styled(s: str, *attributes)-> str:
 
     return ss
 
-def fg(s: str, color: ansi.ansi_fg, *attributes) -> str:
+def fg(s: str, color: str, *attributes) -> str:
     return styled(s, fg=color, bg=None, *attributes)
 
 
-def bg(s: str, color: ansi.ansi_bg, *attributes) -> str:
+def bg(s: str, color: str, *attributes) -> str:
     return styled(s, fg=None, bg=color, *attributes)
 
 

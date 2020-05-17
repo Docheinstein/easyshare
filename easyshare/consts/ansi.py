@@ -1,6 +1,4 @@
-ansi_fg = str
-ansi_bg = str
-ansi_attr = str
+# ANSI escapes codes (colors, styles)
 
 RESET =             "\033[0m"
 
@@ -34,27 +32,3 @@ BG_WHITE =          "\033[47m"
 # This may be used to embed terminal-specific escape sequences in prompts.
 RL_PROMPT_START_IGNORE = "\001"
 RL_PROMPT_END_IGNORE = "\002"
-
-if __name__ == "__main__":
-    from easyshare.utils.hmd import help_markdown_pager
-
-    s = "a string really long"
-    sred = FG_RED + s + RESET
-    sbold = ATTR_BOLD + s + RESET
-    print("len_s", len(s))
-    print("len_sred", len(sred))
-    print("len_sbold", len(sbold))
-
-    print(help_markdown_pager("""
-         <A>
-         |     |
-a string really long
-""", cols=16
-    ))
-
-    print(help_markdown_pager("""
-         <A>
-         |     |
-\033[1ma string really long\033[0m
-""", cols=16
-    ))

@@ -13,7 +13,7 @@ def json_to_str(d: Union[dict, list, tuple], pretty=False) -> str:
 def json_to_pretty_str(d: Union[dict, list, tuple]) -> str:
     return json_to_str(d, pretty=True)
 
-j = json_to_pretty_str # shortcut alias
+j = json_to_pretty_str # shortcut
 
 
 def json_to_bytes(d: Union[dict, list, tuple]) -> bytes:

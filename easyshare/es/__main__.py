@@ -2,16 +2,16 @@ import sys
 
 from easyshare import logging
 from easyshare.es.client import Client
-from easyshare.help.commands import Commands, is_special_command
+from easyshare.helps.commands import Commands, is_special_command
 from easyshare.es.errors import errcode_string
 from easyshare.es.shell import Shell
-from easyshare.help.es import Es
+from easyshare.helps.es import Es
 from easyshare.logging import get_logger
 from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup, \
     DEFAULT_DISCOVER_TIMEOUT, APP_INFO
 from easyshare.res.helps import get_command_usage
 from easyshare.tracing import enable_tracing
-from easyshare.utils.app import abort, terminate
+from easyshare.utils import abort, terminate
 from easyshare.styling import enable_colors
 from easyshare.utils.env import is_stdout_terminal, are_colors_supported
 from easyshare.utils.net import is_valid_port

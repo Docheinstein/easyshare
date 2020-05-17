@@ -3,3 +3,4 @@
 .idea
 /easyshare.egg-info/
 __pycache__
+/easyshare/devtests/

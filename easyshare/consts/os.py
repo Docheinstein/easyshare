@@ -1,3 +1,7 @@
-STDIN = 0
-STDOUT = 1
-STDERR = 2
+import sys
+
+print("Importes os")
+
+STDIN = sys.stdin.fileno()
+STDOUT = sys.stdout.fileno()
+STDERR = sys.stderr.fileno()

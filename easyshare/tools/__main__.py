@@ -6,13 +6,15 @@ from getpass import getpass
 from easyshare.args import ArgsParseError
 from easyshare.auth import AuthScrypt
 from easyshare.common import APP_INFO, easyshare_setup
-from easyshare.help.estools import EsTools
-from easyshare.logging import get_logger
+from easyshare.helps.estools import EsTools
 from easyshare.res.helps import get_command_usage
 from easyshare.utils.app import abort, terminate
 
 
 def generate_password(pw: str):
+    """
+    Print a scrypt hash of the given password.
+    """
     auth = AuthScrypt.new(pw)
     if not auth:
         abort("Cannot compute password")
@@ -20,17 +22,27 @@ def generate_password(pw: str):
     print(auth)
 
 def generate_esd_conf():
+    """
+    Print the default esd configuration file.
+    """
     esd_conf_b = pkgutil.get_data("easyshare.res", "esd.conf")
     esd_conf_s = str(esd_conf_b, encoding="UTF-8")
     print(esd_conf_s)
 
-def generate_ssl_certificate():
+def ask_and_generate_ssl_certificate():
+    """
+    Actually not implemented within es-tools.
+    Let openssl do the job for us.
+    """
     print("Please install and use openssl for create a self-signed certificate")
     print("A typical command for create a self-signed request could be:\n")
     print("openssl req -x509 -keyout privkey.pem -days 365 -nodes -out cert.pem")
 
 
 def ask_and_generate_password():
+    """
+    getpass() and generate a scrypt hash of the password read.
+    """
     plain_pass = getpass("Password: ")
     if not plain_pass:
         abort("Please insert a valid password")
@@ -72,7 +84,7 @@ def main():
     TOOLS = {
         "1": (ask_and_generate_password, "PASSWORD GENERATOR"),
         "2": (generate_esd_conf, "ESD CONFIG GENERATOR"),
-        "3": (generate_ssl_certificate, "SSL CERTIFICATE GENERATOR")
+        "3": (ask_and_generate_ssl_certificate, "SSL CERTIFICATE GENERATOR")
     }
     try:
         while True:

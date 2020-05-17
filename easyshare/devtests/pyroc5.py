@@ -1,18 +1,20 @@
 import threading
 from typing import Union
 
-import Pyro4
+from Pyro5.api import Proxy
 
-from easyshare.tests.pyros import PyroServer
+from easyshare.devtests.pyros import PyroServer
 from easyshare.tracing import enable_tracing
 from easyshare.utils.pyro import TracedPyroProxy
 
 worker = None
 
 
-def run_cmd(cmd_parts):
+def run_cmd(cmd_parts, claim_ownership):
     global worker
 
+    if claim_ownership:
+        pyro_server._pyroClaimOwnership()
     print(cmd_parts)
     comm_name = cmd_parts[0]
     comm_args = cmd_parts[1:]
@@ -35,7 +37,7 @@ if __name__ == "__main__":
         uri = f.read()
 
     print("Initializing proxy at URI:", uri)
-    pyro_server: Union[Pyro4.Proxy, PyroServer] = TracedPyroProxy(uri)
+    pyro_server: Union[Proxy, PyroServer] = TracedPyroProxy(uri)
     print("Initialized proxy")
 
 
@@ -46,7 +48,9 @@ if __name__ == "__main__":
         if command.startswith(":"):
             command = command[1:]
             command_parts = command.split(" ")
-            threading.Thread(target=run_cmd, args=command_parts).start()
+            print("command:",command)
+            print("command_parts:",command_parts)
+            threading.Thread(target=run_cmd, args=(command_parts, False)).start()
         else:
             command_parts = command.split(" ")
-            run_cmd(command_parts)
+            run_cmd(command_parts, False)

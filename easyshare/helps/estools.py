@@ -1,11 +1,11 @@
 from typing import Optional, List
 
 from easyshare.args import ArgsParser, PRESENCE_PARAM, STR_PARAM, Kwarg
-from easyshare.help import CommandHelp, CommandOptionHelp
+from easyshare.helps import CommandHelp, CommandOptionInfo
 
 
 class EsTools(CommandHelp, ArgsParser):
-    HELP = ["-h", "--help"]
+    HELP = ["-h", "--helps"]
     VERSION = ["-V", "--version"]
 
     GENERATE_PASSWORD = ["-p", "--hash-password"]
@@ -21,12 +21,12 @@ class EsTools(CommandHelp, ArgsParser):
 
 
     @classmethod
-    def options(cls) -> List[CommandOptionHelp]:
+    def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionHelp(cls.HELP, "show this help"),
-            CommandOptionHelp(cls.VERSION, "show the easyshare version"),
-            CommandOptionHelp(cls.GENERATE_PASSWORD, "generate an hash of the password", params=["password"]),
-            CommandOptionHelp(cls.GENERATE_ESD_CONF, "generate default esd.conf file"),
+            CommandOptionInfo(cls.HELP, "show this helps"),
+            CommandOptionInfo(cls.VERSION, "show the easyshare version"),
+            CommandOptionInfo(cls.GENERATE_PASSWORD, "generate an hash of the password", params=["password"]),
+            CommandOptionInfo(cls.GENERATE_ESD_CONF, "generate default esd.conf file"),
         ]
 
     @classmethod
@@ -44,7 +44,7 @@ es-tools <A> # just for alignment
 <b>es-tools</b> [<u>OPTION</u>]..."""
 
     @classmethod
-    def see_more(cls):
+    def see_also(cls):
         return "SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES"
 
     @classmethod

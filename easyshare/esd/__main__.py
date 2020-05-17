@@ -10,7 +10,7 @@ from easyshare.args import Kwarg, PRESENCE_PARAM, ArgsParseError, \
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.daemons.discover import get_discover_daemon
 from easyshare.esd.daemons.transfer import get_transfer_daemon
-from easyshare.help.esd import Esd
+from easyshare.helps.esd import Esd
 from easyshare.logging import get_logger
 from easyshare.auth import AuthFactory
 from easyshare.esd.server import Server
@@ -24,7 +24,7 @@ from easyshare.utils.env import are_colors_supported
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context
-from easyshare.utils.str import satisfy
+from easyshare.utils.str import satisfychars
 
 # ==================================================================
 
@@ -327,7 +327,7 @@ def main():
     # Validation
 
     # - esd name
-    if not satisfy(server_name, SERVER_NAME_ALPHABET):
+    if not satisfychars(server_name, SERVER_NAME_ALPHABET):
         abort("Invalid esd name: '{}'".format(server_name))
 
     # - ports

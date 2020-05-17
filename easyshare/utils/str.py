@@ -1,25 +1,10 @@
 import re
-import string
-import random
-from typing import List, Dict, Pattern, Tuple
-from uuid import uuid4 as UUID
-from easyshare.utils.types import is_str
+from typing import List, Pattern, Tuple
 
-
-def strstr(s: str) -> str:
-    return "\"" + s + "\"" if is_str(s) else str(s)
-
-
-def randstring(length=16) -> str:
-    alphabet = string.ascii_letters + string.digits
-    return "".join([random.choice(alphabet) for _ in range(length)])
-
-
-def uuid() -> str:
-    return UUID().hex
-
-
-def keep(s: str, allowed: str) -> str:
+def keepchars(s: str, allowed: str) -> str:
+    """
+    Returns the characters of 's' there are in 'allowed'
+    """
     ret = ""
     for c in s:
         if c in allowed:
@@ -27,11 +12,18 @@ def keep(s: str, allowed: str) -> str:
     return ret
 
 
-def discard(s: str, denied: str) -> str:
+def discardchars(s: str, denied: str) -> str:
+    """
+    Returns the characters of 'd' there are not in 'denied'
+    """
+
     return multireplace(s, [(d, "") for d in denied])
 
 
-def satisfy(s: str, allowed: str) -> bool:
+def satisfychars(s: str, allowed: str) -> bool:
+    """
+    Returns True if all the characters of 's' are in allowed
+    """
     if not s or not allowed:
         return False
     for c in s:
@@ -41,12 +33,19 @@ def satisfy(s: str, allowed: str) -> bool:
 
 
 def unprefix(s: str, prefix: str) -> str:
+    """
+    Removes 'prefix' from 's' if it starts with 'prefix'
+    """
     if not s.startswith(prefix):
         return s
     return s[len(prefix):]
 
 
 def rightof(s: str, sep: str, from_end=False) -> str:
+    """
+    Returns the part of 's' at the right of 'sep'
+    or the original string if 'sep' is not found
+    """
     if from_end:
         before, _, after_or_ori = s.rpartition(sep)
         return after_or_ori
@@ -58,6 +57,10 @@ def rightof(s: str, sep: str, from_end=False) -> str:
 
 
 def leftof(s: str, sep: str, from_end=False) -> str:
+    """
+    Returns the part of 's' at the left of 'sep'
+    or the original string if 'sep' is not found
+    """
     if from_end:
         before, _, after_or_ori = s.rpartition(sep)
         if before:
@@ -68,20 +71,27 @@ def leftof(s: str, sep: str, from_end=False) -> str:
         return before_or_ori
 
 
-def sorted_i(l: List[str], in_subset: str = None, not_in_subset: str = None):
+def isorted(l: List[str], in_subset: str = None, not_in_subset: str = None):
+    """
+    Case insensitive sorts a list of string, eventually restricted to
+    the given whitelist and blacklist.
+    """
     def s_conv(s: str):
         if not_in_subset:
-            s = discard(s, not_in_subset)
+            s = discardchars(s, not_in_subset)
         if in_subset:
-            s = keep(s, in_subset)
+            s = keepchars(s, in_subset)
         return s.lower()
 
     return sorted(l, key=lambda s: s_conv(s))
 
 
 def multireplace(s: str,
-                 str_replacements: List[Tuple[str, str]],
+                 str_replacements: List[Tuple[str, str]] = None,
                  re_replacements: List[Tuple[Pattern, str]] = None) -> str:
+    """
+    Performs multiple replacements, of literals or regex
+    """
 
     if str_replacements:
         for k, v in str_replacements:
@@ -92,10 +102,3 @@ def multireplace(s: str,
             s = re.sub(k, v, s)
 
     return s
-
-# def multireplace_re(s: str, table: Dict[str, str]) -> str:
-#     for k, v in table.items():
-#         s = re.sub()
-#     return s
-
-

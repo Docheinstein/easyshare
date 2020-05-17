@@ -2,12 +2,12 @@ from typing import List, Optional, Callable
 
 from easyshare.args import Kwarg, ArgType, Args, PRESENCE_PARAM, INT_PARAM_OPT, INT_PARAM, \
     ArgsParser, STR_PARAM
-from easyshare.help import CommandHelp, CommandOptionHelp
+from easyshare.helps import CommandHelp, CommandOptionInfo
 
 
 class Esd(CommandHelp, ArgsParser):
 
-    HELP = ["-h", "--help"]
+    HELP = ["-h", "--helps"]
     VERSION = ["-V", "--version"]
 
     CONFIG = ["-c", "--config"]
@@ -48,23 +48,23 @@ class Esd(CommandHelp, ArgsParser):
         return lambda argname, argtype, idx, args, positionals: argtype != ArgType.PARG
 
     @classmethod
-    def options(cls) -> List[CommandOptionHelp]:
+    def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionHelp(cls.HELP, "show this help"),
-            CommandOptionHelp(cls.VERSION, "show the easyshare version"),
-            CommandOptionHelp(cls.CONFIG, "load settings from a esd configuration file", params=["config_path"]),
-            CommandOptionHelp(cls.NAME, "server name", params=["name"]),
-            CommandOptionHelp(cls.ADDRESS, "server address (default is primary interface)", params=["address"]),
-            CommandOptionHelp(cls.PORT, "server port (default is 12020)", params=["port"]),
-            CommandOptionHelp(cls.DISCOVER_PORT, "port used to listen to discovery messages (default is 12021)",
+            CommandOptionInfo(cls.HELP, "show this helps"),
+            CommandOptionInfo(cls.VERSION, "show the easyshare version"),
+            CommandOptionInfo(cls.CONFIG, "load settings from a esd configuration file", params=["config_path"]),
+            CommandOptionInfo(cls.NAME, "server name", params=["name"]),
+            CommandOptionInfo(cls.ADDRESS, "server address (default is primary interface)", params=["address"]),
+            CommandOptionInfo(cls.PORT, "server port (default is 12020)", params=["port"]),
+            CommandOptionInfo(cls.DISCOVER_PORT, "port used to listen to discovery messages (default is 12021)",
                               params=["port"]),
-            CommandOptionHelp(cls.PASSWORD, "server password, plain or hashed with es-tools", params=["password"]),
-            CommandOptionHelp(cls.SSL_CERT, "path to an SSL certificate", params=["cert_path"]),
-            CommandOptionHelp(cls.SSL_PRIVKEY, "path to an SSL private key", params=["privkey_path"]),
-            CommandOptionHelp(cls.REXEC, "enable rexec (remote execution)"),
-            CommandOptionHelp(cls.VERBOSE, "set verbosity level", params=["level"]),
-            CommandOptionHelp(cls.TRACE, "enable/disable tracing", params=["0_or_1"]),
-            CommandOptionHelp(cls.NO_COLOR, "don't print ANSI escape characters")
+            CommandOptionInfo(cls.PASSWORD, "server password, plain or hashed with es-tools", params=["password"]),
+            CommandOptionInfo(cls.SSL_CERT, "path to an SSL certificate", params=["cert_path"]),
+            CommandOptionInfo(cls.SSL_PRIVKEY, "path to an SSL private key", params=["privkey_path"]),
+            CommandOptionInfo(cls.REXEC, "enable rexec (remote execution)"),
+            CommandOptionInfo(cls.VERBOSE, "set verbosity level", params=["level"]),
+            CommandOptionInfo(cls.TRACE, "enable/disable tracing", params=["0_or_1"]),
+            CommandOptionInfo(cls.NO_COLOR, "don't print ANSI escape characters")
         ]
 
 
@@ -83,7 +83,7 @@ esd <A> # just for alignment
 <b>esd</b> [<u>OPTION</u>]... [<u>SHARING</u> [<u>SHARING_NAME</u>] [<u>SHARING_OPTION</u>]...]</a>"""
 
     @classmethod
-    def see_more(cls):
+    def see_also(cls):
         return "SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES"
 
     @classmethod

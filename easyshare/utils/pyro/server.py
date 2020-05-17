@@ -13,10 +13,18 @@ log = get_logger(__name__)
 
 
 def pyro_client_endpoint() -> Endpoint:
+    """
+    If executed on the thread of a Pyro.Daemon, returns the
+    endpoint of the remote host that performed the request.
+    """
     return pyro.current_context.client_sock_addr
 
 
 def trace_api(api):
+    """
+    Decorator for trace the requests received and the responses sent,
+    dumping those if trace is enabled.
+    """
     def trace_api_wrapper(pyro_obj, *vargs, **kwargs) -> Optional[Response]:
         requester = pyro_client_endpoint()
 
@@ -40,6 +48,11 @@ def trace_api(api):
 
 
 def try_or_command_failed_response(api):
+    """
+    Decorator that wraps the execution of an API and returns a
+    COMMAND_EXECUTION_FAILED error if something went wrong.
+    If possible, the API should handle known exceptions by itself.
+    """
     def try_or_command_failed_response_wrapper(*vargs, **kwargs):
         try:
             return api(*vargs, **kwargs)
