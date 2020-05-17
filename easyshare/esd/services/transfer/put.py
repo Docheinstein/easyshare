@@ -9,7 +9,7 @@ from easyshare.esd.services import BaseClientService, check_service_owner
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
-from easyshare.protocol import create_error_response, ServerErrors, Response, create_success_response, \
+from easyshare.protocol.protocol import create_error_response, ServerErrors, Response, create_success_response, \
     TransferOutcomes, FTYPE_FILE, FTYPE_DIR, OverwritePolicy, FileInfo, \
     IPutService
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response

@@ -9,7 +9,7 @@ from easyshare.esd.services import BaseClientSharingService, BaseClientService, 
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.logging import get_logger
-from easyshare.protocol import ITransferService, TransferOutcomes, create_error_response, ServerErrors
+from easyshare.protocol.protocol import ITransferService, TransferOutcomes
 from easyshare.sockets import SocketTcpIn
 from easyshare.utils.pyro.server import trace_api, try_or_command_failed_response
 
@@ -18,7 +18,7 @@ log = get_logger(__name__)
 # =============================================
 # ============= TRANSFER SERVICE ==============
 # =============================================
-from easyshare.protocol import create_success_response, Response
+from easyshare.protocol.protocol import create_success_response, Response
 
 
 class TransferService(ITransferService, BaseClientSharingService, ABC):

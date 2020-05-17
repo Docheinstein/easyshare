@@ -4,10 +4,10 @@ from typing import Union, Optional, cast
 from easyshare.common import ESD_PYRO_UID
 from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
-from easyshare.protocol import IServer
-from easyshare.protocol import Response, is_success_response, create_error_response, is_error_response
-from easyshare.protocol import ServerErrors
-from easyshare.protocol import ServerInfoFull, ServerInfo
+from easyshare.protocol.protocol import IServer
+from easyshare.protocol.protocol import Response, is_success_response, create_error_response, is_error_response
+from easyshare.protocol.protocol import ServerErrors
+from easyshare.protocol.protocol import ServerInfoFull, ServerInfo
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.utils.json import j
 from easyshare.utils.pyro.client import TracedPyroProxy

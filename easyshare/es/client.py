@@ -28,13 +28,13 @@ from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
 from easyshare.progress import FileProgressor
-from easyshare.protocol import FTYPE_DIR, FTYPE_FILE, FileType
-from easyshare.protocol import FileInfo, FileInfoTreeNode
-from easyshare.protocol import IRexecService, IGetService, IPutService
-from easyshare.protocol import OverwritePolicy
-from easyshare.protocol import Response, is_error_response, is_success_response, is_data_response
-from easyshare.protocol import ServerInfoFull, ServerInfo
-from easyshare.protocol import SharingInfo
+from easyshare.protocol.protocol import FTYPE_DIR, FTYPE_FILE, FileType
+from easyshare.protocol.protocol import FileInfo, FileInfoTreeNode
+from easyshare.protocol.protocol import IRexecService, IGetService, IPutService
+from easyshare.protocol.protocol import OverwritePolicy
+from easyshare.protocol.protocol import Response, is_error_response, is_success_response, is_data_response
+from easyshare.protocol.protocol import ServerInfoFull, ServerInfo
+from easyshare.protocol.protocol import SharingInfo
 from easyshare.sockets import SocketTcpOut
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import red, bold

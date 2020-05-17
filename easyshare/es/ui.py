@@ -3,10 +3,10 @@ from typing import List
 
 from easyshare.consts import ansi
 from easyshare.logging import get_logger
-from easyshare.protocol import FileInfo
-from easyshare.protocol import FTYPE_DIR, FTYPE_FILE
-from easyshare.protocol import ServerInfoFull
-from easyshare.protocol import SharingInfo
+from easyshare.protocol.protocol import FileInfo
+from easyshare.protocol.protocol import FTYPE_DIR, FTYPE_FILE
+from easyshare.protocol.protocol import ServerInfoFull
+from easyshare.protocol.protocol import SharingInfo
 from easyshare.common import DIR_COLOR, FILE_COLOR
 from easyshare.styling import styled, fg
 from easyshare.tree import TreeNodeDict, TreeRenderPostOrder

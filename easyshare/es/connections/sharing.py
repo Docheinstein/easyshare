@@ -2,9 +2,9 @@ from typing import Union, List
 
 from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
-from easyshare.protocol import Response, is_success_response, create_error_response, is_error_response
-from easyshare.protocol import ServerErrors, SharingInfo, ISharingService, create_success_response
-from easyshare.protocol import ServerInfoFull
+from easyshare.protocol.protocol import Response, is_success_response, create_error_response, is_error_response
+from easyshare.protocol.protocol import ServerErrors, SharingInfo, ISharingService, create_success_response
+from easyshare.protocol.protocol import ServerInfoFull
 from easyshare.utils.json import j
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro import pyro_uri

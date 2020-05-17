@@ -4,7 +4,7 @@ from typing import Optional, Set
 
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.protocol import FileType, FTYPE_DIR, FTYPE_FILE, SharingInfo
+from easyshare.protocol.protocol import FileType, FTYPE_DIR, FTYPE_FILE, SharingInfo
 from easyshare.utils.json import j
 from easyshare.utils.os import pathify
 from easyshare.utils.str import randstring

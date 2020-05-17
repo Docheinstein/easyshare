@@ -5,8 +5,8 @@ from typing import Callable
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.protocol import Response, is_data_response
-from easyshare.protocol import ServerInfoFull
+from easyshare.protocol.protocol import Response, is_data_response
+from easyshare.protocol.protocol import ServerInfoFull
 from easyshare.tracing import trace_out, trace_in
 from easyshare.sockets import SocketUdpIn, SocketUdpOut
 from easyshare.utils.json import bytes_to_json, j

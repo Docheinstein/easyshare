@@ -4,7 +4,7 @@ from Pyro5 import api as pyro
 
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.protocol import Response, create_error_response, ServerErrors
+from easyshare.protocol.protocol import Response, create_error_response, ServerErrors
 from easyshare.tracing import trace_in, trace_out
 from easyshare.utils.inspection import func_args_to_str
 from easyshare.utils.json import j

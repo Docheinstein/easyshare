@@ -92,6 +92,10 @@ _log_handler = logging.StreamHandler(sys.stdout)
 _log_handler.setFormatter(LoggerFormatter())
 
 def init_logging():
+    """
+    Initializes the logger and add the easyshare extension
+    (verbosity, short alias for printing) to the Logger
+    """
     global _initialized
 
     if _initialized:
@@ -120,15 +124,19 @@ def init_logging():
 
 
 def get_logger(name: str = ROOT_LOGGER_NAME,
-               force_initialize: bool = False,
+               root: bool = False,
                verbosity: int = None) -> Logger:
-    # Dont' call init_logging() even if is attempting
+    """
+    Get the logger for 'name', eventually add an handler if the logger is a root logger
+    (the responsible for print messages, the child only forwards message to it)
+    """
+    # Don't call init_logging() even if is attempting...
     # We have to call it manually after checking the colors support
 
     fetch_name = ROOT_LOGGER_DISPLAY_NAME if name == ROOT_LOGGER_NAME else name
 
     logger: logging.Logger = logging.getLogger(fetch_name)
-    if name == ROOT_LOGGER_NAME or force_initialize:
+    if name == ROOT_LOGGER_NAME or root:
         logger.addHandler(_log_handler)
 
     if verbosity is not None:
@@ -142,9 +150,7 @@ def get_logger(name: str = ROOT_LOGGER_NAME,
         logger.verbosity = LEVEL_TO_VERBOSITY[rangify(level, LEVEL_DEBUG, LEVEL_FATAL)]
     return logger
 
-def get_logger_silent(name, force_initialize: bool = False):
-    return get_logger(name, force_initialize, verbosity=VERBOSITY_MIN)
 
-if __name__ == "__main__":
-    log = get_logger(__name__)
-    log.e("Hello")
+def get_logger_silent(name, root: bool = False):
+    """ Get a logger for 'name' but set the verbosity to VERBOSITY_MIN """
+    return get_logger(name, root, verbosity=VERBOSITY_MIN)

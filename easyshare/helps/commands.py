@@ -6,9 +6,9 @@ from easyshare.args import Kwarg, PRESENCE_PARAM, INT_PARAM, NoPargs, Pargs, Var
 from easyshare.es.ui import StyledString
 from easyshare.helps import CommandHelp, CommandOptionInfo
 from easyshare.logging import get_logger
-from easyshare.protocol import FileInfo
-from easyshare.protocol import FTYPE_DIR, FTYPE_FILE
-from easyshare.protocol import is_data_response
+from easyshare.protocol.protocol import FileInfo
+from easyshare.protocol.protocol import FTYPE_DIR, FTYPE_FILE
+from easyshare.protocol.protocol import is_data_response
 from easyshare.common import DIR_COLOR, FILE_COLOR
 from easyshare.styling import fg
 from easyshare.utils.os import ls

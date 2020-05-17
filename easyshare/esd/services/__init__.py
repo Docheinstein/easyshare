@@ -6,7 +6,7 @@ from typing import Callable, Optional, Union
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.daemons.server import get_pyro_daemon
 from easyshare.logging import get_logger
-from easyshare.protocol import create_error_response, ServerErrors
+from easyshare.protocol.protocol import create_error_response, ServerErrors
 from easyshare.utils.os import is_relpath, relpath
 from easyshare.utils.pyro.server import pyro_client_endpoint
 from easyshare.utils.str import unprefix

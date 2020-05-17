@@ -11,9 +11,9 @@ log = get_logger(__name__)
 class ConfParseError(Exception):
     pass
 
-KeyValParser = Callable[[Union[str, None], str, str], Any] # section, key, val => Any
-SectionContent = Dict[str, Any]
-Section = Tuple[Union[str, None], SectionContent]
+KeyValParser = Callable[[Union[str, None], str, str], Any] # section, key, val => parsed value
+SectionContent = Dict[str, Any] # key => parsed value
+Section = Tuple[Union[str, None], SectionContent] # str => section content
 
 STR_VAL = lambda sec, key, val: val.strip('"\'') if val else val
 INT_VAL = lambda sec, key, val: to_int(val, raise_exceptions=True)
@@ -21,7 +21,10 @@ BOOL_VAL = lambda sec, key, val: True if val.lower() == "true" or val.lower() ==
 
 
 class Conf:
-
+    """
+    Represents a parsed configuration file.
+    Provides the 'parse' method for create a new 'Conf'.
+    """
     def __init__(self, parsed: List[Tuple[str, Dict[str, Any]]]):
         self.parsed = parsed
 
@@ -33,8 +36,13 @@ class Conf:
     def parse(path: str,
               sections_parsers: Dict[Union[str, None], Dict[str, KeyValParser]],
               comment_prefixes: List[str] = None) -> 'Conf':
+        """
+        Parses the given configuration file using specific sections parsers
+        and prefixes for comments.
+        Raises 'ConfParseError' if something goes wrong
+        """
 
-        comment_prefixes = comment_prefixes or []
+        comment_prefixes = comment_prefixes or [] # no comments?
 
         def is_comment(l: str) -> bool:
             for comment_prefix in comment_prefixes:
@@ -138,6 +146,7 @@ class Conf:
             raise ConfParseError(str(err))
 
     def global_section(self) -> Optional[Section]:
+        """ Returns the global section (the first one) """
         for section in self.parsed:
             name, _ = section
             if name is None:
@@ -145,71 +154,5 @@ class Conf:
         return None
 
     def non_global_sections(self) -> List[Section]:
+        """ Returns all the non global sections """
         return [section for section in self.parsed if section[0] is not None]
-
-
-    # def has_section(self, section: Union[str, None]) -> bool:
-    #     return section in self.data
-    #
-    # def get_sections(self) -> Optional[Dict]:
-    #     return self.data
-    #
-    # def get_section(self, section: Union[str, None]) -> Optional[Dict]:
-    #     return self.data.get(section)
-    #
-    # def has_key(self, section: Union[str, None], key: str) -> bool:
-    #     return self.get_value(section, key)
-    #
-    # def get_value(self, section: Union[str, None], key: str, default=None) -> Any:
-    #     sec = self.get_section(section)
-    #
-    #     if not sec:
-    #         return default
-    #
-    #     if key not in sec:
-    #         return default
-    #
-    #     return sec[key]
-    #
-    #
-    # def get_non_global_sections(self) -> Optional[Dict]:
-    #     return {k:v for k, v in self.data.items() if k is not None}
-    #
-    # def get_global_section(self) -> Optional[Dict]:
-    #     return self.get_section(None)
-    #
-    # def get_global_value(self, key: str, default=None) -> Any:
-    #     return self.get_value(None, key, default)
-    #
-    # def has_global_key(self, key: str) -> bool:
-    #     return self.has_key(None, key)
-
-
-    # def __contains__(self, item) -> bool:
-    #     return self.has_section(item)
-
-
-if __name__ == "__main__":
-    log.set_verbosity(5)
-    try:
-
-        cfg = Conf.parse(
-            path="/easyshare/res/esd.conf",
-            sections_parsers={
-                None: {
-                    "port": INT_VAL,
-                    "name": STR_VAL,
-                    "ssl": STR_VAL,
-                    "ssl_cert": STR_VAL,
-                    "ssl_privkey": STR_VAL
-                },
-                "^\\[([a-zA-Z0-9_]+)\\]$": {
-                    "path": STR_VAL,
-                    "readonly": BOOL_VAL,
-                }
-            }
-        )
-        print(cfg)
-    except ConfParseError as exc:
-        print("Parse failed with error: {}".format((str(exc))))
-        raise exc

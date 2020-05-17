@@ -15,3 +15,4 @@
 - used bool2string instead of ternary operator
 - Add unit tests
 - Handle addresses instead of numeric IPs
+- Info/debug messages re-partition

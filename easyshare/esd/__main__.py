@@ -14,7 +14,7 @@ from easyshare.helps.esd import Esd
 from easyshare.logging import get_logger
 from easyshare.auth import AuthFactory
 from easyshare.esd.server import Server
-from easyshare.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO
+from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO
 from easyshare.res.helps import get_command_usage
 from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
@@ -113,7 +113,7 @@ def main():
         log.set_verbosity(g_args.get_kwarg_param(Esd.VERBOSE,
                                                  default=logging.VERBOSITY_MAX))
 
-    log.i("{} v. {}".format(APP_NAME_SERVER_SHORT, APP_VERSION))
+    log.i("{} v. {}".format(APP_NAME_SERVER, APP_VERSION))
     log.i("Starting with arguments\n%s", g_args)
 
     # Help?

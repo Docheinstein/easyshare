@@ -3,6 +3,11 @@ from enum import Enum
 from typing import List, Tuple
 
 class Timer:
+    """
+    Basic timer which can be started and stopped as needed
+    and is able to compute the elapsed delta while being
+    aware of the interruptions.
+    """
     class Event(Enum):
         START = 0
         STOP = 1
@@ -12,7 +17,7 @@ class Timer:
         if start:
             self.start()
 
-    def elapsed(self) -> int:
+    def elapsed(self) -> int: # ns
         # Compute the elapsed time by summing the delta between consecutive
         # Event.START and Event.STOP
         deltas_sum = 0
@@ -48,25 +53,15 @@ class Timer:
         return self.elapsed()
 
     def resume(self):
+        # Actually is start(), but with a more reasonable name
         self._events.append((Timer.Event.START, time.monotonic_ns()))
 
     def pause(self):
+        # Actually is stop(), but with a more reasonable name
         self._events.append((Timer.Event.STOP, time.monotonic_ns()))
 
     def __str__(self):
         s = ""
-        for ev, t in self._events:
-            s += str(ev) + ": " + str(t) + "\n"
+        for ev, ev_t in self._events:
+            s += str(ev) + ": " + str(ev_t) + "\n"
         return s
-
-if __name__ == "__main__":
-    t = Timer(start=True)
-    time.sleep(2)
-    t.start()
-    time.sleep(0.5)
-    t.resume()
-    time.sleep(0.2)
-    t.stop()
-    time.sleep(1)
-    print(t.stop() *  1e-9, "s")
-    print(t)

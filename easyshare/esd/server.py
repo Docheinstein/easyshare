@@ -16,12 +16,12 @@ from easyshare.esd.services.sharing import SharingService
 
 from easyshare.logging import get_logger
 from easyshare.auth import Auth, AuthNone
-from easyshare.protocol import create_success_response, create_error_response, Response
-from easyshare.protocol import ServerInfoFull, ServerInfo
+from easyshare.protocol.protocol import create_success_response, create_error_response, Response
+from easyshare.protocol.protocol import ServerInfoFull, ServerInfo
 from easyshare.common import DEFAULT_DISCOVER_PORT, ESD_PYRO_UID, DEFAULT_SERVER_PORT, transfer_port
 from easyshare.endpoint import Endpoint
-from easyshare.protocol import IServer
-from easyshare.protocol import ServerErrors
+from easyshare.protocol.protocol import IServer
+from easyshare.protocol.protocol import ServerErrors
 from easyshare.ssl import set_ssl_context, get_ssl_context
 from easyshare.tracing import trace_out
 from easyshare.sockets import SocketUdpOut

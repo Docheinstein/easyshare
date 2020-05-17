@@ -356,7 +356,7 @@ class FileProgressor:
 
 if __name__ == "__main__":
     enable_colors()
-    get_logger(__name__, force_initialize=True).set_verbosity(logging.VERBOSITY_ERROR)
+    get_logger(__name__, root=True).set_verbosity(logging.VERBOSITY_ERROR)
 
     def simulate_file_progression(name: str, tot: int,
                                   delta_b=4096, delta_t=0.001):

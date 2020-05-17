@@ -7,7 +7,7 @@ from easyshare.es.errors import errcode_string
 from easyshare.es.shell import Shell
 from easyshare.helps.es import Es
 from easyshare.logging import get_logger
-from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup, \
+from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT, APP_VERSION, easyshare_setup, \
     DEFAULT_DISCOVER_TIMEOUT, APP_INFO
 from easyshare.res.helps import get_command_usage
 from easyshare.tracing import enable_tracing
@@ -64,7 +64,7 @@ def main():
         log.set_verbosity(args.get_kwarg_param(Es.VERBOSE,
                                                default=logging.VERBOSITY_MAX))
 
-    log.i("{} v. {}".format(APP_NAME_CLIENT_SHORT, APP_VERSION))
+    log.i("{} v. {}".format(APP_NAME_CLIENT, APP_VERSION))
     log.i("Starting with arguments\n%s", args)
 
     # Help?

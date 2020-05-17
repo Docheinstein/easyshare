@@ -15,10 +15,8 @@ from easyshare.utils.types import to_int
 # =====================
 
 APP_NAME = "easyshare"
-APP_NAME_SERVER = "easyshare deamon"
-APP_NAME_CLIENT = "easyshare es"
-APP_NAME_SERVER_SHORT = "esd"
-APP_NAME_CLIENT_SHORT = "es"
+APP_NAME_SERVER = "esd"
+APP_NAME_CLIENT = "es"
 APP_VERSION = "0.1"
 
 APP_INFO = "{} {}".format(APP_NAME, APP_VERSION)

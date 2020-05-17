@@ -3,10 +3,12 @@ from typing import List, Union, Optional
 import colorama
 
 from easyshare.consts import ansi
+from easyshare.utils import eprint
 
 _colorful = True
 
 def enable_colors(enabled: bool = True):
+    """ Enables/disables colors and styling of strings """
     global _colorful
     _colorful = enabled
     if enabled:
@@ -15,6 +17,7 @@ def enable_colors(enabled: bool = True):
         colorama.init()
 
 def are_colors_enabled():
+    """ Returns whether colors are enabled """
     return _colorful
 
 
@@ -22,6 +25,7 @@ def styled(s: str,
            fg: Optional[str] = None,
            bg: Optional[str] = None,
            attrs: Union[str, List[str]] = ()) -> str:
+    """ Styles the string with the given ansi escapes (foreground, background and attributes)"""
     if not _colorful:
         return s
     return _styled(s, fg, bg, *attrs)
@@ -119,13 +123,3 @@ def bold(s: str) -> str:
 
 def underline(s: str) -> str:
     return styled(s, attrs=ansi.ATTR_UNDERLINE)
-
-
-if __name__ == "__main__":
-    print(red("Hello"))
-    print(bold("Hello"))
-    print(red(bold("Hello")))
-
-    print(ansi.ATTR_BOLD + "Hello")
-    print("Should ne non-bold" + ansi.RESET)
-

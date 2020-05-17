@@ -62,7 +62,12 @@ class TreeRenderStyleFactory:
         return TreeRenderStyleFactory.ascii(stretching, spacing)
 
 
+
 class TreeRenderPostOrder:
+    """
+    Iterator of a 'TreeNodeDict'.
+    # Usage: for prefix, node, depth in TreeRenderPostOrder(root, depth=max_depth):
+    """
     def __init__(self,
                  root: TreeNodeDict,
                  depth: int = None,

@@ -9,7 +9,7 @@ from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services.transfer.get import GetService
 from easyshare.esd.services.transfer.put import PutService
 from easyshare.logging import get_logger
-from easyshare.protocol import create_error_response, ServerErrors, Response, create_success_response, \
+from easyshare.protocol.protocol import create_error_response, ServerErrors, Response, create_success_response, \
     ISharingService, FTYPE_FILE, FTYPE_DIR
 from easyshare.utils.json import j
 from easyshare.utils.os import rm, mv, cp, tree, ls

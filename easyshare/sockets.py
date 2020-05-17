@@ -16,6 +16,12 @@ log = get_logger(__name__)
 DEFAULT_SOCKET_BUFSIZE = 4096
 
 
+# Smarter wrappers of socket.socket, SSL aware
+
+# ================================================
+# ================ BASE SOCKETS ==================
+# ================================================
+
 class Socket(ABC):
     def __init__(self, sock: socket.socket):
         self.sock: Union[socket.socket, ssl.SSLSocket] = sock
@@ -49,6 +55,10 @@ class Socket(ABC):
                 log.w("Nothing to close for this socket, invalid params?")
 
 
+# ================================================
+# ================ UDP SOCKETS ===================
+# ================================================
+
 
 class SocketUdp(Socket):
     def recv(self, bufsize=DEFAULT_SOCKET_BUFSIZE) -> Tuple[bytes, Endpoint]:
@@ -70,6 +80,13 @@ class SocketUdpIn(SocketUdp):
 class SocketUdpOut(SocketUdp):
     def __init__(self, *, timeout: float = None, broadcast: bool = False):
         super().__init__(socket_udp_out(timeout=timeout, broadcast=broadcast))
+
+
+
+# ================================================
+# ================ TCP SOCKETS ===================
+# ================================================
+
 
 class SocketTcp(Socket):
     def send(self, data: bytes):
