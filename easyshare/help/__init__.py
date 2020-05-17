@@ -60,8 +60,8 @@ class CommandHelp(ABC):
         pass
 
     @classmethod
-    def minimal_long_description(cls):
-        return cls.long_description()
+    def trail(cls):
+        return None
 
     @classmethod
     def options(cls) -> List[CommandOptionHelp]:

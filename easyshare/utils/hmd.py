@@ -270,6 +270,9 @@ class HelpMarkdown:
                     if align[0] == "A":
                         keep_line = False  # don't keep the line into account
 
+
+            # TODO: if <a> is after some <b> or <u>, the alignment fails
+
             # --------------------------------------
             # LINE BREAKING and real insertion
 

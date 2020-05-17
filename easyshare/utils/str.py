@@ -27,6 +27,10 @@ def keep(s: str, allowed: str) -> str:
     return ret
 
 
+def discard(s: str, denied: str) -> str:
+    return multireplace(s, [(d, "") for d in denied])
+
+
 def satisfy(s: str, allowed: str) -> bool:
     if not s or not allowed:
         return False
@@ -64,19 +68,28 @@ def leftof(s: str, sep: str, from_end=False) -> str:
         return before_or_ori
 
 
-def sorted_i(l: List[str]):
-    return sorted(l, key=lambda s: s.lower())
+def sorted_i(l: List[str], in_subset: str = None, not_in_subset: str = None):
+    def s_conv(s: str):
+        if not_in_subset:
+            s = discard(s, not_in_subset)
+        if in_subset:
+            s = keep(s, in_subset)
+        return s.lower()
+
+    return sorted(l, key=lambda s: s_conv(s))
 
 
 def multireplace(s: str,
                  str_replacements: List[Tuple[str, str]],
-                 re_replacements: List[Tuple[Pattern, str]]) -> str:
+                 re_replacements: List[Tuple[Pattern, str]] = None) -> str:
 
-    for k, v in str_replacements:
-        s = s.replace(k, v)
+    if str_replacements:
+        for k, v in str_replacements:
+            s = s.replace(k, v)
 
-    for k, v in re_replacements:
-        s = re.sub(k, v, s)
+    if re_replacements:
+        for k, v in re_replacements:
+            s = re.sub(k, v, s)
 
     return s
 

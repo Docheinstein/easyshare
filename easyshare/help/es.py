@@ -56,17 +56,18 @@ class Es(CommandHelp, ArgsParser):
     @classmethod
     def synopsis(cls):
         return f"""\
-es [<u>OPTION</u>]... [<u>COMMAND</u> [<u>COMMAND_ARGUMENTS</u>]]"""
+es <A> # just for alignment
+<b>es</b> [<u>OPTION</u>]... [<u>COMMAND</u> [<u>COMMAND_ARGUMENTS</u>]]</a>"""
+
+    @classmethod
+    def trail(cls):
+        return "SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES"
 
     @classmethod
     def long_description(cls):
         return """\
 Client of the easyshare network application.
-""" + cls.minimal_long_description()
 
-    @classmethod
-    def minimal_long_description(cls):
-        return """\
 If no <b>COMMAND</b> is given, the interactive console is started.
 If <b>COMMAND</b> is a valid command, it is executed and the process quits \
 unless the command is <b>open</b>.

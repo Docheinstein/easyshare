@@ -339,7 +339,9 @@ class Help(CommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "<b>help</b> [<u>COMMAND</u>]"
+        return """\
+help <A> # just for alignment
+<b>help</b> [<u>COMMAND</u>]</a>"""
 
     @classmethod
     def long_description(cls):
@@ -405,8 +407,9 @@ class Trace(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
+trace <A> # just for alignment
 <b>trace</b> [<u>0</u> | <u>1</u>]
-<b>t</b>     [<u>0</u> | <u>1</u>]"""
+<b>t</b>     <a>[<u>0</u> | <u>1</u>]</a>"""
 
     @classmethod
     def long_description(cls):
@@ -505,8 +508,9 @@ class Verbose(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>verbose</b> [<u>LEVEL</u>]
-<b>v</b>       [<u>LEVEL</u>]"""
+verbose <A> # just for alignment
+<b>verbose</b> <a>[<u>LEVEL</u>]</a>
+<b>v</b>       <a>[<u>LEVEL</u>]</a>"""
 
     @classmethod
     def long_description(cls):
@@ -646,7 +650,9 @@ class Ls(LocalAllFilesSuggestionsCommandInfo, BaseLsCommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "<b>ls</b> [<u>OPTION</u>]... [<u>DIR</u>]"
+        return """\
+ls <A> # just for alignment
+<b>ls</b> [<u>OPTION</u>]... [<u>DIR</u>]</a>"""
 
     @classmethod
     def long_description(cls):
@@ -672,9 +678,10 @@ class Rls(RemoteAllFilesSuggestionsCommandInfo, BaseLsCommandInfo, FastSharingCo
     @classmethod
     def synopsis(cls):
         return """\
+rls <A> # just for alignment
 <b>rls</b> [<u>OPTION</u>]... [<u>DIR</u>]
 
-<b>rls</b> [<u>OPTION</u>]... [<u>SHARING_LOCATION</u>] [<u>DIR</u>]"""
+<b>rls</b> [<u>OPTION</u>]... [<u>SHARING_LOCATION</u>] [<u>DIR</u>]</a>"""
 
     @classmethod
     def long_description(cls):
@@ -751,7 +758,9 @@ class Tree(BaseTreeCommandInfo, LocalAllFilesSuggestionsCommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "<b>tree</b> [<u>OPTION</u>]... [<u>DIR</u>]"
+        return """\
+tree <A> # just for alignment
+<b>tree</b> [<u>OPTION</u>]... [<u>DIR</u>]</a>"""
 
     @classmethod
     def long_description(cls):
@@ -778,10 +787,11 @@ class Rtree(BaseTreeCommandInfo, RemoteAllFilesSuggestionsCommandInfo, FastShari
 
     @classmethod
     def synopsis(cls):
-        return """
+        return """\
+rtree <A> # just for alignment
 <b>rtree</b> [<u>OPTION</u>]... [<u>DIR</u>]
 
-<b>rtree</b> [<u>OPTION</u>]... [<u>SHARING_LOCATION</u>] [<u>DIR</u>]"""
+<b>rtree</b> [<u>OPTION</u>]... [<u>SHARING_LOCATION</u>] [<u>DIR</u>]</a>"""
 
     @classmethod
     def long_description(cls):
@@ -808,7 +818,9 @@ class Cd(LocalDirsOnlySuggestionsCommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "<b>cd</b> [<u>DIR</u>]"
+        return """\
+cd <A> # just for alignment
+<b>cd</b> [<u>DIR</u>]</a>"""
 
     @classmethod
     def long_description(cls):
@@ -834,7 +846,8 @@ class Rcd(RemoteDirsOnlySuggestionsCommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>rcd</b> [<u>DIR</u>]"""
+rcd <A> # just for alignment
+<b>rcd</b> [<u>DIR</u>]</a>"""
 
     @classmethod
     def long_description(cls):
@@ -872,7 +885,9 @@ class Mkdir(LocalDirsOnlySuggestionsCommandInfo):
 
     @classmethod
     def synopsis(cls):
-        return "<b>mkdir</b> <u>DIR</u>"
+        return """\
+mkdir <A> # just for alignment
+<b>mkdir</b> <u>DIR</u></a>"""
 
     @classmethod
     def long_description(cls):
@@ -901,9 +916,11 @@ class Rmkdir(FastSharingConnectionCommandInfo, RemoteDirsOnlySuggestionsCommandI
     @classmethod
     def synopsis(cls):
         return """\
+rmkdir <A> # just for alignment
+
 <b>rmkdir</b> <u>DIR</u>
 
-<b>rmkdir</b> [<u>SHARING_LOCATION</u>] <u>DIR</u>"""
+<b>rmkdir</b> [<u>SHARING_LOCATION</u>] <u>DIR</u></a>"""
 
     @classmethod
     def long_description(cls):
@@ -945,8 +962,9 @@ class Cp(LocalAllFilesSuggestionsCommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
+cp <A> # just for alignment
 <b>cp</b> <u>SOURCE</u> <u>DEST</u>
-<b>cp</b> <u>SOURCE</u>... <u>DIR</u>"""
+<b>cp</b> <u>SOURCE</u>... <u>DIR</u></a>"""
 
     @classmethod
     def long_description(cls):
@@ -982,11 +1000,12 @@ class Rcp(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo
     @classmethod
     def synopsis(cls):
         return """\
+rcp <A> # just for alignment
 <b>rcp</b> <u>SOURCE</u> <u>DEST</u>
 <b>rcp</b> <u>SOURCE</u>... <u>DIR</u>
 
 <b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u> <u>DEST</u>
-<b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u>"""
+<b>rcp</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u></a>"""
 
     @classmethod
     def long_description(cls):
@@ -1052,8 +1071,9 @@ class Mv(LocalAllFilesSuggestionsCommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
+mv <A> # just for alignment
 <b>mv</b> <u>SOURCE</u> <u>DEST</u>
-<b>mv</b> <u>SOURCE</u>... <u>DIR</u>"""
+<b>mv</b> <u>SOURCE</u>... <u>DIR</u></a>"""
 
     @classmethod
     def long_description(cls):
@@ -1091,11 +1111,12 @@ class Rmv(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo
     @classmethod
     def synopsis(cls):
         return """\
+rmv <A> # just for alignment
 <b>rmv</b> <u>SOURCE</u> <u>DEST</u>
 <b>rmv</b> <u>SOURCE</u>... <u>DIR</u>
 
 <b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u> <u>DEST</u>
-<b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u>"""
+<b>rmv</b> [<u>SHARING_LOCATION</u>] <u>SOURCE</u>... <u>DIR</u></a>"""
 
     @classmethod
     def long_description(cls):
@@ -1157,7 +1178,8 @@ class Rm(LocalAllFilesSuggestionsCommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>rm</b> [FILE]..."""
+rm <A> # just for alignment
+<b>rm</b> [FILE]...</a>"""
 
     @classmethod
     def long_description(cls):
@@ -1189,9 +1211,10 @@ class Rrm(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo
     @classmethod
     def synopsis(cls):
         return """\
+rrm <A> # just for alignment
 <b>rrm</b> [FILE]...
 
-<b>rrm</b> [<u>SHARING_LOCATION</u>] [FILE]..."""
+<b>rrm</b> [<u>SHARING_LOCATION</u>] [FILE]...</a>"""
 
     @classmethod
     def long_description(cls):
@@ -1247,9 +1270,10 @@ class Exec(LocalAllFilesSuggestionsCommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
+exec <A> # just for alignment
 <b>exec</b> <u>COMMAND</u>
 <b>:</b>    <u>COMMAND</u>
-<b>:</b>    <u>COMMAND</u>"""
+<b>:</b>    <u>COMMAND</u></a>"""
 
     @classmethod
     def long_description(cls):
@@ -1295,13 +1319,14 @@ class Rexec(FastServerConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInf
     @classmethod
     def synopsis(cls):
         return """\
+rexec <A> # just for alignment
 <b>rexec</b> <u>COMMAND</u>
 <b>::</b>    <u>COMMAND</u>
 <b>::</b><u>COMMAND</u>
 
 <b>rexec</b> [<u>SERVER_LOCATION</u>] <u>COMMAND</u>
 <b>::</b>    [<u>SERVER_LOCATION</u>] <u>COMMAND</u>
-<b>::</b>[<u>SERVER_LOCATION</u>] <u>COMMAND</u>"""
+<b>::</b>[<u>SERVER_LOCATION</u>] <u>COMMAND</u></a>"""
 
     @classmethod
     def long_description(cls):
@@ -1363,8 +1388,9 @@ class Scan(CommandInfo, NoPargs):
     @classmethod
     def synopsis(cls):
         return """\
+scan <A> # just for alignment
 <b>scan</b> [<u>OPTION</u>]...
-<b>s</b>    [<u>OPTION</u>]..."""
+<b>s</b>    [<u>OPTION</u>]...</a>"""
 
     @classmethod
     def long_description(cls):
@@ -1421,7 +1447,8 @@ class Connect(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-<b>connect</b> <u>SERVER_LOCATION</u>"""
+connect <A> # just for alignment
+<b>connect</b> <u>SERVER_LOCATION</u></a>"""
 
     @classmethod
     def long_description(cls):
@@ -1553,8 +1580,9 @@ class Open(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
+open <A> # just for alignment
 <b>open</b> <u>SHARING_LOCATION</u>
-<b>o</b>    <u>SHARING_LOCATION</u>"""
+<b>o</b>    <u>SHARING_LOCATION</u></a>"""
 
     @classmethod
     def long_description(cls):
@@ -1728,11 +1756,12 @@ class Get(RemoteAllFilesSuggestionsCommandInfo, VariadicPargs):
     @classmethod
     def synopsis(cls):
         return """\
+get <A> # just for alignment
 <b>get</b> [OPTION]... [<u>REMOTE_FILE</u>]...
 <b>g</b>   [OPTION]... [<u>REMOTE_FILE</u>]...
 
 <b>get</b> [OPTION]... [<u>SHARING_LOCATION</u>] [<u>REMOTE_FILE</u>]...
-<b>g</b>   [OPTION]... [<u>SHARING_LOCATION</u>] [<u>REMOTE_FILE</u>]..."""
+<b>g</b>   [OPTION]... [<u>SHARING_LOCATION</u>] [<u>REMOTE_FILE</u>]...</a>"""
 
     @classmethod
     def long_description(cls):
@@ -1922,11 +1951,12 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VariadicPargs):
     @classmethod
     def synopsis(cls):
         return """\
+put <A> # just for alignment
 <b>put</b> [OPTION]... [<u>LOCAL_FILE</u>]...
 <b>p</b>   [OPTION]... [<u>LOCAL_FILE</u>]...
 
 <b>put</b> [OPTION]... [<u>SHARING_LOCATION</u>] [<u>LOCAL_FILE</u>]...
-<b>p</b>   [OPTION]... [<u>SHARING_LOCATION</u>] [<u>LOCAL_FILE</u>]..."""
+<b>p</b>   [OPTION]... [<u>SHARING_LOCATION</u>] [<u>LOCAL_FILE</u>]...</a>"""
 
     @classmethod
     def long_description(cls):
@@ -2078,8 +2108,9 @@ class ListSharings(FastServerConnectionCommandInfo, Pargs):
     @classmethod
     def synopsis(cls):
         return """\
+list <A> # just for alignment
 <b>list</b> [<u>OPTION</u>]...
-<b>list</b> [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]..."""
+<b>list</b> [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]...</a>"""
 
     @classmethod
     def long_description(cls):
@@ -2134,11 +2165,12 @@ class Info(FastServerConnectionCommandInfo, Pargs):
     @classmethod
     def synopsis(cls):
         return """\
+info <A> # just for alignment
 <b>info</b> [<u>OPTION</u>]...
 <b>i</b>    [<u>OPTION</u>]...
 
 <b>info</b> [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]...
-<b>i</b>    [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]..."""
+<b>i</b>    [<u>SERVER_LOCATION</u>] [<u>OPTION</u>]...</a>"""
 
     @classmethod
     def long_description(cls):
@@ -2230,9 +2262,10 @@ class Ping(FastServerConnectionCommandInfo, Pargs):
     @classmethod
     def synopsis(cls):
         return """\
+ping <A> # just for alignment
 <b>ping</b> [<u>OPTION</u>]...
 
-<b>ping</b> [<u>OPTION</u>]... [<u>SERVER_LOCATION</u>]"""
+<b>ping</b> [<u>OPTION</u>]... [<u>SERVER_LOCATION</u>]</a>"""
 
     @classmethod
     def long_description(cls):

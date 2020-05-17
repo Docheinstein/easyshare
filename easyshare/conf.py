@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Dict, Optional, List, Any, Callable, Union
+from typing import Dict, Optional, List, Any, Callable, Union, Tuple
 
 from easyshare.logging import get_logger
 from easyshare.utils.json import j
@@ -12,6 +12,8 @@ class ConfParseError(Exception):
     pass
 
 KeyValParser = Callable[[Union[str, None], str, str], Any] # section, key, val => Any
+SectionContent = Dict[str, Any]
+Section = Tuple[Union[str, None], SectionContent]
 
 STR_VAL = lambda sec, key, val: val.strip('"\'') if val else val
 INT_VAL = lambda sec, key, val: to_int(val, raise_exceptions=True)
@@ -20,11 +22,11 @@ BOOL_VAL = lambda sec, key, val: True if val.lower() == "true" or val.lower() ==
 
 class Conf:
 
-    def __init__(self, data: Dict):
-        self.data = data
+    def __init__(self, parsed: List[Tuple[str, Dict[str, Any]]]):
+        self.parsed = parsed
 
     def __str__(self):
-        return j(self.data)
+        return j(self.parsed)
 
 
     @staticmethod
@@ -48,14 +50,18 @@ class Conf:
             # of the key,val of that section
             sections_regex_parsers_map: Dict[re.Pattern, Dict[str, KeyValParser]] =\
                 {re.compile(k) if k else None: v for k, v in sections_parsers.items()}
-            data = {}
+            parsed = []
 
             cfg = open(path, "r")
 
             log.i("Parsing config file %s", path)
 
-            current_section = None                       # global
-            current_parsers = sections_parsers.get(None) # global
+            current_keys_parsers = sections_parsers.get(None)
+
+            # global
+            current_section_name = None
+            current_section = {}
+            parsed.append((current_section_name, current_section))
 
             while True:
                 # Read line
@@ -80,13 +86,16 @@ class Conf:
                         section_match = section_re.match(line)
 
                         if section_match:
-                            current_section = section_match.groups()[0]
-                            current_parsers = section_parsers
+                            current_section_name = section_match.groups()[0]
+                            current_keys_parsers = section_parsers
                             new_section_found = True
                             break
 
                 if new_section_found:
-                    log.i("New section: '%s'", current_section)
+                    log.i("Adding new section: '%s'", current_section_name)
+                    # Add the section to the parsed sections
+                    current_section = {}
+                    parsed.append((current_section_name, current_section))
                     continue
 
                 # Inside a section: check key=val pattern
@@ -108,14 +117,11 @@ class Conf:
                 parser_found = False
 
                 # Pass the key,val to the right parser
-                for parser_key, parser_func in current_parsers.items():
+                for parser_key, parser_func in current_keys_parsers.items():
                     if parser_key == key:
                         log.d("Passing '%s' to known parser", key)
-                        parsed_val = parser_func(current_section, key, val)
-                        if not current_section in data:
-                            data[current_section] = {}
-
-                        data[current_section][key] = parsed_val
+                        parsed_val = parser_func(current_section_name, key, val)
+                        current_section[key] = parsed_val
                         parser_found = True
                         break
 
@@ -127,50 +133,60 @@ class Conf:
 
             cfg.close()
 
-            return Conf(data)
+            return Conf(parsed)
         except Exception as err:
             raise ConfParseError(str(err))
 
+    def global_section(self) -> Optional[Section]:
+        for section in self.parsed:
+            name, _ = section
+            if name is None:
+                return section
+        return None
 
-    def has_section(self, section: Union[str, None]) -> bool:
-        return section in self.data
-
-    def get_sections(self) -> Optional[Dict]:
-        return self.data
-
-    def get_section(self, section: Union[str, None]) -> Optional[Dict]:
-        return self.data.get(section)
-
-    def has_key(self, section: Union[str, None], key: str) -> bool:
-        return self.get_value(section, key)
-
-    def get_value(self, section: Union[str, None], key: str, default=None) -> Any:
-        sec = self.get_section(section)
-
-        if not sec:
-            return default
-
-        if key not in sec:
-            return default
-
-        return sec[key]
+    def non_global_sections(self) -> List[Section]:
+        return [section for section in self.parsed if section[0] is not None]
 
 
-    def get_non_global_sections(self) -> Optional[Dict]:
-        return {k:v for k, v in self.data.items() if k is not None}
+    # def has_section(self, section: Union[str, None]) -> bool:
+    #     return section in self.data
+    #
+    # def get_sections(self) -> Optional[Dict]:
+    #     return self.data
+    #
+    # def get_section(self, section: Union[str, None]) -> Optional[Dict]:
+    #     return self.data.get(section)
+    #
+    # def has_key(self, section: Union[str, None], key: str) -> bool:
+    #     return self.get_value(section, key)
+    #
+    # def get_value(self, section: Union[str, None], key: str, default=None) -> Any:
+    #     sec = self.get_section(section)
+    #
+    #     if not sec:
+    #         return default
+    #
+    #     if key not in sec:
+    #         return default
+    #
+    #     return sec[key]
+    #
+    #
+    # def get_non_global_sections(self) -> Optional[Dict]:
+    #     return {k:v for k, v in self.data.items() if k is not None}
+    #
+    # def get_global_section(self) -> Optional[Dict]:
+    #     return self.get_section(None)
+    #
+    # def get_global_value(self, key: str, default=None) -> Any:
+    #     return self.get_value(None, key, default)
+    #
+    # def has_global_key(self, key: str) -> bool:
+    #     return self.has_key(None, key)
 
-    def get_global_section(self) -> Optional[Dict]:
-        return self.get_section(None)
 
-    def get_global_value(self, key: str, default=None) -> Any:
-        return self.get_value(None, key, default)
-
-    def has_global_key(self, key: str) -> bool:
-        return self.has_key(None, key)
-
-
-    def __contains__(self, item) -> bool:
-        return self.has_section(item)
+    # def __contains__(self, item) -> bool:
+    #     return self.has_section(item)
 
 
 if __name__ == "__main__":

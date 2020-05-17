@@ -4,9 +4,9 @@ from typing import List, Optional
 
 from easyshare.esd.common import Sharing
 
-from easyshare import logging, args
-from easyshare.args import Kwarg, INT_PARAM, INT_PARAM_OPT, PRESENCE_PARAM, STR_PARAM, ArgsParseError, \
-    Pargs, ArgsParser, ActionParam
+from easyshare import logging
+from easyshare.args import Kwarg, PRESENCE_PARAM, ArgsParseError, \
+    Pargs
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.daemons.discover import get_discover_daemon
 from easyshare.esd.daemons.transfer import get_transfer_daemon
@@ -15,7 +15,7 @@ from easyshare.logging import get_logger
 from easyshare.auth import AuthFactory
 from easyshare.esd.server import Server
 from easyshare.common import APP_VERSION, APP_NAME_SERVER_SHORT, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO
-from easyshare.res.helps import get_command_man, get_command_usage
+from easyshare.res.helps import get_command_usage
 from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import terminate, abort
@@ -43,52 +43,6 @@ class SharingArgs(Pargs):
         return [
             (self.READ_ONLY, PRESENCE_PARAM),
         ]
-# 
-# class Esd(ArgsParser):
-#     HELP = ["-h", "--help"]
-#     VERSION = ["-V", "--version"]
-# 
-#     CONFIG = ["-c", "--config"]
-# 
-#     NAME = ["-n", "--name"]
-#     ADDRESS = ["-a", "--address"]
-#     PORT = ["-p", "--port"]
-#     DISCOVER_PORT = ["-d", "--discover-port"]
-#     PASSWORD = ["-P", "--password"]
-# 
-#     SSL_CERT = ["--ssl-cert"]
-#     SSL_PRIVKEY = ["--ssl-privkey"]
-#     REXEC = ["-e", "--rexec"]
-# 
-#     VERBOSE =   ["-v", "--verbose"]
-#     TRACE =     ["-t", "--trace"]
-#     NO_COLOR =  ["--no-color"]
-# 
-#     def kwargs_specs(self) -> Optional[List[Kwarg]]:
-#         return [
-#             (Esd.HELP, ActionParam(lambda _: terminate("help"))),
-#             (Esd.VERSION, ActionParam(lambda _: terminate("version"))),
-# 
-#             (Esd.CONFIG, STR_PARAM),
-# 
-#             (Esd.NAME, STR_PARAM),
-#             (Esd.ADDRESS, STR_PARAM),
-#             (Esd.PORT, INT_PARAM),
-#             (Esd.DISCOVER_PORT, INT_PARAM),
-#             (Esd.PASSWORD, STR_PARAM),
-#             (Esd.SSL_CERT, STR_PARAM),
-#             (Esd.SSL_PRIVKEY, STR_PARAM),
-# 
-#             (Esd.REXEC, PRESENCE_PARAM),
-# 
-#             (Esd.VERBOSE, INT_PARAM_OPT),
-#             (Esd.TRACE, INT_PARAM_OPT),
-#             (Esd.NO_COLOR, PRESENCE_PARAM),
-# 
-#         ]
-
-    # def _continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
-    #     return lambda argname, argtype, idx, args, positionals: argtype != ArgType.PARG
 
 class EsdConfKeys:
     G_NAME = "name"
@@ -126,7 +80,7 @@ ESD_CONF_SPEC = {
         EsdConfKeys.G_NO_COLOR: BOOL_VAL,
     },
     # sharings
-    "^\\[([a-zA-Z0-9_]+)\\]$": {
+    "^\\[([a-zA-Z0-9_]*)\\]$": {
         EsdConfKeys.S_PATH: STR_VAL,
         EsdConfKeys.S_READONLY: BOOL_VAL,
     }
@@ -191,7 +145,7 @@ def main():
 
     def add_sharing(path: str, name: str, readonly: bool):
         if not path:
-            log.w("Invalid path for sharing '%s'; skipping it")
+            log.w("Invalid path for sharing '%s'; skipping it", name)
             return
 
         sh = Sharing.create(
@@ -222,72 +176,74 @@ def main():
             abort("Parse of config file failed: {}".format(str(err)))
 
         if cfg:
+            _, global_section = cfg.global_section()
+
             log.i("Config file parsed successfully:\n%s", cfg)
 
             # Config's global settings
 
-            server_name = cfg.get_global_value(
+            server_name = global_section.get(
                 EsdConfKeys.G_NAME,
-                default=server_name
+                server_name
             )
 
-            server_address = cfg.get_global_value(
+            server_address = global_section.get(
                 EsdConfKeys.G_ADDRESS,
-                default=server_address
+                server_address
             )
 
-            server_port = cfg.get_global_value(
+            server_port = global_section.get(
                 EsdConfKeys.G_PORT,
-                default=server_port
+                server_port
             )
 
-            server_discover_port = cfg.get_global_value(
+            server_discover_port = global_section.get(
                 EsdConfKeys.G_DISCOVER_PORT,
-                default=server_discover_port
+                server_discover_port
             )
 
-            server_password = cfg.get_global_value(
+            server_password = global_section.get(
                 EsdConfKeys.G_PASSWORD,
-                default=server_password
+                server_password
             )
 
-            server_ssl_cert = cfg.get_global_value(
+            server_ssl_cert = global_section.get(
                 EsdConfKeys.G_SSL_CERT,
-                default=server_ssl_cert
+                server_ssl_cert
             )
-            server_ssl_privkey = cfg.get_global_value(
+            server_ssl_privkey = global_section.get(
                 EsdConfKeys.G_SSL_PRIVKEY,
-                default=server_ssl_privkey
+                server_ssl_privkey
             )
 
-            server_ssl_enabled = cfg.get_global_value(
+            server_ssl_enabled = global_section.get(
                 EsdConfKeys.G_SSL,
-                default=server_ssl_cert and server_ssl_privkey
+                server_ssl_cert and server_ssl_privkey
             )
 
-            server_rexec = cfg.get_global_value(
+            server_rexec = global_section.get(
                 EsdConfKeys.G_REXEC,
-                default=server_rexec and server_rexec
+                server_rexec and server_rexec
             )
 
-            no_colors = cfg.get_global_value(
+            no_colors = global_section.get(
                 EsdConfKeys.G_NO_COLOR,
-                default=no_colors
+                no_colors
             )
 
-            tracing = cfg.get_global_value(
+            tracing = global_section.get(
                 EsdConfKeys.G_TRACE,
-                default=tracing
+                tracing
             )
 
-            verbosity = cfg.get_global_value(
+            verbosity = global_section.get(
                 EsdConfKeys.G_VERBOSE,
-                default=verbosity
+                verbosity
             )
 
             # Config's sharings
 
-            for s_name, s_settings in cfg.get_non_global_sections().items():
+            for s_name, s_settings in cfg.non_global_sections():
                 s_path = s_settings.get(EsdConfKeys.S_PATH)
                 s_readonly = s_settings.get(EsdConfKeys.S_PATH, False)
 

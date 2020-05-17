@@ -30,7 +30,7 @@ class Esd(CommandHelp, ArgsParser):
         return [
             (self.HELP, PRESENCE_PARAM),
             (self.VERSION, PRESENCE_PARAM),
-            (self.CONFIG, PRESENCE_PARAM),
+            (self.CONFIG, STR_PARAM),
             (self.NAME, STR_PARAM),
             (self.ADDRESS, STR_PARAM),
             (self.PORT, INT_PARAM),
@@ -79,7 +79,12 @@ class Esd(CommandHelp, ArgsParser):
     @classmethod
     def synopsis(cls):
         return f"""\
-esd [<u>OPTION</u>]... [<u>SHARING</u> [<u>SHARING_NAME</u>] [<u>SHARING_OPTION</u>]...]"""
+esd <A> # just for alignment
+<b>esd</b> [<u>OPTION</u>]... [<u>SHARING</u> [<u>SHARING_NAME</u>] [<u>SHARING_OPTION</u>]...]</a>"""
+
+    @classmethod
+    def trail(cls):
+        return "SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES"
 
     @classmethod
     def long_description(cls):
@@ -116,16 +121,18 @@ The configuration file is composed of two parts.
 Each line of a section has the form <u><key></u>=<u><value></u>.
 The available <u><key></u> of the global section are:
 <I+4>
-<b>name</b>
 <b>address</b>
-<b>port</b>
 <b>discover_port</b>
+<b>name</b>
+<b>no_color</b>
 <b>password</b>
+<b>port</b>
+<b>rexec</b>
 <b>ssl</b>
 <b>ssl_cert</b>
 <b>ssl_privkey</b>
-<b>verbose</b>
 <b>trace</b>
+<b>verbose</b>
 </I>
 
 The available <u><key></u> of the sharings sections are:
@@ -149,14 +156,51 @@ to <b>esd</b>.</a>"""
 
     @classmethod
     def examples(cls):
-        return """
+        return """\
 Usage example:
    <a>
 1. Share a file</a>
-<b>esd</b> /tmp/file
+<b>esd</b> <u>/tmp/file</u>
    <a>
 2. Share a directory, assigning it a name</a>
-<b>esd</b> /tmp/shared_directory shared
+<b>esd</b>  <u>/tmp/shared_directory</u> <u>shared</u>
+   <a>
+3. Share multiples directories, and other settings</a>
+<b>esd</b> <b>-c</b> <u>/home/user/.easyshare/esd.conf</u>
 
-3. q
-"""
+
+Configuration file example (esd.conf):
+
+# ===== SERVER SETTINGS =====
+
+name=stefano-arch
+password=aSecurePassword
+
+port=12020
+discover_port=12019
+
+ssl=true
+ssl_cert="/tmp/cert.pem"
+ssl_privkey="/tmp/privkey.pem"
+ssl_privkey="/tmp/privkey.pem"
+
+rexec=false
+
+verbose=4
+trace=1
+
+# ===== SHARINGS =====
+
+[download]
+<I+4>
+path="/home/stefano/Downloads"
+</i>
+[shared]
+<I+4>
+path="/tmp/shared"
+readonly=true
+</i>
+# Automatic sharing name
+[]
+<I+4>
+path="/tmp/afile"</i>"""

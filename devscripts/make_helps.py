@@ -90,7 +90,7 @@ def generate_command_usage_markdown(info: Type[CommandHelp]):
                 justification=options_alignment)
             )
 
-        options_strings = sorted_i(options_strings)
+        options_strings = sorted_i(options_strings, not_in_subset="-")
         info_options = "\n".join(options_strings)
 
     section_synopsis = make_section(
@@ -99,10 +99,11 @@ def generate_command_usage_markdown(info: Type[CommandHelp]):
         leading_endl=0
     )
 
-    section_description = make_section(
+    section_trail = make_section(
         None,
-        info.minimal_long_description(),
-        leading_endl=0
+        info.trail(),
+        leading_endl=2,
+        indent=0
     )
     section_options = make_section(
         None,
@@ -111,15 +112,17 @@ def generate_command_usage_markdown(info: Type[CommandHelp]):
         alignment=options_alignment
     )
 
-    return f"""\
+    s = f"""\
 Usage:
 {section_synopsis}
-
-{section_description}
 
 Options:
 {section_options}\
 """
+    if section_trail:
+        s += section_trail
+
+    return s
 
 def generate_command_man_markdown(info: Type[CommandHelp], styled: bool = True):
     # PARAGRAPH_INDENT = 4
@@ -195,7 +198,7 @@ def generate_command_man_markdown(info: Type[CommandHelp], styled: bool = True):
             #        options_alignment, " + ",
             #     aliases_str_style_chars, params_str_style_chars)
 
-        options_strings = sorted_i(options_strings)
+        options_strings = sorted_i(options_strings, not_in_subset="-")
         info_options = "\n".join(options_strings)
 
     subsection_synopsis_extra = ("\n\n" + info_synopsis_extra) if info_synopsis_extra else ""
