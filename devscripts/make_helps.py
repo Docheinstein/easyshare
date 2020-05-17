@@ -315,7 +315,9 @@ if __name__ == "__main__":
 
     cmds: List[Tuple[str, Type[CommandHelp]]] = \
         list(COMMANDS_INFO.items()) + [
-            (Es.name(), Es), (Esd.name(), Esd), (EsTools.name(), EsTools)
+            (Es.name(), Es),
+            (Esd.name(), Esd),
+            (EsTools.name(), EsTools)
         ]
 
     cmd_helps_str = [(cmd_name, GENERATORS_MAPS[style](cmd_help))

@@ -111,7 +111,7 @@ class BaseClientSharingService(BaseClientService):
 
     def _real_path_from_rcwd(self, path: str) -> Optional[str]:
         """
-        Returns the path of the location composed by the 'path' of the
+        Returns the path of the location composed of the 'path' of the
         sharing the es is currently on and the 'path' itself.
         The method allows:
             * 'path' starting with a leading / (absolute w.r.t the sharing path)

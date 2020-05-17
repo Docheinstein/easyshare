@@ -70,4 +70,5 @@ Usage example:
 <b>es-tools</b>
 What do you want to do?
 1. Generate an hash of a password (hash)
-2. Generate the default server configuration file"""
+2. Generate the default server configuration file
+3. Generate a self signed SSL certificate"""

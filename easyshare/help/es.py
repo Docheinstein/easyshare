@@ -57,7 +57,7 @@ class Es(CommandHelp, ArgsParser):
     def synopsis(cls):
         return f"""\
 es <A> # just for alignment
-<b>es</b> [<u>OPTION</u>]... [<u>COMMAND</u> [<u>COMMAND_ARGUMENTS</u>]]</a>"""
+<b>es</b> [<u>OPTION</u>]... [<u>COMMAND</u> [<u>COMMAND_OPTIONS</u>]]</a>"""
 
     @classmethod
     def see_more(cls):
@@ -75,25 +75,25 @@ unless the command is <b>open</b>.
 Type "<b>help <u>command</u>" for the full documentation of a <u>command</u>.
 
 Commands:   
-<I4>
+<I+4>
                     <A>
 help                show this help
 exit, quit, q       exit from the interactive shell
 trace, t            enable/disable packet tracing
 verbose, v          change verbosity level
 </i>
-<I4>
+<I+4>
 scan, s             scan the network for easyshare servers
 connect             connect to a remote server
 disconnect          disconnect from a remote server
 open, o             open a remote sharing (eventually discovering it)
 close, c            close the remote sharing
 </i>
-<I4>
+<I+4>
 get, g              get files and directories from the remote sharing
 put, p              put files and directories in the remote sharing
 </i>
-<I4>
+<I+4>
 pwd                 show the name of current local working directory
 ls                  list local directory content
 l                   alias for ls -la
@@ -105,7 +105,7 @@ mv                  move files and directories locally
 rm                  remove files and directories locally
 exec, :             execute an arbitrary command locally
 </i>
-<I4>
+<I+4>
 rpwd                show the name of current remote working directory
 rls                 list remote directory content
 rl                  alias for rls -la
@@ -117,7 +117,7 @@ rmv                 move files and directories remotely
 rrm                 remove files and directories remotely
 rexec, ::           execute an arbitrary command remotely (disabled by default) since it will compromise server security
 </i>
-<I4>
+<I+4>
 info, i             show information about the remote server
 list                list the sharings of the remote server
 ping                test the connection with the remote server</i></a>"""

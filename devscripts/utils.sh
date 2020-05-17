@@ -25,3 +25,14 @@ abort() {
   echo_red "$@"
   exit 1
 }
+
+assert_root() {
+  local euid
+
+  euid=$(id -u)
+
+  if [ "$euid" -ne 0 ]; then
+    # We are not root, require sudo
+    abort "Please run as root"
+  fi
+}

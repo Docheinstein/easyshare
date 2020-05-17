@@ -24,6 +24,11 @@ def generate_esd_conf():
     esd_conf_s = str(esd_conf_b, encoding="UTF-8")
     print(esd_conf_s)
 
+def generate_ssl_certificate():
+    print("Please install and use openssl for create a self-signed certificate")
+    print("A typical command for create a self-signed request could be:\n")
+    print("openssl req -x509 -keyout privkey.pem -days 365 -nodes -out cert.pem")
+
 
 def ask_and_generate_password():
     plain_pass = getpass("Password: ")
@@ -66,7 +71,8 @@ def main():
     # If no mode is specified, ask the user what to do
     TOOLS = {
         "1": (ask_and_generate_password, "PASSWORD GENERATOR"),
-        "2": (generate_esd_conf, "ESD CONFIG GENERATOR")
+        "2": (generate_esd_conf, "ESD CONFIG GENERATOR"),
+        "3": (generate_ssl_certificate, "SSL CERTIFICATE GENERATOR")
     }
     try:
         while True:
@@ -74,6 +80,7 @@ def main():
                 "What do you want to do?\n"
                 "1. Generate an hash of a password (hash)\n"
                 "2. Generate the default server configuration file\n"
+                "3. Generate a self signed SSL certificate\n"
             )
             if choice in TOOLS:
                 func, funcname = TOOLS[choice]

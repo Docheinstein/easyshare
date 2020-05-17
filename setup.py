@@ -33,7 +33,11 @@ setup(
     },
 
     data_files=[
-        ("share/man/man1", ["docs/es/build/man/es.1", "docs/esd/build/man/esd.1"])
+        ("share/man/man1", [
+            "docs/sphinx/build/man/es.1",
+            "docs/sphinx/build/man/esd.1",
+            "docs/sphinx/build/man/es-tools.1",
+        ])
     ],
 
     # Tests
@@ -42,7 +46,7 @@ setup(
     # Metadata
     author="Stefano Dottore",
     author_email="docheinstein@gmail.com",
-    description="FTP/SMB like protocol",
+    description="client-server command line application written in Python 3 for transfer files between network hosts",
     long_description=read('README.MD'),
     license="MIT",
     keywords="easyshare",

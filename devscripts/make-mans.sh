@@ -15,15 +15,13 @@ if ! pip_module_exists recommonmark; then
   abort "shinphx must be installed for build docs"
 fi
 
-echo_cyan "====== CREATING DOCS ====="
+echo_cyan "====== CREATING MANS ====="
 
-echo_cyan "========== MAN ==========="
 # es
-sphinx-build -M man docs/es docs/es/build
+sphinx-build -M man docs/sphinx/es docs/sphinx/build
 
 # esd
-sphinx-build -M man docs/esd docs/esd/build
+sphinx-build -M man docs/sphinx/esd docs/sphinx/build
 
-
-echo_cyan "========== HTML ==========="
-#sphinx-build -M man docs/source docs/build
+# es-tools
+sphinx-build -M man docs/sphinx/es-tools docs/sphinx/build
