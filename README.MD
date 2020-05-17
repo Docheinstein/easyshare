@@ -430,7 +430,7 @@ Currently in two ways:
 es-tools [OPTION]...
 ```
 
-If neither **-c** nor **-p** is given, an interactive script is started and you will be asked what to do.
+If neither -c nor -p is given, an interactive script is started and you will be asked what to do.
 
 #### OPTIONS
 ```
