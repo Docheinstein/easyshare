@@ -12,9 +12,10 @@ SCRIPT_PARENT_DIR, _ = os.path.split(SCRIPT_DIR)
 
 sys.path.append(SCRIPT_PARENT_DIR)
 
-from easyshare.help.esd import Esd
-from easyshare.help import CommandHelp, CommandOptionHelp
 from easyshare.help.es import Es
+from easyshare.help.esd import Esd
+from easyshare.help.estools import EsTools
+from easyshare.help import CommandHelp, CommandOptionHelp
 from easyshare.utils.json import j
 from easyshare.utils.str import sorted_i
 from easyshare.help.commands import COMMANDS_INFO
@@ -101,7 +102,7 @@ def generate_command_usage_markdown(info: Type[CommandHelp]):
 
     section_trail = make_section(
         None,
-        info.trail(),
+        info.see_more(),
         leading_endl=2,
         indent=0
     )
@@ -313,7 +314,9 @@ if __name__ == "__main__":
     eprint(f"Generating '{style}' help")
 
     cmds: List[Tuple[str, Type[CommandHelp]]] = \
-        list(COMMANDS_INFO.items()) + [(Es.name(), Es), (Esd.name(), Esd)]
+        list(COMMANDS_INFO.items()) + [
+            (Es.name(), Es), (Esd.name(), Esd), (EsTools.name(), EsTools)
+        ]
 
     cmd_helps_str = [(cmd_name, GENERATORS_MAPS[style](cmd_help))
                       for cmd_name, cmd_help in cmds] + [

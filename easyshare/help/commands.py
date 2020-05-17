@@ -769,6 +769,16 @@ List recursively, in a tree-like format, the local <u>DIR</u> or the current \
 local directory if no <u>DIR</u> is specified."""
 
     @classmethod
+    def examples(cls):
+        return """
+<b>/tmp></b> tree
+|-- dir
+|   |-- f1
+|   +-- f2
+|-- f1
++-- f2"""
+
+    @classmethod
     def see_also(cls):
         return """Type "<b>help rtree</b>" for the remote analogous."""
 
@@ -799,6 +809,15 @@ rtree <A> # just for alignment
 List recursively, in a tree-like format, the remote <u>DIR</u> or the current \
 remote directory if no <u>DIR</u> is specified"""
 
+    @classmethod
+    def examples(cls):
+        return """\
+<b>bob-debian.music:/</b> - <b>/tmp></b> rtree
+|-- dir
+|   |-- f1
+|   +-- f2
+|-- f1
++-- f2"""
     @classmethod
     def see_also(cls):
         return """Type "<b>help tree</b>" for the local analogous."""
@@ -1041,7 +1060,7 @@ f1      f2
 |-- f1
 +-- f2
 <b>bob-debian.music:/</b> - <b>/tmp></b> <b>rcp</b> <u>f1</u> <u>f2</u> <u>dir</u>
-<b>bob-debian.music:/</b> - <b>/tmp></b> rtree dir
+<b>bob-debian.music:/</b> - <b>/tmp></b> rtree
 |-- dir
 |   |-- f1
 |   +-- f2

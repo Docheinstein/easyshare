@@ -60,7 +60,7 @@ class CommandHelp(ABC):
         pass
 
     @classmethod
-    def trail(cls):
+    def see_more(cls):
         return None
 
     @classmethod

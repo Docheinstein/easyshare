@@ -83,7 +83,7 @@ esd <A> # just for alignment
 <b>esd</b> [<u>OPTION</u>]... [<u>SHARING</u> [<u>SHARING_NAME</u>] [<u>SHARING_OPTION</u>]...]</a>"""
 
     @classmethod
-    def trail(cls):
+    def see_more(cls):
         return "SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES"
 
     @classmethod
@@ -94,7 +94,7 @@ Server of the easyshare network application.
 Files and directories can be shared in one of the following manners:
    <A>
 1. By providing the path of the file/directory to share in the command line as <u>SHARING</u> 
-2. By creating a configuration file and specifying it with the option <b>-c</b> <u>config</u>.
+2. By creating a configuration file and specifying it with the option <b>-c</b> <u>config</u>
 </A>
 
 The option 1. should be preferred for an easy one-shot sharing of a file or directory, \

@@ -9,12 +9,11 @@ from easyshare.help.es import Es
 from easyshare.logging import get_logger
 from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT_SHORT, APP_VERSION, easyshare_setup, \
     DEFAULT_DISCOVER_TIMEOUT, APP_INFO
-from easyshare.res.helps import get_command_man, get_command_usage
+from easyshare.res.helps import get_command_usage
 from easyshare.tracing import enable_tracing
 from easyshare.utils.app import abort, terminate
 from easyshare.styling import enable_colors
 from easyshare.utils.env import is_stdout_terminal, are_colors_supported
-from easyshare.utils.hmd import HelpMarkdown
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
 from easyshare.utils.pyro import enable_pyro_logging
@@ -70,7 +69,7 @@ def main():
 
     # Help?
     if Es.HELP in args:
-        terminate(get_command_usage("es"))
+        terminate(get_command_usage(Es.name()))
 
     # Version?
     if Es.VERSION in args:

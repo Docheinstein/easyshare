@@ -3,23 +3,17 @@ import sys
 
 from getpass import getpass
 
-from easyshare import logging
-from easyshare.args import Args, ArgsParseError, ActionParam
+from easyshare.args import ArgsParseError
 from easyshare.auth import AuthScrypt
-from easyshare.common import APP_INFO
-from easyshare.logging import get_logger, init_logging
+from easyshare.common import APP_INFO, easyshare_setup
+from easyshare.help.estools import EsTools
+from easyshare.logging import get_logger
+from easyshare.res.helps import get_command_usage
 from easyshare.utils.app import abort, terminate
 
 
-log = get_logger("easyshare.tools", force_initialize=True)
-
-
-def generate_password():
-    plain_pass = getpass("Password: ")
-    if not plain_pass:
-        abort("Please insert a valid password")
-
-    auth = AuthScrypt.new(plain_pass)
+def generate_password(pw: str):
+    auth = AuthScrypt.new(pw)
     if not auth:
         abort("Cannot compute password")
 
@@ -31,29 +25,55 @@ def generate_esd_conf():
     print(esd_conf_s)
 
 
+def ask_and_generate_password():
+    plain_pass = getpass("Password: ")
+    if not plain_pass:
+        abort("Please insert a valid password")
+    generate_password(plain_pass)
+
 def main():
+    easyshare_setup()
+
+    # Parse arguments
+    args = None
+
     try:
-        Args.parse(
-            sys.argv[1:],
-            kwargs_specs= [
-                (["-v", "--version"], ActionParam(lambda _: terminate(APP_INFO))),
-            ]
-        )
-    except ArgsParseError:
-        log.exception("Arguments parsing error")
-        abort("Invalid command syntax")
+        args = EsTools().parse(sys.argv[1:])
+    except ArgsParseError as err:
+        abort("Parse of arguments failed: {}".format(str(err)))
 
+
+    # Help?
+    if EsTools.HELP in args:
+        terminate(get_command_usage(EsTools.name()))
+
+    # Version?
+    if EsTools.VERSION in args:
+        terminate(APP_INFO)
+
+
+    # Explicit mode?
+
+    if EsTools.GENERATE_ESD_CONF in args:
+        generate_esd_conf()
+        return
+
+    if EsTools.GENERATE_PASSWORD in args:
+        pw = args.get_kwarg_param(EsTools.GENERATE_PASSWORD)
+        generate_password(pw)
+        return
+
+    # If no mode is specified, ask the user what to do
     TOOLS = {
-        "1": (generate_password, "PASSWORD GENERATOR"),
-        "2": (generate_esd_conf, "ESD CONFIG GENERATOR (esd.conf)")
+        "1": (ask_and_generate_password, "PASSWORD GENERATOR"),
+        "2": (generate_esd_conf, "ESD CONFIG GENERATOR")
     }
-
     try:
         while True:
             choice = input(
                 "What do you want to do?\n"
-                "1. Generate secure password (hash)\n"
-                "2. Generate default esd.conf\n"
+                "1. Generate an hash of a password (hash)\n"
+                "2. Generate the default server configuration file\n"
             )
             if choice in TOOLS:
                 func, funcname = TOOLS[choice]

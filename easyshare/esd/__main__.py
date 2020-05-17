@@ -6,7 +6,7 @@ from easyshare.esd.common import Sharing
 
 from easyshare import logging
 from easyshare.args import Kwarg, PRESENCE_PARAM, ArgsParseError, \
-    Pargs
+    Pargs, StopParseArgs
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.daemons.discover import get_discover_daemon
 from easyshare.esd.daemons.transfer import get_transfer_daemon
@@ -33,7 +33,7 @@ log = get_logger(__name__)
 
 # === ARGUMENTS ===
 
-class SharingArgs(Pargs):
+class SharingArgs(StopParseArgs):
     READ_ONLY = ["-r", "--read-only"]
 
     def __init__(self):
@@ -118,7 +118,7 @@ def main():
 
     # Help?
     if Esd.HELP in g_args:
-        terminate(get_command_usage("esd"))
+        terminate(get_command_usage(Esd.name()))
 
     # Version?
     if Esd.VERSION in g_args:
@@ -349,7 +349,7 @@ def main():
 
     # Parse sharing arguments (only a sharing is allowed in the cli)
 
-    pargs = g_args.get_pargs()
+    pargs = g_args.get_unparsed_args()
     if pargs:
         log.d("Found %d positional args: considering those sharing args", len(pargs))
 

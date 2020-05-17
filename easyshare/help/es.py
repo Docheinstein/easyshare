@@ -60,7 +60,7 @@ es <A> # just for alignment
 <b>es</b> [<u>OPTION</u>]... [<u>COMMAND</u> [<u>COMMAND_ARGUMENTS</u>]]</a>"""
 
     @classmethod
-    def trail(cls):
+    def see_more(cls):
         return "SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES"
 
     @classmethod
