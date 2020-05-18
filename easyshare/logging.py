@@ -41,6 +41,7 @@ LEVEL_TO_VERBOSITY = {
 }
 
 _initialized = False
+_default_verbosity = None
 
 
 class Logger(logging.Logger):
@@ -91,12 +92,13 @@ class LoggerFormatter(logging.Formatter):
 _log_handler = logging.StreamHandler(sys.stdout)
 _log_handler.setFormatter(LoggerFormatter())
 
-def init_logging():
+def init_logging(default_verbosity: int = None):
     """
     Initializes the logger and add the easyshare extension
     (verbosity, short alias for printing) to the Logger
     """
     global _initialized
+    global _default_verbosity
 
     if _initialized:
         return
@@ -121,6 +123,14 @@ def init_logging():
     logging.Logger.set_verbosity = set_verbosity
 
     _initialized = True
+    _default_verbosity = default_verbosity
+
+    get_logger()
+
+
+# def set_default_verbosity(default_verbosity: int = None):
+#     global _default_verbosity
+#     _default_verbosity = default_verbosity
 
 
 def get_logger(name: str = ROOT_LOGGER_NAME,
@@ -132,6 +142,7 @@ def get_logger(name: str = ROOT_LOGGER_NAME,
     """
     # Don't call init_logging() even if is attempting...
     # We have to call it manually after checking the colors support
+    print("get_logger = ", name)
 
     fetch_name = ROOT_LOGGER_DISPLAY_NAME if name == ROOT_LOGGER_NAME else name
 
@@ -139,11 +150,13 @@ def get_logger(name: str = ROOT_LOGGER_NAME,
     if name == ROOT_LOGGER_NAME or root:
         logger.addHandler(_log_handler)
 
-    if verbosity is not None:
+    verb = verbosity if verbosity is not None else _default_verbosity
+
+    if verb is not None:
         # Set the level corresponding to the explicit verbosity
-        level = VERBOSITY_TO_LEVEL[rangify(verbosity, VERBOSITY_MIN, VERBOSITY_MAX)]
+        level = VERBOSITY_TO_LEVEL[rangify(verb, VERBOSITY_MIN, VERBOSITY_MAX)]
         logger.setLevel(level)
-        logger.verbosity = verbosity
+        logger.verbosity = verb
     else:
         # Keep the default level and make verbosity consistent with the level
         level = logger.getEffectiveLevel()

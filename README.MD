@@ -440,6 +440,18 @@ If neither -c nor -p is given, an interactive script is started and you will be 
 -V, --version                     show the easyshare version
 ```
 
+## TESTING
+
+Tests can be run with:
+```
+pytest
+```
+
+For run tests with stdout enabled
+
+```
+pytest -s
+```
 ## TODO
 * Testing on Windows
 * *find* and *rfind* command that finds files by name and tag those with incremental IDs (1, 2)

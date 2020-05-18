@@ -1,0 +1,16 @@
+action: python, msg: installpkg
+cwd: /home/stefano/Develop/Python/easyshare
+cmd: /home/stefano/Develop/Python/easyshare/.tox/python/bin/python -m pip install --no-deps -U .tox/.tmp/package/1/easyshare-0.1.zip
+Processing ./.tox/.tmp/package/1/easyshare-0.1.zip
+Building wheels for collected packages: easyshare
+  Building wheel for easyshare (setup.py): started
+  Building wheel for easyshare (setup.py): finished with status 'done'
+  Created wheel for easyshare: filename=easyshare-0.1-py3-none-any.whl size=156352 sha256=f9a73b8e95b56a9c4afc6b76177d3e77ffcc09975cf5c486906301a4b4f7b1ee
+  Stored in directory: /home/stefano/.cache/pip/wheels/e3/18/dd/92a3861d011e6520cecd1a62dd9a2936ad1d9509a7db96c286
+Successfully built easyshare
+Installing collected packages: easyshare
+  Attempting uninstall: easyshare
+    Found existing installation: easyshare 0.1
+    Uninstalling easyshare-0.1:
+      Successfully uninstalled easyshare-0.1
+Successfully installed easyshare-0.1

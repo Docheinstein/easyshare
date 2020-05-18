@@ -1,0 +1,18 @@
+action: python, msg: installpkg
+cwd: /home/stefano/Develop/Python/easyshare
+cmd: /home/stefano/Develop/Python/easyshare/.tox/python/bin/python -m pip install --exists-action w .tox/.tmp/package/1/easyshare-0.1.zip
+Processing ./.tox/.tmp/package/1/easyshare-0.1.zip
+Collecting Pyro5
+  Downloading Pyro5-5.10-py3-none-any.whl (78 kB)
+Collecting colorama
+  Using cached colorama-0.4.3-py2.py3-none-any.whl (15 kB)
+Collecting serpent>=1.27
+  Using cached serpent-1.30.2-py3-none-any.whl (9.6 kB)
+Building wheels for collected packages: easyshare
+  Building wheel for easyshare (setup.py): started
+  Building wheel for easyshare (setup.py): finished with status 'done'
+  Created wheel for easyshare: filename=easyshare-0.1-py3-none-any.whl size=156068 sha256=18b01b09d93ec558fb040e59bc1a2c6a1667517f4466e9b53688d2f89f8422d1
+  Stored in directory: /home/stefano/.cache/pip/wheels/e3/18/dd/92a3861d011e6520cecd1a62dd9a2936ad1d9509a7db96c286
+Successfully built easyshare
+Installing collected packages: serpent, Pyro5, colorama, easyshare
+Successfully installed Pyro5-5.10 colorama-0.4.3 easyshare-0.1 serpent-1.30.2

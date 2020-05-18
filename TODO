@@ -16,3 +16,6 @@
 - Add unit tests
 - Handle addresses instead of numeric IPs
 - Info/debug messages re-partition
+- pydoc: args, os, es, esd
+- find, rfind
+- sync / get --sync

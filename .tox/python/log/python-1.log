@@ -1,0 +1,23 @@
+action: python, msg: getenv
+cwd: /home/stefano/Develop/Python/easyshare
+cmd: /home/stefano/Develop/Python/easyshare/.tox/python/bin/python -m pip install pytest
+Collecting pytest
+  Downloading pytest-5.4.2-py3-none-any.whl (247 kB)
+Collecting attrs>=17.4.0
+  Downloading attrs-19.3.0-py2.py3-none-any.whl (39 kB)
+Collecting py>=1.5.0
+  Using cached py-1.8.1-py2.py3-none-any.whl (83 kB)
+Collecting pluggy<1.0,>=0.12
+  Using cached pluggy-0.13.1-py2.py3-none-any.whl (18 kB)
+Collecting wcwidth
+  Downloading wcwidth-0.1.9-py2.py3-none-any.whl (19 kB)
+Collecting packaging
+  Using cached packaging-20.3-py2.py3-none-any.whl (37 kB)
+Collecting more-itertools>=4.0.0
+  Downloading more_itertools-8.3.0-py3-none-any.whl (44 kB)
+Collecting six
+  Using cached six-1.14.0-py2.py3-none-any.whl (10 kB)
+Collecting pyparsing>=2.0.2
+  Using cached pyparsing-2.4.7-py2.py3-none-any.whl (67 kB)
+Installing collected packages: attrs, py, pluggy, wcwidth, six, pyparsing, packaging, more-itertools, pytest
+Successfully installed attrs-19.3.0 more-itertools-8.3.0 packaging-20.3 pluggy-0.13.1 py-1.8.1 pyparsing-2.4.7 pytest-5.4.2 six-1.14.0 wcwidth-0.1.9

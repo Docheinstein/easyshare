@@ -1,0 +1,535 @@
+.\" Man page generated from reStructuredText.
+.
+.TH "ES" "1" "May 17, 2020" "" "easyshare"
+.SH NAME
+es \- client of the easyshare application
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.SH SYNOPSIS
+.sp
+es [\fIOPTION\fP]\&... [\fICOMMAND\fP [\fICOMMAND_OPTIONS\fP]]
+.SH DESCRIPTION
+.sp
+\fBeasyshare\fP is a client\-server command line application written in Python for transfer files between network hosts.
+.sp
+\fBes\fP is the client of the easyshare network application.
+.sp
+If no \fICOMMAND\fP is given, the interactive console is started. If \fICOMMAND\fP is a valid command, it is executed and the process quits unless the command is open.
+.sp
+Type "\fBhelp\fP \fIcommand\fP" for the full documentation of a command.
+.SH OPTIONS
+.sp
+\fB\-d\fP, \fB\-\-discover\-port\fP \fIport\fP
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+Port used for broadcast discovery messages.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+Default is 12019.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+\fB\-h\fP, \fB\-\-help\fP
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+Show this help
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+\fB\-\-no\-color\fP
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+Don\(aqt print ANSI escape characters
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+\fB\-t\fP, \fB\-\-trace\fP [\fI0_or_1\fP]
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+Enable tracing
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+If \fI0_or_1\fP is not given, enable tracing.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+\fB\-v\fP, \fB\-\-verbose\fP [\fIlevel\fP]
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+Set verbosity level (from 0 to 5).
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+If \fIlevel\fP is not given, set the verbosity to DEBUG (4).
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+\fB\-V\fP, \fB\-\-version\fP
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+Show the easyshare version
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+\fB\-w\fP, \fB\-\-discover\-wait\fP \fIseconds\fP
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+Time to wait for discovery responses.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+Default is 2 seconds.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH COMMANDS
+.SS General commands
+.INDENT 0.0
+.INDENT 3.5
+help              show this help
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+exit, quit, q     exit from the interactive shell
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+trace, t          enable/disable packet tracing
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+verbose, v        change verbosity level
+.UNINDENT
+.UNINDENT
+.SS Connection establishment commands
+.INDENT 0.0
+.INDENT 3.5
+scan, s           scan the network for easyshare servers
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+connect           connect to a remote server
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+disconnect        disconnect from a remote server
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+open, o           open a remote sharing (eventually discovering it)
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+close, c          close the remote sharing
+.UNINDENT
+.UNINDENT
+.SS Transfer commands
+.INDENT 0.0
+.INDENT 3.5
+get, g            get files and directories from the remote sharing
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+put, p            put files and directories in the remote sharing
+.UNINDENT
+.UNINDENT
+.SS Local commands
+.INDENT 0.0
+.INDENT 3.5
+pwd               show the name of current local working directory
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+ls                list local directory content
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+l                 alias for ls \-la
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+tree              list local directory contents in a tree\-like format
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+cd                change local working directory
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+mkdir             create a local directory
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+cp                copy files and directories locally
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+mv                move files and directories locally
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+rm                remove files and directories locally
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+exec, :           execute an arbitrary command locally
+.UNINDENT
+.UNINDENT
+.SS Remote commands
+.INDENT 0.0
+.INDENT 3.5
+rpwd              show the name of current remote working directory
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+rls               list remote directory content
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+rl                alias for rls \-la
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+rtree             list remote directory contents in a tree\-like format
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+rcd               change remote working directory
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+rmkdir            create a remote directory
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+rcp               copy files and directories remotely
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+rmv               move files and directories remotely
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+rrm               remove files and directories remotely
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+rexec, ::         execute an arbitrary command remotely (disabled by default) since it will compromise server security
+.UNINDENT
+.UNINDENT
+.SH EXAMPLES
+.sp
+These are only examples, see the \fIhelp\fP section of each command for known exactly
+what you can do.
+.INDENT 0.0
+.IP \(bu 2
+Start the interactive shell (from which you can use any command)
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+\fBes\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Scan the network for easyshare sharings
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+\fBes\fP \fIscan\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+alice\-arch (192.168.1.105:12020)
+  DIRECTORIES
+  \- shared
+  \- tmp
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Open a sharing by name (implicit discovery and server connection) and start the interactive shell
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+\fBes\fP \fIopen\fP \fIshared\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+alice\-arch.shared:/ \- /tmp>
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Get the content of a sharing by name
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+\fBes\fP \fIget\fP \fIshared\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+GET shared/f1    [===================] 100%  745KB/745KB
+GET outcome: OK
+Files        1  (745KB)
+Time         1s
+Avg. speed   1MB/s
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Open a sharing by name and put some files into it
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+\fBes\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/tmp> open shared
+alice\-arch.shared:/ \- /tmp> rls
+f1      f2
+alice\-arch.shared:/ \- /tmp> put /tmp/afile
+PUT afile    [===================] 100%  745KB/745KB
+PUT outcome: OK
+Files        1  (745KB)
+Time         1s
+Avg. speed   1MB/s
+alice\-arch.shared:/ \- /tmp> rls
+f1      f2      afile
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Connect to a server by specific address and port, then list the available sharings
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+\fBes\fP \fIconnect\fP \fI192.168.1.105:12020\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+alice\-arch:/ \- /tmp> list
+DIRECTORIES
+\- shared
+\- tmp
+FILES
+\- zshrc
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+See content of the remote sharing, then move some files
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+\fBes\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/tmp> open shared
+alice\-arch.shared:/ \- /tmp> rtree
+/tmp> tree
+|\-\- dir
+|   |\-\- f3
+|   +\-\- f4
+|\-\- f1
++\-\- f2
+alice\-arch.shared:/ \- /tmp> rmv f1 f2 dir
+alice\-arch.shared:/ \- /tmp> rtree
++\-\- dir
+    |\-\- f1
+    |\-\- f2
+    |\-\- f3
+    +\-\- f4
+alice\-arch.shared:/ \- /tmp> rcd dir
+alice\-arch.shared:/dir \- /tmp> rls
+f1      f2      f3      f4
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Arbitrary local command execution
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+\fBes\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+>/tmp> cd d
+/tmp/d> ls
+f0  
+/tmp> :touch f1
+f0      f1
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+Arbitrary remote command execution (DISABLED BY DEFAULT)
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+\fBes\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+/tmp> connect alice\-arch
+alice\-arch:/ \- /tmp> ::whoami
+alice
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AUTHOR
+Stefano Dottore
+.SH COPYRIGHT
+2020, Stefano Dottore
+.\" Generated by docutils manpage writer.
+.
