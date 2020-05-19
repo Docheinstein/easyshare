@@ -9,7 +9,7 @@ from easyshare.helps import CommandHelp, CommandOptionInfo
 _AVAILABLE_COMMANDS_STR = """\
 <I+4>
                     <A>
-helps                show this helps
+help                show this help
 exit, quit, q       exit from the interactive shell
 trace, t            enable/disable packet tracing
 verbose, v          change verbosity level
@@ -55,8 +55,8 @@ list                list the sharings of the remote server
 ping                test the connection with the remote server</i></a>"""
 
 USAGE = f"""\
-Type <b>es<b> <u>--helps</u> for see <b>es</b> usage and options.
-Type <b>helps <u>command</u> for the full documentation of a <u>command</u>.
+Type <b>es<b> <u>--help</u> for see <b>es</b> usage and options.
+Type <b>help <u>command</u> for the full documentation of a <u>command</u>.
 
 Available commands are:     
                     <a>
@@ -66,7 +66,7 @@ Available commands are:
 
 class Es(CommandHelp, ArgsSpec):
 
-    HELP = ["-h", "--helps"]
+    HELP = ["-h", "--help"]
     VERSION = ["-V", "--version"]
 
     DISCOVER_PORT = ["-d", "--discover-port"]
@@ -94,7 +94,7 @@ class Es(CommandHelp, ArgsSpec):
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionInfo(cls.HELP, "show this helps"),
+            CommandOptionInfo(cls.HELP, "show this help"),
             CommandOptionInfo(cls.VERSION, "show the easyshare version"),
             CommandOptionInfo(cls.DISCOVER_PORT, "port used for broadcast discovery messages", params=["port"]),
             CommandOptionInfo(cls.DISCOVER_TIMEOUT, "time to wait for discovery responses", params=["seconds"]),
@@ -130,7 +130,7 @@ If no <b>COMMAND</b> is given, the interactive console is started.
 If <b>COMMAND</b> is a valid command, it is executed and the process quits \
 unless the command is <b>open</b>.
 
-Type "<b>helps <u>command</u>" for the full documentation of a <u>command</u>.
+Type "<b>help <u>command</u>" for the full documentation of a <u>command</u>.
 
 Commands:
 {_AVAILABLE_COMMANDS_STR}"""

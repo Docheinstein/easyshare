@@ -67,7 +67,7 @@ class Server:
         )
 
         self.server_service = ServerService(
-            sharings=[],
+            sharings=sharings,
             name=name or socket.gethostname(),
             address=address,
             port=port,

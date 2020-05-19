@@ -36,28 +36,28 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None):
     if not strings:
         return
 
-    log.d("len(strings) %d", len(strings))
+    log.d("print_tabulated - len(strings) %d", len(strings))
 
     term_cols, _ = terminal_size()
-    log.d("term_cols %d", term_cols)
+    log.d("print_tabulated - term_cols %d", term_cols)
 
     longest_string_length = len(str(max(strings, key=lambda ss: len(str(ss)))))
-    log.d("longest_match_length %d", longest_string_length)
+    log.d("print_tabulated - longest_match_length %d", longest_string_length)
 
     min_col_width = longest_string_length + 2
-    log.d("min_col_width %d", min_col_width)
+    log.d("print_tabulated - min_col_width %d", min_col_width)
 
     max_allowed_cols = max_columns if max_columns else 50
-    log.d("max_allowed_cols %d", max_allowed_cols)
+    log.d("print_tabulated - max_allowed_cols %d", max_allowed_cols)
 
     max_fillable_cols = term_cols // min_col_width
-    log.d("max_fillable_cols %d", max_fillable_cols)
+    log.d("print_tabulated - max_fillable_cols %d", max_fillable_cols)
 
     display_cols = max(1, min(max_allowed_cols, max_fillable_cols))
-    log.d("display_cols %d", display_cols)
+    log.d("print_tabulated - display_cols %d", display_cols)
 
     display_rows = ceil(len(strings) / display_cols)
-    log.d("display_rows %d", display_rows)
+    log.d("print_tabulated - display_rows %d", display_rows)
 
     for r in range(0, display_rows):
         print_row = ""
@@ -113,7 +113,7 @@ def print_files_info_list(infos: List[FileInfo],
             file_str += s
 
         if show_size:
-            s = size_str(size, prefixes=(" ", "M", "K", "G")).rjust(4) + "  "
+            s = size_str(size, prefixes=(" ", "K", "M", "G")).rjust(4) + "  "
             file_str += s
 
         file_str_styled = file_str
@@ -148,7 +148,7 @@ def print_files_info_tree(root: TreeNodeDict,
 
         print("{}{}{}".format(
             prefix,
-            "[{}]  ".format(size_str(size, prefixes=(" ", "M", "K", "G")).rjust(4)) if show_size else "",
+            "[{}]  ".format(size_str(size, prefixes=(" ", "K", "M", "G")).rjust(4)) if show_size else "",
             fg(name, color=DIR_COLOR if ftype == FTYPE_DIR else FILE_COLOR),
         ))
 
@@ -218,6 +218,7 @@ SSL:            {tf(info.get("ssl"), "enabled", "disabled")}
 
 {sharings_to_pretty_str(info.get("sharings"), details=sharing_details, indent=2)}
 
+================================
 """
 
     return s

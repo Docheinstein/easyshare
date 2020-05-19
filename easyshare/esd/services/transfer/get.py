@@ -33,12 +33,11 @@ class GetService(IGetService, TransferService):
     def __init__(self,
                  files: List[Tuple[str, str]], # local path, remote prefix
                  check: bool,
-                 port: int,
                  sharing: Sharing,
                  sharing_rcwd,
                  client: ClientContext,
                  end_callback: Callable[[BaseClientService], None]):
-        super().__init__(port, sharing, sharing_rcwd, client, end_callback)
+        super().__init__(sharing, sharing_rcwd, client, end_callback)
         self._check = check
         self._next_servings = files
         self._active_servings = queue.Queue()

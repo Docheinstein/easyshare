@@ -12,6 +12,8 @@ SCRIPT_PARENT_DIR, _ = os.path.split(SCRIPT_DIR)
 
 sys.path.append(SCRIPT_PARENT_DIR)
 
+# Now we can import easyshare stuff
+
 from easyshare.helps.es import Es, USAGE
 from easyshare.helps.esd import Esd
 from easyshare.helps.estools import EsTools
@@ -19,8 +21,7 @@ from easyshare.helps import CommandHelp, CommandOptionInfo, CommandUsage
 from easyshare.utils.json import j
 from easyshare.utils.str import isorted
 from easyshare.helps.commands import COMMANDS_INFO
-from easyshare.utils.app import eprint
-
+from easyshare.utils import eprint
 
 
 def make_section(name: Optional[str], content: str, *,

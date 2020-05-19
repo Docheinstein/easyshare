@@ -7,7 +7,7 @@ from easyshare.helps import CommandHelp, CommandOptionInfo
 
 class Esd(CommandHelp, ArgsSpec):
 
-    HELP = ["-h", "--helps"]
+    HELP = ["-h", "--help"]
     VERSION = ["-V", "--version"]
 
     CONFIG = ["-c", "--config"]
@@ -50,9 +50,9 @@ class Esd(CommandHelp, ArgsSpec):
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionInfo(cls.HELP, "show this helps"),
+            CommandOptionInfo(cls.HELP, "show this help"),
             CommandOptionInfo(cls.VERSION, "show the easyshare version"),
-            CommandOptionInfo(cls.CONFIG, "load settings from a esd configuration file", params=["config_path"]),
+            CommandOptionInfo(cls.CONFIG, "load settings from a server configuration file", params=["config_path"]),
             CommandOptionInfo(cls.NAME, "server name (default is server hostname)", params=["name"]),
             CommandOptionInfo(cls.ADDRESS, "server address (default is primary interface)", params=["address"]),
             CommandOptionInfo(cls.PORT, "server port (default is 12020)", params=["port"]),

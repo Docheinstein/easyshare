@@ -5,7 +5,7 @@ from easyshare.helps import CommandHelp, CommandOptionInfo
 
 
 class EsTools(CommandHelp, ArgsSpec):
-    HELP = ["-h", "--helps"]
+    HELP = ["-h", "--help"]
     VERSION = ["-V", "--version"]
 
     GENERATE_PASSWORD = ["-p", "--hash-password"]
@@ -23,7 +23,7 @@ class EsTools(CommandHelp, ArgsSpec):
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
         return [
-            CommandOptionInfo(cls.HELP, "show this helps"),
+            CommandOptionInfo(cls.HELP, "show this help"),
             CommandOptionInfo(cls.VERSION, "show the easyshare version"),
             CommandOptionInfo(cls.GENERATE_PASSWORD, "generate an hash of the password", params=["password"]),
             CommandOptionInfo(cls.GENERATE_ESD_CONF, "generate default esd.conf file"),

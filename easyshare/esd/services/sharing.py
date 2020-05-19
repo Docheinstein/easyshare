@@ -390,7 +390,6 @@ class SharingService(ISharingService, BaseClientSharingService):
         get = GetService(
             normalized_paths,
             check=check,
-            port=transfer_port(self._server_port),
             sharing=self._sharing,
             sharing_rcwd=self._rcwd,
             client=self._client,
@@ -421,7 +420,6 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         put = PutService(
             check=check,
-            port=transfer_port(self._server_port),
             sharing=self._sharing,
             sharing_rcwd=self._rcwd,
             client=self._client,

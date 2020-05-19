@@ -86,7 +86,7 @@ def main():
 
     # Help?
     if Es.HELP in args:
-        terminate(get_command_usage(Es.name()))
+        _print_usage_and_quit()
 
     # Version?
     if Es.VERSION in args:
@@ -206,6 +206,18 @@ def main():
         # Start the shell
         log.i("Starting interactive shell")
         shell.input_loop()
+
+
+
+def _print_usage_and_quit():
+    """ Prints the es usage and exit """
+    es_usage = get_command_usage(Es.name())
+
+    if not es_usage:
+        # Something went wrong with the dynamic loading of the usage
+        abort(f"Can't provide usage of '{Es.name()}'")
+
+    terminate(es_usage)
 
 
 if __name__ == "__main__":

@@ -14,11 +14,11 @@ def require_connected_connection(api):
     Raises a NOT_CONNECTED if is_connected() is False.
     """
     def require_connected_wrapper(conn: 'Connection', *vargs, **kwargs) -> Response:
-        log.d("Checking esd connection validity before invoking %s", api.__name__)
+        log.d("require_connected_connection check before invoking '%s'", api.__name__)
         if not conn.is_connected():
-            log.w("require_connected: not connected")
+            log.w("require_connected_connection: FAILED")
             return create_error_response(ClientErrors.NOT_CONNECTED)
-        log.d("Connection is valid, invoking %s", api.__name__)
+        log.d("require_connected_connection: OK - invoking '%s'", api.__name__)
         return api(conn, *vargs, **kwargs)
 
     require_connected_wrapper.__name__ = api.__name__

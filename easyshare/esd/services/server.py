@@ -224,7 +224,7 @@ class ServerService(IServer, BaseService):
     @try_or_command_failed_response
     def rexec(self, cmd: str) -> Response:
         if not self._rexec_enabled:
-            log.e("Client attempted remote command execution; denying since rexec is disabled")
+            log.w("Client attempted remote command execution; denying since rexec is disabled")
             return create_error_response(ServerErrors.NOT_ALLOWED)
 
         client = self._current_request_client()

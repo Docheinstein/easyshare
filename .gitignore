@@ -9,3 +9,4 @@ __pycache__
 /docs/sphinx/src/html/LICENSE.txt
 /docs/sphinx/src/html/README.MD
 /.tox/
+.pytest_cache

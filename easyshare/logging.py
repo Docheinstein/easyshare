@@ -4,8 +4,8 @@ import sys
 from easyshare.styling import green, blue, yellow, red
 from easyshare.utils.mathematics import rangify
 
-ROOT_LOGGER_NAME = "__main__"
-ROOT_LOGGER_DISPLAY_NAME = "easyshare"
+ROOT_LOGGER_NAME = "__main__"           # the real name of the root logger
+ROOT_LOGGER_DISPLAY_NAME = "easyshare"  # the name we'll use to to render the root logger
 
 VERBOSITY_NONE = 0
 VERBOSITY_ERROR = 1
@@ -45,6 +45,11 @@ _default_verbosity = None
 
 
 class Logger(logging.Logger):
+    """
+    Extends the python Logger by adding the aliases e, w, i, d.
+    Adds the concept of "verbosity", which is just a more convenient
+    name for treat levels (verbosity has a consecutive enumeration).
+    """
     @property
     def verbosity(self):
         return
@@ -74,8 +79,9 @@ class LoggerFormatter(logging.Formatter):
         )
 
     def format(self, record: logging.LogRecord) -> str:
-        self._style._fmt = self._error_fmt() \
-            if record.levelno == LEVEL_ERROR else self._default_fmt()
+        self._style._fmt = self._lineno_fmt() \
+            if (record.levelno == LEVEL_ERROR or record.levelno == LEVEL_WARNING)\
+            else self._default_fmt()
         return super().format(record)
 
     def _default_fmt(self):
@@ -83,7 +89,7 @@ class LoggerFormatter(logging.Formatter):
                ("%(asctime)s.%(msecs)03d " if self._show_time else "") + \
                "%(message)s"
 
-    def _error_fmt(self):
+    def _lineno_fmt(self):
         return "%(levelname)s {%(name)s:%(lineno)d} " + \
                ("%(asctime)s.%(msecs)03d " if self._show_time else "") + \
                "%(message)s"
@@ -95,7 +101,9 @@ _log_handler.setFormatter(LoggerFormatter())
 def init_logging(default_verbosity: int = None):
     """
     Initializes the logger and add the easyshare extension
-    (verbosity, short alias for printing) to the Logger
+    (verbosity, short alias for printing) to the Logger.
+    If not None, new loggers will be initialized to this level.
+    After this call, the root logger is already configured.
     """
     global _initialized
     global _default_verbosity
@@ -125,12 +133,9 @@ def init_logging(default_verbosity: int = None):
     _initialized = True
     _default_verbosity = default_verbosity
 
+    # We can initialize the root logger at this point
     get_logger()
 
-
-# def set_default_verbosity(default_verbosity: int = None):
-#     global _default_verbosity
-#     _default_verbosity = default_verbosity
 
 
 def get_logger(name: str = ROOT_LOGGER_NAME,
@@ -142,7 +147,6 @@ def get_logger(name: str = ROOT_LOGGER_NAME,
     """
     # Don't call init_logging() even if is attempting...
     # We have to call it manually after checking the colors support
-    print("get_logger = ", name)
 
     fetch_name = ROOT_LOGGER_DISPLAY_NAME if name == ROOT_LOGGER_NAME else name
 

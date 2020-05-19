@@ -7,11 +7,11 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def terminate(message = None) -> NoReturn:
+def terminate(message = None, exit_code = 0) -> NoReturn:
     """ Exit GRACEFULLY with the given message and exit code """
     if message:
         print(message)
-    exit(0)
+    exit(exit_code)
 
 
 def abort(message = None, exit_code = 1) -> NoReturn:

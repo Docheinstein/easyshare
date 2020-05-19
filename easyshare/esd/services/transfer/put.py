@@ -33,12 +33,11 @@ class PutService(IPutService, TransferService):
     """
     def __init__(self,
                  check: bool,
-                 port: int,
                  sharing: Sharing,
                  sharing_rcwd,
                  client: ClientContext,
                  end_callback: Callable[[BaseClientService], None]):
-        super().__init__(port, sharing, sharing_rcwd, client, end_callback)
+        super().__init__(sharing, sharing_rcwd, client, end_callback)
         self._check = check
         self._incomings = Queue()
 
@@ -104,7 +103,7 @@ class PutService(IPutService, TransferService):
                     log.d("Our version is older, will accept file")
 
             elif overwrite_policy == OverwritePolicy.YES:
-                log.d("Overwrite policy is PROMPT, overwriting it unconditionally")
+                log.d("Overwrite policy is YES, overwriting it unconditionally")
 
         self._incomings.put((real_path, fsize))
 
@@ -135,6 +134,7 @@ class PutService(IPutService, TransferService):
                 readlen = min(incoming_file_len - cur_pos, BEST_BUFFER_SIZE)
 
                 # Read from the remote
+                log.d("Waiting a chunk of %dB", readlen)
                 chunk = self._transfer_sock.recv(readlen)
 
                 if not chunk:

@@ -208,7 +208,7 @@ class Shell:
         except:
             log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
 
-    def _display_suggestions(self, substitution, matches, longest_match_length):
+    def _display_suggestions(self, substitution_help, matches, longest_match_length):
         """ Display the current suggestions """
         # Simulate the default behaviour of readline, but:
         # 1. Separate the concept of suggestion/rendered suggestion: in this
@@ -244,11 +244,14 @@ class Shell:
                     log.d("Fetching suggestions intent for command '%s'", comm_name)
 
                     self._suggestions_intent = comm_info.suggestions(
-                        token, stripped_current_line, self._client)
+                        token, stripped_current_line, self._client
+                    ) or self._suggestions_intent # don't let it to be None
 
-                    log.d("Fetched (%d) suggestions intent for command '%s'",
-                          len(self._suggestions_intent.suggestions),
-                          comm_name)
+                    if self._suggestions_intent:
+                        log.d("Fetched (%d) suggestions intent for command '%s'",
+                              len(self._suggestions_intent.suggestions),
+                              comm_name)
+
                     break
 
                 if comm_name.startswith(stripped_current_line):
@@ -338,19 +341,14 @@ class Shell:
         """ help - display the man of a command """
         cmd = args.get_positional()
 
-        # if cmd is not None and cmd not in COMMANDS_INFO:
-        #     eprint("Can't provide helps for command '{}'".format(cmd))
-        #     return
+        cmd_help = get_command_help(cmd)
 
-        try:
-            formatted_cmd_help = get_command_help(cmd)
-        except HelpMarkdownParseError:
-            log.exception("Exception occurred while parsing markdown of helps")
-            eprint("Can't provide helps for command '{}'".format(cmd))
+        if not cmd_help:
+            eprint(f"Can't provide help for command '{cmd}'")
             return
 
-        # Pass the helps to the available helps (typically less)
-        pydoc.pager(formatted_cmd_help)
+        # Pass the helps to the available pager (typically less)
+        pydoc.pager(cmd_help)
 
 
     @staticmethod

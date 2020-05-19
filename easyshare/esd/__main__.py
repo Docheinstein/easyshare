@@ -113,12 +113,11 @@ ESD_CONF_SPEC = {
 
 # ==================================================================
 
-
 def main():
     easyshare_setup()
 
     if len(sys.argv) <= 1:
-        terminate(get_command_usage("esd"))
+        _print_usage_and_quit()
 
     # Parse arguments
     g_args = None
@@ -142,7 +141,7 @@ def main():
 
     # Help?
     if Esd.HELP in g_args:
-        terminate(get_command_usage(Esd.name()))
+        _print_usage_and_quit()
 
     # Version?
     if Esd.VERSION in g_args:
@@ -447,9 +446,10 @@ def main():
 
     # Print server start info
 
-    sharings_str = ""
-    for sharing in sharings.values():
-        sharings_str += "* " + sharing.name + " --> " + sharing.path + "\n"
+
+    sharings_str = \
+        "\n".join([("* " + sh.name + " --> " + sh.path)
+                   for sh in sharings.values()]) if sharings else "NONE"
 
     print(f"""\
 ================================
@@ -479,6 +479,17 @@ Remote execution:   {tf(server.server_service.is_rexec_enabled(), "enabled", "di
     server.start()
 
     print("\n" + bold("DONE"))
+
+
+def _print_usage_and_quit():
+    """ Prints the esd usage and exit """
+    esd_usage = get_command_usage(Esd.name())
+
+    if not esd_usage:
+        # Something went wrong with the dynamic loading of the usage
+        abort(f"Can't provide usage of '{Esd.name()}'")
+
+    terminate(esd_usage)
 
 
 if __name__ == "__main__":

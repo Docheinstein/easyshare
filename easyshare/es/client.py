@@ -25,7 +25,6 @@ from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, print_error, ErrorsStrings
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str, server_info_to_short_str
-from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
 from easyshare.progress import FileProgressor
 from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService
@@ -98,7 +97,7 @@ def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
             sharing_conn.close()
 
         if server_conn != client.server_connection:
-            log.d("Closing temporary esd connection")
+            log.d("Closing temporary server connection")
             server_conn.disconnect()
 
     wrapper.__name__ = api.__name__
@@ -122,7 +121,7 @@ def make_server_connection_api_wrapper(api, connect: bool):
         # just after the api call.
         # The connection is established treating the first arg of
         # args as a 'ServerLocation'
-        log.d("Checking if esd connection exists before invoking %s", api.__name__)
+        log.d("Checking if server connection exists before invoking %s", api.__name__)
 
         server_conn = client._get_current_server_connection_or_create_from_server_location_args(
             args,
@@ -132,12 +131,16 @@ def make_server_connection_api_wrapper(api, connect: bool):
         if not server_conn:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        log.d("Server connection established, invoking %s", api.__name__)
+        log.d("Server connection established, invoking '%s'", api.__name__)
         api(client, args, server_conn, None)
 
-        if server_conn != client.server_connection:
-            log.d("Disconnecting temporary esd connection")
-            server_conn.disconnect()
+        if connect:
+            if server_conn != client.server_connection:
+                log.d("Disconnecting temporary server connection")
+                server_conn.disconnect()
+            # we have used our current server connection; don't disconnect it
+        else:
+            log.d("Server connection doesn't need to be disconnect()ed since connect=False")
 
     wrapper.__name__ = api.__name__
 
@@ -511,7 +514,7 @@ class Client:
                     self.server_connection.server_info,
                     server_location
             ):
-                log.w("Current connection already satisfy esd location constraints")
+                log.w("Current connection already satisfy server location constraints")
                 return
 
         # Actually create the connection
@@ -526,7 +529,7 @@ class Client:
         log.i("Server connection established")
 
         if self.is_connected_to_server():
-            log.i("Disconnecting current esd connection before set the new one")
+            log.i("Disconnecting current server connection before set the new one")
             self.server_connection.disconnect()
 
         self.server_connection = new_server_conn
@@ -549,7 +552,7 @@ class Client:
         new_server_conn: Optional[ServerConnection] = None
         new_sharing_conn: Optional[SharingConnection] = None
 
-        # Check whether we are connected to a esd which owns the
+        # Check whether we are connected to a server which owns the
         # sharing we are looking for, otherwise performs a scan
         sharing_location = SharingLocation.parse(args.get_positional())
 
@@ -565,7 +568,7 @@ class Client:
             ):
                 # The sharing is among the sharings of this connection
                 log.d("The sharing we are looking for is among the sharings"
-                      " of the already established esd connection")
+                      " of the already established server connection")
 
                 # Check whether we are already connected to it, just in case
                 if self.is_connected_to_sharing() and \
@@ -573,7 +576,7 @@ class Client:
                     log.w("Current sharing connection already satisfy the sharing constraints")
                     return
 
-                # Do an open() with this esd connection
+                # Do an open() with this server connection
                 new_sharing_conn = Client.create_sharing_connection_from_server_connection(
                     self.server_connection,
                     sharing_name=sharing_location.name
@@ -598,14 +601,14 @@ class Client:
             self.sharing_connection.close()
 
         if new_server_conn != self.server_connection and self.is_connected_to_server():
-            log.i("Closing current esd connection before set the new one")
+            log.i("Closing current server connection before set the new one")
             self.server_connection.disconnect()
 
 
         log.i("Server and sharing connection established")
         self.sharing_connection = new_sharing_conn
 
-        # Just mark that the esd connection has been created due open()
+        # Just mark that the server connection has been created due open()
         # so that for symmetry close() will do disconnect() too
         if new_server_conn != self.server_connection:
             setattr(new_server_conn, "created_with_open", True)
@@ -773,15 +776,20 @@ class Client:
 
             s += bold("{}. {}".format(
                       servers_found + 1,
-                      server_info_to_short_str(server_info_full))) + "\n"
+                      server_info_to_short_str(server_info_full)))
 
             if show_all_details:
                 s += "\n" + server_info_to_pretty_str(server_info_full,
                                                       sharing_details=True) + "\n" + SEP
             else:
-                s += sharings_to_pretty_str(server_info_full.get("sharings"),
-                                            details=show_sharings_details,
-                                            indent=2)
+                sharings_str = sharings_to_pretty_str(
+                    server_info_full.get("sharings"),
+                    details=show_sharings_details,
+                    indent=2)
+
+                if sharings_str:
+                    s +=  "\n" + sharings_str
+                # else: NONE
 
             print(s)
 
@@ -819,8 +827,14 @@ class Client:
         resp = server_conn.list()
         ensure_data_response(resp)
 
-        print(sharings_to_pretty_str(resp.get("data"),
-                                     details=show_details))
+        sharings_str = sharings_to_pretty_str(resp.get("data"),
+                                     details=show_details)
+
+        if sharings_str:
+            print(sharings_str)
+        else:
+            log.w("Remote server doesn't have any sharing")
+
 
     # =================================================
     # ================ SHARING Commands ===============
