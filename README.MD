@@ -17,7 +17,7 @@ Requires at least Python 3.6.
 INSTALLATION
 ------------
 On Linux, you can install it with pip:
-```
+```text
 sudo pip install easyshare
 ```
 
@@ -43,7 +43,7 @@ WHAT IT LOOKS LIKE
 ## esd
 
 #### USAGE
-```
+```text
 esd [OPTION]... [SHARING [SHARING_NAME] [SHARING_OPTION]...]
 ```
 
@@ -64,7 +64,7 @@ Currently the only supported SHARING_OPTION is the read-only flag, which can be 
 -r, and denies any write operation on a directory sharing.
 
 #### OPTIONS
-```
+```text
 -a, --address  address        server address (default is primary interface)
 -c, --config  config_path     load settings from a esd configuration file
 -d, --discover-port  port     port used to listen to discovery messages (default is 12021)
@@ -94,7 +94,7 @@ The configuration file is composed of two parts.
 
 Each line of a section has the form \<key\>=\<value\>.
 The available \<key\> of the global section are:
-```
+```text
     address
     discover_port
     name
@@ -110,7 +110,7 @@ The available \<key\> of the global section are:
 ```
 
 The available \<key\> of the sharings sections are:
-```
+```text
     path
     readonly
 ```
@@ -124,23 +124,23 @@ See the example of the configuration file below for more details.
 
 #### EXAMPLES
 * Share a file
-```
+```text
 esd /tmp/file
 ```
 
 * Share a directory, assigning it a name
-```
+```text
 esd  /tmp/shared_directory shared
 ```
 
 * Share multiples directories, using a configuration file 
-```
+```text
 esd -c /home/user/.easyshare/esd.conf
 ```
 
 
 ##### CONFIGURATION FILE EXAMPLE
-```
+```text
 # esd.conf
 
 # ===== SERVER SETTINGS =====
@@ -180,7 +180,7 @@ trace=1
 
 
 #### USAGE
-```
+```text
 es [OPTION]... [COMMAND [COMMAND_OPTIONS]]
 ```
 
@@ -190,7 +190,7 @@ If no COMMAND is given, the interactive console is started, from which you can u
 If COMMAND is a valid command, it is executed and the process quits unless the command is *open*.
 
 #### OPTIONS
-```
+```text
 -d, --discover-port  port      port used for broadcast discovery messages
 -h, --help                     show this help
 --no-color                     don't print ANSI escape characters
@@ -207,7 +207,7 @@ From within the **es** console, type "help \<command\>" for the full documentati
 The available commands (either from the command line or from the interactive console) are the following:
 
 ##### General commands
-```
+```text
 help             show this help
 exit, quit, q    exit from the interactive shell
 trace, t         enable/disable packet tracing
@@ -217,7 +217,7 @@ verbose, v       change verbosity level
 The *help* command should really be used since its quite complete.
 
 ##### Connection establishment commands
-```
+```text
 scan, s          scan the network for easyshare servers
 connect          connect to a remote server
 disconnect       disconnect from a remote server
@@ -239,7 +239,7 @@ sharings (e.g. for execute commands remotely via *rexec*).
 
 
 ##### Transfer commands
-```
+```text
 get, g          get files and directories from the remote sharing
 put, p          put files and directories in the remote sharing
 ```
@@ -252,7 +252,7 @@ put, p          put files and directories in the remote sharing
 * Upload files or directories to a "directory sharing"
 
 ##### Local commands
-```
+```text
 pwd              show the name of current local working directory
 ls               list local directory content
 l                alias for ls -la
@@ -272,7 +272,7 @@ The command *exec* (which can be shortened with *:*) can be useful for execute a
 without the need of open a new terminal.
 
 ##### Remote commands
-```
+```text
 rpwd             show the name of current remote working directory
 rls              list remote directory content
 rl               alias for rls -la
@@ -297,7 +297,7 @@ option **-e** if you are really confident that nobody with bad intentions will u
 (use a strong server password, by the way).
 
 ##### Server information commands
-```
+```text
 info, i          show information about the remote server
 list             list the sharings of the remote server
 ping             test the connection with the remote server
@@ -312,12 +312,12 @@ These are only examples, see the *help* section of each command for known exactl
 what you can do.
 
 * Start the interactive shell (from which you can use any command)
-```
+```text
 es
 ```
  
 * Scan the network for easyshare sharings
-```
+```text
 es scan
 
 alice-arch (192.168.1.105:12020)
@@ -328,7 +328,7 @@ alice-arch (192.168.1.105:12020)
 
 
 * Open a sharing by name (implicit discovery and server connection) and start the interactive shell
-```
+```text
 es open shared
 
 alice-arch.shared:/ - /tmp>
@@ -336,7 +336,7 @@ alice-arch.shared:/ - /tmp>
 ```
 
 * Get the content of a sharing by name
-```
+```text
 es get shared
 
 GET shared/f1    [===================] 100%  745KB/745KB
@@ -347,7 +347,7 @@ Avg. speed   1MB/s
 ```
 
 * Open a sharing by name and put some files into it
-```
+```text
 es
 
 /tmp> open shared
@@ -364,7 +364,7 @@ f1      f2      afile
 ```
 
 * Connect to a server by specific address and port, then list the available sharings
-```
+```text
 es connect 192.168.1.105:12020
 
 alice-arch:/ - /tmp> list
@@ -376,7 +376,7 @@ FILES
 ```
 
 * See content of the remote sharing, then move some files
-```
+```text
 es 
 /tmp> open shared
 alice-arch.shared:/ - /tmp> rtree
@@ -399,7 +399,7 @@ f1      f2      f3      f4
 ```
 
 * Arbitrary local command execution
-```
+```text
 es 
 /tmp> cd d
 /tmp/d> ls
@@ -409,7 +409,7 @@ f0      f1
 ```
 
 * Arbitrary remote command execution (DISABLED BY DEFAULT)
-```
+```text
 es 
 /tmp> connect alice-arch
 alice-arch:/ - /tmp> ::whoami
@@ -426,14 +426,14 @@ Currently in two ways:
 
 
 #### USAGE
-```
+```text
 es-tools [OPTION]...
 ```
 
 If neither -c nor -p is given, an interactive script is started and you will be asked what to do.
 
 #### OPTIONS
-```
+```text
 -c, --generate-config             generate default esd.conf file
 -h, --help                        show this help
 -p, --hash-password  <password>   generate an hash of the password
@@ -443,15 +443,18 @@ If neither -c nor -p is given, an interactive script is started and you will be 
 ## TESTING
 
 Tests can be run with:
-```
+```text
 pytest
 ```
 
 For run tests with stdout enabled
 
-```
+```text
 pytest -s
 ```
+
+Actually there are still many things to write tests for...
+
 ## TODO
 * Testing on Windows
 * *find* and *rfind* command that finds files by name and tag those with incremental IDs (1, 2)
@@ -463,4 +466,4 @@ which can be used in other command (something like $1, $2)
 LICENSE
 -------
 
-Easyshare is [MIT licensed](./LICENSE>).
+Easyshare is [MIT licensed](LICENSE).

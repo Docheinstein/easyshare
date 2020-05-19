@@ -9,10 +9,16 @@ log = get_logger(__name__)
 
 
 class ServerLocation:
-    # |----esd location---------|
-    # <server_name> OR <ip>[:<port>]
-
-    # e.g.  hostname
+    """
+    Contains the necessary information of locate a server.
+    It could be either the server name or the ip[:port]
+    """
+    # SYNTAX
+    #
+    # |-----serverlocation -------|
+    # <server_name>|<ip>[:<port>]
+    #
+    # e.g.  easyshare-server
     #       192.168.1.105
     #       192.168.1.105:47294
 
@@ -20,9 +26,9 @@ class ServerLocation:
                  name: str = None,
                  ip: str = None,
                  port: int = None):
-        self.name = name
-        self.ip = ip
-        self.port = port
+        self.name: str = name
+        self.ip: str = ip
+        self.port: int = port
 
     def __str__(self):
         if not self.name and not self.ip:
@@ -41,6 +47,7 @@ class ServerLocation:
 
     @staticmethod
     def parse(location: str) -> Optional['ServerLocation']:
+        """ Parses the location string representing a server location"""
 
         if not location:
             log.d("ServerLocation.parse() -> None")
@@ -78,7 +85,14 @@ class ServerLocation:
 
 
 class SharingLocation:
-    # |----name-----|-----esd location--------|
+    """
+    Contains the necessary information of locate a sharing.
+    It must contain at least the sharing name, and eventually some
+    specifications for locate the server (otherwise it will be discovered).
+    """
+    # SYNTAX
+    #
+    # |----name-----|-----server location--------|
     # <sharing_name>[@<server_name>|<ip>[:<port>]]
     # |-------------sharing location-------------|
     #
@@ -112,6 +126,8 @@ class SharingLocation:
 
     @staticmethod
     def parse(location: str) -> Optional['SharingLocation']:
+        """ Parses the location string representing a sharing location"""
+
         if not location:
             log.d("SharingLocation.parse() -> None")
             return None
@@ -131,15 +147,3 @@ class SharingLocation:
         log.d("SharingLocation.parse() -> %s", str(sharing_location))
 
         return sharing_location
-
-
-if __name__ == "__main__":
-    print("1.", ServerLocation.parse("hostname"))
-    print("2.", ServerLocation.parse("192.168.1.105:"))
-    print("3.", ServerLocation.parse("192.168.1.105:8888"))
-    print()
-    print("1.", SharingLocation.parse("shared"))
-    print("2.", SharingLocation.parse("shared@hostname"))
-    print("3.", SharingLocation.parse("shared@192.168.1.105"))
-    print("4.", SharingLocation.parse("shared@192.168.1.105:8888"))
-

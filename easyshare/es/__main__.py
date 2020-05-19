@@ -34,7 +34,7 @@ NON_CLI_COMMANDS = [
     # Commands.REMOTE_CHANGE_DIRECTORY,           # rcd
     # Commands.CLOSE                              # close
 
-    # ^ Not really useful, but who cares ^
+    # ^ Not really useful, but we can leave these anyway ^
 ]
 
 CLI_COMMANDS = [k for k in values(Commands) if k not in NON_CLI_COMMANDS]
@@ -61,7 +61,7 @@ def main():
     # can be logged
     # Verbosity over VERBOSITY_MAX enables pyro logging too
     if args.has_option(Es.VERBOSE):
-        log.set_verbosity(args.has_option_param(Es.VERBOSE,
+        log.set_verbosity(args.get_option_param(Es.VERBOSE,
                                                 default=logging.VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_CLIENT, APP_VERSION))
@@ -89,7 +89,7 @@ def main():
     if Es.TRACE in args:
         # The param of -v is optional:
         # if not specified the default is DEBUG
-        tracing = args.has_option_param(
+        tracing = args.get_option_param(
             Es.TRACE,
             default=1
         )
@@ -98,19 +98,19 @@ def main():
     if Es.VERBOSE in args:
         # The param of -v is optional:
         # if not specified the default is DEBUG
-        verbosity = args.has_option_param(
+        verbosity = args.get_option_param(
             Es.VERBOSE,
             default=logging.VERBOSITY_MAX
         )
 
     # Discover port
-    discover_port = args.has_option_param(
+    discover_port = args.get_option_param(
         Es.DISCOVER_PORT,
         default=discover_port
     )
 
     # Discover port
-    discover_timeout = args.has_option_param(
+    discover_timeout = args.get_option_param(
         Es.DISCOVER_TIMEOUT,
         default=discover_timeout
     )

@@ -18,10 +18,10 @@ fi
 echo_cyan "====== CREATING MANS ====="
 
 # es
-sphinx-build -M man docs/sphinx/es docs/sphinx/build
+sphinx-build -M man docs/sphinx/src/mans/es docs/sphinx/build
 
 # esd
-sphinx-build -M man docs/sphinx/esd docs/sphinx/build
+sphinx-build -M man docs/sphinx/src/mans/esd docs/sphinx/build
 
 # es-tools
-sphinx-build -M man docs/sphinx/es-tools docs/sphinx/build
+sphinx-build -M man docs/sphinx/src/mans/es-tools docs/sphinx/build

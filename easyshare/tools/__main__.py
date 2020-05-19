@@ -8,7 +8,7 @@ from easyshare.auth import AuthScrypt
 from easyshare.common import APP_INFO, easyshare_setup
 from easyshare.helps.estools import EsTools
 from easyshare.res.helps import get_command_usage
-from easyshare.utils.app import abort, terminate
+from easyshare.utils import abort, terminate
 
 
 def generate_password(pw: str):
@@ -76,7 +76,7 @@ def main():
         return
 
     if EsTools.GENERATE_PASSWORD in args:
-        pw = args.has_option_param(EsTools.GENERATE_PASSWORD)
+        pw = args.get_option_param(EsTools.GENERATE_PASSWORD)
         generate_password(pw)
         return
 

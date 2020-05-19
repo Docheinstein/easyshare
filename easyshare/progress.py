@@ -112,6 +112,7 @@ class FileProgressor:
 
     # ----------
 
+    # If there isn't at least PROGRESS_BAR_MIN_INNER_WIDTH, the bar won't be shown
     PROGRESS_BAR_MIN_INNER_WIDTH = 10
     PROGRESS_BAR_MIN_OUTER_WIDTH = PROGRESS_BAR_MIN_INNER_WIDTH + 2
 
@@ -185,6 +186,15 @@ class FileProgressor:
                force: bool = False,
                inline: bool = True,
                time_instead_speed: bool = False):
+        """
+        Updates the progress setting the count to 'partial'.
+        If 'force' is True, the line is actually rendered, otherwise the behaviour
+        depends on the speed_fps given in init().
+        Inline will add a \r at the end of the line, if it is False every update
+        will be rendered as new line.
+        'time_instead_speed' is useful at the end for show the elapsed time
+        instead of the estimated speed.
+        """
         partial = partial if partial else 0
 
         if partial < self.partial:
@@ -331,9 +341,14 @@ class FileProgressor:
             print(progress_line, end="\r" if inline else "\n")
 
     def done(self):
+        """ Marks the end of the progress: finalize the line and show the elapsed time """
         self.update(self.total, force=True, inline=False, time_instead_speed=True)
 
     def _progress_bar_string(self, progress_bar_inner_width: int, progress_ratio: float) -> str:
+        """
+        Builds the progress bar; of width 'progress_bar_inner_width'
+        with a completion that is specified by 'progress_ratio'
+        """
         # The inner progress can be built with either
         # 1. A progress mark (e.g. =)
         # 2. Progress blocks, which are UNICODE for create a fancy

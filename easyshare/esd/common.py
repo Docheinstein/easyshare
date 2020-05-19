@@ -4,11 +4,10 @@ from typing import Optional, Set
 
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.protocol.protocol import FileType, FTYPE_DIR, FTYPE_FILE, SharingInfo
+from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType
 from easyshare.utils.json import j
 from easyshare.utils.os import pathify
-from easyshare.utils.str import randstring
-
+from easyshare.utils.rand import randstring
 
 log = get_logger(__name__)
 
@@ -17,9 +16,8 @@ log = get_logger(__name__)
 # =============================================
 
 
-
-
 class ClientContext:
+    """ Contains the server-side information kept for a connected client """
 
     def __init__(self, endpoint: Endpoint):
         self.endpoint: Optional[Endpoint] = endpoint
@@ -33,12 +31,17 @@ class ClientContext:
 
 
     def add_service(self, service_id: str):
+        """
+        Bounds a service to this client (in order to unpublish
+        the service when the user connection is down)
+        """
         log.d("Service [%s] added", service_id)
         with self.lock:
             self.services.add(service_id)
 
 
     def remove_service(self, service_id: str):
+        """ Unbounds a previously added service from this client"""
         log.d("Service [%s] removed", service_id)
         with self.lock:
             self.services.remove(service_id)
@@ -50,6 +53,10 @@ class ClientContext:
 
 
 class Sharing:
+    """
+    The concept of shared file or directory.
+    Basically contains the path of the file/dir to share and the assigned name.
+    """
     def __init__(self, name: str, ftype: FileType, path: str, read_only: bool):
         self.name = name
         self.ftype = ftype
@@ -61,6 +68,10 @@ class Sharing:
 
     @staticmethod
     def create(name: str, path: str, read_only: bool = False) -> Optional['Sharing']:
+        """
+        Creates a sharing for the given 'name' and 'path'.
+        Ensures that the path exists and sanitize the sharing name.
+        """
         # Ensure path existence
         if not path:
             log.w("Sharing creation failed; path not provided")
@@ -93,6 +104,7 @@ class Sharing:
         )
 
     def info(self) -> SharingInfo:
+        """ Returns information ('SharingInfo') for this sharing """
         return {
             "name": self.name,
             "ftype": self.ftype,

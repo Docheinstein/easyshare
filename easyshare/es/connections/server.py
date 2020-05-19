@@ -2,17 +2,18 @@ import ssl
 from typing import Union, Optional, cast
 
 from easyshare.common import ESD_PYRO_UID
+from easyshare.es.connections import Connection, handle_connection_response, require_connected_connection
 from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
-from easyshare.protocol.protocol import IServer
-from easyshare.protocol.protocol import Response, is_success_response, create_error_response, is_error_response
-from easyshare.protocol.protocol import ServerErrors
-from easyshare.protocol.protocol import ServerInfoFull, ServerInfo
+from easyshare.protocol import IServer, Response
+from easyshare.protocol.responses import is_success_response, ServerErrors, is_error_response, create_error_response
+from easyshare.protocol.types import ServerInfoFull, ServerInfo
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.utils.json import j
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro import pyro_uri
 from easyshare.utils.ssl import create_client_ssl_context
+
 
 log = get_logger(__name__)
 
@@ -22,36 +23,15 @@ log = get_logger(__name__)
 # =============================================
 
 
-def require_server_connection(api):
-    def require_server_connection_api_wrapper(conn: 'ServerConnection', *vargs, **kwargs) -> Response:
-        log.d("Checking esd connection validity before invoking %s", api.__name__)
-        if not conn.is_connected():
-            log.w("@require_server_connection : invalid connection")
-            return create_error_response(ClientErrors.NOT_CONNECTED)
-        log.d("Connection is valid, invoking %s", api.__name__)
-        return api(conn, *vargs, **kwargs)
-
-    require_server_connection_api_wrapper.__name__ = api.__name__
-
-    return require_server_connection_api_wrapper
-
-
-def handle_server_response(api):
-    def handle_server_response_api_wrapper(conn: 'ServerConnection', *vargs, **kwargs) -> Response:
-        log.d("Invoking '%s' and handling response", api.__name__)
-        resp = api(conn, *vargs, **kwargs)
-        log.d("Handling '%s' response", api.__name__)
-        if is_error_response(resp, ServerErrors.NOT_CONNECTED):
-            log.e("Detected NOT_CONNECTED response, destroying connection")
-            conn._destroy_connection()
-        return resp
-
-    handle_server_response_api_wrapper.__name__ = __name__
-
-    return handle_server_response_api_wrapper
-
-
-class ServerConnectionMinimal:
+class ServerConnectionMinimal(Connection):
+    """
+    Minimal server connection to a remote 'Server'.
+    The difference with 'ServerConnection' is that he latter offers more information
+    about the server (a 'ServerInfo'), which could have been retrieved after
+    the connection establishment.
+    Basically its a wrapper around the exposed method of 'IServer',
+    but adds tracing.
+    """
 
     def __init__(self,
                  server_ip: str, server_port: int, server_ssl: bool, server_alias: str = None,
@@ -65,8 +45,6 @@ class ServerConnectionMinimal:
         self._server_ip = server_ip
         self._server_port = server_port
         self._server_ssl = server_ssl
-
-        # self.server_info: ServerInfoFull = server_info
 
         # Create the proxy for the remote esd
         if established_server_connection:
@@ -93,63 +71,7 @@ class ServerConnectionMinimal:
     def is_connected(self) -> bool:
         return self._connected is True and self.server
 
-    def ssl_certificate(self) -> Optional[bytes]:
-        return self.server._pyroConnection.sock.getpeercert(binary_form=True) if \
-            isinstance(self.server._pyroConnection.sock, ssl.SSLSocket) else None
-
-    def server_ip(self) -> str:
-        return self._server_ip
-
-    def server_port(self) -> int:
-        return self._server_port
-
-    def server_ssl(self) -> bool:
-        return self._server_ssl
-
-    @handle_server_response
-    # NO @require_server_connection
-    def connect(self, password: str = None) -> Response:
-        resp = self.server.connect(password=password)
-
-        self._connected = is_success_response(resp)
-
-        return resp
-
-    # NO @handle_server_response
-    @require_server_connection
-    def disconnect(self) -> Response:
-        resp = self.server.disconnect()
-
-        self._destroy_connection()
-
-        return resp
-
-    @handle_server_response
-    @require_server_connection
-    def open(self, sharing_name) -> Response:
-        return self.server.open(sharing_name)
-
-    @handle_server_response
-    # @require_server_connection
-    def info(self) -> Response:
-        return self.server.info()
-
-    @handle_server_response
-    # @require_server_connection
-    def list(self) -> Response:
-        return self.server.list()
-
-    @handle_server_response
-    # @require_server_connection
-    def ping(self) -> Response:
-        return self.server.ping()
-
-    @handle_server_response
-    @require_server_connection
-    def rexec(self, cmd: str) -> Response:
-        return self.server.rexec(cmd)
-
-    def _destroy_connection(self):
+    def destroy_connection(self):
         log.d("Marking esd connection as disconnected")
         self._connected = False
 
@@ -160,8 +82,87 @@ class ServerConnectionMinimal:
         else:
             log.w("Server connection already invalid, nothing to release")
 
+    def ssl_certificate(self) -> Optional[bytes]:
+        """
+        Returns the SSL certificate of this connection in binary form,
+        or None if SSL is disabled
+        """
+        if isinstance(self.server._pyroConnection.sock, ssl.SSLSocket):
+            return self.server._pyroConnection.sock.getpeercert(binary_form=True)
+        return None
+
+    def server_ip(self) -> str:
+        """ IP of the remote server """
+        return self._server_ip
+
+    def server_port(self) -> int:
+        """ Port of the remote server """
+        return self._server_port
+
+    def server_ssl(self) -> bool:
+        """ Whether SSL is enabled for this connection """
+        return self._server_ssl
+
+
+    # === CONNECTION ESTABLISHMENT ===
+
+
+    @handle_connection_response
+    # NO @require_server_connection
+    def connect(self, password: str = None) -> Response:
+        resp = self.server.connect(password=password)
+
+        self._connected = is_success_response(resp)
+
+        return resp
+
+    @require_connected_connection
+    def disconnect(self) -> Response:
+        resp = self.server.disconnect()
+
+        self.destroy_connection()
+
+        return resp
+
+
+    # === SERVER INFO RETRIEVAL ===
+
+
+    @handle_connection_response
+    def info(self) -> Response:
+        return self.server.info()
+
+    @handle_connection_response
+    def list(self) -> Response:
+        return self.server.list()
+
+    @handle_connection_response
+    def ping(self) -> Response:
+        return self.server.ping()
+
+
+    # === REAL ACTIONS ===
+
+
+    @handle_connection_response
+    @require_connected_connection
+    def open(self, sharing_name) -> Response:
+        return self.server.open(sharing_name)
+
+    @handle_connection_response
+    @require_connected_connection
+    def rexec(self, cmd: str) -> Response:
+        return self.server.rexec(cmd)
 
 class ServerConnection(ServerConnectionMinimal):
+    """
+    Complete server connection; in addition to 'ServerConnectionMinimal' provide
+    a 'ServerInfo', which contains more information compared to the bare name/ip/addr
+    of the server provided by 'ServerConnectionMinimal'
+    The idea is tha 'ServerConnectionMinimal' is created for made the connection,
+    but than an info should be retrieved (via info, or if already got with a discover)
+    and the connection should be upgraded to a 'ServerConnection' for further uses.
+    """
 
     def __init__(self,
                  server_ip: str, server_port: int,

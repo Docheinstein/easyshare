@@ -10,7 +10,6 @@ from Pyro5.errors import PyroError
 
 from easyshare import logging
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
-from easyshare.common import EASYSHARE_RESOURCES_PKG
 from easyshare.consts import ansi
 
 from easyshare.es.client import Client
@@ -21,14 +20,12 @@ from easyshare.helps.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import get_command_help
 from easyshare.tracing import is_tracing_enabled, enable_tracing
-from easyshare.utils.app import eprint
+from easyshare.utils import eprint
 from easyshare.utils.env import is_unicode_supported
-from easyshare.utils.helpmarkdown import HelpMarkdown, HelpMarkdownParseError
-from easyshare.utils.json import str_to_json
+from easyshare.utils.helpmarkdown import HelpMarkdownParseError
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.pyro import enable_pyro_logging, is_pyro_logging_enabled
-from easyshare.utils.resources import read_resource_string
 from easyshare.utils.types import is_bool, is_int, is_str, bool_to_str
 
 log = get_logger(__name__)

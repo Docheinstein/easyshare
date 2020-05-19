@@ -86,6 +86,9 @@ def is_server_name(s: str):
 # =====================
 
 def easyshare_setup():
+    """
+    Configures easyshare: initializes the colors and the logging.
+    """
     # disable colors when redirection is involved or if
     # colors are disabled
     colors_disabled = os.getenv('ANSI_COLORS_DISABLED')

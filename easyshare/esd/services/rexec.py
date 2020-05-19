@@ -9,7 +9,8 @@ from easyshare.consts.os import STDOUT, STDERR
 
 from easyshare.esd.common import ClientContext
 from easyshare.logging import get_logger
-from easyshare.protocol.protocol import create_error_response, ServerErrors, Response, create_success_response, IRexecService
+from easyshare.protocol import IRexecService
+from easyshare.protocol.responses import create_success_response, ServerErrors, create_error_response, Response
 from easyshare.utils.os import run_detached
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
 from easyshare.utils.types import is_int

@@ -4,3 +4,7 @@
 /easyshare.egg-info/
 __pycache__
 /easyshare/devtests/
+/docs/sphinx/build/
+/docs/sphinx/src/html/img/
+/docs/sphinx/src/html/LICENSE
+/docs/sphinx/src/html/README.MD

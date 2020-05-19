@@ -5,8 +5,7 @@ from typing import List, Optional
 from easyshare.esd.common import Sharing
 
 from easyshare import logging
-from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, \
-    PosArgsSpec, StopParseArgsSpec
+from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, StopParseArgsSpec
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.daemons.discover import get_discover_daemon
 from easyshare.esd.daemons.transfer import get_transfer_daemon
@@ -18,8 +17,8 @@ from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET,
 from easyshare.res.helps import get_command_usage
 from easyshare.ssl import get_ssl_context
 from easyshare.tracing import enable_tracing
-from easyshare.utils.app import terminate, abort
 from easyshare.styling import enable_colors, bold
+from easyshare.utils import terminate, abort
 from easyshare.utils.env import are_colors_supported
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.pyro import enable_pyro_logging
@@ -61,6 +60,7 @@ class EsdConfKeys:
 
     S_PATH = "path"
     S_READONLY = "readonly"
+
 
 ESD_CONF_SPEC = {
     # global esd settings
@@ -110,7 +110,7 @@ def main():
     # can be logged
     # Verbosity over VERBOSITY_MAX enables pyro logging too
     if g_args.has_option(Esd.VERBOSE):
-        log.set_verbosity(g_args.has_option_param(Esd.VERBOSE,
+        log.set_verbosity(g_args.get_option_param(Esd.VERBOSE,
                                                   default=logging.VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_SERVER, APP_VERSION))
@@ -160,14 +160,14 @@ def main():
 
         sharings[name] = sh
 
-    # Take out config settings
+    # Read config file
 
     if Esd.CONFIG in g_args:
         cfg = None
 
         try:
             cfg = Conf.parse(
-                path=g_args.has_option_param(Esd.CONFIG),
+                path=g_args.get_option_param(Esd.CONFIG),
                 sections_parsers=ESD_CONF_SPEC,
                 comment_prefixes=["#", ";"]
             )
@@ -252,43 +252,43 @@ def main():
     # Args from command line: eventually overwrite config settings
 
     # Name
-    server_name = g_args.has_option_param(
+    server_name = g_args.get_option_param(
         Esd.NAME,
         default=server_name
     )
 
     # Server address
-    server_address = g_args.has_option_param(
+    server_address = g_args.get_option_param(
         Esd.ADDRESS,
         default=server_address
     )
 
     # Server port
-    server_port = g_args.has_option_param(
+    server_port = g_args.get_option_param(
         Esd.PORT,
         default=server_port
     )
 
     # Discover port
-    server_discover_port = g_args.has_option_param(
+    server_discover_port = g_args.get_option_param(
         Esd.DISCOVER_PORT,
         default=server_discover_port
     )
 
     # Password
-    server_password = g_args.has_option_param(
+    server_password = g_args.get_option_param(
         Esd.PASSWORD,
         default=server_password
     )
 
     # SSL cert
-    server_ssl_cert = g_args.has_option_param(
+    server_ssl_cert = g_args.get_option_param(
         Esd.SSL_CERT,
         default=server_ssl_cert
     )
 
     # SSL privkey
-    server_ssl_privkey = g_args.has_option_param(
+    server_ssl_privkey = g_args.get_option_param(
         Esd.SSL_PRIVKEY,
         default=server_ssl_privkey
     )
@@ -310,7 +310,7 @@ def main():
     if g_args.has_option(Esd.TRACE):
         # The param of -v is optional:
         # if not specified the default is DEBUG
-        tracing = g_args.has_option_param(
+        tracing = g_args.get_option_param(
             Esd.TRACE,
             default=1
         )
@@ -319,7 +319,7 @@ def main():
     if g_args.has_option(Esd.VERBOSE):
         # The param of -v is optional:
         # if not specified the default is DEBUG
-        verbosity = g_args.has_option_param(
+        verbosity = g_args.get_option_param(
             Esd.VERBOSE,
             default=logging.VERBOSITY_MAX
         )
@@ -368,7 +368,7 @@ def main():
         if s_pargs: # should always be valid actually
             s_path = s_pargs[0]
             s_name = s_pargs[1] if len(s_pargs) >= 2 else None
-            s_readonly = s_args.has_option_param(SharingArgs.READ_ONLY,
+            s_readonly = s_args.get_option_param(SharingArgs.READ_ONLY,
                                                  default=False)
 
             add_sharing(path=s_path, name=s_name, readonly=s_readonly)
@@ -424,10 +424,10 @@ def main():
     s = SEP_FIRST + \
         bold("SERVER INFO") + "\n\n" + \
         "Name:              {}\n".format(server.name()) + \
-        "Address:           {}\n".format(server.endpoint()[0]) + \
-        "Server port:       {}\n".format(server.endpoint()[1]) + \
-        "Transfer port:     {}\n".format(get_transfer_daemon().endpoint()[1]) + \
-        "Discover port:     {}\n".format(get_discover_daemon().endpoint()[1] if server.is_discoverable() else "disabeld") + \
+        "Address:           {}\n".format(server.address()) + \
+        "Server port:       {}\n".format(server.port()) + \
+        "Transfer port:     {}\n".format(get_transfer_daemon().port()) + \
+        "Discover port:     {}\n".format(get_discover_daemon().port() if server.is_discoverable() else "disabeld") + \
         "Auth:              {}\n".format(server.auth_type()) + \
         "SSL:               {}\n".format(True if get_ssl_context() else False) + \
         "Remote execution:  {}\n".format(server.is_rexec_enabled())

@@ -1,7 +1,0 @@
-action: python, msg: getenv
-cwd: /home/stefano/Develop/Python/easyshare/.tox
-cmd: /home/stefano/.virtualenvs/easyshare/bin/python -m virtualenv --no-download --python /home/stefano/.virtualenvs/easyshare/bin/python python
-created virtual environment CPython3.8.2.final.0-64 in 215ms
-  creator CPython3Posix(dest=/home/stefano/Develop/Python/easyshare/.tox/python, clear=False, global=False)
-  seeder FromAppData(download=False, pip=latest, setuptools=latest, wheel=latest, via=copy, app_data_dir=/home/stefano/.local/share/virtualenv/seed-app-data/v1.0.1)
-  activators BashActivator,CShellActivator,FishActivator,PowerShellActivator,PythonActivator,XonshActivator

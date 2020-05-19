@@ -1,1 +1,0 @@
-# Must be a package for use pkgutil.get_data

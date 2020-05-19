@@ -16,12 +16,11 @@ from easyshare.esd.services.sharing import SharingService
 
 from easyshare.logging import get_logger
 from easyshare.auth import Auth, AuthNone
-from easyshare.protocol.protocol import create_success_response, create_error_response, Response
-from easyshare.protocol.protocol import ServerInfoFull, ServerInfo
 from easyshare.common import DEFAULT_DISCOVER_PORT, ESD_PYRO_UID, DEFAULT_SERVER_PORT, transfer_port
 from easyshare.endpoint import Endpoint
-from easyshare.protocol.protocol import IServer
-from easyshare.protocol.protocol import ServerErrors
+from easyshare.protocol import IServer
+from easyshare.protocol.responses import ServerErrors, create_error_response, create_success_response, Response
+from easyshare.protocol.types import ServerInfoFull, ServerInfo
 from easyshare.ssl import set_ssl_context, get_ssl_context
 from easyshare.tracing import trace_out
 from easyshare.sockets import SocketUdpOut
@@ -388,6 +387,13 @@ class Server(IServer):
         :return: the current esd endpoint
         """
         return get_pyro_daemon().sock.getsockname()
+
+    def address(self) -> str:
+        return self.endpoint()[0]
+
+    def port(self) -> int:
+        return self.endpoint()[1]
+
 
     def name(self) -> str:
         return self._name

@@ -12,7 +12,16 @@ log = get_logger(__name__)
 # =============================================
 
 
+_transfer_daemon: Optional['TransferDaemon'] = None
+
+
 class TransferDaemon:
+    """
+    Transfer daemon that listens to new requests from clients (by default on port 12021)
+    add notifies the listeners about the incoming connections.
+    The sense is that the listeners of this daemon (a 'TransferService', e.g. get or put)
+    should handle the new socket (after some check, e.g. IP provenience).
+    """
 
     def __init__(self, port: int):
         self._acceptor = SocketTcpAcceptor(
@@ -22,19 +31,31 @@ class TransferDaemon:
         self._callbacks = set()
 
     def add_callback(self, callback: Callable[[SocketTcpIn], bool]):
+        """
+        Adds a callback to invoke when a connection on the transfer socket is received.
+        If a listener wants to handle the socket, it should return True.
+        If all the listeners returns False, the socket is closed (nobody handled it).
+        """
         self._callbacks.add(callback)
         log.d("Added callback to transfer daemon; current size = %d", len(self._callbacks))
 
     def remove_callback(self, callback: Callable[[SocketTcpIn], bool]):
+        """ Removes a callback from the set of callbacks """
         self._callbacks.remove(callback)
         log.d("Removed callback from transfer daemon; current size = %d", len(self._callbacks))
 
     def endpoint(self):
         return self._acceptor.endpoint()
 
+    def address(self):
+        return self._acceptor.address()
+
+    def port(self):
+        return self._acceptor.port()
+
     def run(self):
         while True:
-            log.d("Waiting for transfer connections on port %d...", self._acceptor.endpoint()[1])
+            log.d("Waiting for transfer connections on port %d...", self._acceptor.port())
             sock = self._acceptor.accept()
             log.d("Received new connection from %s", sock.remote_endpoint())
 
@@ -60,9 +81,11 @@ class TransferDaemon:
 
 
 def init_transfer_daemon(port: int):
+    """ Initializes the global transfer daemon on the given port """
     global _transfer_daemon
     _transfer_daemon = TransferDaemon(port)
 
 
 def get_transfer_daemon() -> Optional[TransferDaemon]:
+    """ Get the global transfer daemon instance """
     return _transfer_daemon

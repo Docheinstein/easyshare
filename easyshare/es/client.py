@@ -28,18 +28,15 @@ from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
 from easyshare.progress import FileProgressor
-from easyshare.protocol.protocol import FTYPE_DIR, FTYPE_FILE, FileType
-from easyshare.protocol.protocol import FileInfo, FileInfoTreeNode
-from easyshare.protocol.protocol import IRexecService, IGetService, IPutService
-from easyshare.protocol.protocol import OverwritePolicy
-from easyshare.protocol.protocol import Response, is_error_response, is_success_response, is_data_response
-from easyshare.protocol.protocol import ServerInfoFull, ServerInfo
-from easyshare.protocol.protocol import SharingInfo
+from easyshare.protocol import Response, IPutService, IGetService, IRexecService
+from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response
+from easyshare.protocol.types import FileType, ServerInfoFull, SharingInfo, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
+    OverwritePolicy, FTYPE_FILE, ServerInfo
 from easyshare.sockets import SocketTcpOut
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import red, bold
 from easyshare.timer import Timer
-from easyshare.utils.app import eprint
+from easyshare.utils import eprint
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, relpath
@@ -726,7 +723,7 @@ class Client:
         if not server_conn:
             raise BadOutcome(ClientErrors.NOT_CONNECTED)
 
-        count = args.has_option_param(Ping.COUNT, default=None)
+        count = args.get_option_param(Ping.COUNT, default=None)
 
         i = 1
         while not count or i <= count:
@@ -1555,7 +1552,7 @@ class Client:
         path = args.get_positional()
         reverse = Tree.REVERSE in args
         show_hidden = Tree.SHOW_ALL in args
-        max_depth = args.has_option_param(Tree.MAX_DEPTH, default=None)
+        max_depth = args.get_option_param(Tree.MAX_DEPTH, default=None)
 
         sort_by = ["name"]
 
@@ -1808,7 +1805,7 @@ class Client:
                     log.w("Connection cannot be established directly %s SSL",
                           "with" if server_ssl else "without")
                     # Invalidate connection
-                    server_conn._destroy_connection()
+                    server_conn.destroy_connection()
                     server_conn = None
 
                 if not server_ssl:
@@ -1841,7 +1838,7 @@ class Client:
                     )
             elif server_conn:
                 # Invalidate connection
-                server_conn._destroy_connection()
+                server_conn.destroy_connection()
                 server_conn = None
 
         # Eventually performs the scan

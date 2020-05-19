@@ -160,12 +160,12 @@ class ISharingService(ABC):
 
     @abstractmethod
     def rrm(self, paths: List[str]) -> Response:
-        """ Removes files remotely """
+        """ Remove files remotely """
         pass
 
     @abstractmethod
     def rmv(self, sources: List[str], destination: str) -> Response:
-        """ Moves files remotely """
+        """ Move files remotely """
         pass
 
     @abstractmethod
@@ -175,10 +175,10 @@ class ISharingService(ABC):
 
     @abstractmethod
     def get(self, files: List[str], check: bool) -> Response:
-        """ Starts a get transfer, which instantiate a 'GetService' """
+        """ Start a get transfer, which instantiate a 'GetService' """
         pass
 
     @abstractmethod
     def put(self, check: bool = False) -> Response:
-        """ Starts a put transfer, which instantiate a 'PutService' """
+        """ Start a put transfer, which instantiate a 'PutService' """
         pass

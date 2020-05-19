@@ -9,8 +9,7 @@ from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
 from easyshare.logging import get_logger
-from easyshare.protocol.protocol import FileInfo, FileInfoTreeNode
-from easyshare.protocol.protocol import FTYPE_FILE, FTYPE_DIR
+from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
 from easyshare.utils.types import is_str, is_list
 
 log = get_logger(__name__)

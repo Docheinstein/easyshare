@@ -1,5 +1,5 @@
 import threading
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Callable
 
 from Pyro5.server import expose
@@ -9,7 +9,8 @@ from easyshare.esd.services import BaseClientSharingService, BaseClientService, 
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.logging import get_logger
-from easyshare.protocol.protocol import ITransferService, TransferOutcomes
+from easyshare.protocol import ITransferService
+from easyshare.protocol.responses import TransferOutcomes, create_success_response, Response
 from easyshare.sockets import SocketTcpIn
 from easyshare.utils.pyro.server import trace_api, try_or_command_failed_response
 
@@ -18,7 +19,6 @@ log = get_logger(__name__)
 # =============================================
 # ============= TRANSFER SERVICE ==============
 # =============================================
-from easyshare.protocol.protocol import create_success_response, Response
 
 
 class TransferService(ITransferService, BaseClientSharingService, ABC):
@@ -57,6 +57,9 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
 
         return create_success_response(outcome)
 
+    @abstractmethod
+    def _run(self):
+        pass
 
     def _handle_new_connection(self, sock: SocketTcpIn) -> bool:
         if not sock:
