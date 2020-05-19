@@ -55,6 +55,10 @@ DEFAULT_SERVER_PORT =   12020   # TCP
 
 DEFAULT_DISCOVER_TIMEOUT = 2    # sec
 
+# TODO: tests for figure out what's the best buffer size
+BEST_BUFFER_SIZE = 4096
+
+
 def transfer_port(server_port: int):
     return server_port + 1
 

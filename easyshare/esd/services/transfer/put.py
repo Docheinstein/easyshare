@@ -4,12 +4,14 @@ import zlib
 from typing import Callable
 
 from Pyro5.server import expose
-from easyshare.esd.services import BaseClientService, check_service_owner
+
+from easyshare.common import BEST_BUFFER_SIZE
+from easyshare.esd.services import BaseClientService, check_sharing_service_owner
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
-from easyshare.protocol import OverwritePolicy, IPutService
+from easyshare.protocol.services import OverwritePolicy, IPutService
 from easyshare.protocol.responses import TransferOutcomes, create_success_response, ServerErrors, create_error_response, \
     Response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfo
@@ -25,6 +27,10 @@ log = get_logger(__name__)
 
 
 class PutService(IPutService, TransferService):
+    """
+    Implementation of 'IPutService' interface that will be published with Pyro.
+    Handles a single execution of a put command.
+    """
     def __init__(self,
                  check: bool,
                  port: int,
@@ -38,7 +44,7 @@ class PutService(IPutService, TransferService):
 
     @expose
     @trace_api
-    @check_service_owner
+    @check_sharing_service_owner
     @try_or_command_failed_response
     def next(self,
              finfo: FileInfo,
@@ -126,7 +132,7 @@ class PutService(IPutService, TransferService):
 
             # Recv file
             while cur_pos < incoming_file_len:
-                readlen = min(incoming_file_len - cur_pos, TransferService.BUFFER_SIZE)
+                readlen = min(incoming_file_len - cur_pos, BEST_BUFFER_SIZE)
 
                 # Read from the remote
                 chunk = self._transfer_sock.recv(readlen)

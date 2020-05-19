@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
-from easyshare.protocol import Response
+from easyshare.protocol.services import Response
 from easyshare.protocol.responses import create_error_response, is_error_response, ServerErrors
 
 log = get_logger(__name__)

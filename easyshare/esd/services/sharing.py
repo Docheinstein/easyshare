@@ -2,14 +2,14 @@ import os
 from typing import Callable, List, Tuple
 
 from Pyro5.server import expose
-from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_service_owner
+from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner
 
 from easyshare.common import transfer_port
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services.transfer.get import GetService
 from easyshare.esd.services.transfer.put import PutService
 from easyshare.logging import get_logger
-from easyshare.protocol import ISharingService
+from easyshare.protocol.services import ISharingService
 from easyshare.protocol.responses import create_success_response, ServerErrors, create_error_response, Response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
 from easyshare.utils.json import j
@@ -18,7 +18,6 @@ from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_
 from easyshare.utils.types import is_str, is_list, is_bool
 
 log = get_logger(__name__)
-
 
 
 # =============================================
@@ -52,6 +51,10 @@ def ensure_d_sharing(api):
 
 
 class SharingService(ISharingService, BaseClientSharingService):
+    """
+    Implementation of 'ISharingService' interface that will be published with Pyro.
+    Offers all the methods that operate on a sharing (e.g. rls, rmv, get, put).
+    """
 
     def __init__(self,
                  server_port: int,
@@ -65,7 +68,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_service_owner
+    @check_sharing_service_owner
     @ensure_d_sharing
     def rls(self, *,
             path: str = None, sort_by: List[str] = None,
@@ -106,7 +109,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_service_owner
+    @check_sharing_service_owner
     @ensure_d_sharing
     def rtree(self, *, path: str = None, sort_by: List[str] = None,
               reverse: bool = False, hidden: bool = False,
@@ -147,7 +150,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_service_owner
+    @check_sharing_service_owner
     @ensure_d_sharing
     def rpwd(self) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -159,7 +162,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_service_owner
+    @check_sharing_service_owner
     @ensure_d_sharing
     def rcd(self, path: str) -> Response:
         path = path or "."
@@ -192,7 +195,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_service_owner
+    @check_sharing_service_owner
     @check_write_permission
     @ensure_d_sharing
     def rmkdir(self, directory: str) -> Response:
@@ -221,7 +224,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_service_owner
+    @check_sharing_service_owner
     @check_write_permission
     @ensure_d_sharing
     def rcp(self, sources: List[str], destination: str) -> Response:
@@ -231,7 +234,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_service_owner
+    @check_sharing_service_owner
     @check_write_permission
     @ensure_d_sharing
     def rmv(self, sources: List[str], destination: str) -> Response:
@@ -301,7 +304,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_service_owner
+    @check_sharing_service_owner
     @check_write_permission
     @ensure_d_sharing
     def rrm(self, paths: List[str]) -> Response:
@@ -360,7 +363,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_service_owner
+    @check_sharing_service_owner
     # NO  @ensure_d_sharing, allowed for files too
     def get(self, paths: List[str], check: bool = False) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -404,7 +407,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_service_owner
+    @check_sharing_service_owner
     @ensure_d_sharing
     def put(self, check: bool = False) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -433,7 +436,7 @@ class SharingService(ISharingService, BaseClientSharingService):
 
     @expose
     @trace_api
-    @check_service_owner
+    @check_sharing_service_owner
     def close(self):
         client_endpoint = pyro_client_endpoint()
 

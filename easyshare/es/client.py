@@ -13,7 +13,7 @@ from Pyro5.errors import PyroError
 
 from easyshare.args import Args as Args, ArgsParseError, PosArgsSpec, \
     VarArgsSpec, ArgsSpec, StopParseArgsSpec
-from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR
+from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR, BEST_BUFFER_SIZE
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
 from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
@@ -28,7 +28,7 @@ from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
 from easyshare.progress import FileProgressor
-from easyshare.protocol import Response, IPutService, IGetService, IRexecService
+from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response
 from easyshare.protocol.types import FileType, ServerInfoFull, SharingInfo, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
     OverwritePolicy, FTYPE_FILE, ServerInfo
@@ -1119,7 +1119,7 @@ class Client:
                 expected_crc = 0
 
                 while cur_pos < fsize:
-                    recv_size = min(TransferService.BUFFER_SIZE, fsize - cur_pos)
+                    recv_size = min(BEST_BUFFER_SIZE, fsize - cur_pos)
                     log.i("Waiting chunk... (expected size: %dB)", recv_size)
 
                     chunk = transfer_socket.recv(recv_size)
@@ -1398,7 +1398,7 @@ class Client:
 
                 while cur_pos < fsize:
 
-                    chunk = f.read(TransferService.BUFFER_SIZE)
+                    chunk = f.read(BEST_BUFFER_SIZE)
                     chunk_len = len(chunk)
 
                     log.i("Read chunk of %dB", chunk_len)

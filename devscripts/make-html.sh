@@ -20,7 +20,7 @@ echo_cyan "====== COPYING STUFF FOR SPHINX ====="
 
 set -x
 cp README.MD docs/sphinx/src/html
-cp LICENSE docs/sphinx/src/html
+cp LICENSE docs/sphinx/src/html/LICENSE.txt
 cp -r img/ docs/sphinx/src/html/img
 { set +x; } 2>/dev/null
 

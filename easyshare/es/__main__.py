@@ -20,9 +20,26 @@ from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.types import is_int, is_str
 from easyshare.args import ArgsParseError
 
+
 log = get_logger(__name__)
 
-# ==================================================================
+
+# ==================================
+# ===== ENTRY POINT OF ES ==========
+# ==================================
+
+# SYNOPSIS
+# es OPTION... [[COMMAND] [COMMAND_OPTIONS]]
+#
+# OPTIONS
+# -d, --discover-port  port      port used for broadcast discovery messages
+# -h, --help                     show this help
+# --no-color                     don't print ANSI escape characters
+# -t, --trace  0_or_1            enable/disable tracing
+# -v, --verbose  level           set verbosity level
+# -V, --version                  show the easyshare version
+# -w, --discover-wait  seconds   time to wait for discovery responses
+
 
 NON_CLI_COMMANDS = [
     Commands.TRACE, Commands.TRACE_SHORT,       # trace

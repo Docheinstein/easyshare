@@ -5,7 +5,7 @@ from easyshare.common import ESD_PYRO_UID
 from easyshare.es.connections import Connection, handle_connection_response, require_connected_connection
 from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
-from easyshare.protocol import IServer, Response
+from easyshare.protocol.services import IServer, Response
 from easyshare.protocol.responses import is_success_response, ServerErrors, is_error_response, create_error_response
 from easyshare.protocol.types import ServerInfoFull, ServerInfo
 from easyshare.ssl import get_ssl_context, set_ssl_context

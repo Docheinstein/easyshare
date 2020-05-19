@@ -38,13 +38,13 @@ class DiscoverDaemon:
         """ Removes a callback from the set of callbacks """
         self._callbacks.remove(callback)
 
-    def endpoint(self):
+    def endpoint(self) -> Endpoint:
         return self._sock.endpoint()
 
-    def address(self):
+    def address(self) -> str:
         return self._sock.address()
 
-    def port(self):
+    def port(self) -> int:
         return self._sock.port()
 
     def run(self):

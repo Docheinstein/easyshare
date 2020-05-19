@@ -3,7 +3,7 @@ from typing import Union, List
 from easyshare.es.connections import require_connected_connection, handle_connection_response
 from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
-from easyshare.protocol import Response, ISharingService
+from easyshare.protocol.services import Response, ISharingService
 from easyshare.protocol.responses import is_success_response, create_success_response, ServerErrors, is_error_response, \
     create_error_response
 from easyshare.protocol.types import ServerInfoFull, SharingInfo

@@ -1,10 +1,11 @@
 import os
 import threading
+from abc import ABC, abstractmethod
 from typing import Callable, Optional, Union
 
 
 from easyshare.esd.common import ClientContext, Sharing
-from easyshare.esd.daemons.server import get_pyro_daemon
+from easyshare.esd.daemons.pyro import get_pyro_daemon
 from easyshare.logging import get_logger
 from easyshare.protocol.responses import ServerErrors, create_error_response
 from easyshare.utils.os import is_relpath, relpath
@@ -14,15 +15,47 @@ from easyshare.utils.types import is_int, is_str
 
 log = get_logger(__name__)
 
+
+# =============================================
+# ============ BASE SERVICE ============
+# =============================================
+
+
+class BaseService(ABC):
+    """
+    Base service: an object that can be published to a Pyro Daemon.
+    """
+    @abstractmethod
+    def publish(self) -> str:
+        """ Publishes the service to the Pyro Daemon """
+        pass
+
+    @abstractmethod
+    def unpublish(self):
+        """ Unpublishes the service from the Pyro Daemon """
+        pass
+
+    @abstractmethod
+    def is_published(self) -> bool:
+        """ Whether the service is published """
+        pass
+
+
 # =============================================
 # ============ BASE CLIENT SERVICE ============
 # =============================================
 
-class BaseClientService:
+
+class BaseClientService(BaseService):
+    """
+    Represents a 'BaseService' bound to a specific client.
+    Is automatically added to the set of services of the client
+    when is published, in order to be unpublished when the client disconnects.
+    """
+
     def __init__(self, client: ClientContext,
                  end_callback: Callable[['BaseClientService'], None]):
         self.service_uri = None
-        # self.service_uid = "esd_" + uuid()
         self.service_uid = None
         self.published = False
 
@@ -31,8 +64,8 @@ class BaseClientService:
 
         self._lock = threading.Lock()
 
-
     def publish(self) -> str:
+        """ Publishes the service to the Pyro Daemon """
         with self._lock:
             self.service_uri, self.service_uid = \
                 get_pyro_daemon().publish(self, uid=self.service_uid)
@@ -41,14 +74,15 @@ class BaseClientService:
             return self.service_uid
 
     def unpublish(self):
+        """ Unpublishes the service from the Pyro Daemon """
         with self._lock:
             if self.is_published():
                 get_pyro_daemon().unpublish(self.service_uid)
                 self.published = False
                 self._client.remove_service(self.service_uid)
 
-
     def is_published(self) -> bool:
+        """ Whether the service is published """
         return self.published
 
     def _notify_service_end(self):
@@ -56,28 +90,9 @@ class BaseClientService:
             self._end_callback(self)
 
     def _is_request_allowed(self):
-        # Check whether the es that tries to access this publication
-        # has the same IP of the original es the first time it access
-        # and has the same IP and PORT for the rest of the time
-        # log.d("Checking publication owner (original_owner: %s | current_owner: %s)", self._client, self._real_client_endpoint)
-        #
-        # current_client_endpoint = pyro_client_endpoint()
-        #
-        # if not self._real_client_endpoint:
-        #     # First request: the port could be different from the original
-        #     # one but the es IP must remain the same
-        #     allowed = self._client.endpoint[0] == current_client_endpoint[0]
-        #     log.d("First request, allowed: %s", allowed)
-        #     if allowed:
-        #         self._real_client_endpoint = current_client_endpoint
-        #     return allowed
-        #
-        # # Not the first request: both IP and port must match
-        # log.d("Further request, allowed: %s", self._real_client_endpoint == current_client_endpoint)
-        # allowed = self._real_client_endpoint == current_client_endpoint
-        # if not allowed:
-        #     log.w("Not allowed since %s != %s", self._real_client_endpoint, current_client_endpoint)
-        # return allowed
+        # A request is allowed if at least the address is the same
+        # We can't check the port since the remote port will be different
+        # (different socket)
         current_client_endpoint = pyro_client_endpoint()
         allowed = self._client.endpoint[0] == current_client_endpoint[0]
 
@@ -88,14 +103,20 @@ class BaseClientService:
         return allowed
 
 
-
 # =============================================
 # ========= BASE CLIENT SHARING SERVICE =======
 # =============================================
 
 
-
 class BaseClientSharingService(BaseClientService):
+    """
+    Represents a 'BaseService' bound to a specific client and sharing.
+    Is automatically added to the set of services of the client
+    when is published, in order to be unpublished when the client disconnects.
+    Offers facilities for handle the rcwd, path conversion relative to the sharing,
+    path domain checking and more.
+    """
+
     def __init__(self,
                  sharing: Sharing,
                  sharing_rcwd: str,
@@ -236,11 +257,16 @@ class BaseClientSharingService(BaseClientService):
 
 
 # decorator
-def check_service_owner(api):
-    def check_service_owner_wrapper(client_service: BaseClientService, *vargs, **kwargs):
+def check_sharing_service_owner(api):
+    """
+    Decorator that checks whether the remote peer is allowed
+    based on its IP/port before invoking the wrapped API,
+    """
+    def check_sharing_service_owner_wrapper(client_service: BaseClientService, *vargs, **kwargs):
         if not client_service._is_request_allowed():
             return create_error_response(ServerErrors.NOT_ALLOWED)
         return api(client_service, *vargs, **kwargs)
 
-    check_service_owner_wrapper.__name__ = api.__name__
-    return check_service_owner_wrapper
+    check_sharing_service_owner_wrapper.__name__ = api.__name__
+
+    return check_sharing_service_owner_wrapper

@@ -1,5 +1,6 @@
 from typing import Optional, Callable
 
+from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
 from easyshare.sockets import SocketTcpAcceptor, SocketTcpIn
 from easyshare.ssl import get_ssl_context
@@ -44,13 +45,13 @@ class TransferDaemon:
         self._callbacks.remove(callback)
         log.d("Removed callback from transfer daemon; current size = %d", len(self._callbacks))
 
-    def endpoint(self):
+    def endpoint(self) -> Endpoint:
         return self._acceptor.endpoint()
 
-    def address(self):
+    def address(self) -> str:
         return self._acceptor.address()
 
-    def port(self):
+    def port(self) -> int:
         return self._acceptor.port()
 
     def run(self):

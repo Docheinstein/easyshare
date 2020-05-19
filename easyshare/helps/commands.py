@@ -7,7 +7,7 @@ from easyshare.es.ui import StyledString
 from easyshare.helps import CommandHelp, CommandOptionInfo
 from easyshare.logging import get_logger
 from easyshare.common import DIR_COLOR, FILE_COLOR
-from easyshare.protocol import FileInfo
+from easyshare.protocol.services import FileInfo
 from easyshare.protocol.responses import is_data_response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
 from easyshare.styling import fg
@@ -28,6 +28,7 @@ log = get_logger(__name__)
 SPECIAL_COMMAND_MARK = ":" # exec and rexec begin with this marker
 
 class Commands:
+    """ es commands """
     HELP = "helps"
     HELP_SHORT = "h"
     EXIT = "exit"
@@ -87,11 +88,11 @@ class Commands:
 
 
 def is_special_command(s: str) -> bool:
-    # Only exec an rexec are special commands
+    """ Whether 's' is a special command is or starts with ":" """
     return s.startswith(SPECIAL_COMMAND_MARK)
 
 def matches_special_command(s: str, sp_comm: str) -> bool:
-    # Returns true for :command or ::command
+    """ Returns whether 's' is exactly a special command or has the form :command or ::command """
     return is_special_command(sp_comm) and \
            s.startswith(sp_comm) and \
            (len(s) == len(sp_comm) or s[len(sp_comm)] != SPECIAL_COMMAND_MARK)
@@ -102,6 +103,10 @@ def matches_special_command(s: str, sp_comm: str) -> bool:
 # ==================================================
 
 class SuggestionsIntent:
+    """
+    Bundle provided by a command: contains the suggestions
+    (e.g. files of the current directory) and other render specifications.
+    """
     def __init__(self,
                  suggestions: List[StyledString],
                  *,
@@ -120,6 +125,7 @@ class SuggestionsIntent:
 
 
 class CommandInfo(CommandHelp, ABC):
+    """ Provide full information of a command and the suggestions too """
     @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
         options = cls.options()
@@ -157,14 +163,17 @@ class CommandInfo(CommandHelp, ABC):
 
 
 class FilesSuggestionsCommandInfo(CommandInfo):
+    """ Base suggestions provided of list of files/directory """
     @classmethod
     @abstractmethod
     def _file_info_filter(cls, finfo: FileInfo) -> bool:
+        """ The subclass should say whether the given file info should be displayed """
         pass
 
     @classmethod
     @abstractmethod
     def _provide_file_info_list(cls, token: str, line: str, client) -> List[FileInfo]:
+        """ The file list to suggest, after being filtered by '_file_info_filter' """
         pass
 
     @classmethod
@@ -213,6 +222,7 @@ class FilesSuggestionsCommandInfo(CommandInfo):
 
 
 class LocalFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
+    """ Files suggestions provider of local files """
     @classmethod
     def _provide_file_info_list(cls, token: str, line: str, client) -> List[FileInfo]:
         log.i("List on token = '%s', line = '%s'", token, line)
@@ -223,6 +233,8 @@ class LocalFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
 
 
 class RemoteFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
+    """ Files suggestions provider of remote files (performs an rls) """
+
     @classmethod
     def _provide_file_info_list(cls, token: str, line: str, client) -> List[FileInfo]:
         if not client or not client.is_connected_to_sharing():
@@ -249,18 +261,21 @@ class RemoteFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
 
 
 class AllFilesFilter(FilesSuggestionsCommandInfo, ABC):
+    """ Suggestions provider that doesn't filter the file list """
     @classmethod
     def _file_info_filter(cls, finfo: FileInfo) -> bool:
         return True # show files and directories
 
 
 class DirsOnlyFilter(FilesSuggestionsCommandInfo, ABC):
+    """ Suggestions provider that keeps only the directories """
     @classmethod
     def _file_info_filter(cls, finfo: FileInfo) -> bool:
         return finfo.get("ftype") == FTYPE_DIR
 
 
 class FilesOnlyFilter(FilesSuggestionsCommandInfo, ABC):
+    """ Suggestions provider that keeps only the files """
     @classmethod
     def _file_info_filter(cls, finfo: FileInfo) -> bool:
         return finfo.get("ftype") == FTYPE_FILE

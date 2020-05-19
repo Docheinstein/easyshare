@@ -1,8 +1,10 @@
+import ssl
 from typing import Optional, Any, Tuple
 
 import Pyro5.api as pyro
 from Pyro5 import socketutil
 
+from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
 from easyshare.utils.rand import uuid
 
@@ -10,17 +12,18 @@ log = get_logger(__name__)
 
 
 # =============================================
-# ================ PYRO DAEMON ================
+# ============== PYRO DAEMON ================
 # =============================================
 
 
-_pyro_daemon: Optional['EsdDaemon'] = None
+_pyro_daemon: Optional['PyroDaemon'] = None
 
 
-class EsdDaemon(pyro.Daemon):
+class PyroDaemon(pyro.Daemon):
     """
     Main daemon that listens to new requests from clients (by default on port 12020),
     actually is a Pyro.Daemon which adds some facility to handle client disconnections.
+    Each 'Service' will be registered to to daemon for being exposed outside.
     """
 
     def __init__(self, *vargs, **kwargs):
@@ -56,14 +59,17 @@ class EsdDaemon(pyro.Daemon):
         for cb in self.disconnection_callbacks:
             cb(conn)
 
-    def endpoint(self):
+    def endpoint(self) -> Endpoint:
         return self.sock.getsockname()
 
-    def address(self):
+    def address(self) -> str:
         return self.endpoint()[0]
 
-    def port(self):
+    def port(self) -> int:
         return self.endpoint()[1]
+
+    def has_ssl(self) -> bool:
+        return isinstance(self.sock, ssl.SSLSocket)
 
 
 def init_pyro_daemon(address: str,
@@ -76,13 +82,13 @@ def init_pyro_daemon(address: str,
           "\tPort: %s\n",
           address, port)
 
-    _pyro_daemon = EsdDaemon(
+    _pyro_daemon = PyroDaemon(
         host=address,
         port=port,
     )
 
 
-def get_pyro_daemon() -> Optional[EsdDaemon]:
+def get_pyro_daemon() -> Optional[PyroDaemon]:
     """ Get the global pyro daemon instance """
     return _pyro_daemon
 

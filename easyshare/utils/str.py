@@ -102,3 +102,7 @@ def multireplace(s: str,
             s = re.sub(k, v, s)
 
     return s
+
+def tf(cond, y: str = "true", n: str = "false"):
+    """ Returns 'y' if cond evaluates to True, 'n' otherwise """
+    return y if cond else n

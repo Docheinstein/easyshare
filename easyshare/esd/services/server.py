@@ -1,0 +1,304 @@
+import threading
+from typing import Dict, Optional, List
+
+from Pyro5 import socketutil
+from Pyro5.api import expose, oneway
+
+from easyshare.common import ESD_PYRO_UID
+from easyshare.endpoint import Endpoint
+from easyshare.esd.common import ClientContext, Sharing
+from easyshare.esd.daemons.pyro import get_pyro_daemon
+from easyshare.esd.services import BaseService
+from easyshare.esd.services.rexec import RexecService
+from easyshare.esd.services.sharing import SharingService
+from easyshare.logging import get_logger
+from easyshare.protocol.services import IServer
+from easyshare.protocol.responses import ServerErrors, create_error_response, create_success_response, Response
+from easyshare.protocol.types import ServerInfo
+from easyshare.styling import red, green
+from easyshare.utils.pyro.server import pyro_client_endpoint, try_or_command_failed_response, trace_api
+
+
+log = get_logger(__name__)
+
+
+# =============================================
+# ============== SERVER SERVICE ===============
+# =============================================
+
+
+def require_client_connected(api):
+    def require_client_connected_api(server: 'ServerService', *vargs, **kwargs):
+        if not server._current_request_client():
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+        return api(server, *vargs, **kwargs)
+
+    require_client_connected_api.__name__ = api.__name__
+    return require_client_connected_api
+
+
+class ServerService(IServer, BaseService):
+    """
+    Implementation of 'IServer' interface that will be published with Pyro.
+    Offers all the methods that operate on a server (e.g. open, ping, rexec).
+    """
+
+    def __init__(self, *,
+                 sharings: List[Sharing],
+                 name,
+                 address,
+                 port,
+                 auth,
+                 rexec):
+        self._sharings = {s.name: s for s in sharings}
+        self._name = name
+        self._port = port
+        self._address = address
+        self._auth = auth
+        self._rexec_enabled = rexec
+
+
+        self._clients: Dict[Endpoint, ClientContext] = {}
+        self._clients_lock = threading.Lock()
+
+        self.published = False
+
+    def publish(self) -> str:
+        """ Publishes the service to the Pyro Daemon """
+        get_pyro_daemon().add_disconnection_callback(self._handle_client_disconnect)
+        uri, uid = get_pyro_daemon().publish(self, uid=ESD_PYRO_UID)
+        self.published = True
+
+        log.i(f"ServerService registered at URI: {uri}")
+
+        return uid
+
+    def unpublish(self):
+        """ Unpublishes the service from the Pyro Daemon """
+        get_pyro_daemon().unpublish(ESD_PYRO_UID)
+        self.published = False
+
+    def is_published(self) -> bool:
+        """ Whether the service is published """
+        return self.published
+
+    def endpoint(self) -> Endpoint:
+        return get_pyro_daemon().sock.getsockname()
+
+    def address(self) -> str:
+        return self.endpoint()[0]
+
+    def port(self) -> int:
+        return self.endpoint()[1]
+
+    def name(self) -> str:
+        """ Name of the server"""
+        return self._name
+
+    def auth_type(self) -> str:
+        """ Authentication type """
+        return self._auth.algo_type()
+
+    def is_rexec_enabled(self) -> bool:
+        """ Whether rexec is enabled """
+        return self._rexec_enabled
+
+    @expose
+    @trace_api
+    @try_or_command_failed_response
+    def connect(self, password: str = None) -> Response:
+        client_endpoint = self._current_request_endpoint()
+        client = self._current_request_client()
+
+        log.i("<< CONNECT [%s]", client_endpoint)
+
+        if client:
+            log.w("Client already connected")
+            return create_success_response()
+
+        # Authentication
+        log.i("Authentication check - type: %s", self._auth.algo_type())
+
+        # Just ask the auth whether it matches or not
+        # (The password can either be none/plain/hash, the auth handles them all)
+        if not self._auth.authenticate(password):
+            log.e("Authentication FAILED")
+            return create_error_response(ServerErrors.AUTHENTICATION_FAILED)
+        else:
+            log.i("Authentication OK")
+
+        self._add_client(client_endpoint)
+
+        return create_success_response()
+
+
+    @expose
+    @oneway
+    @trace_api
+    @require_client_connected
+    @try_or_command_failed_response
+    def disconnect(self):
+        client_endpoint = self._current_request_endpoint()
+
+        log.i("<< DISCONNECT [%s]", client_endpoint)
+
+        if self._del_client(self._current_request_endpoint()):
+            log.i("Client disconnected gracefully")
+        else:
+            # Should not happen due @require_client_connected
+            log.w("disconnect() failed; es not found")
+
+
+    @expose
+    @trace_api
+    @try_or_command_failed_response
+    # @require_client_connected
+    def list(self):
+        client_endpoint = self._current_request_endpoint()
+
+        log.i("<< LIST [%s]", client_endpoint)
+
+        return create_success_response([sh.info() for sh in self._sharings.values()])
+
+    @expose
+    @trace_api
+    @try_or_command_failed_response
+    # @require_client_connected
+    def info(self):
+        client_endpoint = self._current_request_endpoint()
+
+        log.i("<< INFO [%s]", client_endpoint)
+
+        return create_success_response(
+            self.server_info()
+        )
+
+
+    @expose
+    @trace_api
+    @require_client_connected
+    @try_or_command_failed_response
+    def open(self, sharing_name: str) -> Response:
+        if not sharing_name:
+            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        sharing = self._sharings.get(sharing_name)
+
+        if not sharing:
+            return create_error_response(ServerErrors.SHARING_NOT_FOUND)
+
+        client = self._current_request_client()
+
+        log.i("<< OPEN %s [%s]", sharing_name, client)
+
+        serving = SharingService(
+            server_port=self._port,
+            sharing=sharing,
+            sharing_rcwd="",
+            client=client,
+            end_callback=lambda cs: cs.unpublish()
+        )
+
+        uid = serving.publish()
+
+        log.i("Opened sharing UID: %s", uid)
+
+        return create_success_response(uid)
+
+
+    @expose
+    @trace_api
+    @try_or_command_failed_response
+    # @require_client_connected
+    def ping(self):
+        return create_success_response("pong")
+
+    @expose
+    @trace_api
+    @try_or_command_failed_response
+    def rexec(self, cmd: str) -> Response:
+        if not self._rexec_enabled:
+            log.e("Client attempted remote command execution; denying since rexec is disabled")
+            return create_error_response(ServerErrors.NOT_ALLOWED)
+
+        client = self._current_request_client()
+        if not client:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+
+        log.i(">> REXEC %s [%s]", cmd, client)
+
+        rx = RexecService(
+            cmd,
+            client=client,
+            end_callback=lambda cs: cs.unpublish()
+        )
+        rx.run()
+
+        uri = rx.publish()
+
+        log.d("Rexec handler initialized; uri: %s", uri)
+        return create_success_response(uri)
+
+    def server_info(self) -> ServerInfo:
+        """ Returns a 'ServerInfo' of this server service"""
+        si = {
+            "name": self._name,
+            "sharings": [sh.info() for sh in self._sharings.values()],
+            "ssl": get_pyro_daemon().has_ssl(),
+            "auth": True if (self._auth and self._auth.algo_security() > 0) else False
+        }
+
+        return si
+
+    def _add_client(self, endpoint: Endpoint) -> ClientContext:
+        with self._clients_lock:
+            ctx = ClientContext(endpoint)
+
+            log.i("Adding es %s", ctx)
+
+            print(green("Client connected: {}:{}".format(ctx.endpoint[0], ctx.endpoint[1])))
+
+            self._clients[endpoint] = ctx
+
+        return ctx
+
+    def _del_client(self, endpoint: Endpoint) -> bool:
+        with self._clients_lock:
+            ctx = self._clients.pop(endpoint, None)
+
+            if not ctx:
+                return False
+
+            print(red("Client disconnected: {}:{}".format(ctx.endpoint[0], ctx.endpoint[1])))
+
+            log.i("Removing es %s", ctx)
+
+            daemon = get_pyro_daemon()
+
+            with ctx.lock:
+                for service_id in ctx.services:
+                    daemon.unpublish(service_id)
+
+
+        return True
+
+    def _current_request_endpoint(self) -> Optional[Endpoint]:
+        """
+        Returns the endpoint (ip, port) of the es that is making
+        the request right now (provided by the underlying Pyro deamon)
+        :return: the endpoint of the current es
+        """
+        return pyro_client_endpoint()
+
+    def _current_request_client(self) -> Optional[ClientContext]:
+        """
+        Returns the es that belongs to the current request endpoint (ip, port)
+        if exists among the known clients; otherwise returns None.
+        :return: the es of the current request
+        """
+        return self._clients.get(self._current_request_endpoint())
+
+    def _handle_client_disconnect(self, pyroconn: socketutil.SocketConnection):
+        endpoint = pyroconn.sock.getpeername()
+        log.d("Cleaning up es %s resources", endpoint)
+        self._del_client(endpoint)

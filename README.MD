@@ -70,7 +70,7 @@ Currently the only supported SHARING_OPTION is the read-only flag, which can be 
 -d, --discover-port  port     port used to listen to discovery messages (default is 12021)
 -e, --rexec                   enable rexec (remote execution)
 -h, --help                    show this help
--n, --name  name              server name
+-n, --name  name              server name (default is server hostname)
 --no-color                    don't print ANSI escape characters
 -P, --password  password      server password, plain or hashed with es-tools
 -p, --port  port              server port (default is 12020)
@@ -459,6 +459,7 @@ Actually there are still many things to write tests for...
 * Testing on Windows
 * *find* and *rfind* command that finds files by name and tag those with incremental IDs (1, 2)
 which can be used in other command (something like $1, $2)
+* *shell* and *rshell* which implement command execution through a pty (enhanced version of exec/rexec)
 * Behind NAT section in README (open two external ports internally forwarded to 12020 and 12021)
 * Add unit tests
 * Handle addresses instead of numeric IPs

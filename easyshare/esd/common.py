@@ -11,6 +11,7 @@ from easyshare.utils.rand import randstring
 
 log = get_logger(__name__)
 
+
 # =============================================
 # ============== CLIENT CONTEXT ===============
 # =============================================

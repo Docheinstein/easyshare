@@ -53,7 +53,7 @@ class Esd(CommandHelp, ArgsSpec):
             CommandOptionInfo(cls.HELP, "show this helps"),
             CommandOptionInfo(cls.VERSION, "show the easyshare version"),
             CommandOptionInfo(cls.CONFIG, "load settings from a esd configuration file", params=["config_path"]),
-            CommandOptionInfo(cls.NAME, "server name", params=["name"]),
+            CommandOptionInfo(cls.NAME, "server name (default is server hostname)", params=["name"]),
             CommandOptionInfo(cls.ADDRESS, "server address (default is primary interface)", params=["address"]),
             CommandOptionInfo(cls.PORT, "server port (default is 12020)", params=["port"]),
             CommandOptionInfo(cls.DISCOVER_PORT, "port used to listen to discovery messages (default is 12021)",

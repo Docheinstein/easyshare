@@ -19,3 +19,5 @@
 - find, rfind
 - sync / get --sync
 - rexec with pty
+- write a readthedocs
+- rename serverinfofull serverserviceinfo

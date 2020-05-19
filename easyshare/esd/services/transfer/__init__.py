@@ -5,16 +5,17 @@ from typing import Callable
 from Pyro5.server import expose
 
 from easyshare.esd.daemons.transfer import get_transfer_daemon
-from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_service_owner
+from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.logging import get_logger
-from easyshare.protocol import ITransferService
+from easyshare.protocol.services import ITransferService
 from easyshare.protocol.responses import TransferOutcomes, create_success_response, Response
 from easyshare.sockets import SocketTcpIn
 from easyshare.utils.pyro.server import trace_api, try_or_command_failed_response
 
 log = get_logger(__name__)
+
 
 # =============================================
 # ============= TRANSFER SERVICE ==============
@@ -22,14 +23,11 @@ log = get_logger(__name__)
 
 
 class TransferService(ITransferService, BaseClientSharingService, ABC):
-
-    # Close the connection on the transfer port if none connects within this timeout
-    TRANSFER_ACCEPT_CONNECTION_TIMEOUT = 10
-
-    BUFFER_SIZE = 4096
-
+    """
+    Base implementation of 'ITransferService' interface that will be published with Pyro.
+    Defines the common stuff for a single execution of transfer (get/put) command.
+    """
     def __init__(self,
-                 port: int,
                  sharing: Sharing,
                  sharing_rcwd,
                  client: ClientContext,
@@ -42,7 +40,7 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
 
     @expose
     @trace_api
-    @check_service_owner
+    @check_sharing_service_owner
     @try_or_command_failed_response
     def outcome(self) -> Response:
         log.d("Blocking and waiting for outcome...")
@@ -59,16 +57,21 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
 
     @abstractmethod
     def _run(self):
+        """ Subclasses should override this for implement the real transfer logic """
         pass
 
     def _handle_new_connection(self, sock: SocketTcpIn) -> bool:
+        """
+        Handles a new socket connection;
+        if it is valid, invoke the _run of the subclass .
+        """
         if not sock:
             self._finish(TransferOutcomes.CONNECTION_ESTABLISHMENT_ERROR)
-            return False # not handled
+            return False # not handled - eventually will be closed
 
         if sock.remote_endpoint()[0] != self._client.endpoint[0]:
             log.e("Unexpected es connected: forbidden")
-            return False # not handled
+            return False # not handled - eventually will be closed
 
         log.i("Received connection from valid endpoint %s", sock.remote_endpoint())
         self._transfer_sock = sock
@@ -79,10 +82,17 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
 
         return True # handled
 
-
     def _success(self):
+        """
+        Sets the outcome to 0 and release the semaphore,
+        so that who is waiting will be notified
+        """
         self._finish(0)
 
     def _finish(self, outcome):
+        """
+        Sets the outcome and release the semaphore,
+        so that who is waiting will be notified
+        """
         self._outcome = outcome
         self._outcome_sync.release()

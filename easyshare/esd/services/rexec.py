@@ -3,13 +3,13 @@ import threading
 from typing import Callable, Optional, List
 
 from Pyro5.server import expose
-from easyshare.esd.services import BaseClientService, check_service_owner
+from easyshare.esd.services import BaseClientService, check_sharing_service_owner
 
 from easyshare.consts.os import STDOUT, STDERR
 
 from easyshare.esd.common import ClientContext
 from easyshare.logging import get_logger
-from easyshare.protocol import IRexecService
+from easyshare.protocol.services import IRexecService
 from easyshare.protocol.responses import create_success_response, ServerErrors, create_error_response, Response
 from easyshare.utils.os import run_detached
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
@@ -22,49 +22,60 @@ log = get_logger(__name__)
 # =============================================
 
 
+
+class BlockingBuffer:
+    """
+    Implementation of a blocking queue for a buffer of  lines.
+    (probably python Queue will do the job as well).
+    """
+    def __init__(self):
+        self._buffer = []
+        self._sync = threading.Semaphore(0)
+        self._lock = threading.Lock()
+
+    def pull(self) -> List:
+        ret = []
+
+        self._sync.acquire()
+        self._lock.acquire()
+
+        while self._buffer:
+            val = self._buffer.pop(0)
+            log.d("[-] %s", val)
+            ret.append(val)
+
+        self._lock.release()
+
+        return ret
+
+    def push(self, val):
+        self._lock.acquire()
+
+        log.d("[+] %s", val)
+        self._buffer.append(val)
+
+        self._sync.release()
+        self._lock.release()
+
 class RexecService(IRexecService, BaseClientService):
-    class BlockingBuffer:
-        def __init__(self):
-            self._buffer = []
-            self._sync = threading.Semaphore(0)
-            self._lock = threading.Lock()
+    """
+    Implementation of 'IRexecService' interface that will be published with Pyro.
+    Handles a single execution of a rexec command.
+    """
 
-        def pull(self) -> List:
-            ret = []
-
-            self._sync.acquire()
-            self._lock.acquire()
-
-            while self._buffer:
-                val = self._buffer.pop(0)
-                log.d("[-] %s", val)
-                ret.append(val)
-
-            self._lock.release()
-
-            return ret
-
-        def push(self, val):
-            self._lock.acquire()
-
-            log.d("[+] %s", val)
-            self._buffer.append(val)
-
-            self._sync.release()
-            self._lock.release()
 
     def __init__(self, cmd: str, *,
                  client: ClientContext,
                  end_callback: Callable[[BaseClientService], None]):
         super().__init__(client, end_callback)
         self._cmd = cmd
-        self._buffer = RexecService.BlockingBuffer()
+        self._buffer = BlockingBuffer()
         self.proc: Optional[subprocess.Popen] = None
         self.proc_handler: Optional[threading.Thread] = None
 
     @expose
     @trace_api
-    @check_service_owner
+    @check_sharing_service_owner
     @try_or_command_failed_response
     def recv(self) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -103,7 +114,7 @@ class RexecService(IRexecService, BaseClientService):
 
     @expose
     @trace_api
-    @check_service_owner
+    @check_sharing_service_owner
     @try_or_command_failed_response
     def send_data(self, data: str) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -120,7 +131,7 @@ class RexecService(IRexecService, BaseClientService):
 
     @expose
     @trace_api
-    @check_service_owner
+    @check_sharing_service_owner
     @try_or_command_failed_response
     def send_event(self, ev: int) -> Response:
         client_endpoint = pyro_client_endpoint()

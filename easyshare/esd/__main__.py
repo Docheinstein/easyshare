@@ -23,9 +23,30 @@ from easyshare.utils.env import are_colors_supported
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context
-from easyshare.utils.str import satisfychars
+from easyshare.utils.str import satisfychars, tf
 
-# ==================================================================
+# ==================================
+# ==== ENTRY POINT OF ESD ==========
+# ==================================
+
+# SYNOPSIS
+# esd [OPTION]... [SHARING [SHARING_NAME] [SHARING_OPTION]...]
+#
+# -a, --address  address        server address (default is primary interface)
+# -c, --config  config_path     load settings from a esd configuration file
+# -d, --discover-port  port     port used to listen to discovery messages (default is 12021)
+# -e, --rexec                   enable rexec (remote execution)
+# -h, --help                    show this help
+# -n, --name  name              server name
+# --no-color                    don't print ANSI escape characters
+# -P, --password  password      server password, plain or hashed with es-tools
+# -p, --port  port              server port (default is 12020)
+# --ssl-cert  cert_path         path to an SSL certificate
+# --ssl-privkey  privkey_path   path to an SSL private key
+# -t, --trace  0_or_1           enable/disable tracing
+# -v, --verbose  level          set verbosity level
+# -V, --version                 show the easyshare version
+
 
 log = get_logger(__name__)
 
@@ -33,6 +54,7 @@ log = get_logger(__name__)
 # === ARGUMENTS ===
 
 class SharingArgs(StopParseArgsSpec):
+    """ Command line arguments provided after the sharing path/name"""
     READ_ONLY = ["-r", "--read-only"]
 
     def __init__(self):
@@ -43,7 +65,9 @@ class SharingArgs(StopParseArgsSpec):
             (self.READ_ONLY, PRESENCE_PARAM),
         ]
 
+
 class EsdConfKeys:
+    """ Keys of the configuration file of esd (-c config)"""
     G_NAME = "name"
     G_ADDRESS = "address"
     G_PORT = "port"
@@ -141,6 +165,8 @@ def main():
 
     # Config file
 
+    # Stored as a dict so that consecutive declaration of
+    # sharings with the same name will keep only the last one
     sharings = {}
 
     def add_sharing(path: str, name: str, readonly: bool):
@@ -404,7 +430,11 @@ def main():
     log.i("Required auth: %s", auth.algo_type())
 
 
+    if not sharings:
+        log.w("No sharings found, it will be an empty esd")
+
     server = Server(
+        sharings=list(sharings.values()),
         name=server_name,
         address=server_address,
         port=server_port,
@@ -414,40 +444,36 @@ def main():
         rexec=server_rexec
     )
 
-    SEP = "================================"
+    # Print server start info
 
-    SEP_FIRST = SEP + "\n\n"
-    SEP_MID = "\n" + SEP + "\n\n"
-    SEP_LAST = "\n" + SEP
-
-    # Server info
-    s = SEP_FIRST + \
-        bold("SERVER INFO") + "\n\n" + \
-        "Name:              {}\n".format(server.name()) + \
-        "Address:           {}\n".format(server.address()) + \
-        "Server port:       {}\n".format(server.port()) + \
-        "Transfer port:     {}\n".format(get_transfer_daemon().port()) + \
-        "Discover port:     {}\n".format(get_discover_daemon().port() if server.is_discoverable() else "disabeld") + \
-        "Auth:              {}\n".format(server.auth_type()) + \
-        "SSL:               {}\n".format(True if get_ssl_context() else False) + \
-        "Remote execution:  {}\n".format(server.is_rexec_enabled())
-
-    # Sharings
-    s += SEP_MID + bold("SHARINGS") + "\n\n"
+    sharings_str = ""
     for sharing in sharings.values():
-        s += "* " + sharing.name + " --> " + sharing.path + "\n"
-    s += SEP_MID
+        sharings_str += "* " + sharing.name + " --> " + sharing.path + "\n"
 
-    s += bold("RUNNING...") + "\n"
+    print(f"""\
+================================
 
-    if sharings:
-        # Add every sharing to the esd
-        for sharing in sharings.values():
-            server.add_sharing(sharing)
-    else:
-        log.w("No sharings found, it will be an empty esd")
+{bold("SERVER INFO")}
 
-    print(s)
+Name:               {server.server_service.name()}
+Address:            {server.server_service.address()}
+Server port:        {server.server_service.port()}
+Transfer port:      {get_transfer_daemon().port()}
+Discover port:      {get_discover_daemon().port() if get_discover_daemon() else "disabled"}
+Auth:               {server.server_service.auth_type()}
+SSL:                {tf(get_ssl_context(), "enabled", "disabled")}
+Remote execution:   {tf(server.server_service.is_rexec_enabled(), "enabled", "disabled")}
+
+================================
+
+{bold("SHARINGS")}
+
+{sharings_str}
+
+================================
+
+{bold("RUNNING...")}
+""")
 
     server.start()
 

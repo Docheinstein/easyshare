@@ -5,11 +5,12 @@ from typing import Callable, List, Tuple
 
 from Pyro5.server import expose
 
+from easyshare.common import BEST_BUFFER_SIZE
 from easyshare.esd.common import ClientContext, Sharing
-from easyshare.esd.services import BaseClientService, check_service_owner
+from easyshare.esd.services import BaseClientService, check_sharing_service_owner
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
-from easyshare.protocol import IGetService
+from easyshare.protocol.services import IGetService
 from easyshare.protocol.responses import create_success_response, TransferOutcomes, create_error_response, Response
 from easyshare.protocol.types import FTYPE_DIR, FTYPE_FILE
 from easyshare.utils.os import relpath
@@ -25,6 +26,10 @@ log = get_logger(__name__)
 
 
 class GetService(IGetService, TransferService):
+    """
+    Implementation of 'IGetService' interface that will be published with Pyro.
+    Handles a single execution of a get command.
+    """
     def __init__(self,
                  files: List[Tuple[str, str]], # local path, remote prefix
                  check: bool,
@@ -40,7 +45,7 @@ class GetService(IGetService, TransferService):
 
     @expose
     @trace_api
-    @check_service_owner
+    @check_sharing_service_owner
     @try_or_command_failed_response
     def next(self, transfer: bool = False, skip: bool = False) -> Response:
         if self._outcome:
@@ -148,74 +153,6 @@ class GetService(IGetService, TransferService):
         while True:
             log.d("Blocking and waiting for a file to handle...")
 
-            # Send
-            # # =============================================
-            # # ============= TRANSFER SERVICE ==============
-            # # =============================================
-            #
-            # class TransferService(ITransferService, BaseClientSharingService, ABC):
-            #
-            #     # Close the connection on the transfer port if none connects within this timeout
-            #     TRANSFER_ACCEPT_CONNECTION_TIMEOUT = 10
-            #
-            #     BUFFER_SIZE = 4096
-            #
-            #     def __init__(self,
-            #                  port: int,
-            #                  sharing: Sharing,
-            #                  sharing_rcwd,
-            #                  client: ClientContext,
-            #                  end_callback: Callable[[BaseClientService], None]):
-            #         super().__init__(sharing, sharing_rcwd, client, end_callback)
-            #         get_transfer_daemon().add_callback(self._handle_new_connection)
-            #         self._outcome_sync = threading.Semaphore(0)
-            #         self._outcome = None
-            #
-            #     @expose
-            #     @trace_api
-            #     @check_service_owner
-            #     @try_or_command_failed_response
-            #     def outcome(self) -> Response:
-            #         log.d("Blocking and waiting for outcome...")
-            #
-            #         self._outcome_sync.acquire()
-            #         outcome = self._outcome
-            #         self._outcome_sync.release()
-            #
-            #         log.i("Transfer outcome: %d", outcome)
-            #
-            #         self._notify_service_end()
-            #
-            #         return create_success_response(outcome)
-            #
-            #     def run(self):
-            #         th = threading.Thread(target=self._accept_connection_and_run, daemon=True)
-            #         th.start()
-            #
-            #     def _handle_new_connection(self, sock: SocketTcpIn):
-            #         if not sock:
-            #             self._finish(TransferOutcomes.CONNECTION_ESTABLISHMENT_ERROR)
-            #             return
-            #
-            #
-            #         if sock.remote_endpoint()[0] != self._client.endpoint[0]:
-            #             log.e("Unexpected es connected: forbidden")
-            #             return False
-            #
-            #         log.i("Received connection from valid es %s", sock.remote_endpoint())
-            #         self._transfer_sock = sock
-            #
-            #         # Finally execute the transfer logic
-            #         self._run()
-            #
-            #
-            #     def _success(self):
-            #         self._finish(0)
-            #
-            #     def _finish(self, outcome):
-            #         self._outcome = outcome
-            #         self._outcome_sync.release()files until the servings buffer is empty
-            # Wait on the blocking queue for the next file to send
             next_serving = self._active_servings.get()
 
             if not next_serving:
@@ -231,7 +168,7 @@ class GetService(IGetService, TransferService):
 
             # Send file
             while cur_pos < file_len:
-                readlen = min(file_len - cur_pos, TransferService.BUFFER_SIZE)
+                readlen = min(file_len - cur_pos, BEST_BUFFER_SIZE)
 
                 # Read from file
                 chunk = f.read(readlen)
