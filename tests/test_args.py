@@ -1,12 +1,8 @@
-import os
-
-import pytest
-
 from easyshare import logging
 from easyshare.args import STR_PARAM, INT_PARAM, Args, ArgsParseError, VARIADIC_PARAMS
 from easyshare.logging import init_logging
 
-init_logging(default_verbosity=logging.VERBOSITY_NONE)
+init_logging(default_verbosity=logging.VERBOSITY_MAX)
 
 def test_parse_success():
     print("test_parse_success ----------")
@@ -24,7 +20,7 @@ def test_parse_success():
     assert args.get_positional() == "something"
 
 def test_parse_fail():
-    with pytest.raises(ArgsParseError):
+    try:
         Args.parse(
             "-p -c /tmp something".split(" "),
             positionals_spec=STR_PARAM,
@@ -33,6 +29,10 @@ def test_parse_fail():
                 (["-c", "--config"], STR_PARAM),
             ]
         )
+        raise AssertionError()
+    except ArgsParseError:
+        pass
+
 
 def test_variadic():
     args = Args.parse(

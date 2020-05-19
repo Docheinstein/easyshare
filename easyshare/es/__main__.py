@@ -3,7 +3,7 @@ import sys
 from easyshare import logging
 from easyshare.es.client import Client
 from easyshare.helps.commands import Commands, is_special_command
-from easyshare.es.errors import errcode_string
+from easyshare.es.errors import errno_str
 from easyshare.es.shell import Shell
 from easyshare.helps.es import Es
 from easyshare.logging import get_logger
@@ -187,7 +187,7 @@ def main():
                 abort("Unknown CLI command '{}'".format(command))
 
             if is_int(outcome) and outcome > 0:
-                abort(errcode_string(outcome))
+                abort(errno_str(outcome))
             elif is_str(outcome):
                 abort(str)
 

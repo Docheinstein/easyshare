@@ -106,3 +106,7 @@ def multireplace(s: str,
 def tf(cond, y: str = "true", n: str = "false"):
     """ Returns 'y' if cond evaluates to True, 'n' otherwise """
     return y if cond else n
+
+def yn(cond):
+    """ Returns yes if cond evaluates to True, no otherwise """
+    return tf(cond, "yes", "no")

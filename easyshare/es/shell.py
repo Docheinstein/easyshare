@@ -30,26 +30,25 @@ from easyshare.utils.types import is_bool, is_int, is_str, bool_to_str
 
 log = get_logger(__name__)
 
+# The shell can execute every possible command, obviously
+_SHELL_COMMANDS = values(Commands)
 
-# ==================================================================
 
-
-SHELL_COMMANDS = values(Commands)
-
-VERBOSITY_EXPLANATION_MAP = {
+_VERBOSITY_EXPLANATION_MAP = {
     logging.VERBOSITY_NONE: Verbose.V0[1],
     logging.VERBOSITY_ERROR: Verbose.V1[1],
     logging.VERBOSITY_WARNING: Verbose.V2[1],
     logging.VERBOSITY_INFO: Verbose.V3[1],
     logging.VERBOSITY_DEBUG: Verbose.V4[1],
-    logging.VERBOSITY_DEBUG + 1: Verbose.V5[1]
+    logging.VERBOSITY_DEBUG + 1: Verbose.V5[1]  # pyro logging
 }
 
 
-# ==================================================================
-
-
 class Shell:
+    """
+    The interactive shell of es that is able to parse and execute commands.
+    Uses GNU readline for provide command completion and files suggestions.
+    """
 
     def __init__(self, client: Client):
         self._client: Client = client
@@ -76,6 +75,8 @@ class Shell:
 
         self._help_map = None
 
+        # GNU readline config
+
         rl.parse_and_bind("tab: complete")
         rl.parse_and_bind("set completion-query-items 50")
 
@@ -84,11 +85,18 @@ class Shell:
         # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
         rl.set_completer_delims(rl.get_completer_delims().replace("-", ""))
 
+        # Use a custom render function; this has been necessary for print
+        # colors while using readline for the suggestions engine
         rl.set_completion_display_matches_hook(self._display_suggestions_wrapper)
 
         rl.set_completer(self._next_suggestion_wrapper)
 
     def input_loop(self):
+        """
+        Starts the shell.
+        CTRL+C interrupt the current command and create a new line.
+        CTRL+D exits the shell.
+        """
         while True:
             try:
                 log.d("Connected to esd : %s%s",
@@ -163,9 +171,11 @@ class Shell:
 
 
     def has_command(self, command: str) -> bool:
+        """ Returns whether the shell is able to handle 'commad' """
         return command in self._shell_command_dispatcher
 
     def execute_shell_command(self, command: str, command_args: List[str]) -> Union[int, str]:
+        """ Executes the given 'command' using 'command_args' as arguments """
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 
@@ -192,12 +202,14 @@ class Shell:
 
 
     def _display_suggestions_wrapper(self, substitution, matches, longest_match_length):
+        """ Called by GNU readline when suggestions have to be rendered """
         try:
             self._display_suggestions(substitution, matches, longest_match_length)
         except:
             log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
 
     def _display_suggestions(self, substitution, matches, longest_match_length):
+        """ Display the current suggestions """
         # Simulate the default behaviour of readline, but:
         # 1. Separate the concept of suggestion/rendered suggestion: in this
         #    way we can render a colored suggestion while using the readline
@@ -209,12 +221,14 @@ class Shell:
         print(self._prompt + self._current_line, end="", flush=True)
 
     def _next_suggestion_wrapper(self, token: str, count: int):
+        """ Called by GNU readline when new suggestions have to be provided """
         try:
             return self._next_suggestion(token, count)
         except:
             log.w("Exception occurred while retrieving suggestions\n%s", traceback.format_exc())
 
     def _next_suggestion(self, token: str, count: int):
+        """ Provide the next suggestion, or None if there is nothing more to suggest"""
         self._current_line = rl.get_line_buffer()
 
         stripped_current_line = self._current_line.lstrip()
@@ -277,7 +291,12 @@ class Shell:
 
         return None
 
-    def _build_prompt_string(self):
+    # noinspection PyPep8Naming
+    def _build_prompt_string(self) -> str:
+        """
+        Builds the prompt string of the shell based on
+        the local cwd and remote connection/rcwd.
+        """
         remote = ""
 
         if self._client.is_connected_to_server():
@@ -316,6 +335,7 @@ class Shell:
         return prompt
 
     def _help(self, args: Args) -> NoReturn:
+        """ help - display the man of a command """
         cmd = args.get_positional()
 
         # if cmd is not None and cmd not in COMMANDS_INFO:
@@ -335,10 +355,13 @@ class Shell:
 
     @staticmethod
     def _exit(_: Args) -> NoReturn:
+        """ exit - quit the shell """
         exit(0)
 
     @staticmethod
     def _trace(args: Args) -> Union[int, str]:
+        """ trace - changes the tracing level """
+
         # Toggle tracing if no parameter is provided
         enable = args.get_positional(default=not is_tracing_enabled())
 
@@ -355,6 +378,8 @@ class Shell:
 
     @staticmethod
     def _verbose(args: Args) -> Union[int, str]:
+        """ verbose - changes the verbosity level """
+
         # Increase verbosity (or disable if is already max)
         root_log = get_logger(logging.ROOT_LOGGER_NAME)
 
@@ -373,7 +398,7 @@ class Shell:
 
         print("Verbosity = {:d} ({})".format(
             verbosity,
-            VERBOSITY_EXPLANATION_MAP.get(verbosity, "<unknown>")
+            _VERBOSITY_EXPLANATION_MAP.get(verbosity, "<unknown>")
         ))
 
         return 0

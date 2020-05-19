@@ -27,14 +27,20 @@ log = get_logger(__name__)
 # =============================================
 
 
-def require_client_connected(api):
-    def require_client_connected_api(server: 'ServerService', *vargs, **kwargs):
+def require_connected_client(api):
+    """
+    Decorator for require that the client that performs the request is actually
+    connected at application level (i.e. authenticated).
+    Raises a NOT_CONNECTED if the client is not connected.
+    """
+    def require_connected_client_wrapper(server: 'ServerService', *vargs, **kwargs):
         if not server._current_request_client():
             return create_error_response(ServerErrors.NOT_CONNECTED)
         return api(server, *vargs, **kwargs)
 
-    require_client_connected_api.__name__ = api.__name__
-    return require_client_connected_api
+    require_connected_client_wrapper.__name__ = api.__name__
+
+    return require_connected_client_wrapper
 
 
 class ServerService(IServer, BaseService):
@@ -135,7 +141,7 @@ class ServerService(IServer, BaseService):
     @expose
     @oneway
     @trace_api
-    @require_client_connected
+    @require_connected_client
     @try_or_command_failed_response
     def disconnect(self):
         client_endpoint = self._current_request_endpoint()
@@ -152,7 +158,7 @@ class ServerService(IServer, BaseService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    # @require_client_connected
+    # NO @require_client_connected
     def list(self):
         client_endpoint = self._current_request_endpoint()
 
@@ -163,7 +169,7 @@ class ServerService(IServer, BaseService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    # @require_client_connected
+    # NO @require_client_connected
     def info(self):
         client_endpoint = self._current_request_endpoint()
 
@@ -176,7 +182,7 @@ class ServerService(IServer, BaseService):
 
     @expose
     @trace_api
-    @require_client_connected
+    @require_connected_client
     @try_or_command_failed_response
     def open(self, sharing_name: str) -> Response:
         if not sharing_name:
@@ -251,6 +257,7 @@ class ServerService(IServer, BaseService):
         return si
 
     def _add_client(self, endpoint: Endpoint) -> ClientContext:
+        """ Adds the endpoint to the set of known clients """
         with self._clients_lock:
             ctx = ClientContext(endpoint)
 
@@ -263,6 +270,11 @@ class ServerService(IServer, BaseService):
         return ctx
 
     def _del_client(self, endpoint: Endpoint) -> bool:
+        """
+        Removes the endpoint from the set of known clients
+        and cleanups associated resources
+        """
+
         with self._clients_lock:
             ctx = self._clients.pop(endpoint, None)
 
@@ -286,19 +298,21 @@ class ServerService(IServer, BaseService):
         """
         Returns the endpoint (ip, port) of the es that is making
         the request right now (provided by the underlying Pyro deamon)
-        :return: the endpoint of the current es
         """
         return pyro_client_endpoint()
 
     def _current_request_client(self) -> Optional[ClientContext]:
         """
-        Returns the es that belongs to the current request endpoint (ip, port)
+        Returns the client that belongs to the current request endpoint (ip, port)
         if exists among the known clients; otherwise returns None.
-        :return: the es of the current request
         """
         return self._clients.get(self._current_request_endpoint())
 
     def _handle_client_disconnect(self, pyroconn: socketutil.SocketConnection):
+        """
+        Callbacke invoked by pyro when a client disconnects:
+        cleanup the client's resources
+        """
         endpoint = pyroconn.sock.getpeername()
         log.d("Cleaning up es %s resources", endpoint)
         self._del_client(endpoint)

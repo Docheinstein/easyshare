@@ -56,7 +56,7 @@ class Esd(CommandHelp, ArgsSpec):
             CommandOptionInfo(cls.NAME, "server name (default is server hostname)", params=["name"]),
             CommandOptionInfo(cls.ADDRESS, "server address (default is primary interface)", params=["address"]),
             CommandOptionInfo(cls.PORT, "server port (default is 12020)", params=["port"]),
-            CommandOptionInfo(cls.DISCOVER_PORT, "port used to listen to discovery messages (default is 12021)",
+            CommandOptionInfo(cls.DISCOVER_PORT, "port used to listen to discovery messages; 1 disables discovery (default is 12021)",
                               params=["port"]),
             CommandOptionInfo(cls.PASSWORD, "server password, plain or hashed with es-tools", params=["password"]),
             CommandOptionInfo(cls.SSL_CERT, "path to an SSL certificate", params=["cert_path"]),

@@ -158,7 +158,7 @@ class ServerConnection(ServerConnectionMinimal):
     """
     Complete server connection; in addition to 'ServerConnectionMinimal' provide
     a 'ServerInfo', which contains more information compared to the bare name/ip/addr
-    of the server provided by 'ServerConnectionMinimal'
+    of the server provided by 'ServerConnectionMinimal'.
     The idea is tha 'ServerConnectionMinimal' is created for made the connection,
     but than an info should be retrieved (via info, or if already got with a discover)
     and the connection should be upgraded to a 'ServerConnection' for further uses.

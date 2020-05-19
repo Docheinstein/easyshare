@@ -16,6 +16,10 @@ log = get_logger(__name__)
 
 
 class Discoverer:
+    """
+    Contacts the remote 'DiscoverDaemon's broadcasting a discover packet
+    and notifies the 'response_handler' about the eventual discover responses.
+    """
 
     def __init__(
             self, *,
@@ -30,6 +34,10 @@ class Discoverer:
         self._response_handler = response_handler
 
     def discover(self):
+        """
+        Sends a discover packet and waits for 'discover_timeout' seconds,
+        notifying the response_handler in the meanwhile.
+        """
         # Listening socket
         in_sock = SocketUdpIn()
 

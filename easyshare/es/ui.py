@@ -12,11 +12,14 @@ from easyshare.utils.env import terminal_size, is_unicode_supported
 from easyshare.utils.measures import size_str
 from easyshare.utils.os import is_hidden
 from easyshare.utils.ssl import SSLCertificate
-
+from easyshare.utils.str import tf, yn
 
 log = get_logger(__name__)
 
 class StyledString:
+    """
+    Composition of a string with its display representation (e.g. with ansi codes)
+    """
     def __init__(self, string: str, styled_string: str = None):
         self.string = string
         self.styled_string = styled_string or string
@@ -26,6 +29,10 @@ class StyledString:
 
 
 def print_tabulated(strings: List[StyledString], max_columns: int = None):
+    """
+    Prints the 'strings' in columns (max max_columns);
+    The space of the columns is the space needed for display the longest string.
+    """
     if not strings:
         return
 
@@ -73,6 +80,7 @@ def print_files_info_list(infos: List[FileInfo],
                           show_size: bool = False,
                           show_hidden: bool = False,
                           compact: bool = True):
+    """ Prints a list of 'FileInfo' (ls -l like). """
     if not infos:
         return
 
@@ -126,6 +134,8 @@ def print_files_info_tree(root: TreeNodeDict,
                           max_depth: int = None,
                           show_size: bool = False,
                           show_hidden: bool = False):
+    """ Traverse the 'TreeNodeDict' and prints the 'FileInfo' as a tree (tree like). """
+
     for prefix, node, depth in TreeRenderPostOrder(root, depth=max_depth):
         name = node.get("name")
 
@@ -144,6 +154,7 @@ def print_files_info_tree(root: TreeNodeDict,
 
 
 def ssl_certificate_to_pretty_str(ssl_cert: SSLCertificate) -> str:
+    """ Returns a string representation of a 'SSLCertificate' """
     if not ssl_cert:
         return ""
 
@@ -165,54 +176,63 @@ def ssl_certificate_to_pretty_str(ssl_cert: SSLCertificate) -> str:
 
 
 def server_info_to_pretty_str(info: ServerInfoFull, sharing_details: bool = False, separators: bool = False) -> str:
-        SEP = "================================"
+    """ Returns a string representation of a 'ServerInfoFull' """
 
-        SEP_FIRST = (SEP + "\n\n") if separators else ""
-        SEP_MID = ("\n" + SEP + "\n\n") if separators else "\n"
-        SEP_LAST = ("\n" + SEP) if separators else ""
+    discover_port_str = ""
+    if info.get("discoverable", False):
+        discover_port_str = "Discover Port: {}\n".format(info.get("discover_port"))
 
-        # Server info
-        s = SEP_FIRST + \
-            styled("SERVER INFO", attrs=ansi.ATTR_BOLD) + "\n\n" + \
-            "Name:           {}\n".format(info.get("name")) + \
-            "Address:        {}\n".format(info.get("ip")) + \
-            "Port:           {}\n".format(info.get("port")) + \
-            "Discoverable:   {}\n".format(info.get("discoverable", False)) + \
-            ("Discover Port: {}\n".format(info.get("discover_port")) if info.get("discoverable", False) else "") + \
-            "Auth:           {}\n".format(info.get("auth")) + \
-            "SSL:            {}\n".format(info.get("ssl")) + \
-            SEP_MID
 
-        # SSL?
-        if info.get("ssl"):
-            ssl_cert = get_cached_or_fetch_ssl_certificate_for_endpoint(
-                (info.get("ip"), info.get("port"))
-            )
+    s = f"""\
+================================
 
-            s += \
-                styled("SSL CERTIFICATE", attrs=ansi.ATTR_BOLD) + "\n\n" + \
-                ssl_certificate_to_pretty_str(ssl_cert) + "\n" + \
-                SEP_MID
+{styled("SERVER INFO", attrs=ansi.ATTR_BOLD)}
 
-        # Sharings
-        s += \
-            styled("SHARINGS", attrs=ansi.ATTR_BOLD) + "\n\n" + \
-            sharings_to_pretty_str(info.get("sharings"),
-                                   details=sharing_details,
-                                   indent=2) + "\n" + \
-            SEP_LAST
+Name:           {info.get("name")}
+Address:        {info.get("ip")}
+Port:           {info.get("port")}
+Discoverable:   {yn(info.get("discoverable", False))}
+{discover_port_str}\
+Auth:           {info.get("auth")}
+Auth:           {info.get("auth")}
+SSL:            {tf(info.get("ssl"), "enabled", "disabled")}
 
-        return s
+================================"""
+
+    # SSL?
+    if info.get("ssl"):
+        ssl_cert = get_cached_or_fetch_ssl_certificate_for_endpoint(
+            (info.get("ip"), info.get("port"))
+        )
+
+        s += f"""
+{styled("SSL CERTIFICATE", attrs=ansi.ATTR_BOLD)}
+
+{ssl_certificate_to_pretty_str(ssl_cert)}
+
+================================"""
+
+    # Sharings
+    s += f"""
+{styled("SHARINGS", attrs=ansi.ATTR_BOLD)}
+
+{sharings_to_pretty_str(info.get("sharings"), details=sharing_details, indent=2)}
+
+"""
+
+    return s
 
 def server_info_to_short_str(server_info: ServerInfoFull):
-    return "{} ({}:{})".format(
-        server_info.get("name"),
-        server_info.get("ip"),
-        server_info.get("port"))
+    """ Returns a compact string representation of a 'ServerInfoFull' """
+
+    return f"{server_info.get('name')} ({server_info.get('ip')}:{server_info.get('port')})"
+
 
 def sharings_to_pretty_str(sharings: List[SharingInfo],
                            details: bool = False,
                            indent: int = 0) -> str:
+    """ Returns a string representation of a list of 'Sharing' """
+
     s = ""
     bullet = "\u2022" if is_unicode_supported() else "-"
 
@@ -244,4 +264,3 @@ def sharings_to_pretty_str(sharings: List[SharingInfo],
             s += sharing_string(fsh)
 
     return s.rstrip("\n")
-

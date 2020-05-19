@@ -8,3 +8,4 @@ __pycache__
 /docs/sphinx/src/html/img/
 /docs/sphinx/src/html/LICENSE.txt
 /docs/sphinx/src/html/README.MD
+/.tox/

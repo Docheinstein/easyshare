@@ -6,6 +6,7 @@ from easyshare.utils.types import is_int, is_str
 
 
 class ClientErrors:
+    """ Client side errors """
     COMMAND_NOT_RECOGNIZED =        101
     INVALID_COMMAND_SYNTAX =        102
     INVALID_PARAMETER_VALUE =       103
@@ -20,6 +21,11 @@ class ClientErrors:
 
 
 class ErrorsStrings:
+    """
+    Error messages; tipically for each error code there is an error string,
+    but the same string could be associated with more errors
+    (e.g. client and server side of a similar error)
+    """
     SUCCESS = "Success"
     ERROR = "Error"
     INVALID_COMMAND_SYNTAX = "Invalid command syntax"
@@ -45,9 +51,8 @@ class ErrorsStrings:
     NOT_ALLOWED_FOR_F_SHARING = "Not allowed: action can be performed only on sharings of type directory"
 
 
-
-
-ERRORS_STRINGS_MAP = {
+# Maps the errors (any kind of error) to its string
+_ERRORS_STRINGS_MAP = {
     ServerErrors.ERROR: ErrorsStrings.ERROR,
     ServerErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
     ServerErrors.NOT_IMPLEMENTED: ErrorsStrings.NOT_IMPLEMENTED,
@@ -80,16 +85,22 @@ ERRORS_STRINGS_MAP = {
 }
 
 
-def errcode_string(error_code: int) -> str:
-    return ERRORS_STRINGS_MAP.get(error_code, ErrorsStrings.ERROR)
+def errno_str(errno: int) -> str:
+    """ Returns the string associated with the error with number 'error_code' """
+    return _ERRORS_STRINGS_MAP.get(errno, ErrorsStrings.ERROR)
 
 
-def print_errcode(error_code: int):
-    eprint(errcode_string(error_code))
+def print_errno(errno: int):
+    """ Prints the string associated with the error with number 'errno' """
+    eprint(errno_str(errno))
 
 
 def print_error(err: Union[int, str]):
+    """
+    Prints 'err' if it is a string or the string associated with
+    the error 'err' if it is an known errno.
+    """
     if is_int(err):
-        print_errcode(err)
+        print_errno(err)
     elif is_str(err):
         eprint(err)

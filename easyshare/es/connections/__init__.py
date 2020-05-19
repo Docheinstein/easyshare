@@ -28,7 +28,7 @@ def require_connected_connection(api):
 
 def handle_connection_response(api):
     """
-    Decorator for handle the response and taking some fixed action
+    Decorator for handle the response and taking some standard actions.
     e.g. destroy the connection in case of a NOT_CONNECTED response.
     """
 
@@ -49,13 +49,21 @@ def handle_connection_response(api):
 
 class Connection(ABC):
     """
-    Base class for a connection with a remote service.
+    Base class for a connection with a remote 'Service'
+    (which is a object published to a Pyro Daemon).
     """
 
     @abstractmethod
     def is_connected(self) -> bool:
+        """
+        Whether this connection is connected.
+        The meaning of 'connected' depends on the particular type of connection.
+        e.g. a server connection is connected if it is authenticated.
+        e.g. a sharing connection is connected if the sharing is actually open (and not closed yet)
+        """
         pass
 
     @abstractmethod
     def destroy_connection(self):
+        """ Destroy the connection; all the resources should be released (e.g. pyro proxy) """
         pass

@@ -1,8 +1,8 @@
 import os
-import queue
 import zlib
 from typing import Callable
 
+from queue import Queue
 from Pyro5.server import expose
 
 from easyshare.common import BEST_BUFFER_SIZE
@@ -40,7 +40,7 @@ class PutService(IPutService, TransferService):
                  end_callback: Callable[[BaseClientService], None]):
         super().__init__(port, sharing, sharing_rcwd, client, end_callback)
         self._check = check
-        self._incomings = queue.Queue()
+        self._incomings = Queue()
 
     @expose
     @trace_api

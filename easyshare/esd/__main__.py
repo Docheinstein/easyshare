@@ -358,6 +358,7 @@ def main():
 
     # - ports
     for p in [server_port, server_discover_port]:
+        # -1 is a special value for disable discovery
         if p and not is_valid_port(p) and p != -1:
             abort("Invalid port number {}".format(p))
 

@@ -67,7 +67,7 @@ Currently the only supported SHARING_OPTION is the read-only flag, which can be 
 ```text
 -a, --address  address        server address (default is primary interface)
 -c, --config  config_path     load settings from a esd configuration file
--d, --discover-port  port     port used to listen to discovery messages (default is 12021)
+-d, --discover-port  port     port used to listen to discovery messages; 1 disables discovery (default is 12021)
 -e, --rexec                   enable rexec (remote execution)
 -h, --help                    show this help
 -n, --name  name              server name (default is server hostname)
@@ -444,13 +444,13 @@ If neither -c nor -p is given, an interactive script is started and you will be 
 
 Tests can be run with:
 ```text
-pytest
+tox
 ```
 
-For run tests with stdout enabled
+For run tests with logging enabled
 
 ```text
-pytest -s
+tox -- -s
 ```
 
 Actually there are still many things to write tests for...
