@@ -118,7 +118,16 @@ class GetService(IGetService, TransferService):
                 self._next_servings.pop()
 
                 # Directory found
-                dir_files = sorted(os.listdir(next_file_local_path), reverse=True)
+                try:
+                    # os.listdir might fail if we have not read permissions
+                    dir_files = sorted(os.listdir(next_file_local_path), reverse=True)
+                except PermissionError:
+                    log.w("Not enough permissions for read %s", next_file_local_path)
+                    continue
+                except Exception:
+                    log.w("Unexpected exception occurred for directory: %s - skipping it", next_file_local_path)
+                    continue
+
 
                 if dir_files:
 

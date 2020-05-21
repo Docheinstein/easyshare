@@ -574,13 +574,28 @@ class Client:
                 if self.is_connected_to_sharing() and \
                     self.sharing_connection.sharing_info.get("name") == sharing_location.name:
                     log.w("Current sharing connection already satisfy the sharing constraints")
-                    return
 
-                # Do an open() with this server connection
-                new_sharing_conn = Client.create_sharing_connection_from_server_connection(
-                    self.server_connection,
-                    sharing_name=sharing_location.name
-                )
+                    # Connection might be down, at least try to ping the remote
+                    ping_resp = None
+
+                    try:
+                        ping_resp = self.server_connection.ping()
+                    except:
+                        # Will handle an invalid response here below
+                        pass
+
+                    if is_data_response(ping_resp) and ping_resp.get("data") == "pong":
+                        log.d("Received valid response from the server we are already connected to - OK")
+                        return
+                    else:
+                        log.e("Current connection is broken; destroying it")
+                        self.destroy_connection()
+                else:
+                    # Do an open() with this server connection
+                    new_sharing_conn = Client.create_sharing_connection_from_server_connection(
+                        self.server_connection,
+                        sharing_name=sharing_location.name
+                    )
 
 
         # Have we found the sharing yet or do we have to perform a scan?
@@ -1468,8 +1483,17 @@ class Client:
 
                     log.d("-> is a DIR")
 
+                    try:
+                        # os.listdir might fail if we have not read permissions
+                        dir_files = sorted(os.listdir(next_file_local), reverse=True)
+                    except PermissionError:
+                        log.w("Not enough permissions for read %s", next_file_local)
+                        continue
+                    except Exception:
+                        log.w("Unexpected exception occurred for directory: %s - skipping it", next_file_local)
+                        continue
+
                     # Directory found
-                    dir_files = sorted(os.listdir(next_file_local), reverse=True)
 
                     if dir_files:
 
@@ -2138,6 +2162,8 @@ class Client:
             log.d("Destroying connection and invalidating it")
             if self.is_connected_to_server():
                 self.server_connection.disconnect()
+            # Server closes the sharing by itself
+            # There's no need to close() the sharing connection
         except:
             log.w("Clean disconnection failed, invalidating connection anyway")
         finally:

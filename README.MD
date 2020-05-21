@@ -380,7 +380,6 @@ FILES
 es 
 /tmp> open shared
 alice-arch.shared:/ - /tmp> rtree
-/tmp> tree
 |-- dir
 |   |-- f3
 |   +-- f4
