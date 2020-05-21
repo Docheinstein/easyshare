@@ -514,7 +514,7 @@ class Client:
     def pwd(_: Args, _2, _3):
         log.i(">> PWD")
 
-        print(os.getcwd())
+        print(Path.cwd())
 
     @staticmethod
     def rm(args: Args, _, _2):
