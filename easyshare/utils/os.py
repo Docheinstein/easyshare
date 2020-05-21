@@ -245,29 +245,20 @@ def rm(path: Path, error_callback: Callable[[Exception, Union[str, Path]], None]
         else:
             raise ex
 
-def mv(src: str, dest: str) -> bool:
-    try:
-        shutil.move(src, dest)
-        return True
-    except Exception as ex:
-        log.e("MV exception %s", ex)
-        raise ex
+def mv(src: Path, dest: Path):
+    shutil.move(str(src), str(dest))
 
 
-def cp(src: str, dest: str) -> bool:
-    try:
-        if os.path.isdir(src) and os.path.isdir(dest):
-            log.d("Recursive copy DIR => DIR detected")
-            srchead, srctail = os.path.split(src)
-            dest = os.path.join(dest, srctail)
-            log.d("Definitive src = '%s' | dst = '%s'", src, dest)
-            shutil.copytree(src, dest)
-        else:
-            shutil.copy2(src, dest, follow_symlinks=False)
-        return True
-    except Exception as ex:
-        log.e("CP exception %s", ex)
-        raise ex
+def cp(src: Path, dest: Path):
+    # shutil.copy doesn't handle directories recursively as move
+    # we have to use copytree if we detect a DIR to DIR copy
+    if src.is_dir() and dest.is_dir():
+        log.d("Recursive copy DIR => DIR detected")
+        dest = dest.joinpath(src.name)
+        log.d("Definitive src = '%s' | dst = '%s'", src, dest)
+        shutil.copytree(str(src), str(dest))
+    else:
+        shutil.copy2(str(src), str(dest), follow_symlinks=False)
 
 
 def run_attached(cmd: str, stderr_redirect: int = None):

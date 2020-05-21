@@ -161,8 +161,12 @@ class CommandExecutionError(Exception):
 
 def os_error_str(err: OSError):
     """ Returns the explanation of the error (e.g. Directory not empty) """
-    if err and err.strerror:
-        return err.strerror
+    if isinstance(err, OSError):
+        if err and err.strerror:
+            return err.strerror
+        log.exception("Unknown OS error")
+        serr = str(err)
+        return serr or "Error" # fallback
     return "Error" # fallback
 
 # ==================================================================
@@ -454,7 +458,7 @@ class Client:
                 raise CommandExecutionError(f"{os_error_str(oserr)}: '{p}'")
             return ls_res
 
-        Client._xls(args, data_provider=ls_provider, data_provider_name="LS")
+        Client._xls(args, ls_provider, "LS")
 
     @staticmethod
     def l(args: Args, _, _2):
@@ -481,7 +485,7 @@ class Client:
                 raise CommandExecutionError(f"{os_error_str(oserr)}: '{p}'")
             return tree_res
 
-        Client._xtree(args, data_provider=tree_provider, data_provider_name="TREE")
+        Client._xtree(args, tree_provider, "TREE")
 
     @staticmethod
     def mkdir(args: Args, _, _2):
@@ -534,11 +538,31 @@ class Client:
 
     @staticmethod
     def mv(args: Args, _, _2):
-        Client._mvcp(args, mv, "MV")
+        def handle_mv_error(exc: Exception, src: Path, dst: Path):
+            if isinstance(exc, PermissionError):
+                eprint(f"{ErrorsStrings.PERMISSION_DENIED}: cannot move '{src}' to '{dst}")
+            elif isinstance(exc, FileNotFoundError):
+                eprint(f"{ErrorsStrings.NOT_EXISTS}: cannot move '{src}' to '{dst}")
+            elif isinstance(exc, OSError):
+                eprint(f"{os_error_str(exc)}: cannot move '{src}' to '{dst}")
+            else:
+                eprint(str(exc))
+
+        Client._mvcp(args, mv, "MV", error_callback=handle_mv_error)
 
     @staticmethod
     def cp(args: Args, _, _2):
-        Client._mvcp(args, cp, "CP")
+        def handle_cp_error(exc: Exception, src: Path, dst: Path):
+            if isinstance(exc, PermissionError):
+                eprint(f"{ErrorsStrings.PERMISSION_DENIED}: cannot copy '{src}' to '{dst}")
+            elif isinstance(exc, FileNotFoundError):
+                eprint(f"{ErrorsStrings.NOT_EXISTS}: cannot copy '{src}' to '{dst}")
+            elif isinstance(exc, OSError):
+                eprint(f"{os_error_str(exc)}: cannot copy '{src}' to '{dst}")
+            else:
+                eprint(str(exc))
+
+        Client._mvcp(args, cp, "CP", error_callback=handle_cp_error)
 
     @staticmethod
     def exec(args: Args, _, _2):
@@ -1673,60 +1697,60 @@ class Client:
 
     @staticmethod
     def _mvcp(args: Args,
-              primitive: Callable[[str, str], bool],
-              primitive_name: str = "MV/CP"):
-        """
-                mv <src>... <dest>
+              primitive: Callable[[Path, Path], bool],
+              primitive_name: str = "MV/CP",
+              error_callback: Callable[[Exception, Path, Path], None] = None):
 
-                A1  At least two parameters
-                A2  If a <src> doesn't exist => IGNORES it
 
-                2 args:
-                B1  If <dest> exists
-                    B1.1    If type of <dest> is DIR => put <src> into <dest> anyway
+        # mv <src>... <dest>
+        #
+        # A1  At least two parameters
+        # A2  If a <src> doesn't exist => IGNORES it
+        #
+        # 2 args:
+        # B1  If <dest> exists
+        #     B1.1    If type of <dest> is DIR => put <src> into <dest> anyway
+        #
+        #     B1.2    If type of <dest> is FILE
+        #         B1.2.1  If type of <src> is DIR => ERROR
+        #         B1.2.2  If type of <src> is FILE => OVERWRITE
+        # B2  If <dest> doesn't exist => preserve type of <src>
+        #
+        # 3 args:
+        # C1  if <dest> exists => must be a dir
+        # C2  If <dest> doesn't exist => ERROR
 
-                    B1.2    If type of <dest> is FILE
-                        B1.2.1  If type of <src> is DIR => ERROR
-                        B1.2.2  If type of <src> is FILE => OVERWRITE
-                B2  If <dest> doesn't exist => preserve type of <src>
 
-                3 args:
-                C1  if <dest> exists => must be a dir
-                C2  If <dest> doesn't exist => ERROR
-
-                """
-        mvcp_args = [pathify(f) for f in args.get_positionals()]
+        mvcp_args = [LocalPath(f) for f in args.get_positionals()]
 
         if not mvcp_args or len(mvcp_args) < 2:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        dest = mvcp_args.pop()
-        sources = mvcp_args
+        dest = mvcp_args.pop() # dest is always the last one
+        sources = mvcp_args    # we can treat mvcp_args as sources since dest is popped
 
         # C1/C2 check: with 3+ arguments
         if len(sources) >= 2:
             # C1  if <dest> exists => must be a dir
             # C2  If <dest> doesn't exist => ERROR
             # => must be a valid dir
-            if not os.path.isdir(dest):
+            if not dest.is_dir():
                 log.e("'%s' must be an existing directory", dest)
-                raise CommandExecutionError(ClientErrors.INVALID_PATH)
+                raise CommandExecutionError(f"{ErrorsStrings.NOT_A_DIRECTORY}: '{dest}'")
 
-        # Every other constraint is well handled by shutil.move()
-        errors = []
+        # Every other constraint is well handled by shutil.move() or shutil.copytree()
 
         for src in sources:
             log.i(">> %s '%s' '%s'", primitive_name, src, dest)
+
             try:
                 primitive(src, dest)
             except Exception as ex:
-                errors.append(str(ex))
+                if error_callback:
+                    error_callback(ex, src, dest)
+                else:
+                    raise ex
 
-        if errors:
-            log.e("%d errors occurred", len(errors))
-
-        for err in errors:
-            eprint(err)
 
     @staticmethod
     def _rmvcp(args: Args,
