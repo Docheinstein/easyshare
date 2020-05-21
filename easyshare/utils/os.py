@@ -6,64 +6,52 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
-from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
 from easyshare.logging import get_logger
-from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info
-from easyshare.utils.types import is_str, is_list, list_wrap
+from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info
+from easyshare.utils.path import is_hidden
+from easyshare.utils.types import list_wrap
 
 log = get_logger(__name__)
-
-
-def is_windows():
-    return os.name == "nt"
 
 
 def is_unix():
     return os.name == "posix"
 
+def is_windows():
+    return os.name == "nt"
 
-if is_windows():
-    import win32api, win32con
-
-
-def is_hidden(s: str):
-    _, tail = os.path.split(s)
-
-    if os.name == 'nt':
-        attribute = win32api.GetFileAttributes(tail)
-        return attribute & (win32con.FILE_ATTRIBUTE_HIDDEN | win32con.FILE_ATTRIBUTE_SYSTEM)
-    else:
-        return tail.startswith('.')
 
 
 def is_relpath(s: str) -> bool:
-    s = pathify(s)
-    return not s.startswith(os.sep)
+    raise ValueError("not impl")
+    # s = pathify(s)
+    # return not s.startswith(os.sep)
 
+# def is_hidden(s):
+#     raise ValueError("not impl")
 
 def is_abspath(s: str) -> bool:
-    s = pathify(s)
-    return s.startswith(os.sep)
+    raise ValueError("not impl")
+    # s = pathify(s)
+    # return s.startswith(os.sep)
 
 
 def relpath(s: str) -> str:
-    s = pathify(s)
-    return s.lstrip(os.sep)
+    raise ValueError("not impl")
+    # s = pathify(s)
+    # return s.lstrip(os.sep)
 
 
 def abspath(s: str) -> str:
-    s = pathify(s)
-    return s if is_abspath(s) else (os.sep + s)
+    raise ValueError("not impl")
+    # s = pathify(s)
+    # return s if is_abspath(s) else (os.sep + s)
 
 
 # def pathify(s: str) -> str:
 #     return os.path.expanduser(s)
-
-
-def LocalPath(p: Optional[str] = None, default="") -> Path:
-    return Path(p or default).expanduser()
 
 # def parent_dir(p: Path):
 #     # os.path.split() differs from pathlib.parent
@@ -71,11 +59,54 @@ def LocalPath(p: Optional[str] = None, default="") -> Path:
 #     # os.path.split of /home/user/ is ("/home/user/", "")
 #     return p if str(p).endswith(os.path.sep) else p.parent
 
+def ls(path: Path,
+       sort_by: Union[str, List[str]] = "name",
+       reverse: bool = False,
+       hidden: bool = False) -> Optional[List[FileInfo]]:
+    if not path:
+        raise TypeError("Path should be valid")
+
+    sort_by = list(filter(lambda field: field in ["name", "size", "ftype"],
+                          list_wrap(sort_by)))
+
+    log.i("LS sorting by %s%s", sort_by, " (reverse)" if reverse else "")
+
+    ret: List[FileInfo] = []
+
+    # Single file
+    if path.is_file():
+        # Show it even if it is hidden
+        return [create_file_info(path)]
+
+    if not path.is_dir():
+        log.e("Cannot perform ls; invalid path")
+        raise FileNotFoundError()
+
+    # Directory
+    p: Path
+    for p in path.iterdir():
+
+        if not hidden and is_hidden(p):
+            log.d("Not showing hidden file: %s", p)
+            continue
+
+        ret.append(create_file_info(p))
+
+    # Sort the result for each field of sort_by
+    for sort_field in sort_by:
+        ret = sorted(ret, key=lambda fi: fi[sort_field])
+
+    if reverse:
+        ret.reverse()
+
+    return ret
+
 
 def tree(path: Path,
          sort_by: Union[str, List[str]] = "name",
          reverse: bool = False,
-         max_depth: int = None) -> Optional[FileInfoTreeNode]:
+         max_depth: int = None,
+         hidden: bool = False) -> Optional[FileInfoTreeNode]:
     if not path:
         raise TypeError("Path should be valid")
 
@@ -97,14 +128,16 @@ def tree(path: Path,
 
         if cur_ftype == FTYPE_DIR and "children_unseen_info" not in cursor\
                 and (not max_depth or depth < max_depth):
-            # Compute children, just the first time
-            # print("Computing children of {}".format(cur_path))
+            # Compute children of this directory, just the first time
 
             # It might fail (e.g. permission denied)
+            # TODO: unix tree reports the descend error too
+            # in the future we could do it
             try:
                 cursor["children_unseen_info"] = ls(cur_path,
                                                     sort_by=sort_by,
-                                                    reverse=reverse)
+                                                    reverse=reverse,
+                                                    hidden=hidden)
             except OSError:
                 log.w("Cannot descend %s", cur_path)
                 pass
@@ -138,26 +171,21 @@ def tree(path: Path,
 
             continue
 
-        # There is an unseen children, take it out
+        # There is an unseen child, take it out
         unseen_child_info = cursor.get("children_unseen_info").pop(0)
-        # print("Took out unseen child", unseen_child_info.get("name"))
 
-        # Add it to the children
+        # Add it to the children of this node
         cursor.setdefault("children", [])
 
         child = dict(
             unseen_child_info,
             parent=cursor,
             path=cur_path.joinpath(unseen_child_info.get("name"))
-            # path=os.path.join(cur_path, unseen_child_info.get("name"))
-            # path=os.path.join(cur_path, unseen_child_info.get("name"))
         )
-
-        # print("Adding child to children", child)
 
         cursor.get("children").append(child)
 
-        # Go down
+        # Go down to this child
         cursor = child
         depth += 1
 
@@ -176,40 +204,6 @@ def tree(path: Path,
     #     log.e("LS execution exception %s", ex)
     #     return None
 
-
-def ls(path: Path,
-       sort_by: Union[str, List[str]] = "name",
-       reverse: bool = False) -> Optional[List[FileInfo]]:
-    if not path:
-        raise TypeError("Path should be valid")
-
-    sort_by = list(filter(lambda field: field in ["name", "size", "ftype"],
-                          list_wrap(sort_by)))
-
-    log.i("LS sorting by %s%s", sort_by, " (reverse)" if reverse else "")
-
-    ret: List[FileInfo] = []
-
-    # Single file
-    if path.is_file():
-        return [create_file_info(path)]
-
-    if not path.is_dir():
-        log.e("Cannot perform ls; invalid path")
-        raise FileNotFoundError()
-
-    # Directory
-    for p in path.iterdir():
-        ret.append(create_file_info(p))
-
-    # Sort the result for each field of sort_by
-    for sort_field in sort_by:
-        ret = sorted(ret, key=lambda fi: fi[sort_field])
-
-    if reverse:
-        ret.reverse()
-
-    return ret
 
 
 def rm(path: str, error_callback: Callable[[Exception], None] = None) -> bool:

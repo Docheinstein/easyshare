@@ -1,6 +1,5 @@
 import os
 from abc import abstractmethod, ABC
-from pathlib import Path
 from typing import List, Callable, Union, Optional, Dict, Type
 
 from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec
@@ -12,7 +11,8 @@ from easyshare.protocol.services import FileInfo
 from easyshare.protocol.responses import is_data_response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
 from easyshare.styling import fg
-from easyshare.utils.os import ls, LocalPath
+from easyshare.utils.os import ls
+from easyshare.utils.path import LocalPath
 from easyshare.utils.str import rightof
 
 log = get_logger(__name__)

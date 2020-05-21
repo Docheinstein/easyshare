@@ -39,7 +39,8 @@ from easyshare.timer import Timer
 from easyshare.utils import eprint
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
-from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, relpath, LocalPath
+from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, relpath
+from easyshare.utils.path import LocalPath
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro import pyro_uri
 from easyshare.utils.str import unprefix
@@ -439,7 +440,8 @@ class Client:
 
         def ls_provider(path: str, **kwargs):
             p = LocalPath(path)
-            kws = {k: v for k, v in kwargs.items() if k in ["sort_by", "name", "reverse"]}
+            kws = {k: v for k, v in kwargs.items() if k in
+                   ["sort_by", "name", "reverse", "hidden"]}
             try:
                 ls_res = ls(p, **kws)
             except FileNotFoundError:
@@ -449,7 +451,7 @@ class Client:
                 log.exception("Permission denied")
                 raise CommandExecutionError(ClientErrors.PERMISSION_DENIED)
             except OSError as ex:
-                log.exception("LS failed")
+                log.exception("ls failed")
                 raise CommandExecutionError(str(ex))
             return ls_res
 
@@ -468,7 +470,8 @@ class Client:
 
         def tree_provider(path, **kwargs):
             p = LocalPath(path)
-            kws = {k: v for k, v in kwargs.items() if k in ["sort_by", "name", "reverse", "max_depth"]}
+            kws = {k: v for k, v in kwargs.items() if k in
+                   ["sort_by", "name", "reverse", "max_depth", "hidden"]}
             try:
                 tree_res = tree(p, **kws)
             except FileNotFoundError:
@@ -478,13 +481,9 @@ class Client:
                 log.exception("Permission denied")
                 raise CommandExecutionError(ClientErrors.PERMISSION_DENIED)
             except OSError as ex:
-                log.exception("TREE failed")
+                log.exception("tree failed")
                 raise CommandExecutionError(str(ex))
             return tree_res
-
-            # path = pathify(path or os.getcwd())
-            # kws = {k: v for k, v in kwargs.items() if k in ["sort_by", "name", "reverse", "max_depth"]}
-            # return tree(path, **kws)
 
         Client._xtree(args, data_provider=tree_provider, data_provider_name="TREE")
 
@@ -1609,7 +1608,7 @@ class Client:
         log.i(">> %s %s (sort by %s%s)",
               data_provider_name, path or "*", sort_by, " | reverse" if reverse else "")
 
-        ls_result = data_provider(path, sort_by=sort_by, reverse=reverse)
+        ls_result = data_provider(path, sort_by=sort_by, reverse=reverse, hidden=show_hidden)
 
         if ls_result is None:
             raise CommandExecutionError()

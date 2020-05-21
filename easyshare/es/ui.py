@@ -10,7 +10,7 @@ from easyshare.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.ssl import get_cached_or_fetch_ssl_certificate_for_endpoint
 from easyshare.utils.env import terminal_size, is_unicode_supported
 from easyshare.utils.measures import size_str
-from easyshare.utils.os import is_hidden
+from easyshare.utils.path import is_hidden
 from easyshare.utils.ssl import SSLCertificate
 from easyshare.utils.str import tf, yn
 
