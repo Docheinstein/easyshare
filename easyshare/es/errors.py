@@ -6,6 +6,7 @@ from easyshare.utils.types import is_int, is_str
 
 
 class ClientErrors:
+    # TODO: probably we have to delete these
     """ Client side errors """
     COMMAND_NOT_RECOGNIZED =        101
     INVALID_COMMAND_SYNTAX =        102
@@ -21,6 +22,7 @@ class ClientErrors:
     CONNECTION_ERROR =              112
     PERMISSION_DENIED =             113
     NOT_A_DIRECTORY =               114
+    DIRECTORY_ALREADY_EXISTS =      115
 
 
 class ErrorsStrings:
@@ -55,6 +57,7 @@ class ErrorsStrings:
     NOT_ALLOWED_FOR_F_SHARING = "Not allowed: action can be performed only on sharings of type directory"
     PERMISSION_DENIED = "Permission denied"
     NOT_A_DIRECTORY = "Not a directory"
+    DIRECTORY_ALREADY_EXISTS = "Directory already exists"
 
 
 # Maps the errors (any kind of error) to its string

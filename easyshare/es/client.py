@@ -445,10 +445,10 @@ class Client:
             try:
                 ls_res = ls(p, **kws)
             except FileNotFoundError:
-                log.exception("Invalid path")
+                log.exception("ls failed - invalid path")
                 raise CommandExecutionError(ClientErrors.INVALID_PATH)
             except PermissionError:
-                log.exception("Permission denied")
+                log.exception("tree failed - permission denied")
                 raise CommandExecutionError(ClientErrors.PERMISSION_DENIED)
             except OSError as ex:
                 log.exception("ls failed")
@@ -475,10 +475,10 @@ class Client:
             try:
                 tree_res = tree(p, **kws)
             except FileNotFoundError:
-                log.exception("Invalid path")
+                log.exception("tree failed - invalid path")
                 raise CommandExecutionError(ClientErrors.INVALID_PATH)
             except PermissionError:
-                log.exception("Permission denied")
+                log.exception("tree failed - permission denied")
                 raise CommandExecutionError(ClientErrors.PERMISSION_DENIED)
             except OSError as ex:
                 log.exception("tree failed")
@@ -489,14 +489,26 @@ class Client:
 
     @staticmethod
     def mkdir(args: Args, _, _2):
-        directory = pathify(args.get_positional())
+        directory = args.get_positional()
 
         if not directory:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
+        directory = Path(directory)
+
         log.i(">> MKDIR %s", directory)
 
-        os.makedirs(directory, exist_ok=True)
+        try:
+            directory.mkdir(parents=True)
+        except PermissionError:
+            log.exception("mkdir failed - permission denied")
+            raise CommandExecutionError(ErrorsStrings.PERMISSION_DENIED)
+        except FileExistsError:
+            log.exception("mkdir failed - already exists")
+            raise CommandExecutionError(ErrorsStrings.DIRECTORY_ALREADY_EXISTS)
+        except OSError as ex:
+            log.exception("mkdir failed")
+            raise CommandExecutionError(str(ex))
 
     @staticmethod
     def pwd(_: Args, _2, _3):
