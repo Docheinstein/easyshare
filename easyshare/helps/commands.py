@@ -12,7 +12,7 @@ from easyshare.protocol.services import FileInfo
 from easyshare.protocol.responses import is_data_response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
 from easyshare.styling import fg
-from easyshare.utils.os import ls, LocalPath, parent_dir
+from easyshare.utils.os import ls, LocalPath
 from easyshare.utils.str import rightof
 
 log = get_logger(__name__)

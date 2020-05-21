@@ -467,9 +467,24 @@ class Client:
     def tree(args: Args, _, _2):
 
         def tree_provider(path, **kwargs):
-            path = pathify(path or os.getcwd())
+            p = LocalPath(path)
             kws = {k: v for k, v in kwargs.items() if k in ["sort_by", "name", "reverse", "max_depth"]}
-            return tree(path, **kws)
+            try:
+                tree_res = tree(p, **kws)
+            except FileNotFoundError:
+                log.exception("Invalid path")
+                raise CommandExecutionError(ClientErrors.INVALID_PATH)
+            except PermissionError:
+                log.exception("Permission denied")
+                raise CommandExecutionError(ClientErrors.PERMISSION_DENIED)
+            except OSError as ex:
+                log.exception("TREE failed")
+                raise CommandExecutionError(str(ex))
+            return tree_res
+
+            # path = pathify(path or os.getcwd())
+            # kws = {k: v for k, v in kwargs.items() if k in ["sort_by", "name", "reverse", "max_depth"]}
+            # return tree(path, **kws)
 
         Client._xtree(args, data_provider=tree_provider, data_provider_name="TREE")
 

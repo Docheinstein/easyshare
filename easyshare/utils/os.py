@@ -65,105 +65,101 @@ def abspath(s: str) -> str:
 def LocalPath(p: Optional[str] = None, default="") -> Path:
     return Path(p or default).expanduser()
 
-def parent_dir(p: Path):
-    # os.path.split() differs from pathlib.parent
-    # pathlib.parent of /home/user/ is "/home"
-    # os.path.split of /home/user/ is ("/home/user/", "")
-    return p if str(p).endswith(os.path.sep) else p.parent
+# def parent_dir(p: Path):
+#     # os.path.split() differs from pathlib.parent
+#     # pathlib.parent of /home/user/ is "/home"
+#     # os.path.split of /home/user/ is ("/home/user/", "")
+#     return p if str(p).endswith(os.path.sep) else p.parent
 
 
-
-def tree(path: str,
+def tree(path: Path,
          sort_by: Union[str, List[str]] = "name",
          reverse: bool = False,
          max_depth: int = None) -> Optional[FileInfoTreeNode]:
-    if is_str(sort_by):
-        sort_by = [sort_by]
+    if not path:
+        raise TypeError("Path should be valid")
 
-    if not is_list(sort_by):
-        return None
+    sort_by = list(filter(lambda field: field in ["name", "size", "ftype"],
+                          list_wrap(sort_by)))
 
-    sort_by_fields = list(filter(lambda sort_field: sort_field in ["name", "size", "ftype"], sort_by))
     log.i("TREE sorting by {}{}".format(sort_by, " (reverse)" if reverse else ""))
 
-    f_stat = os.lstat(path)
-
-    root = {
-        "path": path,
-        "name": ".",
-        "ftype": FTYPE_DIR if S_ISDIR(f_stat.st_mode) else FTYPE_FILE,
-        "size": f_stat.st_size,
-    }
+    root = create_file_info(path)
+    # root["path"] = str(path)
+    root["path"] = path
 
     cursor = root
     depth = 0
 
-    try:
-        while True:
+    while True:
+        cur_path: Path = cursor.get("path")
+        cur_ftype: FileInfo = cursor.get("ftype")
 
-            cur_path = cursor.get("path")
-            cur_ftype = cursor.get("ftype")
+        if cur_ftype == FTYPE_DIR and "children_unseen_info" not in cursor\
+                and (not max_depth or depth < max_depth):
+            # Compute children, just the first time
+            # print("Computing children of {}".format(cur_path))
 
-            if cur_ftype == FTYPE_DIR and "children_unseen_info" not in cursor\
-                    and (not max_depth or depth < max_depth):
-                # Compute children, just the first time
-                # print("Computing children of {}".format(cur_path))
+            # It might fail (e.g. permission denied)
+            try:
+                cursor["children_unseen_info"] = ls(cur_path,
+                                                    sort_by=sort_by,
+                                                    reverse=reverse)
+            except OSError:
+                log.w("Cannot descend %s", cur_path)
+                pass
 
-                # It might fail (e.g. permission denied)
-                try:
-                    cursor["children_unseen_info"] = _ls(cur_path, sort_by_fields, reverse)
-                except OSError:
-                    log.w("Cannot descend %s", cur_path)
-                    pass
+        # Check whether we have child of this node this visit.
+        # If we have nothing to see down, we have to go up until
+        # we have children to visit (or we reach the root and therefore
+        # the traversal is finished)
+        if not cursor.get("children_unseen_info"):
+            # No unseen children, we have to go up
 
-            if not cursor.get("children_unseen_info"):
-                # No unseen children, we have to go up
+            is_root = True if not cursor.get("parent") else False
 
-                is_root = True if not cursor.get("parent") else False
+            ex_cursor = cursor
 
-                ex_cursor = cursor
+            # Go up to the parent, nothing to do here
+            if not is_root:
+                # print("Going ^ to {} ", cursor.get("parent").get("path"))
+                cursor = cursor.get("parent")
+                depth -= 1
 
-                # Go up to the parent, nothing to do here
-                if not is_root:
-                    # print("Going ^ to {} ", cursor.get("parent").get("path"))
-                    cursor = cursor.get("parent")
-                    depth -= 1
+            # print("Cleaning up node")
+            # Cleanup the node from the non 'FileInfo' stuff
+            ex_cursor.pop("parent", None)
+            ex_cursor.pop("children_unseen_info", None)
+            ex_cursor.pop("path", None)
 
-                # print("Cleaning up node")
-                ex_cursor.pop("parent", None)
-                ex_cursor.pop("children_unseen_info", None)
-                ex_cursor.pop("path", None)
+            if is_root:
+                # Finished all the traversal
+                break
 
-                if is_root:
-                    # print("done")
-                    break
+            continue
 
-                continue
+        # There is an unseen children, take it out
+        unseen_child_info = cursor.get("children_unseen_info").pop(0)
+        # print("Took out unseen child", unseen_child_info.get("name"))
 
-            # There is a children unseen, take out
-            unseen_child_info = cursor.get("children_unseen_info").pop(0)
-            # print("Took out unseen child", unseen_child_info.get("name"))
+        # Add it to the children
+        cursor.setdefault("children", [])
 
-            # Add it to the children
-            cursor.setdefault("children", [])
+        child = dict(
+            unseen_child_info,
+            parent=cursor,
+            path=cur_path.joinpath(unseen_child_info.get("name"))
+            # path=os.path.join(cur_path, unseen_child_info.get("name"))
+            # path=os.path.join(cur_path, unseen_child_info.get("name"))
+        )
 
-            child = dict(
-                unseen_child_info,
-                parent=cursor,
-                path=os.path.join(cur_path, unseen_child_info.get("name"))
-            )
+        # print("Adding child to children", child)
 
-            # print("Adding child to children", child)
+        cursor.get("children").append(child)
 
-            cursor.get("children").append(child)
-
-            # Go down
-            cursor = child
-            depth += 1
-
-    except Exception as ex:
-        log.e("LS execution exception %s", ex)
-        return None
+        # Go down
+        cursor = child
+        depth += 1
 
     return root
 
@@ -181,7 +177,9 @@ def tree(path: str,
     #     return None
 
 
-def ls(path: Path, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[List[FileInfo]]:
+def ls(path: Path,
+       sort_by: Union[str, List[str]] = "name",
+       reverse: bool = False) -> Optional[List[FileInfo]]:
     if not path:
         raise TypeError("Path should be valid")
 
