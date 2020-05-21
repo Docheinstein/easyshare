@@ -1,5 +1,6 @@
 import os
 from abc import abstractmethod, ABC
+from pathlib import Path
 from typing import List, Callable, Union, Optional, Dict, Type
 
 from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec
@@ -11,7 +12,7 @@ from easyshare.protocol.services import FileInfo
 from easyshare.protocol.responses import is_data_response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
 from easyshare.styling import fg
-from easyshare.utils.os import ls
+from easyshare.utils.os import ls, LocalPath, parent_dir
 from easyshare.utils.str import rightof
 
 log = get_logger(__name__)
@@ -225,11 +226,23 @@ class LocalFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
     """ Files suggestions provider of local files """
     @classmethod
     def _provide_file_info_list(cls, token: str, line: str, client) -> List[FileInfo]:
-        log.i("List on token = '%s', line = '%s'", token, line)
+        log.d("List on token = '%s', line = '%s'", token, line)
+        # token contains only the last part after a /
+        # e.g. /tmp/something => something
+        # we have to use all the path (line)
+
+        # Take the part after the last space
         pattern = rightof(line, " ", from_end=True)
-        path_dir, path_trail = os.path.split(os.path.join(os.getcwd(), pattern))
-        log.i("ls-ing on %s", path_dir)
-        return ls(path_dir)
+
+        # Take the parent
+        # path.parent can't be used unconditionally since it returns
+        # the parent dir even if "pattern" ends with a os.path.sep
+        path = LocalPath(pattern)
+        if not pattern.endswith(os.path.sep):
+            path = path.parent
+
+        log.i("ls-ing for suggestions on '%s'", path)
+        return ls(path)
 
 
 class RemoteFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):

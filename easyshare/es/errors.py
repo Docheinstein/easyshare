@@ -14,10 +14,13 @@ class ClientErrors:
     UNEXPECTED_SERVER_RESPONSE =    105
     NOT_CONNECTED =                 106
     INVALID_PATH =                  107
-    SHARING_NOT_FOUND =             108
-    SERVER_NOT_FOUND =              109
-    IMPLEMENTATION_ERROR =          110
-    CONNECTION_ERROR =              111
+    INVALID_DIRECTORY =             108
+    SHARING_NOT_FOUND =             109
+    SERVER_NOT_FOUND =              110
+    IMPLEMENTATION_ERROR =          111
+    CONNECTION_ERROR =              112
+    PERMISSION_DENIED =             113
+    NOT_A_DIRECTORY =               114
 
 
 class ErrorsStrings:
@@ -36,6 +39,7 @@ class ErrorsStrings:
     SHARING_NOT_FOUND = "Sharing not found"
     SERVER_NOT_FOUND = "Server not found"
     INVALID_PATH = "Invalid path"
+    INVALID_DIRECTORY = "Invalid directory"
     INVALID_TRANSACTION = "Invalid transaction"
     NOT_ALLOWED = "Not allowed"
     AUTHENTICATION_FAILED = "Authentication failed"
@@ -49,6 +53,8 @@ class ErrorsStrings:
 
     TRANSFER_CHECK_FAILED = "Check failed"
     NOT_ALLOWED_FOR_F_SHARING = "Not allowed: action can be performed only on sharings of type directory"
+    PERMISSION_DENIED = "Permission denied"
+    NOT_A_DIRECTORY = "Not a directory"
 
 
 # Maps the errors (any kind of error) to its string
@@ -74,10 +80,13 @@ _ERRORS_STRINGS_MAP = {
     ClientErrors.UNEXPECTED_SERVER_RESPONSE: ErrorsStrings.UNEXPECTED_SERVER_RESPONSE,
     ClientErrors.NOT_CONNECTED: ErrorsStrings.NOT_CONNECTED,
     ClientErrors.INVALID_PATH: ErrorsStrings.INVALID_PATH,
+    ClientErrors.INVALID_DIRECTORY: ErrorsStrings.INVALID_DIRECTORY,
     ClientErrors.SHARING_NOT_FOUND: ErrorsStrings.SHARING_NOT_FOUND,
     ClientErrors.SERVER_NOT_FOUND: ErrorsStrings.SERVER_NOT_FOUND,
     ClientErrors.IMPLEMENTATION_ERROR: ErrorsStrings.IMPLEMENTATION_ERROR,
     ClientErrors.CONNECTION_ERROR: ErrorsStrings.CONNECTION_ERROR,
+    ClientErrors.PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED,
+    ClientErrors.NOT_A_DIRECTORY: ErrorsStrings.NOT_A_DIRECTORY,
 
     TransferOutcomes.SUCCESS: ErrorsStrings.SUCCESS,
     TransferOutcomes.ERROR: ErrorsStrings.ERROR,

@@ -6,6 +6,7 @@ import threading
 import time
 import zlib
 from getpass import getpass
+from pathlib import Path
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Union, Tuple, cast
 
@@ -38,34 +39,33 @@ from easyshare.timer import Timer
 from easyshare.utils import eprint
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
-from easyshare.utils.os import ls, rm, tree, mv, cp, pathify, run_attached, relpath
+from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, relpath, LocalPath
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro import pyro_uri
 from easyshare.utils.str import unprefix
 from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
 
+
 log = get_logger(__name__)
 
-
-def _print(*vargs):
-    print(*vargs)
 
 
 
 def ensure_success_response(resp: Response):
     if is_error_response(resp):
-        raise BadOutcome(resp.get("error"))
+        raise CommandExecutionError(resp.get("error"))
     if not is_success_response(resp):
-        raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+        raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
 
 def ensure_data_response(resp: Response, *data_fields):
     if is_error_response(resp):
-        raise BadOutcome(resp.get("error"))
+        raise CommandExecutionError(resp.get("error"))
     if not is_data_response(resp):
-        raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+        raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
     for data_field in data_fields:
         if data_field not in resp.get("data"):
-            raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+            raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
 
 def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
@@ -83,11 +83,11 @@ def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
 
         # Server connection must be valid
         if not server_conn or not server_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         # Sharing connection must be invalid, if ftype is FILE
         if ftype == FTYPE_DIR and (not sharing_conn or not sharing_conn.is_connected()):
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         log.d("Connection established, invoking %s", api.__name__)
         api(client, args, server_conn, sharing_conn, **kwargs)
@@ -129,7 +129,7 @@ def make_server_connection_api_wrapper(api, connect: bool):
         )
 
         if not server_conn:
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         log.d("Server connection established, invoking '%s'", api.__name__)
         api(client, args, server_conn, None)
@@ -154,7 +154,7 @@ def provide_server_connection(api):
 
 # ==================================================================
 
-class BadOutcome(Exception):
+class CommandExecutionError(Exception):
     pass
 
 # ==================================================================
@@ -389,10 +389,11 @@ class Client:
             self.destroy_connection()
             return ClientErrors.CONNECTION_ERROR
 
-        except BadOutcome as ex:
+        except CommandExecutionError as ex:
             # "Expected" fail
-            log.exception("BadOutcome: %s", str(ex.args[0]))
-            return ex.args[0]
+            err = ex.args[0] if ex.args else ClientErrors.COMMAND_EXECUTION_FAILED
+            log.exception("CommandExecutionError: %s", err)
+            return err
 
         except Exception as ex:
             # Every other unexpected fail: destroy connection
@@ -412,24 +413,47 @@ class Client:
 
     @staticmethod
     def cd(args: Args, _, _2):
-        directory = pathify(args.get_positional(default="~"))
-
+        directory = LocalPath(args.get_positional(), default="~")
         log.i(">> CD %s", directory)
 
-        if not os.path.isdir(os.path.join(os.getcwd(), directory)):
-            raise BadOutcome(ClientErrors.INVALID_PATH)
+        if not directory.is_dir():
+            raise CommandExecutionError(ClientErrors.NOT_A_DIRECTORY)
 
-        os.chdir(directory)
+        # change directory
+        try:
+            # As of 20/05/2020 PyCharm complains, but it's legal
+            os.chdir(directory)
+        except FileNotFoundError:
+            log.exception("Invalid path")
+            raise CommandExecutionError(ClientErrors.INVALID_PATH)
+        except PermissionError:
+            log.exception("Permission denied")
+            raise CommandExecutionError(ClientErrors.PERMISSION_DENIED)
+        except OSError as ex:
+            log.exception("CD failed")
+            raise CommandExecutionError(str(ex))
+
 
     @staticmethod
     def ls(args: Args, _, _2):
 
-        def ls_provider(path, **kwargs):
-            path = pathify(path or os.getcwd())
+        def ls_provider(path: str, **kwargs):
+            p = LocalPath(path)
             kws = {k: v for k, v in kwargs.items() if k in ["sort_by", "name", "reverse"]}
-            return ls(path, **kws)
+            try:
+                ls_res = ls(p, **kws)
+            except FileNotFoundError:
+                log.exception("Invalid path")
+                raise CommandExecutionError(ClientErrors.INVALID_PATH)
+            except PermissionError:
+                log.exception("Permission denied")
+                raise CommandExecutionError(ClientErrors.PERMISSION_DENIED)
+            except OSError as ex:
+                log.exception("LS failed")
+                raise CommandExecutionError(str(ex))
+            return ls_res
 
-        Client._ls(args, data_provider=ls_provider, data_provider_name="LS")
+        Client._xls(args, data_provider=ls_provider, data_provider_name="LS")
 
     @staticmethod
     def l(args: Args, _, _2):
@@ -447,14 +471,14 @@ class Client:
             kws = {k: v for k, v in kwargs.items() if k in ["sort_by", "name", "reverse", "max_depth"]}
             return tree(path, **kws)
 
-        Client._tree(args, data_provider=tree_provider, data_provider_name="TREE")
+        Client._xtree(args, data_provider=tree_provider, data_provider_name="TREE")
 
     @staticmethod
     def mkdir(args: Args, _, _2):
         directory = pathify(args.get_positional())
 
         if not directory:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         log.i(">> MKDIR %s", directory)
 
@@ -471,7 +495,7 @@ class Client:
         paths = [pathify(p) for p in args.get_positionals()]
 
         if not paths:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         log.i(">> RM %s", paths)
 
@@ -524,7 +548,7 @@ class Client:
         )
 
         if not new_server_conn or not new_server_conn.is_connected():
-            raise BadOutcome(ClientErrors.SERVER_NOT_FOUND)
+            raise CommandExecutionError(ClientErrors.SERVER_NOT_FOUND)
 
         log.i("Server connection established")
 
@@ -538,7 +562,7 @@ class Client:
     @provide_server_connection_connected
     def disconnect(self, args: Args, server_conn: ServerConnection, _):
         if not server_conn or not server_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         log.i(">> DISCONNECT")
 
@@ -557,7 +581,7 @@ class Client:
         sharing_location = SharingLocation.parse(args.get_positional())
 
         if not sharing_location:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         if self.is_connected_to_server():
             new_server_conn = self.server_connection
@@ -607,7 +631,7 @@ class Client:
         if not new_server_conn or not new_sharing_conn or \
             not new_server_conn.is_connected() or not new_sharing_conn.is_connected():
             log.e("Server or sharing connection establishment failed")
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         # Close current stuff (if the new connections are actually new)
 
@@ -634,7 +658,7 @@ class Client:
     @provide_server_connection_connected
     def rexec(self, args: Args, server_conn: ServerConnection, _):
         if not server_conn or not server_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         popen_args = args.get_unparsed_args(default=[])
         popen_cmd = " ".join(popen_args)
@@ -739,7 +763,7 @@ class Client:
     @provide_server_connection
     def ping(self, args: Args, server_conn: ServerConnection, _):
         if not server_conn:
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         count = args.get_option_param(Ping.COUNT, default=None)
 
@@ -822,7 +846,7 @@ class Client:
     @provide_server_connection
     def info(self, args: Args, server_conn: ServerConnection, _):
         if not server_conn:
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         show_sharings_details = Info.SHOW_SHARINGS_DETAILS in args
 
@@ -833,7 +857,7 @@ class Client:
     @provide_server_connection
     def list(self, args: Args, server_conn: ServerConnection, _):
         if not server_conn:
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         show_details = ListSharings.SHOW_DETAILS in args
 
@@ -858,7 +882,7 @@ class Client:
     @provide_d_sharing_connection
     def close(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         log.i(">> CLOSE")
 
@@ -874,7 +898,7 @@ class Client:
     @provide_d_sharing_connection
     def rpwd(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         log.i(">> RPWD")
         resp = sharing_conn.rpwd()
@@ -886,7 +910,7 @@ class Client:
     @provide_d_sharing_connection
     def rcd(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         directory = args.get_positional(default="/")
 
@@ -900,14 +924,14 @@ class Client:
     @provide_d_sharing_connection
     def rls(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         def rls_provider(f, **kwargs):
             resp = sharing_conn.rls(**kwargs, path=f)
             ensure_data_response(resp)
             return resp.get("data")
 
-        Client._ls(args, data_provider=rls_provider, data_provider_name="RLS")
+        Client._xls(args, data_provider=rls_provider, data_provider_name="RLS")
 
     def rl(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         # Just call rls -la
@@ -919,24 +943,24 @@ class Client:
     @provide_d_sharing_connection
     def rtree(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         def rtree_provider(f, **kwargs):
             resp = sharing_conn.rtree(**kwargs, path=f)
             ensure_data_response(resp)
             return resp.get("data")
 
-        Client._tree(args, data_provider=rtree_provider, data_provider_name="RTREE")
+        Client._xtree(args, data_provider=rtree_provider, data_provider_name="RTREE")
 
     @provide_d_sharing_connection
     def rmkdir(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         directory = args.get_positional()
 
         if not directory:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         log.i(">> RMKDIR %s", directory)
 
@@ -946,12 +970,12 @@ class Client:
     @provide_d_sharing_connection
     def rrm(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         paths = args.get_positionals()
 
         if not paths:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         log.i(">> RRM %s ", paths)
 
@@ -967,21 +991,21 @@ class Client:
     @provide_d_sharing_connection
     def rmv(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         Client._rmvcp(args, api=sharing_conn.rmv, api_name="RMV")
 
     @provide_d_sharing_connection
     def rcp(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         Client._rmvcp(args, api=sharing_conn.rcp, api_name="RCP")
 
     @provide_sharing_connection
     def get(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         files = args.get_positionals()
 
@@ -1009,7 +1033,7 @@ class Client:
         if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
             Get.OVERWRITE_NEWER].count(True) > 1:
             log.e("Only one between -n, -y and -N can be specified")
-            raise BadOutcome("Only one between -n, -y and -N can be specified")
+            raise CommandExecutionError("Only one between -n, -y and -N can be specified")
 
         overwrite_policy = OverwritePolicy.PROMPT
 
@@ -1155,7 +1179,7 @@ class Client:
 
                     if not chunk:
                         log.i("END")
-                        raise BadOutcome(ClientErrors.COMMAND_EXECUTION_FAILED)
+                        raise CommandExecutionError()
 
                     chunk_len = len(chunk)
 
@@ -1221,7 +1245,7 @@ class Client:
 
             if outcome > 0:
                 log.e("GET reported an error: %d", outcome)
-                raise BadOutcome(outcome)
+                raise CommandExecutionError(outcome)
 
 
             print("GET outcome: OK")
@@ -1234,7 +1258,7 @@ class Client:
     def put(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
 
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         files = args.get_positionals()
         sendfiles: List[dict] = []
@@ -1303,7 +1327,7 @@ class Client:
         if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
             Get.OVERWRITE_NEWER].count(True) > 1:
             log.e("Only one between -n, -y and -N can be specified")
-            raise BadOutcome("Only one between -n, -y and -N can be specified")
+            raise CommandExecutionError("Only one between -n, -y and -N can be specified")
 
         overwrite_policy = OverwritePolicy.PROMPT
 
@@ -1398,7 +1422,7 @@ class Client:
                     return
 
                 if put_next_resp.get("data") != "accepted":
-                    raise BadOutcome(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+                    raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
                 local_path_pretty = os.path.normpath(local_path)
                 if local_path.startswith(os.getcwd()):
@@ -1541,7 +1565,7 @@ class Client:
 
             if outcome > 0:
                 log.e("PUT reported an error: %d", outcome)
-                raise BadOutcome(outcome)
+                raise CommandExecutionError(outcome)
 
             print("PUT outcome: OK")
             print("Files        {}  ({})".format(n_files, size_str(tot_bytes)))
@@ -1550,10 +1574,11 @@ class Client:
 
 
     @staticmethod
-    def _ls(args: Args,
-            data_provider: Callable[..., Optional[List[FileInfo]]],
-            data_provider_name: str = "LS"):
+    def _xls(args: Args,
+             data_provider: Callable[..., Optional[List[FileInfo]]],
+             data_provider_name: str = "LS"):
 
+        # Do not wrap here in a Path here, since the provider could be remote
         path = args.get_positional()
         reverse = Ls.REVERSE in args
         show_hidden = Ls.SHOW_ALL in args
@@ -1572,7 +1597,7 @@ class Client:
         ls_result = data_provider(path, sort_by=sort_by, reverse=reverse)
 
         if ls_result is None:
-            raise BadOutcome(ClientErrors.COMMAND_EXECUTION_FAILED)
+            raise CommandExecutionError()
 
         print_files_info_list(
             ls_result,
@@ -1583,9 +1608,9 @@ class Client:
         )
 
     @staticmethod
-    def _tree(args: Args,
-              data_provider: Callable[..., Optional[FileInfoTreeNode]],
-              data_provider_name: str = "TREE"):
+    def _xtree(args: Args,
+               data_provider: Callable[..., Optional[FileInfoTreeNode]],
+               data_provider_name: str = "TREE"):
 
         path = args.get_positional()
         reverse = Tree.REVERSE in args
@@ -1609,7 +1634,7 @@ class Client:
         )
 
         if tree_result is None:
-            raise BadOutcome(ClientErrors.COMMAND_EXECUTION_FAILED)
+            raise CommandExecutionError()
 
         print_files_info_tree(tree_result,
                               max_depth=max_depth,
@@ -1643,7 +1668,7 @@ class Client:
         mvcp_args = [pathify(f) for f in args.get_positionals()]
 
         if not mvcp_args or len(mvcp_args) < 2:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         dest = mvcp_args.pop()
         sources = mvcp_args
@@ -1655,7 +1680,7 @@ class Client:
             # => must be a valid dir
             if not os.path.isdir(dest):
                 log.e("'%s' must be an existing directory", dest)
-                raise BadOutcome(ClientErrors.INVALID_PATH)
+                raise CommandExecutionError(ClientErrors.INVALID_PATH)
 
         # Every other constraint is well handled by shutil.move()
         errors = []
@@ -1680,12 +1705,12 @@ class Client:
         paths = args.get_positionals()
 
         if not paths:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         dest = paths.pop()
 
         if not dest or not paths:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         log.i(">> %s %s -> %s", api_name, str(paths), dest)
 
@@ -1713,7 +1738,7 @@ class Client:
         pargs = args.get_positionals()
 
         if not pargs:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         sharing_location = SharingLocation.parse(pargs.pop(0))
         return self._create_sharing_connection_from_sharing_location(
@@ -1734,7 +1759,7 @@ class Client:
         pargs = args.get_positionals()
 
         if not pargs:
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         server_location = ServerLocation.parse(pargs.pop(0))
         return self._create_server_connection_from_server_location(
@@ -1757,7 +1782,7 @@ class Client:
         )
 
         if not server_conn or not server_conn.is_connected():
-            raise BadOutcome(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         sharing_conn = Client.create_sharing_connection_from_server_connection(
             server_conn=server_conn,
@@ -1765,7 +1790,7 @@ class Client:
         )
 
         if not sharing_conn or not sharing_conn.is_connected():
-            raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
+            raise CommandExecutionError(ClientErrors.SHARING_NOT_FOUND)
 
         return sharing_conn, server_conn
 
@@ -1905,7 +1930,7 @@ class Client:
 
         if not server_conn:
             log.e("Connection can't be established")
-            raise BadOutcome(ClientErrors.CONNECTION_ERROR)
+            raise CommandExecutionError(ClientErrors.CONNECTION_ERROR)
 
         # We have a valid TCP connection with the esd
         log.i("Connection established with %s:%d",
@@ -1942,7 +1967,7 @@ class Client:
     def create_sharing_connection_from_server_connection(
             server_conn: ServerConnection, sharing_name: str) -> SharingConnection:
         if not server_conn:
-            raise BadOutcome(ClientErrors.NOT_CONNECTED)
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         # Create the sharing connection: open()
 
@@ -1964,7 +1989,7 @@ class Client:
 
                 return sharing_conn
 
-        raise BadOutcome(ClientErrors.SHARING_NOT_FOUND)
+        raise CommandExecutionError(ClientErrors.SHARING_NOT_FOUND)
 
     def _discover_sharing(
             self, sharing_location: SharingLocation, ftype: FileType = None) -> \

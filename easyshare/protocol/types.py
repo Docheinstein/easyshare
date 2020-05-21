@@ -1,3 +1,7 @@
+from os import stat_result
+from pathlib import Path
+from stat import S_ISDIR, S_ISREG
+
 from easyshare.tree import TreeNodeDict
 
 # Use advanced typing if possible (Literal, TypedDict)
@@ -16,11 +20,24 @@ FTYPE_DIR = "dir"
 
 try:
     # From python 3.8
-    from typing import Literal, List, Union, Dict
+    from typing import Literal, List, Union, Dict, Optional
 
     FileType = Literal["file", "dir"]
 except:
     FileType = str  # "file" | "dir"
+
+
+def ftype(path: Path, stat = None) -> Optional[FileType]:
+    """
+    Helper that returns the ftype associated with the path.
+    'stat' can be given for avoid a stat() call.
+    """
+    stat = stat or path.stat()
+    if S_ISDIR(stat.st_mode):
+        return FTYPE_DIR
+    elif S_ISREG(stat.st_mode):
+        return FTYPE_FILE
+    return None
 
 try:
     # From python 3.8
@@ -41,6 +58,19 @@ except:
     FileInfoNode = Dict[str, Union[str, FileType, int, List['FileInfoNode']]]
 
 
+def create_file_info(path: Path, stat: stat_result = None, name: str = None):
+    """
+    Helper that creates a 'FileInfo' for the given path;
+    'stat' can be given for avoid a stat() call.
+    If 'name' is given, then it will be used instead of path.name.
+    """
+    stat = stat or path.stat()
+    return {
+        "name": name or path.name,
+        "ftype": ftype(path, stat),
+        "size": stat.st_size,
+        "mtime": stat.st_mtime_ns
+    }
 
 # ================================================
 # ================ SHARING INFO  =================

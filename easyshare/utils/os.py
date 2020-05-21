@@ -5,12 +5,13 @@ import select
 import shutil
 import subprocess
 import threading
+from pathlib import Path
 from stat import S_ISDIR
 from typing import Optional, List, Union, Tuple, Any, Callable
 
 from easyshare.logging import get_logger
-from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfoTreeNode, FileInfo
-from easyshare.utils.types import is_str, is_list
+from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info
+from easyshare.utils.types import is_str, is_list, list_wrap
 
 log = get_logger(__name__)
 
@@ -57,8 +58,19 @@ def abspath(s: str) -> str:
     return s if is_abspath(s) else (os.sep + s)
 
 
-def pathify(s: str) -> str:
-    return os.path.expanduser(s)
+# def pathify(s: str) -> str:
+#     return os.path.expanduser(s)
+
+
+def LocalPath(p: Optional[str] = None, default="") -> Path:
+    return Path(p or default).expanduser()
+
+def parent_dir(p: Path):
+    # os.path.split() differs from pathlib.parent
+    # pathlib.parent of /home/user/ is "/home"
+    # os.path.split of /home/user/ is ("/home/user/", "")
+    return p if str(p).endswith(os.path.sep) else p.parent
+
 
 
 def tree(path: str,
@@ -156,50 +168,44 @@ def tree(path: str,
     return root
 
 
-def ls(path: str, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[List[FileInfo]]:
-    if is_str(sort_by):
-        sort_by = [sort_by]
+# def ls(path: Path, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[List[FileInfo]]:
+    # sort_by = list(filter(lambda sort_field: sort_field in ["name", "size", "ftype"],
+    #                       list_wrap(sort_by)))
+    #
+    # log.i("LS sorting by %s%s", sort_by, " (reverse)" if reverse else "")
 
-    if not is_list(sort_by):
-        return None
+    # try:
+    #     return _ls(path, sort_by, reverse)
+    # except Exception as ex:
+    #     log.e("LS execution exception %s", ex)
+    #     return None
 
-    sort_by_fields = list(filter(lambda sort_field: sort_field in ["name", "size", "ftype"], sort_by))
+
+def ls(path: Path, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[List[FileInfo]]:
+    if not path:
+        raise TypeError("Path should be valid")
+
+    sort_by = list(filter(lambda field: field in ["name", "size", "ftype"],
+                          list_wrap(sort_by)))
+
     log.i("LS sorting by %s%s", sort_by, " (reverse)" if reverse else "")
 
-    try:
-        return _ls(path, sort_by_fields, reverse)
-    except Exception as ex:
-        log.e("LS execution exception %s", ex)
-        return None
-
-
-def _ls(path: str, sort_by_fields: List[str], reverse=False) -> Optional[List[FileInfo]]:
     ret: List[FileInfo] = []
 
-    if os.path.isfile(path):
-        f_stat = os.lstat(os.path.join(path))
-        _, tail = os.path.split(path)
-        return [{
-            "name": tail,
-            "ftype": FTYPE_FILE,
-            "size": f_stat.st_size
-        }]
+    # Single file
+    if path.is_file():
+        return [create_file_info(path)]
 
-    if not os.path.isdir(path):
+    if not path.is_dir():
         log.e("Cannot perform ls; invalid path")
-        return None
+        raise FileNotFoundError()
 
-    # Take the other info (size, filetype, ...)
-    for f in os.listdir(path):
-        f_stat = os.lstat(os.path.join(path, f))
-        ret.append({
-            "name": f,
-            "ftype": FTYPE_DIR if S_ISDIR(f_stat.st_mode) else FTYPE_FILE,
-            "size": f_stat.st_size,
-        })
+    # Directory
+    for p in path.iterdir():
+        ret.append(create_file_info(p))
 
     # Sort the result for each field of sort_by
-    for sort_field in sort_by_fields:
+    for sort_field in sort_by:
         ret = sorted(ret, key=lambda fi: fi[sort_field])
 
     if reverse:
