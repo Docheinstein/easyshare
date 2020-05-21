@@ -158,6 +158,13 @@ def provide_server_connection(api):
 class CommandExecutionError(Exception):
     pass
 
+
+def os_error_str(err: OSError):
+    """ Returns the explanation of the error (e.g. Directory not empty) """
+    if err and err.strerror:
+        return err.strerror
+    return "Error" # fallback
+
 # ==================================================================
 
 
@@ -420,20 +427,15 @@ class Client:
         if not directory.is_dir():
             raise CommandExecutionError(ClientErrors.NOT_A_DIRECTORY)
 
-        # change directory
         try:
             # As of 20/05/2020 PyCharm complains, but it's legal
             os.chdir(directory)
         except FileNotFoundError:
-            log.exception("Invalid path")
-            raise CommandExecutionError(ClientErrors.INVALID_PATH)
+            raise CommandExecutionError(f"{ErrorsStrings.NOT_EXISTS}: '{directory}'")
         except PermissionError:
-            log.exception("Permission denied")
-            raise CommandExecutionError(ClientErrors.PERMISSION_DENIED)
-        except OSError as ex:
-            log.exception("CD failed")
-            raise CommandExecutionError(str(ex))
-
+            raise CommandExecutionError(f"{ErrorsStrings.PERMISSION_DENIED}: '{directory}'")
+        except OSError as oserr:
+            raise CommandExecutionError(f"{os_error_str(oserr)}: '{directory}'")
 
     @staticmethod
     def ls(args: Args, _, _2):
@@ -445,14 +447,11 @@ class Client:
             try:
                 ls_res = ls(p, **kws)
             except FileNotFoundError:
-                log.exception("ls failed - invalid path")
-                raise CommandExecutionError(ClientErrors.INVALID_PATH)
+                raise CommandExecutionError(f"{ErrorsStrings.NOT_EXISTS}: '{p}'")
             except PermissionError:
-                log.exception("tree failed - permission denied")
-                raise CommandExecutionError(ClientErrors.PERMISSION_DENIED)
-            except OSError as ex:
-                log.exception("ls failed")
-                raise CommandExecutionError(str(ex))
+                raise CommandExecutionError(f"{ErrorsStrings.PERMISSION_DENIED}: '{p}'")
+            except OSError as oserr:
+                raise CommandExecutionError(f"{os_error_str(oserr)}: '{p}'")
             return ls_res
 
         Client._xls(args, data_provider=ls_provider, data_provider_name="LS")
@@ -475,14 +474,11 @@ class Client:
             try:
                 tree_res = tree(p, **kws)
             except FileNotFoundError:
-                log.exception("tree failed - invalid path")
-                raise CommandExecutionError(ClientErrors.INVALID_PATH)
+                raise CommandExecutionError(f"{ErrorsStrings.NOT_EXISTS}: '{p}'")
             except PermissionError:
-                log.exception("tree failed - permission denied")
-                raise CommandExecutionError(ClientErrors.PERMISSION_DENIED)
-            except OSError as ex:
-                log.exception("tree failed")
-                raise CommandExecutionError(str(ex))
+                raise CommandExecutionError(f"{ErrorsStrings.PERMISSION_DENIED}: '{p}'")
+            except OSError as oserr:
+                raise CommandExecutionError(f"{os_error_str(oserr)}: '{p}'")
             return tree_res
 
         Client._xtree(args, data_provider=tree_provider, data_provider_name="TREE")
@@ -501,14 +497,11 @@ class Client:
         try:
             directory.mkdir(parents=True)
         except PermissionError:
-            log.exception("mkdir failed - permission denied")
-            raise CommandExecutionError(ErrorsStrings.PERMISSION_DENIED)
+            raise CommandExecutionError(f"{ErrorsStrings.PERMISSION_DENIED}: '{directory}'")
         except FileExistsError:
-            log.exception("mkdir failed - already exists")
-            raise CommandExecutionError(ErrorsStrings.DIRECTORY_ALREADY_EXISTS)
-        except OSError as ex:
-            log.exception("mkdir failed")
-            raise CommandExecutionError(str(ex))
+            raise CommandExecutionError(f"{ErrorsStrings.DIRECTORY_ALREADY_EXISTS}: '{directory}'")
+        except OSError as oserr:
+            raise CommandExecutionError(f"{os_error_str(oserr)}: '{directory}'")
 
     @staticmethod
     def pwd(_: Args, _2, _3):
@@ -518,15 +511,26 @@ class Client:
 
     @staticmethod
     def rm(args: Args, _, _2):
-        paths = [pathify(p) for p in args.get_positionals()]
+        paths = [LocalPath(p) for p in args.get_positionals()]
 
         if not paths:
-            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ErrorsStrings.INVALID_COMMAND_SYNTAX)
 
         log.i(">> RM %s", paths)
 
         for p in paths:
-            rm(p, error_callback=lambda err: eprint(err))
+
+            def handle_rm_error(exc: Exception, path):
+                if isinstance(exc, PermissionError):
+                    eprint(f"{ErrorsStrings.PERMISSION_DENIED}: '{path}'")
+                elif isinstance(exc, FileNotFoundError):
+                    eprint(f"{ErrorsStrings.NOT_EXISTS}: '{path}'")
+                elif isinstance(exc, OSError):
+                    eprint(f"{os_error_str(exc)}: '{path}'")
+                else:
+                    eprint(str(exc))
+
+            rm(p, error_callback=handle_rm_error)
 
     @staticmethod
     def mv(args: Args, _, _2):

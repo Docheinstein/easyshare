@@ -64,7 +64,7 @@ def ls(path: Path,
        reverse: bool = False,
        hidden: bool = False) -> Optional[List[FileInfo]]:
     if not path:
-        raise TypeError("Path should be valid")
+        raise TypeError("found invalid path")
 
     sort_by = list(filter(lambda field: field in ["name", "size", "ftype"],
                           list_wrap(sort_by)))
@@ -108,7 +108,7 @@ def tree(path: Path,
          max_depth: int = None,
          hidden: bool = False) -> Optional[FileInfoTreeNode]:
     if not path:
-        raise TypeError("Path should be valid")
+        raise TypeError("found invalid path")
 
     sort_by = list(filter(lambda field: field in ["name", "size", "ftype"],
                           list_wrap(sort_by)))
@@ -206,45 +206,44 @@ def tree(path: Path,
 
 
 
-def rm(path: str, error_callback: Callable[[Exception], None] = None) -> bool:
+def rm(path: Path, error_callback: Callable[[Exception, Union[str, Path]], None] = None):
+    if not path:
+        raise TypeError("found invalid path")
+
+    # Catch everything, and report any error to error_callback if it's valid
     try:
-        if os.path.isfile(path):
-            os.remove(path)
-            return True
+        if path.is_file():
+            log.d("unlink since '%s' is a file", path)
+            path.unlink()
+            return
 
-        if os.path.isdir(path):
-            def handle_rmtree_error(error_func,
-                                    error_path,
-                                    error_excinfo: Tuple[Any, Exception, Any]):
+        if not path.is_dir():
+            log.e("Cannot perform rm; invalid path")
+            raise FileNotFoundError()
 
-                excinfo_class, excinfo_error, excinfo_traceback = error_excinfo
+        def handle_rmtree_error(error_func,
+                                error_path,
+                                error_excinfo: Tuple[Any, Exception, Any]):
 
-                log.e("RM error occurred on path '%s': %s",
-                  error_path,
-                  excinfo_error)
+            excinfo_class, excinfo_error, excinfo_traceback = error_excinfo
 
-                if error_callback:  # should be defined
-                    error_callback(excinfo_error)
+            log.e("rm error occurred on path '%s': %s", error_path, excinfo_error)
 
-            ignore_errors = True if error_callback else False
-            shutil.rmtree(path, ignore_errors=ignore_errors, onerror=handle_rmtree_error)
-            return True
+            # Notify the observer
+            if error_callback:
+                error_callback(excinfo_error, error_path)
 
-        log.e("Cannot delete; not file nor dir '%s'", path)
+        log.d("rmtree since '%s' is a directory", path)
+        ignore_errors = False if error_callback else True
+        shutil.rmtree(path, ignore_errors=ignore_errors, onerror=handle_rmtree_error)
 
-        # Manually notify a file not found exception
-        if error_callback:
-            error_callback(FileNotFoundError(
-                errno.ENOENT, os.strerror(errno.ENOENT), path
-            ))
-        return False
     except Exception as ex:
-        # Notify the exception of a valid action (could be permission denied, ...)
-        log.e("RM execution exception %s", ex)
+        # Notify the exception if error_callback is valid
+        log.e("rm error occurred on path '%s': %s", path, ex)
         if error_callback:
-            error_callback(ex)
-        return False
-
+            error_callback(ex, path)
+        else:
+            raise ex
 
 def mv(src: str, dest: str) -> bool:
     try:

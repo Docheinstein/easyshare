@@ -47,6 +47,8 @@ class ErrorsStrings:
     AUTHENTICATION_FAILED = "Authentication failed"
     INTERNAL_SERVER_ERROR = "Internal esd error"
     NOT_WRITABLE = "Forbidden: sharing is readonly"
+    FILE_NOT_FOUND = "File not found"
+    NOT_EXISTS = "Not exists"
 
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
     UNEXPECTED_SERVER_RESPONSE = "Unexpected esd response"
