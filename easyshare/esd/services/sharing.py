@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Callable, List, Tuple
 
 from Pyro5.server import expose
@@ -59,7 +60,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     def __init__(self,
                  server_port: int,
                  sharing: Sharing,
-                 sharing_rcwd: str,
+                 sharing_rcwd: Path,
                  client: ClientContext,
                  end_callback: Callable[[BaseClientService], None]):
         super().__init__(sharing, sharing_rcwd, client, end_callback)
@@ -165,7 +166,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @check_sharing_service_owner
     @ensure_d_sharing
     def rcd(self, path: str) -> Response:
-        path = path or "."
+        path = path or "/"
 
         if not is_str(path):
             return self._create_sharing_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
@@ -173,23 +174,47 @@ class SharingService(ISharingService, BaseClientSharingService):
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< RCD %s [%s]", path, str(client_endpoint))
+        path = Path(path)
 
-        new_real_path = self._real_path_from_rcwd(path)
+        if path.is_absolute():
+            # Absolute is considered relative to the sharing root
+            log.d("Setting cwd from sharing root")
+            new_rcwd = self._sharing.path.joinpath(*path.parts[1:])
+        else:
+            # Relative is considered relative to the current working directory
+            log.d("Setting cwd from current cwd")
+            new_rcwd = (self._rcwd / path).resolve()
 
-        if not self._is_real_path_allowed(new_real_path):
-            log.e("Path is invalid (out of sharing domain)")
+        if not self._is_path_allowed(new_rcwd):
             return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
 
-        if not os.path.isdir(new_real_path):
-            log.e("Path does not exists")
-            return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
+        # Check if it actually exists
+        if not new_rcwd.is_dir():
+            return self._create_sharing_error_response(ServerErrors.NOT_A_DIRECTORY)
 
-        log.i("New rcwd real path: %s", new_real_path)
-
-        self._rcwd = self._trailing_path_from_root(new_real_path)
+        self._rcwd = new_rcwd
         log.i("New rcwd: %s", self._rcwd)
 
-        return create_success_response(self._rcwd)
+        #
+        # new_real_path = self._real_path_from_rcwd(path)
+        #
+        # if not self._is_real_path_allowed(new_real_path):
+        #     log.e("Path is invalid (out of sharing domain)")
+        #     return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
+        #
+        # if not os.path.isdir(new_real_path):
+        #     log.e("Path does not exists")
+        #     return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
+        #
+        # log.i("New rcwd real path: %s", new_real_path)
+        #
+        # self._rcwd = self._trailing_path_from_root(new_real_path)
+        # log.i("New rcwd: %s", self._rcwd)
+
+        rcwd_client = str(self._rcwd_client_view())
+        rcwd_client = "" if rcwd_client == "." else rcwd_client
+        log.d("RCWD for the client: %s", rcwd_client)
+        return create_success_response(rcwd_client)
 
 
     @expose

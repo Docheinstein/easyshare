@@ -451,7 +451,7 @@ def main():
 
 
     sharings_str = \
-        "\n".join([("* " + sh.name + " --> " + sh.path)
+        "\n".join([("* " + sh.name + " --> " + str(sh.path))
                    for sh in sharings.values()]) if sharings else "NONE"
 
     print(f"""\

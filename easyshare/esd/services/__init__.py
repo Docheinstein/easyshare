@@ -1,6 +1,7 @@
 import os
 import threading
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Callable, Optional, Union
 
 
@@ -119,13 +120,16 @@ class BaseClientSharingService(BaseClientService):
 
     def __init__(self,
                  sharing: Sharing,
-                 sharing_rcwd: str,
+                 sharing_rcwd: Path,
                  client: ClientContext,
                  end_callback: Callable[['BaseClientService'], None]):
         super().__init__(client, end_callback)
         self._sharing = sharing
         self._rcwd = sharing_rcwd
 
+
+    def _rcwd_client_view(self):
+        return self._rcwd.relative_to(self._sharing.path)
 
     def _current_real_path(self):
         return self._real_path_from_rcwd("")
@@ -254,6 +258,16 @@ class BaseClientSharingService(BaseClientService):
 
         return create_error_response()
 
+    # ---- NEW
+
+    def _is_path_allowed(self, p: Path) -> bool:
+        try:
+            p.relative_to(self._sharing.path)
+            log.d("Path is allowed: %s", p.relative_to(self._sharing.path))
+            return True
+        except:
+            log.d("Path is not allowed for this sharing %s", p)
+            return False
 
 
 # decorator

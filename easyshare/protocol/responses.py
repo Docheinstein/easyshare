@@ -21,6 +21,7 @@ class ServerErrors:
     INTERNAL_SERVER_ERROR =     210
     NOT_WRITABLE =              211
     NOT_ALLOWED_FOR_F_SHARING = 212
+    NOT_A_DIRECTORY = 213
 
 
 class TransferOutcomes:

@@ -1440,7 +1440,7 @@ shell <A> # just for alignment
     @classmethod
     def long_description(cls):
         return """\
-Start a local shell using the user's preferred one.
+Start a local shell using the user's preferred shell.
 
 Currently supported only for Unix."""
 
@@ -1469,7 +1469,7 @@ rshell <A> # just for alignment
     @classmethod
     def long_description(cls):
         return """\
-Start a remote shell using the remote user's preferred one.
+Start a remote shell using the remote user's preferred shell.
 
 Currently supported only if the server is Unix."""
 

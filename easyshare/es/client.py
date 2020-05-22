@@ -1115,7 +1115,8 @@ class Client:
         ensure_data_response(resp)
 
         rcwd = resp.get("data")
-        print(rcwd)
+
+        print(Path("/").joinpath(rcwd))
 
     @provide_d_sharing_connection
     def rcd(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
@@ -2033,7 +2034,7 @@ class Client:
             server_name: str = None, server_ip: str = None, server_port: int = None,
             sharing_name: str = None, sharing_ftype: FileType = None) -> ServerConnection:
 
-        server_port = server_port or DEFAULT_SERVER_PORT
+        # server_port = server_port or DEFAULT_SERVER_PORT
 
         just_directly = False
         server_conn = None
@@ -2041,13 +2042,15 @@ class Client:
 
         if server_ip:
             server_ssl = False
-
+            # TODO test direct connection
             if server_port:
                 log.d("Server IP and PORT are specified: trying to connect directly")
                 just_directly = True # Everything specified => won't perform a scan
+                attempt_port = server_port
                 # auto_server_info["port"] = server_port
             else:
                 log.d("Server IP is specified: trying to connect directly to the default port")
+                attempt_port = DEFAULT_SERVER_PORT
                 # auto_server_info["port"] = DEFAULT_SERVER_PORT
 
             while True: # actually two attempts are done: with/without SSL
@@ -2055,7 +2058,7 @@ class Client:
                 # Create a connection
                 server_conn = ServerConnectionMinimal(
                     server_ip=server_ip,
-                    server_port=server_port or DEFAULT_SERVER_PORT,
+                    server_port=attempt_port,
                     server_ssl=server_ssl
                 )
 
@@ -2105,7 +2108,7 @@ class Client:
                     log.d("Server info satisfy the constraints: FOUND directly")
                     server_conn = ServerConnection(
                         server_ip=server_ip,
-                        server_port=server_port,
+                        server_port=attempt_port,
                         server_info=real_server_info,
                         established_server_connection=server_conn.server
                     )
@@ -2132,6 +2135,8 @@ class Client:
                         sharing_name=sharing_name, sharing_ftype=sharing_ftype):
 
                     log.d("Server info satisfy the constraints: FOUND w/ discover")
+                    # IP and port can be provided from real_server_info
+                    # since came from the discover and thus are real
                     server_conn = ServerConnection(
                         server_ip=real_server_info.get("ip"),
                         server_port=real_server_info.get("port"),
@@ -2140,7 +2145,7 @@ class Client:
 
         if not server_conn:
             log.e("Connection can't be established")
-            raise CommandExecutionError(ClientErrors.CONNECTION_ERROR)
+            raise CommandExecutionError(ErrorsStrings.CONNECTION_CANT_BE_ESTABLISHED)
 
         # We have a valid TCP connection with the esd
         log.i("Connection established with %s:%d",
@@ -2302,25 +2307,32 @@ class Client:
             server_name: str = None, server_ip: str = None, server_port: int = None,
             sharing_name: str = None, sharing_ftype: FileType = None) -> bool:
 
+
+        log.d("constr server name: %s", server_name)
+        log.d("constr server ip: %s", server_ip)
+        log.d("constr server port: %d", server_port)
+        log.d("constr sharing name: %d", sharing_name)
+        log.d("constr sharing ftype: %d", sharing_ftype)
+
         if not server_info:
             return False
 
         # Server name
-        if server_name and server_name != server_info.get("name"):
+        if server_name and (server_name != server_info.get("name")):
             log.d("Server info does not match the esd name filter '%s'",
                   server_name)
             return False
 
         # Server IP
-        if server_ip and server_ip != server_info.get("ip"):
+        if server_ip and (server_ip != server_info.get("ip")):
             log.d("Server info does not match the esd ip filter '%s'",
                   server_ip)
             return False
 
         # Server  port
-        if server_port and server_port != server_info.get("port"):
-            log.d("Server info does not match the esd port filter '%s'",
-                  server_ip)
+        if server_port and (server_port != server_info.get("port")):
+            log.d("Server info does not match the esd port filter '%d'",
+                  server_port)
             return False
 
         # Sharing filter

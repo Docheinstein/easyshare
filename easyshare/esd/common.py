@@ -1,11 +1,12 @@
-import os
 import threading
+from pathlib import Path
 from typing import Optional, Set
 
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType
+from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType, create_file_info, ftype
 from easyshare.utils.json import j
+from easyshare.utils.path import LocalPath
 from easyshare.utils.rand import randstring
 
 log = get_logger(__name__)
@@ -57,7 +58,7 @@ class Sharing:
     The concept of shared file or directory.
     Basically contains the path of the file/dir to share and the assigned name.
     """
-    def __init__(self, name: str, ftype: FileType, path: str, read_only: bool):
+    def __init__(self, name: str, ftype: FileType, path: Path, read_only: bool):
         self.name = name
         self.ftype = ftype
         self.path = path
@@ -74,33 +75,21 @@ class Sharing:
         """
         # Ensure path existence
         if not path:
-            log.w("Sharing creation failed; path not provided")
-            return None
-        # TODO: LocalPath
-        # path = pathify(path)
-
-        if os.path.isdir(path):
-            ftype = FTYPE_DIR
-        elif os.path.isfile(path):
-            ftype = FTYPE_FILE
-        else:
-            log.w("Sharing creation failed; invalid path")
+            log.e("Sharing creation failed; path not provided")
             return None
 
-        if not name:
-            # Generate the sharing name from the path
-            _, name = os.path.split(path)
+        path = LocalPath(path)
 
-        # Sanitize the name anyway (only alphanum and _ is allowed)
-        # name = keep(name, SHARING_NAME_ALPHABET)
-
-        read_only = True if read_only else False
+        sh_ftype = ftype(path)
+        if sh_ftype != FTYPE_FILE and sh_ftype != FTYPE_DIR:
+            log.e("Invalid sharing path")
+            return None
 
         return Sharing(
-            name=name,
-            ftype=ftype,
+            name=name or path.name,
+            ftype=sh_ftype,
             path=path,
-            read_only=read_only,
+            read_only=True if read_only else False,
         )
 
     def info(self) -> SharingInfo:

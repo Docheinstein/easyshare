@@ -189,7 +189,7 @@ class ServerService(IServer, BaseService):
         if not sharing_name:
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        sharing = self._sharings.get(sharing_name)
+        sharing: Sharing = self._sharings.get(sharing_name)
 
         if not sharing:
             return create_error_response(ServerErrors.SHARING_NOT_FOUND)
@@ -201,7 +201,7 @@ class ServerService(IServer, BaseService):
         serving = SharingService(
             server_port=self._port,
             sharing=sharing,
-            sharing_rcwd="",
+            sharing_rcwd=sharing.path,
             client=client,
             end_callback=lambda cs: cs.unpublish()
         )

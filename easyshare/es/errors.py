@@ -54,6 +54,7 @@ class ErrorsStrings:
     UNEXPECTED_SERVER_RESPONSE = "Unexpected esd response"
     IMPLEMENTATION_ERROR = "Implementation error"
     CONNECTION_ERROR = "Connection error"
+    CONNECTION_CANT_BE_ESTABLISHED = "Connection can't be established"
 
     TRANSFER_CHECK_FAILED = "Check failed"
     NOT_ALLOWED_FOR_F_SHARING = "Not allowed: action can be performed only on sharings of type directory"
@@ -79,6 +80,7 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.INTERNAL_SERVER_ERROR: ErrorsStrings.INTERNAL_SERVER_ERROR,
     ServerErrors.NOT_WRITABLE: ErrorsStrings.NOT_WRITABLE,
     ServerErrors.NOT_ALLOWED_FOR_F_SHARING: ErrorsStrings.NOT_ALLOWED_FOR_F_SHARING,
+    ServerErrors.NOT_A_DIRECTORY: ErrorsStrings.NOT_A_DIRECTORY,
 
     ClientErrors.COMMAND_NOT_RECOGNIZED: ErrorsStrings.COMMAND_NOT_RECOGNIZED,
     ClientErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
