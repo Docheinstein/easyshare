@@ -10,6 +10,7 @@ from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.daemons.pyro import get_pyro_daemon
 from easyshare.esd.services import BaseService
 from easyshare.esd.services.rexec import RexecService
+from easyshare.esd.services.rshell import RshellService
 from easyshare.esd.services.sharing import SharingService
 from easyshare.logging import get_logger
 from easyshare.protocol.services import IServer
@@ -241,6 +242,31 @@ class ServerService(IServer, BaseService):
         rx.run()
 
         uri = rx.publish()
+
+        log.d("Rexec handler initialized; uri: %s", uri)
+        return create_success_response(uri)
+
+    @expose
+    @trace_api
+    @try_or_command_failed_response
+    def rshell(self) -> Response:
+        if not self._rexec_enabled:
+            log.w("Client attempted remote command execution; denying since rexec is disabled")
+            return create_error_response(ServerErrors.NOT_ALLOWED)
+
+        client = self._current_request_client()
+        if not client:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+
+        log.i(">> RSHELL [%s]", client)
+
+        rsh = RshellService(
+            client=client,
+            end_callback=lambda cs: cs.unpublish()
+        )
+        rsh.run()
+
+        uri = rsh.publish()
 
         log.d("Rexec handler initialized; uri: %s", uri)
         return create_success_response(uri)

@@ -66,6 +66,8 @@ class Commands:
     REMOTE_MOVE = "rmv"
     REMOTE_REMOVE = "rrm"
     REMOTE_EXEC = "rexec"
+    REMOTE_SHELL = "rshell"
+    REMOTE_SHELL_SHORT = "rsh"
     REMOTE_EXEC_SHORT = SPECIAL_COMMAND_MARK * 2
 
     SCAN = "scan"
@@ -1445,6 +1447,35 @@ Currently supported only for Unix."""
     @classmethod
     def see_also(cls):
         return """Type "<b>help rshell</b>" for the remote analogous."""
+
+
+class Rshell(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "rshell"
+
+    @classmethod
+    def short_description(cls):
+        return "start a remote shell"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+rshell <A> # just for alignment
+<b>rshell</b>
+<b>rsh</b></a>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Start a remote shell using the remote user's preferred one.
+
+Currently supported only if the server is Unix."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help shell</b>" for the local analogous."""
 
 
 

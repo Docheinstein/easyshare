@@ -152,6 +152,11 @@ class ServerConnectionMinimal(Connection):
     def rexec(self, cmd: str) -> Response:
         return self.server.rexec(cmd)
 
+    @handle_connection_response
+    @require_connected_connection
+    def rshell(self) -> Response:
+        return self.server.rshell()
+
 class ServerConnection(ServerConnectionMinimal):
     """
     Complete server connection; in addition to 'ServerConnectionMinimal' provide

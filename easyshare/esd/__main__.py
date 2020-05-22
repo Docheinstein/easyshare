@@ -429,6 +429,9 @@ def main():
     log.i("Required esd discover port: %s", str(server_discover_port))
     log.i("Required auth: %s", auth.algo_type())
 
+    if not sharings and not server_rexec:
+        log.e("No sharings found, and rexec disabled; nothing to do")
+        _print_usage_and_quit()
 
     if not sharings:
         log.w("No sharings found, it will be an empty esd")

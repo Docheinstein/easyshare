@@ -6,7 +6,6 @@ from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
 from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType
 from easyshare.utils.json import j
-from easyshare.utils.os import pathify
 from easyshare.utils.rand import randstring
 
 log = get_logger(__name__)
@@ -77,8 +76,8 @@ class Sharing:
         if not path:
             log.w("Sharing creation failed; path not provided")
             return None
-
-        path = pathify(path)
+        # TODO: LocalPath
+        # path = pathify(path)
 
         if os.path.isdir(path):
             ftype = FTYPE_DIR

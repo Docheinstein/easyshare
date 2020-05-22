@@ -60,6 +60,16 @@ class IServer(ABC):
         """
         Execute the command cmd on the server, instantiate a 'RexecService'
         the client can access for receive stdout and send stdin.
+        Currently works only if the remote server is Unix based.
+        """
+        pass
+
+    @abstractmethod
+    def rshell(self, cmd: str) -> Response:
+        """
+        Execute a remote shell on the server, instantiate a 'RshellService'
+        the client can access for receive stdout and send stdin.
+        Currently works only if the remote server is Unix based.
         """
         pass
 
@@ -94,6 +104,32 @@ class IPutService(ITransferService):
 
 class IRexecService(ABC):
     """ Interface of the rexec command service bound to a client """
+
+    class Event:
+        TERMINATE = 0
+        EOF = 1
+
+    @abstractmethod
+    def recv(self) -> Response:
+        """
+        When available, receive lines from stdout
+        and stderr of the remote process
+        """
+        pass
+
+    @abstractmethod
+    def send_data(self, data: str) -> Response:
+        """ Send data to the stdin of the remote process """
+        pass
+
+    @abstractmethod
+    def send_event(self, ev: int) -> Response:
+        """ Send a signal to the remote process """
+        pass
+
+
+class IRshellService(ABC):
+    """ Interface of the rshell command service bound to a client """
 
     class Event:
         TERMINATE = 0

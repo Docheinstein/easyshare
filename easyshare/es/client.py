@@ -1,9 +1,11 @@
 import fcntl
 import os
+import pty
 import select
 import sys
 import threading
 import time
+import tty
 import zlib
 from getpass import getpass
 from pathlib import Path
@@ -29,7 +31,7 @@ from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str, server_info_to_short_str
 from easyshare.logging import get_logger
 from easyshare.progress import FileProgressor
-from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService
+from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService, IRshellService
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response
 from easyshare.protocol.types import FileType, ServerInfoFull, SharingInfo, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
     OverwritePolicy, FTYPE_FILE, ServerInfo
@@ -41,7 +43,7 @@ from easyshare.utils import eprint
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, relpath, get_passwd, is_unix, is_windows, \
-    pty_attached
+    pty_attached, pty_detached
 from easyshare.utils.path import LocalPath
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro import pyro_uri
@@ -304,6 +306,14 @@ class Client:
                 SERVER,
                 [StopParseArgsSpec(0), StopParseArgsSpec(1)],
                 self.rexec),
+            Commands.REMOTE_SHELL: (
+                SERVER,
+                [PosArgsSpec(0), PosArgsSpec(1)],
+                self.rshell),
+            Commands.REMOTE_SHELL_SHORT: (
+                SERVER,
+                [PosArgsSpec(0), PosArgsSpec(1)],
+                self.rshell),
 
             Commands.GET: (
                 SHARING,
@@ -751,8 +761,8 @@ class Client:
         rexec_uid = rexec_resp.get("data")
 
         rexec_service_uri = pyro_uri(rexec_uid,
-                                   self.server_connection.server_ip(),
-                                   self.server_connection.server_port())
+                                   server_conn.server_ip(),
+                                   server_conn.server_port())
 
         log.d("Rexec handler URI: %s", rexec_uid)
 
@@ -839,6 +849,126 @@ class Client:
             # Wait everybody
 
             rexec_stdout_receiver_th.join()
+
+
+
+    @provide_server_connection_connected
+    def rshell(self, args: Args, server_conn: ServerConnection, _):
+        if not server_conn or not server_conn.is_connected():
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
+
+        log.i(">> RSHELL %s")
+
+        rshell_resp = server_conn.rshell()
+        ensure_data_response(rshell_resp)
+
+        rshell_uid = rshell_resp.get("data")
+
+        rshell_service_uri = pyro_uri(rshell_uid,
+                                   server_conn.server_ip(),
+                                   server_conn.server_port())
+
+        log.d("Rshell handler URI: %s", rshell_uid)
+
+        rshell_service: Union[TracedPyroProxy, IRshellService]
+
+        with TracedPyroProxy(rshell_service_uri) as rshell_service:
+
+            retcode = None
+
+            # --- STDOUT RECEIVER ---
+
+            def rshell_stdout_receiver():
+                try:
+                    rshell_polling_proxy: Union[TracedPyroProxy, IRshellService]
+
+                    with TracedPyroProxy(rshell_service_uri) as rshell_polling_proxy:
+                        nonlocal retcode
+
+                        while retcode is None:
+                            resp = rshell_polling_proxy.recv()
+                            ensure_data_response(resp)
+
+                            recv_data = resp.get("data")
+
+                            log.d("REXEC recv: %s", str(recv_data))
+                            out = recv_data.get("out")
+                            retcode = recv_data.get("retcode")
+
+                            try:
+                                for content in out:
+                                    if content:
+                                        print(content, end="", flush=True)
+                            except OSError as oserr:
+                                # EWOULDBLOCK may arise something...
+                                log.w("Ignoring OSerror: %s", str(oserr))
+
+                        log.i("RSHELL done (%d)", retcode)
+                except KeyboardInterrupt:
+                    log.d("rshell CTRL+C detected on stdout thread, ignoring")
+
+
+
+            rshell_stdout_receiver_th = threading.Thread(
+                target=rshell_stdout_receiver, daemon=True)
+            rshell_stdout_receiver_th.start()
+
+            # --- STDIN SENDER ---
+
+            # Put stdin in raw mode (read char by char)
+
+            try:
+                mode = tty.tcgetattr(pty.STDIN_FILENO)
+                tty.setraw(pty.STDIN_FILENO)
+                restore = 1
+            except tty.error:  # This is the same as termios.error
+                restore = 0
+            try:
+                while retcode is None:
+                    try:
+                        # Do not block so that we can exit when the process
+                        # finishes
+                        rlist, wlist, xlist = select.select([pty.STDIN_FILENO], [], [], 0.04)
+
+                        if pty.STDIN_FILENO in rlist:
+                            data_b = os.read(pty.STDIN_FILENO, 1024)
+                            if data_b:
+                                data_s = bytes_to_str(data_b)
+                                log.d("Sending data: %s", repr(data_b))
+                                rshell_service.send_data(data_s)
+                            else:
+                                log.d("rshell CTRL+D")
+                                rshell_service.send_event(IRshellService.Event.EOF)
+                    except KeyboardInterrupt:
+                        log.d("rexec CTRL+C")
+                        rshell_service.send_event(IRshellService.Event.TERMINATE)
+                        # Design choice: do not break here but wait that the remote
+                        # notify us about the command completion
+
+            except OSError:
+                log.exception("OSError")
+            finally:
+                # Restore stdin in blocking mode
+                if restore:
+                    tty.tcsetattr(pty.STDIN_FILENO, tty.TCSAFLUSH, mode)
+
+            # Wait everybody
+            rshell_stdout_receiver_th.join()
+    #
+    # @staticmethod
+    # def rshell(args: Args, _, _2):
+    #     def out_hook(s: str):
+    #         # os.write(pty.STDOUT_FILENO, data)
+    #
+    #         # sys.stdout.write()
+    #         print(s, end="", flush=True)
+    #
+    #     log.i(">> RSH %s")
+    #     retcode = pty_detached(out_hook)
+    #     if retcode != 0:
+    #         log.w("Command failed with return code: %d", retcode)
+
+
 
     @provide_server_connection
     def ping(self, args: Args, server_conn: ServerConnection, _):

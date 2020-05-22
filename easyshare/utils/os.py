@@ -9,13 +9,15 @@ import subprocess
 import threading
 import tty
 from pathlib import Path
-from pwd import getpwuid
+from pwd import getpwuid, struct_passwd
 from typing import Optional, List, Union, Tuple, Any, Callable
+
+from ptyprocess import PtyProcess, PtyProcessUnicode
 
 from easyshare.logging import get_logger
 from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info
 from easyshare.utils.path import is_hidden
-from easyshare.utils.types import list_wrap
+from easyshare.utils.types import list_wrap, bytes_to_str
 
 log = get_logger(__name__)
 
@@ -27,7 +29,7 @@ def is_windows():
     return os.name == "nt"
 
 
-def get_passwd():
+def get_passwd() -> struct_passwd:
     return getpwuid(os.geteuid())
 
 def is_relpath(s: str) -> bool:
@@ -305,8 +307,8 @@ def run_detached(cmd: str,
                                   stderr=subprocess.PIPE,
                                   stdin=subprocess.PIPE)
 
-    proc_handler = threading.Thread(target=proc_handler, daemon=True, args=(popen_proc, ))
-    proc_handler.start()
+    proc_handler_th = threading.Thread(target=proc_handler, daemon=True, args=(popen_proc, ))
+    proc_handler_th.start()
 
     return popen_proc, proc_handler
 
@@ -334,8 +336,98 @@ def pty_attached(cmd: str = "/bin/sh") -> int:
             tty.tcsetattr(pty.STDIN_FILENO, tty.TCSAFLUSH, mode)
 
     os.close(master_fd)
+
     (pid, retcode) = os.waitpid(pid, 0)
     return retcode
+#
+# def pty_detached(out_hook: Callable[[bytes], None],
+#                  end_hook: Callable[[int], None],
+#                  cmd: str = "/bin/sh") -> int:
+#     argv = shlex.split(cmd)
+#
+#     def pty_handler():
+#         master_read = pty._read
+#         stdin_read = pty._read
+#
+#         pid, master_fd = pty.fork()
+#         if pid == pty.CHILD:
+#             os.execlp(argv[0], *argv)
+#         try:
+#             mode = tty.tcgetattr(pty.STDIN_FILENO)
+#             tty.setraw(pty.STDIN_FILENO)
+#             restore = 1
+#         except tty.error:  # This is the same as termios.error
+#             restore = 0
+#         try:
+#             # ------
+#
+#             fds = [master_fd, pty.STDIN_FILENO]
+#             while True:
+#                 rfds, wfds, xfds = select.select(fds, [], [])
+#                 if master_fd in rfds:
+#                     # print(" master_fd in rfds ")
+#
+#                     data = master_read(master_fd)
+#                     # if not data:  # Reached EOF.
+#                     #     fds.remove(master_fd)
+#                     out_hook(data)
+#                     #
+#                     #
+#                     # else:
+#                     #     # print("Have to write data to stoudt: ", data)
+#                     #     # TODO use encoding of pty
+#                     #     # out_hook(bytes_to_str(data))
+#                     #     out_hook(data)
+#                         # os.write( pty.STDOUT_FILENO, data)
+#                 # TODO: use user provided instead of stdin
+#                 if pty.STDIN_FILENO in rfds:
+#                     print("READ FROM STDIN")
+#                     # print(" pty.STDIN_FILENO in rfds ")
+#                     data = stdin_read(pty.STDIN_FILENO)
+#                     # if not data:
+#                     #     fds.remove(pty.STDIN_FILENO)
+#                     # else:
+#                         # print("Have to write data to master: ", data)
+#                     pty._writen(master_fd, data)
+#             #
+#             # ------
+#         except OSError:#
+#             log.exception("OSError")
+#         finally:
+#             if restore:
+#                 tty.tcsetattr(pty.STDIN_FILENO, tty.TCSAFLUSH, mode)
+#
+#         os.close(master_fd)
+#         (pid, retcode) = os.waitpid(pid, 0)
+#         end_hook(retcode)
+#
+#
+#     pty_handler_th = threading.Thread(target=pty_handler, daemon=True)
+#     pty_handler_th.start()
+
+
+def pty_detached(out_hook: Callable[[str], None],
+                 end_hook: Callable[[int], None],
+                 cmd: str = "/bin/sh") -> PtyProcess:
+    argv = shlex.split(cmd)
+    ptyproc = PtyProcessUnicode.spawn(argv)
+
+    def proc_handler():
+        while True:
+            try:
+                data = ptyproc.read()
+                out_hook(data)
+            except OSError:
+                break
+            except EOFError:
+                break
+        end_hook(0)
+
+    proc_handler_th = threading.Thread(target=proc_handler, daemon=True)
+    proc_handler_th.start()
+
+    return ptyproc
+
 
 if __name__ == "__main__":
     print("OS: ", "windows" if is_windows() else ("unix" if is_unix() else "unknown"))
