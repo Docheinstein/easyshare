@@ -60,6 +60,8 @@ class ErrorsStrings:
     PERMISSION_DENIED = "Permission denied"
     NOT_A_DIRECTORY = "Not a directory"
     DIRECTORY_ALREADY_EXISTS = "Directory already exists"
+    WINDOWS_NOT_SUPPORTED = "Not supported for Windows"
+    SUPPORTED_ONLY_FOR_UNIX = "Supported only for Unix"
 
 
 # Maps the errors (any kind of error) to its string

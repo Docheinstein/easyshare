@@ -7,6 +7,7 @@ import time
 import zlib
 from getpass import getpass
 from pathlib import Path
+from pwd import struct_passwd
 from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Union, Tuple, cast
 
@@ -39,7 +40,8 @@ from easyshare.timer import Timer
 from easyshare.utils import eprint
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
-from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, relpath
+from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, relpath, get_passwd, is_unix, is_windows, \
+    pty_attached
 from easyshare.utils.path import LocalPath
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro import pyro_uri
@@ -253,6 +255,14 @@ class Client:
                 LOCAL,
                 [StopParseArgsSpec(0)],
                 Client.exec),
+            Commands.LOCAL_SHELL: (
+                LOCAL,
+                [PosArgsSpec(0)],
+                Client.shell),
+            Commands.LOCAL_SHELL_SHORT: (
+                LOCAL,
+                [PosArgsSpec(0)],
+                Client.shell),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (
                 SHARING,
@@ -572,6 +582,22 @@ class Client:
         log.i(">> >> EXEC %s", popen_cmd)
 
         retcode = run_attached(popen_cmd)
+        if retcode != 0:
+            log.w("Command failed with return code: %d", retcode)
+
+    @staticmethod
+    def shell(args: Args, _, _2):
+        if is_windows():
+            raise CommandExecutionError(ErrorsStrings.WINDOWS_NOT_SUPPORTED)
+        if not is_unix():
+            log.w("Not unix? This probably won't work")
+
+        passwd: struct_passwd = get_passwd()
+
+        log.i(f"{passwd.pw_uid} {passwd.pw_name} - shell: {passwd.pw_shell}")
+
+        log.i(">> SH %s")
+        retcode = pty_attached(passwd.pw_shell)
         if retcode != 0:
             log.w("Command failed with return code: %d", retcode)
 

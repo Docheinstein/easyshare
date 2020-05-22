@@ -1,11 +1,15 @@
 import errno
 import fcntl
 import os
+import pty
 import select
+import shlex
 import shutil
 import subprocess
 import threading
+import tty
 from pathlib import Path
+from pwd import getpwuid
 from typing import Optional, List, Union, Tuple, Any, Callable
 
 from easyshare.logging import get_logger
@@ -23,6 +27,8 @@ def is_windows():
     return os.name == "nt"
 
 
+def get_passwd():
+    return getpwuid(os.geteuid())
 
 def is_relpath(s: str) -> bool:
     raise ValueError("not impl")
@@ -303,6 +309,33 @@ def run_detached(cmd: str,
     proc_handler.start()
 
     return popen_proc, proc_handler
+
+def pty_attached(cmd: str = "/bin/sh") -> int:
+    argv = shlex.split(cmd)
+
+    master_read = pty._read
+    stdin_read = pty._read
+
+    pid, master_fd = pty.fork()
+    if pid == pty.CHILD:
+        os.execlp(argv[0], *argv)
+    try:
+        mode = tty.tcgetattr(pty.STDIN_FILENO)
+        tty.setraw(pty.STDIN_FILENO)
+        restore = 1
+    except tty.error:  # This is the same as termios.error
+        restore = 0
+    try:
+        pty._copy(master_fd, master_read, stdin_read)
+    except OSError:#
+        pass
+    finally:
+        if restore:
+            tty.tcsetattr(pty.STDIN_FILENO, tty.TCSAFLUSH, mode)
+
+    os.close(master_fd)
+    (pid, retcode) = os.waitpid(pid, 0)
+    return retcode
 
 if __name__ == "__main__":
     print("OS: ", "windows" if is_windows() else ("unix" if is_unix() else "unknown"))

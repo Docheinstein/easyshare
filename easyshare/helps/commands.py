@@ -52,6 +52,8 @@ class Commands:
     LOCAL_MOVE = "mv"
     LOCAL_REMOVE = "rm"
     LOCAL_EXEC = "exec"
+    LOCAL_SHELL = "shell"
+    LOCAL_SHELL_SHORT = "sh"
     LOCAL_EXEC_SHORT = SPECIAL_COMMAND_MARK
 
     REMOTE_CURRENT_DIRECTORY = "rpwd"
@@ -1413,6 +1415,39 @@ hello"""
         return """Type "<b>help exec</b>" for the local analogous."""
 
 
+# ============ xSHELL ===============
+
+
+class Shell(CommandInfo):
+
+    @classmethod
+    def name(cls):
+        return "shell"
+
+    @classmethod
+    def short_description(cls):
+        return "start a local shell"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+shell <A> # just for alignment
+<b>shell</b>
+<b>sh</b></a>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Start a local shell using the user's preferred one.
+
+Currently supported only for Unix."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rshell</b>" for the remote analogous."""
+
+
+
 # ============ SCAN ================
 
 
@@ -2371,6 +2406,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_REMOVE: Rm,
     Commands.LOCAL_EXEC: Exec,
     Commands.LOCAL_EXEC_SHORT: Exec,
+    Commands.LOCAL_SHELL: Shell,
+    Commands.LOCAL_SHELL_SHORT: Shell,
 
     Commands.REMOTE_CURRENT_DIRECTORY: Rpwd,
     Commands.REMOTE_LIST_DIRECTORY: Rls,
