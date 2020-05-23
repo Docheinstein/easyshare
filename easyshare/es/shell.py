@@ -15,18 +15,17 @@ from easyshare.consts import ansi
 from easyshare.es.client import Client, HandledKeyboardInterrupt
 from easyshare.helps.commands import Commands, matches_special_command, Verbose
 from easyshare.es.ui import print_tabulated, StyledString
-from easyshare.es.errors import print_error, ClientErrors
+from easyshare.es.errors import ClientErrors, print_errors
 from easyshare.helps.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import get_command_help
 from easyshare.tracing import is_tracing_enabled, enable_tracing
 from easyshare.utils import eprint
 from easyshare.utils.env import is_unicode_supported
-from easyshare.utils.helpmarkdown import HelpMarkdownParseError
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.pyro import enable_pyro_logging, is_pyro_logging_enabled
-from easyshare.utils.types import is_bool, is_int, is_str, bool_to_str
+from easyshare.utils.types import is_bool, bool_to_str
 
 log = get_logger(__name__)
 
@@ -128,11 +127,11 @@ class Shell:
                     command_line_parts = shlex.split(command_line)
                 except ValueError:
                     log.w("Invalid command line")
-                    print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
+                    print_errors(ClientErrors.COMMAND_NOT_RECOGNIZED)
                     continue
 
                 if len(command_line_parts) < 1:
-                    print_error(ClientErrors.COMMAND_NOT_RECOGNIZED)
+                    print_errors(ClientErrors.COMMAND_NOT_RECOGNIZED)
                     continue
 
                 command: str = command_line_parts[0]
@@ -147,16 +146,11 @@ class Shell:
                 elif self._client.has_command(command):
                     outcome = self._client.execute_command(command, command_args)
 
-                if is_int(outcome) and outcome > 0:
-                    print_error(outcome)
-                elif is_str(outcome):
-                    eprint(outcome)
-                else:
-                    log.d("Command execution: OK")
+                print_errors(outcome)
 
             except PyroError as pyroerr:
                 log.exception("Pyro error occurred %s", pyroerr)
-                print_error(ClientErrors.CONNECTION_ERROR)
+                print_errors(ClientErrors.CONNECTION_ERROR)
                 self._client.destroy_connection()
                 break
 
@@ -167,6 +161,7 @@ class Shell:
 
             except HandledKeyboardInterrupt:
                 log.d("\nCTRL+C (already handled)")
+                # do not print()
 
             except KeyboardInterrupt:
                 log.d("\nCTRL+C")
@@ -177,7 +172,7 @@ class Shell:
         """ Returns whether the shell is able to handle 'commad' """
         return command in self._shell_command_dispatcher
 
-    def execute_shell_command(self, command: str, command_args: List[str]) -> Union[int, str]:
+    def execute_shell_command(self, command: str, command_args: List[str]) -> Union[int, str, List[str]]:
         """ Executes the given 'command' using 'command_args' as arguments """
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED

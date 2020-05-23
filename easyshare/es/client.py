@@ -30,7 +30,7 @@ from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connections.server import ServerConnection, ServerConnectionMinimal
 from easyshare.es.connections.sharing import SharingConnection
 from easyshare.es.discover import Discoverer
-from easyshare.es.errors import ClientErrors, print_error, ErrorsStrings
+from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str, server_info_to_short_str
 from easyshare.logging import get_logger
@@ -53,25 +53,52 @@ from easyshare.utils.progress.file import FileProgressor
 from easyshare.utils.progress.simple import SimpleProgressor
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro import pyro_uri
-from easyshare.utils.str import unprefix
+from easyshare.utils.str import unprefix, q
 from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
 
 
 log = get_logger(__name__)
 
 
+def formatted_errors_from_error_response(resp: Response) -> Optional[List]:
+    """
+    Returns an array of strings of  build from the resp errors
+    (which contains either strings and err [+params].
+    """
+    if not is_error_response(resp):
+        return None
+
+    errors = resp.get("errors")
+    if not errors:
+        return None
+
+    errors_strings = []
+
+    # For each error build a formatted string using the subjects, if any
+    for er in errors:
+        errno = er.get("errno")
+        subjects = er.get("subjects")
+
+        if subjects:
+            err_str = errno_str(errno, *subjects)
+        else:
+            err_str = errno_str(errno)
+
+        errors_strings.append(err_str)
+
+    return errors_strings
 
 
 def ensure_success_response(resp: Response):
     if is_error_response(resp):
-        raise CommandExecutionError(resp.get("error"))
+        raise CommandExecutionError(formatted_errors_from_error_response(resp))
     if not is_success_response(resp):
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
 
 def ensure_data_response(resp: Response, *data_fields):
     if is_error_response(resp):
-        raise CommandExecutionError(resp.get("error"))
+        raise CommandExecutionError(formatted_errors_from_error_response(resp))
     if not is_data_response(resp):
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
     for data_field in data_fields:
@@ -166,7 +193,8 @@ def provide_server_connection(api):
 # ==================================================================
 
 class CommandExecutionError(Exception):
-    pass
+    def __init__(self, errors: Union[int, str, List[str]]):
+        self.errors = errors
 
 class HandledKeyboardInterrupt(KeyboardInterrupt):
     pass
@@ -376,7 +404,7 @@ class Client:
         return command in self._command_dispatcher or \
                is_special_command(command)
 
-    def execute_command(self, command: str, command_args: List[str]) -> Union[int, str]:
+    def execute_command(self, command: str, command_args: List[str]) -> Union[int, str, List[str]]:
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 
@@ -421,7 +449,7 @@ class Client:
 
         except CommandExecutionError as ex:
             # "Expected" fail
-            err = ex.args[0] if ex.args else ClientErrors.COMMAND_EXECUTION_FAILED
+            err = ex.errors if ex.errors else ClientErrors.COMMAND_EXECUTION_FAILED
             log.exception("CommandExecutionError: %s", err)
             return err
 
@@ -432,10 +460,12 @@ class Client:
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
     def is_connected_to_server(self) -> bool:
-        return True if self.server_connection and self.server_connection.is_connected() else False
+        return True if self.server_connection and \
+                       self.server_connection.is_connected() else False
 
     def is_connected_to_sharing(self) -> bool:
-        return True if self.sharing_connection and self.sharing_connection.is_connected() else False
+        return True if self.sharing_connection and \
+                       self.sharing_connection.is_connected() else False
     # def is_connected(self) -> bool:
     #     return self.connection and self.connection.is_connected()
 
@@ -447,17 +477,28 @@ class Client:
         log.i(">> CD %s", directory)
 
         if not directory.is_dir():
-            raise CommandExecutionError(f"{ErrorsStrings.NOT_A_DIRECTORY}: '{directory}'")
+            raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS, directory))
 
         try:
             # As of 20/05/2020 PyCharm complains, but it's legal
             os.chdir(directory)
         except FileNotFoundError:
-            raise CommandExecutionError(f"{ErrorsStrings.NOT_EXISTS}: '{directory}'")
+            raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS,
+                                                  q(directory)))
         except PermissionError:
-            raise CommandExecutionError(f"{ErrorsStrings.PERMISSION_DENIED}: '{directory}'")
+            raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
+                                                  q(directory)))
         except OSError as oserr:
-            raise CommandExecutionError(f"{os_error_str(oserr)}: '{directory}'")
+            raise CommandExecutionError(errno_str(ClientErrors.ERR2,
+                                                  os_error_str(oserr),
+                                                  q(directory)))
+
+
+    @staticmethod
+    def pwd(_: Args, _2, _3):
+        log.i(">> PWD")
+
+        print(Path.cwd())
 
     @staticmethod
     def ls(args: Args, _, _2):
@@ -469,11 +510,15 @@ class Client:
             try:
                 ls_res = ls(p, **kws)
             except FileNotFoundError:
-                raise CommandExecutionError(f"{ErrorsStrings.NOT_EXISTS}: '{p}'")
+                raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS,
+                                                      q(p)))
             except PermissionError:
-                raise CommandExecutionError(f"{ErrorsStrings.PERMISSION_DENIED}: '{p}'")
+                raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
+                                                      q(p)))
             except OSError as oserr:
-                raise CommandExecutionError(f"{os_error_str(oserr)}: '{p}'")
+                raise CommandExecutionError(errno_str(ClientErrors.ERR2,
+                                                      os_error_str(oserr), q(p)))
+
             return ls_res
 
         Client._xls(args, ls_provider, "LS")
@@ -496,11 +541,16 @@ class Client:
             try:
                 tree_res = tree(p, **kws)
             except FileNotFoundError:
-                raise CommandExecutionError(f"{ErrorsStrings.NOT_EXISTS}: '{p}'")
+                raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS,
+                                                      q(p)))
             except PermissionError:
-                raise CommandExecutionError(f"{ErrorsStrings.PERMISSION_DENIED}: '{p}'")
+                raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
+                                                      q(p)))
             except OSError as oserr:
-                raise CommandExecutionError(f"{os_error_str(oserr)}: '{p}'")
+                raise CommandExecutionError(errno_str(ClientErrors.ERR2,
+                                                      os_error_str(oserr),
+                                                      q(p)))
+
             return tree_res
 
         Client._xtree(args, tree_provider, "TREE")
@@ -519,68 +569,89 @@ class Client:
         try:
             directory.mkdir(parents=True)
         except PermissionError:
-            raise CommandExecutionError(f"{ErrorsStrings.PERMISSION_DENIED}: '{directory}'")
+            raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
+                                                  q(directory)))
         except FileExistsError:
-            raise CommandExecutionError(f"{ErrorsStrings.DIRECTORY_ALREADY_EXISTS}: '{directory}'")
+            raise CommandExecutionError(errno_str(ClientErrors.DIRECTORY_ALREADY_EXISTS,
+                                                  q(directory)))
         except OSError as oserr:
-            raise CommandExecutionError(f"{os_error_str(oserr)}: '{directory}'")
-
-    @staticmethod
-    def pwd(_: Args, _2, _3):
-        log.i(">> PWD")
-
-        print(Path.cwd())
+            raise CommandExecutionError(errno_str(ClientErrors.ERR2,
+                                                  os_error_str(oserr),
+                                                  q(directory)))
 
     @staticmethod
     def rm(args: Args, _, _2):
         paths = [LocalPath(p) for p in args.get_positionals()]
 
         if not paths:
-            raise CommandExecutionError(ErrorsStrings.INVALID_COMMAND_SYNTAX)
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         log.i(">> RM %s", paths)
 
+        errors = []
+
+        def handle_rm_error(exc: Exception, path):
+            if isinstance(exc, PermissionError):
+                errors.append(errno_str(ClientErrors.PERMISSION_DENIED,
+                                        q(path)))
+            elif isinstance(exc, FileNotFoundError):
+                errors.append(errno_str(ClientErrors.NOT_EXISTS,
+                                        q(path)))
+            elif isinstance(exc, OSError):
+                errors.append(errno_str(ClientErrors.ERR2,
+                                        os_error_str(exc),
+                                        q(path)))
+            else:
+                errors.append(errno_str(ClientErrors.ERR1, exc))
+
         for p in paths:
-
-            def handle_rm_error(exc: Exception, path):
-                if isinstance(exc, PermissionError):
-                    eprint(f"{ErrorsStrings.PERMISSION_DENIED}: '{path}'")
-                elif isinstance(exc, FileNotFoundError):
-                    eprint(f"{ErrorsStrings.NOT_EXISTS}: '{path}'")
-                elif isinstance(exc, OSError):
-                    eprint(f"{os_error_str(exc)}: '{path}'")
-                else:
-                    eprint(str(exc))
-
             rm(p, error_callback=handle_rm_error)
+
+        if errors:
+            raise CommandExecutionError(errors)
+
+
 
     @staticmethod
     def mv(args: Args, _, _2):
+        errors = []
+
         def handle_mv_error(exc: Exception, src: Path, dst: Path):
+            cannot_move = f"cannot move '{src}' to '{dst}"
             if isinstance(exc, PermissionError):
-                eprint(f"{ErrorsStrings.PERMISSION_DENIED}: cannot move '{src}' to '{dst}")
+                errors.append(errno_str(ClientErrors.PERMISSION_DENIED, cannot_move))
             elif isinstance(exc, FileNotFoundError):
-                eprint(f"{ErrorsStrings.NOT_EXISTS}: cannot move '{src}' to '{dst}")
+                errors.append(errno_str(ClientErrors.NOT_EXISTS, cannot_move))
             elif isinstance(exc, OSError):
-                eprint(f"{os_error_str(exc)}: cannot move '{src}' to '{dst}")
+                errors.append(errno_str(ClientErrors.ERR2, os_error_str(exc), cannot_move))
             else:
-                eprint(str(exc))
+                errors.append(errno_str(ClientErrors.ERR1, exc))
 
         Client._mvcp(args, mv, "MV", error_callback=handle_mv_error)
 
+        if errors:
+            raise CommandExecutionError(errors)
+
     @staticmethod
     def cp(args: Args, _, _2):
+
+        errors = []
+
         def handle_cp_error(exc: Exception, src: Path, dst: Path):
+            cannot_copy = f"cannot copy '{src}' to '{dst}"
             if isinstance(exc, PermissionError):
-                eprint(f"{ErrorsStrings.PERMISSION_DENIED}: cannot copy '{src}' to '{dst}")
+                errors.append(errno_str(ClientErrors.PERMISSION_DENIED, cannot_copy))
             elif isinstance(exc, FileNotFoundError):
-                eprint(f"{ErrorsStrings.NOT_EXISTS}: cannot copy '{src}' to '{dst}")
+                errors.append(errno_str(ClientErrors.NOT_EXISTS, cannot_copy))
             elif isinstance(exc, OSError):
-                eprint(f"{os_error_str(exc)}: cannot copy '{src}' to '{dst}")
+                errors.append(errno_str(ClientErrors.ERR2, os_error_str(exc), cannot_copy))
             else:
-                eprint(str(exc))
+                errors.append(errno_str(ClientErrors.ERR1, exc))
 
         Client._mvcp(args, cp, "CP", error_callback=handle_cp_error)
+
+        if errors:
+            raise CommandExecutionError(errors)
 
     @staticmethod
     def exec(args: Args, _, _2):
@@ -1010,7 +1081,7 @@ class Client:
         def response_handler(client: Endpoint,
                              server_info_full: ServerInfoFull) -> bool:
             nonlocal servers_found
-            time.sleep(random.random() * self._discover_timeout)
+            time.sleep(random.random() * self._discover_timeout / 2)
             log.i("Handling DISCOVER response from %s\n%s", str(client), str(server_info_full))
             # Print as soon as they come
 
@@ -1132,9 +1203,6 @@ class Client:
 
         resp = sharing_conn.rcd(directory)
 
-        if is_error_response(resp, ServerErrors.NOT_A_DIRECTORY):
-            raise CommandExecutionError(f"{ErrorsStrings.NOT_A_DIRECTORY}: '{directory}'")
-
         ensure_data_response(resp)
 
         log.d("Current rcwd: %s", sharing_conn._rcwd)
@@ -1210,11 +1278,12 @@ class Client:
         resp = sharing_conn.rrm(paths)
         ensure_success_response(resp)
 
-        if is_data_response(resp, "errors"):
-            errors = resp.get("data").get("errors")
-            log.e("%d errors occurred while doing rrm", len(errors))
-            for err in errors:
-                print_error(err)
+        # TODO:err
+        # if is_data_response(resp, "errors"):
+        #     errors = resp.get("data").get("errors")
+        #     log.e("%d errors occurred while doing rrm", len(errors))
+        #     for err in errors:
+        #         print_error(err)
 
     @provide_d_sharing_connection
     def rmv(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
@@ -1947,11 +2016,12 @@ class Client:
         resp = api(paths, dest)
         ensure_success_response(resp)
 
-        if is_data_response(resp, "errors"):
-            errors = resp.get("data").get("errors")
-            log.e("%d errors occurred while doing %s", len(errors), api_name)
-            for err in errors:
-                print_error(err)
+        # TODO: erss
+        # if is_data_response(resp, "errors"):
+        #     errors = resp.get("data").get("errors")
+        #     log.e("%d errors occurred while doing %s", len(errors), api_name)
+        #     for err in errors:
+        #         print_error(err)
 
 
     def _get_current_sharing_connection_or_create_from_sharing_location_args(
@@ -2371,7 +2441,7 @@ class Client:
                     log.d("Ignoring sharing which does not match the ftype filter '%s'", sharing_ftype)
                     log.w("Found a sharing with the right name but wrong ftype, wrong command maybe?")
                     # Notify it outside, the user probably wants to know what's happening
-                    print_error("WARNING: " + ErrorsStrings.NOT_ALLOWED_FOR_F_SHARING)
+                    print_errors("WARNING: " + ErrorsStrings.NOT_ALLOWED_FOR_F_SHARING)
                     continue
 
                 # FOUND

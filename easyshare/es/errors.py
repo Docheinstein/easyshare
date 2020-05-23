@@ -1,13 +1,20 @@
-from typing import Union
+from typing import Union, List
 
+from easyshare.consts import ansi
+from easyshare.logging import get_logger
 from easyshare.protocol.responses import TransferOutcomes, ServerErrors
 from easyshare.utils import eprint
-from easyshare.utils.types import is_int, is_str
+from easyshare.utils.inspection import stacktrace
+from easyshare.utils.types import is_int, is_str, is_list
 
+log = get_logger(__name__)
 
 class ClientErrors:
     # TODO: probably we have to delete these
     """ Client side errors """
+    ERR =                           97
+    ERR1 =                          98
+    ERR2 =                          99
     COMMAND_NOT_RECOGNIZED =        101
     INVALID_COMMAND_SYNTAX =        102
     INVALID_PARAMETER_VALUE =       103
@@ -23,6 +30,7 @@ class ClientErrors:
     PERMISSION_DENIED =             113
     NOT_A_DIRECTORY =               114
     DIRECTORY_ALREADY_EXISTS =      115
+    NOT_EXISTS =                    116
 
 
 class ErrorsStrings:
@@ -31,6 +39,16 @@ class ErrorsStrings:
     but the same string could be associated with more errors
     (e.g. client and server side of a similar error)
     """
+    NOT_EXISTS = "Not exists: {}"
+    PERMISSION_DENIED = "Permission denied: {}"
+    DIRECTORY_ALREADY_EXISTS = "Directory already exists: {}"
+    NOT_A_DIRECTORY = "Not a directory: {}"
+
+
+    ERR = "Error"
+    ERR1 = "{}"
+    ERR2 = "{}: '{}'"
+
     SUCCESS = "Success"
     ERROR = "Error"
     INVALID_COMMAND_SYNTAX = "Invalid command syntax"
@@ -38,7 +56,7 @@ class ErrorsStrings:
     NOT_IMPLEMENTED = "Not implemented"
     NOT_CONNECTED = "Not connected"
     COMMAND_EXECUTION_FAILED = "Command execution failed"
-    SHARING_NOT_FOUND = "Sharing not found"
+    SHARING_NOT_FOUND = "Sharing not found: {}"
     SERVER_NOT_FOUND = "Server not found"
     INVALID_PATH = "Invalid path"
     INVALID_DIRECTORY = "Invalid directory"
@@ -48,7 +66,6 @@ class ErrorsStrings:
     INTERNAL_SERVER_ERROR = "Internal esd error"
     NOT_WRITABLE = "Forbidden: sharing is readonly"
     FILE_NOT_FOUND = "File not found"
-    NOT_EXISTS = "Not exists"
 
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
     UNEXPECTED_SERVER_RESPONSE = "Unexpected esd response"
@@ -58,16 +75,14 @@ class ErrorsStrings:
 
     TRANSFER_CHECK_FAILED = "Check failed"
     NOT_ALLOWED_FOR_F_SHARING = "Not allowed: action can be performed only on sharings of type directory"
-    PERMISSION_DENIED = "Permission denied"
-    NOT_A_DIRECTORY = "Not a directory"
-    DIRECTORY_ALREADY_EXISTS = "Directory already exists"
     WINDOWS_NOT_SUPPORTED = "Not supported for Windows"
     SUPPORTED_ONLY_FOR_UNIX = "Supported only for Unix"
 
 
 # Maps the errors (any kind of error) to its string
 _ERRORS_STRINGS_MAP = {
-    ServerErrors.ERROR: ErrorsStrings.ERROR,
+    ServerErrors.UNSPECIFIED_ERROR: "{}",
+    ServerErrors.SPECIFIED_ERROR: ErrorsStrings.ERROR,
     ServerErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
     ServerErrors.NOT_IMPLEMENTED: ErrorsStrings.NOT_IMPLEMENTED,
     ServerErrors.NOT_CONNECTED: ErrorsStrings.NOT_CONNECTED,
@@ -84,6 +99,9 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED,
     ServerErrors.DIRECTORY_ALREADY_EXISTS: ErrorsStrings.DIRECTORY_ALREADY_EXISTS,
 
+    ClientErrors.ERR: ErrorsStrings.ERR,
+    ClientErrors.ERR1: ErrorsStrings.ERR1,
+    ClientErrors.ERR2: ErrorsStrings.ERR2,
     ClientErrors.COMMAND_NOT_RECOGNIZED: ErrorsStrings.COMMAND_NOT_RECOGNIZED,
     ClientErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
     ClientErrors.INVALID_PARAMETER_VALUE: ErrorsStrings.INVALID_PARAMETER_VALUE,
@@ -98,6 +116,7 @@ _ERRORS_STRINGS_MAP = {
     ClientErrors.CONNECTION_ERROR: ErrorsStrings.CONNECTION_ERROR,
     ClientErrors.PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED,
     ClientErrors.NOT_A_DIRECTORY: ErrorsStrings.NOT_A_DIRECTORY,
+    ClientErrors.NOT_EXISTS: ErrorsStrings.NOT_EXISTS,
 
     TransferOutcomes.SUCCESS: ErrorsStrings.SUCCESS,
     TransferOutcomes.ERROR: ErrorsStrings.ERROR,
@@ -105,22 +124,41 @@ _ERRORS_STRINGS_MAP = {
 }
 
 
-def errno_str(errno: int) -> str:
+def errno_str(errno: int, *formats) -> str:
     """ Returns the string associated with the error with number 'error_code' """
-    return _ERRORS_STRINGS_MAP.get(errno, ErrorsStrings.ERROR)
+    errstr = _ERRORS_STRINGS_MAP.get(errno, ErrorsStrings.ERROR)
+
+    if formats:
+        try:
+            errstr = errstr.format(*formats)
+        except IndexError:
+            log.w("Mismatch between subjects and expected string params")
+            # Use the err_str as it is
+
+    return errstr
 
 
-def print_errno(errno: int):
-    """ Prints the string associated with the error with number 'errno' """
-    eprint(errno_str(errno))
 
-
-def print_error(err: Union[int, str]):
+def print_errors(err: Union[int, str, List[Union[int, str]]]):
     """
     Prints 'err' if it is a string or the string associated with
     the error 'err' if it is an known errno.
     """
+    if err is None:
+        return
+    if is_list(err):
+        for e in err:
+            _print_error(e)
+    else:
+        _print_error(err)
+
+
+def _print_error(err: Union[int, str]):
     if is_int(err):
-        print_errno(err)
+        if err != 0: # 0 is success
+            eprint(errno_str(err))
     elif is_str(err):
         eprint(err)
+    else:
+        log.w("err expected of type int or str, found %s", type(err))
+        log.w(stacktrace(color=ansi.FG_YELLOW))

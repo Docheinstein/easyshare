@@ -103,10 +103,14 @@ def multireplace(s: str,
 
     return s
 
-def tf(cond, y: str = "true", n: str = "false"):
+def tf(cond, y: str = "true", n: str = "false") -> str:
     """ Returns 'y' if cond evaluates to True, 'n' otherwise """
     return y if cond else n
 
-def yn(cond):
+def yn(cond) -> str:
     """ Returns yes if cond evaluates to True, no otherwise """
     return tf(cond, "yes", "no")
+
+def q(s) -> str:
+    """ Returns str(s) with leading and trailing quotes """
+    return '"' + str(s).strip('"') + '"'

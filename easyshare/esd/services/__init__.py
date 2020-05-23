@@ -2,8 +2,7 @@ import os
 import threading
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Callable, Optional, Union
-
+from typing import Callable, Optional, Union, Dict, List
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.daemons.pyro import get_pyro_daemon
@@ -11,7 +10,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.responses import ServerErrors, create_error_response
 from easyshare.utils.os import is_relpath, relpath
 from easyshare.utils.pyro.server import pyro_client_endpoint
-from easyshare.utils.str import unprefix
+from easyshare.utils.str import unprefix, q
 from easyshare.utils.types import is_int, is_str
 
 log = get_logger(__name__)
@@ -126,10 +125,6 @@ class BaseClientSharingService(BaseClientService):
         super().__init__(client, end_callback)
         self._sharing = sharing
         self._rcwd = sharing_rcwd
-
-
-    def _rcwd_client_view(self):
-        return self._rcwd.relative_to(self._sharing.path)
 
     def _current_real_path(self):
         return self._real_path_from_rcwd("")
@@ -248,35 +243,65 @@ class BaseClientSharingService(BaseClientService):
         return self._trailing_path(self._sharing.path, path)
 
 
-    def _create_sharing_error_response(self, err: Union[int, str]):
-        if is_int(err):
-            return create_error_response(err)
+    def _err_resp(self,
+                  err: Union[str, int, Dict, List[Dict]] = None,
+                  *subjects):
+        """ Sanitize subjects so that they are Path relative to the sharing root """
+        if not subjects:
+            create_error_response(err)
 
-        if is_str(err):
-            safe_err = err.replace(self._sharing.path, "")
-            return create_error_response(safe_err)
+        return create_error_response(err, *[
+            (q(self._path_rel_to_root(o)) if (isinstance(o, Path) or isinstance(o, str)) else str(o))
+            for o in subjects
+        ])
 
-        return create_error_response()
+
+    # ---- NEW ----
 
 
-    # ---- NEW
+    def _path_rel_to_rcwd(self, p: Union[str, Path]) -> Path:
+        """
+        Returns the part of p without the rcwd prefix (which should belong this sharing)
+        Might throw if p doesn't belong to this sharing.
+        """
+        log.d("Computing path_rel_to_rcwd for p: %s", p)
 
-    def _is_path_allowed(self, p: Path) -> bool:
+        p = self._as_path(p)
+
+        return p.relative_to(self._rcwd)
+
+    def _path_rel_to_root(self, p: Union[str, Path]) -> Path:
+        """
+        Returns the part of p without the sharing's root prefix.
+        Might throw if p doesn't belong to this sharing.
+        """
+        log.d("Computing path_rel_to_root for p: %s", p)
+
+        p = self._as_path(p)
+
+        return p.relative_to(self._sharing.path)
+
+
+    def _path_is_allowed(self, p: Union[str, Path]) -> bool:
+        """
+        Checks whether p belongs to (is a subdirectory/file of) this sharing.
+        """
         try:
-            p.relative_to(self._sharing.path)
-            log.d("Path is allowed: %s", p.relative_to(self._sharing.path))
+            self._path_rel_to_root(p)
+            log.d("Path is allowed for this sharing: %s", self._path_rel_to_root(p))
             return True
         except:
             log.d("Path is not allowed for this sharing %s", p)
             return False
 
 
-    def _path_from_rcwd(self, p: Union[str, Path]) -> Path:
-        if is_str(p):
-            p = Path(p)
-
-        if not isinstance(p, Path):
-            raise TypeError("expected Path or str")
+    def _path_join_from_rcwd(self, p: Union[str, Path]) -> Path:
+        """
+        Joins p to the current rcwd.
+        If p is relative, than rcwd + p is the result.
+        If p is absolute, than p (relative to the root) is the result
+        """
+        p = self._as_path(p)
 
         if p.is_absolute():
             # Absolute is considered relative to the sharing root
@@ -287,6 +312,15 @@ class BaseClientSharingService(BaseClientService):
         # Join all the path
         return self._rcwd / p
 
+    @classmethod
+    def _as_path(cls, p: Union[str, Path]):
+        if is_str(p):
+            p = Path(p)
+
+        if not isinstance(p, Path):
+            raise TypeError(f"expected str or Path, found {type(p)}")
+
+        return p
 
 # decorator
 def check_sharing_service_owner(api):

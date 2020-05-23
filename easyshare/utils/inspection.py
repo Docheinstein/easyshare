@@ -1,8 +1,8 @@
-import sys
 import traceback
 from typing import Union, List, Tuple, Any, Dict
 
 from easyshare.consts import ansi
+from easyshare.styling import fg
 from easyshare.utils.types import is_str
 
 
@@ -20,13 +20,8 @@ def func_args_to_str(vargs: Union[List[Any], Tuple[Any, ...]] = None,
     kwargs_strs = [str(k) + "=" + quote_string(v) for k, v in kwargs.items()] if kwargs else []
     return ", ".join(vargs_strs + kwargs_strs)
 
-def print_stack(color: str = ansi.FG_CYAN, stream = sys.stdout):
-    """ Prints the stack trace """
-    if color:
-        print(color)
-    traceback.print_stack(file=stream)
-    if color:
-        print(ansi.RESET)
+def stacktrace(color: str = None):
+    return fg("\n".join(traceback.format_stack()), color)
 
 if __name__ == "__main__":
-    print_stack()
+    print(stacktrace())

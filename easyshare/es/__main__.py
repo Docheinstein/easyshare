@@ -5,7 +5,7 @@ from Pyro5.errors import PyroError
 from easyshare import logging
 from easyshare.es.client import Client
 from easyshare.helps.commands import Commands, is_special_command
-from easyshare.es.errors import errno_str, print_error, ClientErrors
+from easyshare.es.errors import errno_str
 from easyshare.es.shell import Shell
 from easyshare.helps.es import Es
 from easyshare.logging import get_logger
@@ -181,19 +181,20 @@ def main():
 
             outcome = None
 
-
-            try:
-                if shell.has_command(command):
-                    outcome = shell.execute_shell_command(command, command_args)
-                elif client.has_command(command):
-                    outcome = client.execute_command(command, command_args)
-                else:
-                    abort("Unknown CLI command '{}'".format(command))
-            except PyroError as pyroerr:
-                log.exception("Pyro error occurred %s", pyroerr)
-                print_error(ClientErrors.CONNECTION_ERROR)
-            except KeyboardInterrupt:
-                log.d("\nCTRL+C")
+            # TODO: use the shell wrapper in some way
+            raise ValueError("NOT IMPL")
+            # try:
+            #     if shell.has_command(command):
+            #         outcome = shell.execute_shell_command(command, command_args)
+            #     elif client.has_command(command):
+            #         outcome = client.execute_command(command, command_args)
+            #     else:
+            #         abort("Unknown CLI command '{}'".format(command))
+            # except PyroError as pyroerr:
+            #     log.exception("Pyro error occurred %s", pyroerr)
+            #     print_error(ClientErrors.CONNECTION_ERROR)
+            # except KeyboardInterrupt:
+            #     log.d("\nCTRL+C")
 
 
             if is_int(outcome) and outcome > 0:

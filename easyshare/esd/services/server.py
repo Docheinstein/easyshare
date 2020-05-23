@@ -18,7 +18,7 @@ from easyshare.protocol.responses import ServerErrors, create_error_response, cr
 from easyshare.protocol.types import ServerInfo
 from easyshare.styling import red, green
 from easyshare.utils.pyro.server import pyro_client_endpoint, try_or_command_failed_response, trace_api
-
+from easyshare.utils.str import q
 
 log = get_logger(__name__)
 
@@ -192,7 +192,7 @@ class ServerService(IServer, BaseService):
         sharing: Sharing = self._sharings.get(sharing_name)
 
         if not sharing:
-            return create_error_response(ServerErrors.SHARING_NOT_FOUND)
+            return create_error_response(ServerErrors.SHARING_NOT_FOUND, q(sharing_name))
 
         client = self._current_request_client()
 
