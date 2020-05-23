@@ -271,7 +271,13 @@ class BaseClientSharingService(BaseClientService):
             return False
 
 
-    def _path_from_rcwd(self, p: Path) -> Path:
+    def _path_from_rcwd(self, p: Union[str, Path]) -> Path:
+        if is_str(p):
+            p = Path(p)
+
+        if not isinstance(p, Path):
+            raise TypeError("expected Path or str")
+
         if p.is_absolute():
             # Absolute is considered relative to the sharing root
             # Join all the path apart from the leading "/"

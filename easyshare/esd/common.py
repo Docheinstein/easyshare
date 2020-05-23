@@ -1,3 +1,4 @@
+import string
 import threading
 from pathlib import Path
 from typing import Optional, Set
@@ -23,12 +24,12 @@ class ClientContext:
     def __init__(self, endpoint: Endpoint):
         self.endpoint: Optional[Endpoint] = endpoint
         self.services: Set[str] = set()
-        self.tag = randstring(8)
+        self.tag = randstring(4, alphabet=string.ascii_lowercase) # Not an unique id, just a tag
         self.lock = threading.Lock()
 
 
     def __str__(self):
-        return "{} : {}".format(self.endpoint, self.tag)
+        return f"{self.endpoint} [{self.tag}]"
 
 
     def add_service(self, service_id: str):

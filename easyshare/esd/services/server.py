@@ -289,7 +289,7 @@ class ServerService(IServer, BaseService):
 
             log.i("Adding es %s", ctx)
 
-            print(green("Client connected: {}:{}".format(ctx.endpoint[0], ctx.endpoint[1])))
+            print(green(f"[{ctx.tag}] Client connected - {ctx.endpoint[0]}"))
 
             self._clients[endpoint] = ctx
 
@@ -307,7 +307,7 @@ class ServerService(IServer, BaseService):
             if not ctx:
                 return False
 
-            print(red("Client disconnected: {}:{}".format(ctx.endpoint[0], ctx.endpoint[1])))
+            print(red(f"[{ctx.tag}] Client disconnected - {ctx.endpoint[0]}"))
 
             log.i("Removing es %s", ctx)
 

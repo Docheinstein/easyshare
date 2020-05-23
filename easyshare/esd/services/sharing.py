@@ -16,7 +16,7 @@ from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
 from easyshare.utils.json import j
 from easyshare.utils.os import rm, mv, cp, tree, ls, os_error_str
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
-from easyshare.utils.types import is_str, is_list, is_bool
+from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list
 
 log = get_logger(__name__)
 
@@ -174,11 +174,9 @@ class SharingService(ISharingService, BaseClientSharingService):
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< RCD %s [%s]", path, str(client_endpoint))
-        path = Path(path)
         new_rcwd = self._path_from_rcwd(path)
-        log.d("real new_rcwd path: %s", new_rcwd)
 
-        # new_rcwd = new_rcwd.resolve()
+        log.d("User would cd into: %s", new_rcwd)
 
         # Check if it's inside the sharing domain
         if not self._is_path_allowed(new_rcwd):
@@ -190,7 +188,10 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         # The path is allowed and exists, setting it as new rcwd
         self._rcwd = new_rcwd
-        log.i("New rcwd: %s", self._rcwd)
+
+        log.i("New valid rcwd: %s", self._rcwd)
+        print(f"[{self._client.tag}] rcd '{self._rcwd}'")
+
 
         # Tell the client the new rcwd, but just the part after the sharing root
         rcwd_client = str(self._rcwd_client_view())
@@ -215,28 +216,18 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         log.i("<< RMKDIR %s [%s]", directory, str(client_endpoint))
 
-        directory = Path(directory)
-        log.d("directory: %s", directory)
-
         real_directory = self._path_from_rcwd(directory)
-        log.d("real directory path: %s", real_directory)
+        log.d("User would create directory: %s", real_directory)
 
         # Check if it's inside the sharing domain
         if not self._is_path_allowed(real_directory):
             return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
 
-
-
-        # real_path = self._rcwd / directory
-        # real_path = self._real_path_from_rcwd(directory)
-
-        # if not self._is_real_path_allowed(real_path):
-        #     return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
-
         log.i("Going to mkdir on valid path %s", real_directory)
 
         try:
             real_directory.mkdir(parents=True)
+            print(f"[{self._client.tag}] rmkdir '{real_directory}'")
         except PermissionError:
             return self._create_sharing_error_response(ServerErrors.PERMISSION_DENIED)
         except FileExistsError:
@@ -266,11 +257,12 @@ class SharingService(ISharingService, BaseClientSharingService):
         return self._rmvcp(sources, destination, mv, "MV")
 
 
-    def _rmvcp(self, sources: List[str], destination: str,
+    def _rmvcp(self,
+               sources: List[str], destination: str,
                primitive: Callable[[str, str], bool],
                primitive_name: str = "MV/CP"):
 
-        if not is_list(sources) or len(sources) < 1 or not is_str(destination):
+        if not is_valid_list(sources, str) or not is_str(destination):
             return self._create_sharing_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         dest_real_path = self._real_path_from_rcwd(destination)

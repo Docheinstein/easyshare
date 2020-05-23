@@ -24,12 +24,19 @@ def is_dict(o: dict) -> bool:
     return isinstance(o, dict)
 
 
-def is_list(o: object) -> bool:
-    return isinstance(o, list)
+def is_list(o: object, oftype = None) -> bool:
+    if not isinstance(o, list):
+        return False
+    if oftype:
+        for i in o:
+            if not isinstance(i, oftype):
+                return False
+    return True
 
 
-def is_valid_list(o: object) -> bool:
-    return isinstance(o, list) and len(o) > 0
+def is_valid_list(o: object, oftype = None) -> bool:
+    # noinspection PyTypeChecker
+    return is_list(o, oftype) and len(o) > 0
 
 
 # CONVERTERS
