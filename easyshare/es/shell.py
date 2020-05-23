@@ -45,7 +45,7 @@ _VERBOSITY_EXPLANATION_MAP = {
 
 class Shell:
     """
-    The interactive shell of es that is able to parse and execute commands.
+    The interactive shell of client  that is able to parse and execute commands.
     Uses GNU readline for provide command completion and files suggestions.
     """
 

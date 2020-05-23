@@ -63,6 +63,7 @@ class ErrorsStrings:
     INVALID_PATH = "Invalid path: {}"
     SHARING_NOT_FOUND = "Sharing not found: {}"
 
+    TRANSFER_SKIPPED = "Skipped: {}"
 
     ERR_0 = "Error"
     ERR_1 = "{}"
@@ -94,6 +95,7 @@ class ErrorsStrings:
     NOT_ALLOWED_FOR_F_SHARING = "Not allowed: action can be performed only on sharings of type directory"
     WINDOWS_NOT_SUPPORTED = "Not supported for Windows"
     SUPPORTED_ONLY_FOR_UNIX = "Supported only for Unix"
+
 
 
 class SubErrorsStrings:
@@ -135,6 +137,7 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.RM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
     ServerErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
 
+    ServerErrors.TRANSFER_SKIPPED: ErrorsStrings.TRANSFER_SKIPPED,
 
     ClientErrors.ERR_0: ErrorsStrings.ERR_0,
     ClientErrors.ERR_1: ErrorsStrings.ERR_1,

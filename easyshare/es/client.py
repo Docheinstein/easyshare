@@ -109,7 +109,7 @@ def ensure_data_response(resp: Response, *data_fields):
 def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
     def wrapper(client: 'Client', args: Args, _1: ServerConnection, _2: SharingConnection, **kwargs):
         # Wraps api providing the connection parameters.
-        # The provided connection is the es current connection,
+        # The provided connection is the client current connection,
         # if it is established, or a temporary one that will be closed
         # just after the api call.
         # The connection is established treating the first arg of
@@ -154,7 +154,7 @@ def provide_sharing_connection(api):
 def make_server_connection_api_wrapper(api, connect: bool):
     def wrapper(client: 'Client', args: Args, _1: ServerConnection, _2: SharingConnection):
         # Wraps api providing the connection parameters.
-        # The provided connection is the es current connection,
+        # The provided connection is the client current connection,
         # if it is established, or a temporary one that will be closed
         # just after the api call.
         # The connection is established treating the first arg of
@@ -480,8 +480,7 @@ class Client:
             raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS, directory))
 
         try:
-            # As of 20/05/2020 PyCharm complains, but it's legal
-            os.chdir(directory)
+            os.chdir(str(directory))
         except FileNotFoundError:
             raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS,
                                                   q(directory)))

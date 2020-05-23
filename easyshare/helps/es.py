@@ -36,6 +36,7 @@ cp                  copy files and directories locally
 mv                  move files and directories locally
 rm                  remove files and directories locally
 exec, :             execute an arbitrary command locally
+shell, sh           start a local shell
 </i>
 <I+4>
 rpwd                show the name of current remote working directory
@@ -48,6 +49,8 @@ rcp                 copy files and directories remotely
 rmv                 move files and directories remotely
 rrm                 remove files and directories remotely
 rexec, ::           execute an arbitrary command remotely (disabled by default) since it will compromise server security
+rshell, rsh         start a remote shell
+
 </i>
 <I+4>
 info, i             show information about the remote server

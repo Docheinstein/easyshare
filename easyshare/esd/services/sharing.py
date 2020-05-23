@@ -83,7 +83,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         log.i("<< RCD %s [%s]", spath, str(client_endpoint))
         new_rcwd_fpath = self._fpath_joining_rcwd_and_spath(spath)
 
-        log.d("User would cd into: %s", new_rcwd_fpath)
+        log.d("Would cd into: %s", new_rcwd_fpath)
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(new_rcwd_fpath):
@@ -149,7 +149,7 @@ class SharingService(ISharingService, BaseClientSharingService):
 
 
         ls_fpath = self._fpath_joining_rcwd_and_spath(path)
-        log.d("User would ls into: %s", ls_fpath)
+        log.d("Would ls into: %s", ls_fpath)
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(ls_fpath):
@@ -168,7 +168,12 @@ class SharingService(ISharingService, BaseClientSharingService):
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                ls_fpath)
         except OSError as oserr:
-            return self._create_error_response(ServerErrors.ERR_2, os_error_str(oserr),
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               os_error_str(oserr),
+                                               ls_fpath)
+        except Exception as exc:
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               exc,
                                                ls_fpath)
 
         log.i("RLS response %s", str(ls_result))
@@ -200,7 +205,7 @@ class SharingService(ISharingService, BaseClientSharingService):
               str(client_endpoint))
 
         tree_fpath = self._fpath_joining_rcwd_and_spath(path)
-        log.d("User would tree into: %s", tree_fpath)
+        log.d("Would tree into: %s", tree_fpath)
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(tree_fpath):
@@ -222,7 +227,12 @@ class SharingService(ISharingService, BaseClientSharingService):
                                                tree_fpath)
         except OSError as oserr:
             return self._create_error_response(ServerErrors.ERR_2,
-                                               os_error_str(oserr), tree_fpath)
+                                               os_error_str(oserr),
+                                               tree_fpath)
+        except Exception as exc:
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               exc,
+                                               tree_fpath)
 
         log.i("RTREE response %s", j(tree_root))
 
@@ -245,7 +255,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         log.i("<< RMKDIR %s [%s]", directory, str(client_endpoint))
 
         directory_fpath = self._fpath_joining_rcwd_and_spath(directory)
-        log.d("User would create directory: %s", directory_fpath)
+        log.d("Would create directory: %s", directory_fpath)
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(directory_fpath):
@@ -265,7 +275,12 @@ class SharingService(ISharingService, BaseClientSharingService):
                                                directory_fpath)
         except OSError as oserr:
             return self._create_error_response(ServerErrors.ERR_2,
-                                               os_error_str(oserr), directory_fpath)
+                                               os_error_str(oserr),
+                                               directory_fpath)
+        except Exception as exc:
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               exc,
+                                               directory_fpath)
 
         return create_success_response()
 
@@ -468,7 +483,6 @@ class SharingService(ISharingService, BaseClientSharingService):
                 log.e("Path is invalid (out of sharing domain)")
                 errors.append(create_error_of_response(ServerErrors.INVALID_PATH, q(p)))
 
-
         if errors:
             return create_error_response(errors)
 
@@ -487,31 +501,48 @@ class SharingService(ISharingService, BaseClientSharingService):
         if not paths:
             paths = ["."]
 
+        if not is_valid_list(paths, str):
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        # Compute real path for each name
-        real_paths: List[Tuple[str, str]] = []
+        # "." means: get the sharing, wrapped into a folder with this sharing name
+
+        # get_paths = [self._fpath_joining_rcwd_and_spath(p) for p in paths]
+        get_paths = []
         for f in paths:
             if f == ".":
-                # get the sharing, wrapped into a folder with this sharing name
-                real_paths.append((self._current_real_path(), self._sharing.name))  # no prefixes
-            else:
-                f = f.replace("*", ".")  # glob
-                real_paths.append((self._real_path_from_rcwd(f), ""))  # no prefixes
+                get_paths.append((self._rcwd_fpath, self._sharing.name))
 
-        normalized_paths = sorted(real_paths, reverse=True)
-        log.i("Normalized paths:\n%s", normalized_paths)
+            else:
+                f = f.replace("*", ".")
+                get_paths.append((self._fpath_joining_rcwd_and_spath(f), ""))
+        # Compute real path for each name
+        # real_paths: List[Tuple[str, str]] = []
+        # for f in paths:
+        #     if f == ".":
+        #         # get the sharing, wrapped into a folder with this sharing name
+        #         real_paths.append((self._current_real_path(), self._sharing.name))  # no prefixes
+        #     else:
+        #         f = f.replace("*", ".")  # glob
+        #         real_paths.append((self._real_path_from_rcwd(f), ""))  # no prefixes
+        #
+        # normalized_paths = sorted(real_paths, reverse=True)
+        log.d("Would get:\n%s", get_paths)
 
         get = GetService(
-            normalized_paths,
+            get_paths,
             check=check,
             sharing=self._sharing,
-            sharing_rcwd=self._rcwd,
+            sharing_rcwd=self._rcwd_fpath,
             client=self._client,
             end_callback=lambda getserv: getserv.unpublish()
         )
 
         uid = get.publish()
 
+        # OK - report it
+        # print(f"[{self._client.tag}] get '{' '.join(str(p) for p in get_paths)}'")
+
+        # return create_error_response(ServerErrors.NOT_IMPLEMENTED)
         return create_success_response({
             "uid": uid,
         })
@@ -553,7 +584,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< CLOSE [%s]", str(client_endpoint))
-        log.i("Deallocating es resources...")
+        log.i("Deallocating client resources...")
 
         # TODO remove gets/puts
 

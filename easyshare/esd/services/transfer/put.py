@@ -90,7 +90,7 @@ class PutService(IPutService, TransferService):
 
             # Take a decision based on the overwrite policy
             if overwrite_policy == OverwritePolicy.PROMPT:
-                log.d("Overwrite policy is PROMPT, asking the es whether overwrite")
+                log.d("Overwrite policy is PROMPT, asking the client whether overwrite")
                 return create_success_response("ask_overwrite")
 
             if overwrite_policy == OverwritePolicy.NEWER:

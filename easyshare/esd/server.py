@@ -152,7 +152,7 @@ class Server:
 
         log.i("Client response port is %d", client_discover_response_port)
 
-        # Respond to the port the es says in the paylod
+        # Respond to the port the client  says in the paylod
         # (not necessary the one from which the request come)
         sock = SocketUdpOut()
 

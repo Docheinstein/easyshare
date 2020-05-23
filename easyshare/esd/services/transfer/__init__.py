@@ -5,12 +5,12 @@ from typing import Callable
 from Pyro5.server import expose
 
 from easyshare.esd.daemons.transfer import get_transfer_daemon
-from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner
+from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner, FPath
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.logging import get_logger
 from easyshare.protocol.services import ITransferService
-from easyshare.protocol.responses import TransferOutcomes, create_success_response, Response
+from easyshare.protocol.responses import TransferOutcomes, create_success_response, Response, ResponseError
 from easyshare.sockets import SocketTcpIn
 from easyshare.utils.pyro.server import trace_api, try_or_command_failed_response
 
@@ -29,7 +29,7 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
     """
     def __init__(self,
                  sharing: Sharing,
-                 sharing_rcwd,
+                 sharing_rcwd: FPath,
                  client: ClientContext,
                  end_callback: Callable[[BaseClientService], None]):
         super().__init__(sharing, sharing_rcwd, client, end_callback)
@@ -37,6 +37,7 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
         get_transfer_daemon().add_callback(self._handle_new_connection)
         self._outcome_sync = threading.Semaphore(0)
         self._outcome = None
+        self._errors = []
 
     @expose
     @trace_api
@@ -53,7 +54,15 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
 
         self._notify_service_end()
 
-        return create_success_response(outcome)
+        if not self._errors:
+            return create_success_response(outcome)
+
+        resp = create_success_response(outcome)
+        resp["errors"] = self._errors
+
+        # It's always a success response, but eventually will have errors
+        # (e.g. a transfer is failed (invalid path, ...) but the transaction is ok)
+        return resp
 
     @abstractmethod
     def _run(self):
@@ -70,7 +79,7 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
             return False # not handled - eventually will be closed
 
         if sock.remote_endpoint()[0] != self._client.endpoint[0]:
-            log.e("Unexpected es connected: forbidden")
+            log.e("Unexpected client connected: forbidden")
             return False # not handled - eventually will be closed
 
         log.i("Received connection from valid endpoint %s", sock.remote_endpoint())
@@ -96,3 +105,6 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
         """
         self._outcome = outcome
         self._outcome_sync.release()
+
+    def _add_error(self, err: ResponseError):
+        self._errors.append(err)

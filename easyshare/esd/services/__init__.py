@@ -147,14 +147,14 @@ class BaseClientSharingService(BaseClientService):
 
         e.g.
             (ABSOLUTE)
-            es sharing path =  /home/stefano/Applications
-            es rpwd =                                     InsideAFolder
+            client sharing path =  /home/stefano/Applications
+            client rpwd =                                     InsideAFolder
             path                =  /AnApp
                                 => /home/stefano/Applications/AnApp
 
             (RELATIVE)
-            es sharing path =  /home/stefano/Applications
-            es rpwd =                                     InsideAFolder
+            client sharing path =  /home/stefano/Applications
+            client rpwd =                                     InsideAFolder
             path                =  AnApp
                                 => /home/stefano/Applications/InsideAFolder/AnApp
 
@@ -177,8 +177,8 @@ class BaseClientSharingService(BaseClientService):
         The path is relative w.r.t the rpwd of the sharing path the es
         is currently on.
         e.g.
-            es sharing path = /home/stefano/Applications
-            es rpwd         =                            AnApp
+            client sharing path = /home/stefano/Applications
+            client rpwd         =                            AnApp
             (es path        = /home/stefano/Applications/AnApp          )
             path                = /home/stefano/Applications/AnApp/afile.mp4
                                 =>                                 afile.mp4
@@ -192,17 +192,17 @@ class BaseClientSharingService(BaseClientService):
         on the its sharing and rpwd.
 
         e.g. ALLOWED
-            es sharing path = /home/stefano/Applications
-            es rpwd         =                            AnApp
+            client sharing path = /home/stefano/Applications
+            client rpwd         =                            AnApp
             path                = /home/stefano/Applications/AnApp/AFile.mp4
 
         e.g. NOT ALLOWED
-            es sharing path = /home/stefano/Applications
-            es rpwd         =                            AnApp
+            client sharing path = /home/stefano/Applications
+            client rpwd         =                            AnApp
             path                = /home/stefano/Applications/AnotherApp/AFile.mp4
 
-            es sharing path = /home/stefano/Applications
-            es rpwd         =                           AnApp
+            client sharing path = /home/stefano/Applications
+            client rpwd         =                           AnApp
             path                = /tmp/afile.mp4
 
         :param path: the path to check

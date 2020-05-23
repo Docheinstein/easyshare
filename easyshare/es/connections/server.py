@@ -59,7 +59,7 @@ class ServerConnectionMinimal(Connection):
                 # This is actually not really clean, since we are overwriting
                 # the global ssl_context of Pyro, but potentially we could have
                 # a 'Connection' to a SSL server and a 'Connection' to a non SSL server.
-                # In practice this never happens because the es is implemented
+                # In practice this never happens because the client is implemented
                 # as an interactive shell, thus supports just one connection at a time
                 set_ssl_context(create_client_ssl_context())
         else:

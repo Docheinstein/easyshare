@@ -155,7 +155,7 @@ class ServerService(IServer, BaseService):
             log.i("Client disconnected gracefully")
         else:
             # Should not happen due @require_client_connected
-            log.w("disconnect() failed; es not found")
+            log.w("disconnect() failed; client not found")
 
 
     @expose
@@ -325,7 +325,7 @@ class ServerService(IServer, BaseService):
 
     def _current_request_endpoint(self) -> Optional[Endpoint]:
         """
-        Returns the endpoint (ip, port) of the es that is making
+        Returns the endpoint (ip, port) of the client that is making
         the request right now (provided by the underlying Pyro deamon)
         """
         return pyro_client_endpoint()
@@ -343,5 +343,5 @@ class ServerService(IServer, BaseService):
         cleanup the client's resources
         """
         endpoint = pyroconn.sock.getpeername()
-        log.d("Cleaning up es %s resources", endpoint)
+        log.d("Cleaning up client %s resources", endpoint)
         self._del_client(endpoint)

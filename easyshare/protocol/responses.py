@@ -40,6 +40,8 @@ class ServerErrors:
     RM_PERMISSION_DENIED =      225 # 1
     RM_OTHER_ERROR =            226 # 2
 
+    TRANSFER_SKIPPED =          227 # 1
+
 
 class TransferOutcomes:
     """ Possibles results of outcome() of a 'TransferService' """
