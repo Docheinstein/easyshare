@@ -27,6 +27,10 @@ BG_MAGENTA =        "\033[45m"
 BG_CYAN =           "\033[46m"
 BG_WHITE =          "\033[47m"
 
+
+PROMPT_BLINK_OFF =   "\033[25m"
+DELETE_EOL =         "\033[K"
+
 # From readline docs
 # declared in `readline.h'
 # This may be used to embed terminal-specific escape sequences in prompts.

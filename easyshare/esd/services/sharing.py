@@ -14,7 +14,7 @@ from easyshare.protocol.services import ISharingService
 from easyshare.protocol.responses import create_success_response, ServerErrors, create_error_response, Response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
 from easyshare.utils.json import j
-from easyshare.utils.os import rm, mv, cp, tree, ls
+from easyshare.utils.os import rm, mv, cp, tree, ls, os_error_str
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
 from easyshare.utils.types import is_str, is_list, is_bool
 
@@ -175,16 +175,12 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         log.i("<< RCD %s [%s]", path, str(client_endpoint))
         path = Path(path)
+        new_rcwd = self._path_from_rcwd(path)
+        log.d("real new_rcwd path: %s", new_rcwd)
 
-        if path.is_absolute():
-            # Absolute is considered relative to the sharing root
-            log.d("Setting cwd from sharing root")
-            new_rcwd = self._sharing.path.joinpath(*path.parts[1:])
-        else:
-            # Relative is considered relative to the current working directory
-            log.d("Setting cwd from current cwd")
-            new_rcwd = (self._rcwd / path).resolve()
+        # new_rcwd = new_rcwd.resolve()
 
+        # Check if it's inside the sharing domain
         if not self._is_path_allowed(new_rcwd):
             return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
 
@@ -192,28 +188,16 @@ class SharingService(ISharingService, BaseClientSharingService):
         if not new_rcwd.is_dir():
             return self._create_sharing_error_response(ServerErrors.NOT_A_DIRECTORY)
 
+        # The path is allowed and exists, setting it as new rcwd
         self._rcwd = new_rcwd
         log.i("New rcwd: %s", self._rcwd)
 
-        #
-        # new_real_path = self._real_path_from_rcwd(path)
-        #
-        # if not self._is_real_path_allowed(new_real_path):
-        #     log.e("Path is invalid (out of sharing domain)")
-        #     return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
-        #
-        # if not os.path.isdir(new_real_path):
-        #     log.e("Path does not exists")
-        #     return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
-        #
-        # log.i("New rcwd real path: %s", new_real_path)
-        #
-        # self._rcwd = self._trailing_path_from_root(new_real_path)
-        # log.i("New rcwd: %s", self._rcwd)
-
+        # Tell the client the new rcwd, but just the part after the sharing root
         rcwd_client = str(self._rcwd_client_view())
         rcwd_client = "" if rcwd_client == "." else rcwd_client
+
         log.d("RCWD for the client: %s", rcwd_client)
+
         return create_success_response(rcwd_client)
 
 
@@ -231,18 +215,34 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         log.i("<< RMKDIR %s [%s]", directory, str(client_endpoint))
 
-        real_path = self._real_path_from_rcwd(directory)
+        directory = Path(directory)
+        log.d("directory: %s", directory)
 
-        if not self._is_real_path_allowed(real_path):
+        real_directory = self._path_from_rcwd(directory)
+        log.d("real directory path: %s", real_directory)
+
+        # Check if it's inside the sharing domain
+        if not self._is_path_allowed(real_directory):
             return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
 
-        log.i("Going to mkdir on %s", real_path)
+
+
+        # real_path = self._rcwd / directory
+        # real_path = self._real_path_from_rcwd(directory)
+
+        # if not self._is_real_path_allowed(real_path):
+        #     return self._create_sharing_error_response(ServerErrors.INVALID_PATH)
+
+        log.i("Going to mkdir on valid path %s", real_directory)
 
         try:
-            os.makedirs(real_path, exist_ok=True)
-        except Exception as ex:
-            log.exception("mkdir exception")
-            return self._create_sharing_error_response(str(ex))
+            real_directory.mkdir(parents=True)
+        except PermissionError:
+            return self._create_sharing_error_response(ServerErrors.PERMISSION_DENIED)
+        except FileExistsError:
+            return self._create_sharing_error_response(ServerErrors.DIRECTORY_ALREADY_EXISTS)
+        except OSError as oserr:
+            return self._create_sharing_error_response(os_error_str(oserr))
 
         return create_success_response()
 

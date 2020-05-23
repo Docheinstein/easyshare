@@ -36,7 +36,8 @@ DIR_COLOR = ansi.FG_BLUE
 FILE_COLOR = None
 
 PROGRESS_COLOR = ansi.FG_BLUE
-DONE_COLOR = ansi.FG_GREEN
+SUCCESS_COLOR = ansi.FG_GREEN
+ERROR_COLOR = ansi.FG_RED
 
 
 # =====================

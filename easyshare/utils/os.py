@@ -364,5 +364,15 @@ def pty_detached(out_hook: Callable[[str], None],
     return ptyproc
 
 
+def os_error_str(err: OSError):
+    """ Returns the explanation of the error (e.g. Directory not empty) """
+    if isinstance(err, OSError):
+        if err and err.strerror:
+            return err.strerror
+        log.exception("Unknown OS error")
+        serr = str(err)
+        return serr or "Error" # fallback
+    return "Error" # fallback
+
 if __name__ == "__main__":
     print("OS: ", "windows" if is_windows() else ("unix" if is_unix() else "unknown"))

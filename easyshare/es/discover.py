@@ -33,11 +33,14 @@ class Discoverer:
         self._discover_timeout = discover_timeout
         self._response_handler = response_handler
 
-    def discover(self):
+    def discover(self) -> bool:
         """
         Sends a discover packet and waits for 'discover_timeout' seconds,
         notifying the response_handler in the meanwhile.
+        Returns True if the discover finished (timedout) or False if it has been stopped.
         """
+        discover_completed = True
+
         # Listening socket
         in_sock = SocketUdpIn()
 
@@ -103,6 +106,7 @@ class Discoverer:
 
             if not go_ahead:
                 log.d("Stopping DISCOVER since handle_discover_response_callback returned false")
+                discover_completed = False
                 break
 
         log.i("Stopping DISCOVER listener")
@@ -110,3 +114,5 @@ class Discoverer:
         # Close sockets
         in_sock.close()
         out_sock.close()
+
+        return discover_completed

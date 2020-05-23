@@ -258,6 +258,7 @@ class BaseClientSharingService(BaseClientService):
 
         return create_error_response()
 
+
     # ---- NEW
 
     def _is_path_allowed(self, p: Path) -> bool:
@@ -268,6 +269,17 @@ class BaseClientSharingService(BaseClientService):
         except:
             log.d("Path is not allowed for this sharing %s", p)
             return False
+
+
+    def _path_from_rcwd(self, p: Path) -> Path:
+        if p.is_absolute():
+            # Absolute is considered relative to the sharing root
+            # Join all the path apart from the leading "/"
+            return self._sharing.path.joinpath(*p.parts[1:])
+
+        # Relative is considered relative to the current working directory
+        # Join all the path
+        return self._rcwd / p
 
 
 # decorator

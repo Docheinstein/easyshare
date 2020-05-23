@@ -1,7 +1,9 @@
 import fcntl
 import os
 import pty
+import random
 import select
+import signal
 import sys
 import threading
 import time
@@ -17,7 +19,9 @@ from Pyro5.errors import PyroError
 
 from easyshare.args import Args as Args, ArgsParseError, PosArgsSpec, \
     VarArgsSpec, ArgsSpec, StopParseArgsSpec
-from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, DONE_COLOR, PROGRESS_COLOR, BEST_BUFFER_SIZE
+from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, SUCCESS_COLOR, PROGRESS_COLOR, BEST_BUFFER_SIZE, \
+    ERROR_COLOR
+from easyshare.consts import ansi
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
 from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
@@ -30,9 +34,8 @@ from easyshare.es.errors import ClientErrors, print_error, ErrorsStrings
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str, server_info_to_short_str
 from easyshare.logging import get_logger
-from easyshare.progress import FileProgressor
 from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService, IRshellService
-from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response
+from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ServerErrors
 from easyshare.protocol.types import FileType, ServerInfoFull, SharingInfo, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
     OverwritePolicy, FTYPE_FILE, ServerInfo
 from easyshare.sockets import SocketTcpOut
@@ -43,8 +46,11 @@ from easyshare.utils import eprint
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, relpath, get_passwd, is_unix, is_windows, \
-    pty_attached, pty_detached
+    pty_attached, os_error_str
 from easyshare.utils.path import LocalPath
+from easyshare.utils.progress import ProgressBarRendererFactory
+from easyshare.utils.progress.file import FileProgressor
+from easyshare.utils.progress.simple import SimpleProgressor
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro import pyro_uri
 from easyshare.utils.str import unprefix
@@ -162,16 +168,8 @@ def provide_server_connection(api):
 class CommandExecutionError(Exception):
     pass
 
-
-def os_error_str(err: OSError):
-    """ Returns the explanation of the error (e.g. Directory not empty) """
-    if isinstance(err, OSError):
-        if err and err.strerror:
-            return err.strerror
-        log.exception("Unknown OS error")
-        serr = str(err)
-        return serr or "Error" # fallback
-    return "Error" # fallback
+class HandledKeyboardInterrupt(KeyboardInterrupt):
+    pass
 
 # ==================================================================
 
@@ -449,7 +447,7 @@ class Client:
         log.i(">> CD %s", directory)
 
         if not directory.is_dir():
-            raise CommandExecutionError(ClientErrors.NOT_A_DIRECTORY)
+            raise CommandExecutionError(f"{ErrorsStrings.NOT_A_DIRECTORY}: '{directory}'")
 
         try:
             # As of 20/05/2020 PyCharm complains, but it's legal
@@ -1012,7 +1010,7 @@ class Client:
         def response_handler(client: Endpoint,
                              server_info_full: ServerInfoFull) -> bool:
             nonlocal servers_found
-
+            time.sleep(random.random() * self._discover_timeout)
             log.i("Handling DISCOVER response from %s\n%s", str(client), str(server_info_full))
             # Print as soon as they come
 
@@ -1040,16 +1038,21 @@ class Client:
                     s +=  "\n" + sharings_str
                 # else: NONE
 
-            print(s)
+            # DELETE_EOL for overwrite progress bar render
+
+            print(ansi.DELETE_EOL + s)
 
             servers_found += 1
 
             return True     # Continue DISCOVER
 
-        Discoverer(
+        Client._discover(
             discover_port=self._discover_port,
             discover_timeout=self._discover_timeout,
-            response_handler=response_handler).discover()
+            response_handler=response_handler,
+            progress=True,
+            success_if_ends=True
+        )
 
         log.i("======================")
 
@@ -1128,6 +1131,10 @@ class Client:
         log.i(">> RCD %s", directory)
 
         resp = sharing_conn.rcd(directory)
+
+        if is_error_response(resp, ServerErrors.NOT_A_DIRECTORY):
+            raise CommandExecutionError(f"{ErrorsStrings.NOT_A_DIRECTORY}: '{directory}'")
+
         ensure_data_response(resp)
 
         log.d("Current rcwd: %s", sharing_conn._rcwd)
@@ -1176,6 +1183,16 @@ class Client:
         log.i(">> RMKDIR %s", directory)
 
         resp = sharing_conn.rmkdir(directory)
+
+        if is_error_response(resp):
+            err = resp.get("error")
+            if err == ServerErrors.PERMISSION_DENIED:
+                raise CommandExecutionError(f"{ErrorsStrings.PERMISSION_DENIED}: '{directory}'")
+            if err == ServerErrors.DIRECTORY_ALREADY_EXISTS:
+                raise CommandExecutionError(f"{ErrorsStrings.DIRECTORY_ALREADY_EXISTS}: '{directory}'")
+            # TODO: OSError from remote won't be displayed such as mkdir with trailing 'directory'
+            # => implement error as struct {str, errno} ?
+
         ensure_success_response(resp)
 
     @provide_d_sharing_connection
@@ -1373,7 +1390,8 @@ class Client:
                         fsize,
                         description="GET " + fname,
                         color_progress=PROGRESS_COLOR,
-                        color_done=DONE_COLOR
+                        color_success=SUCCESS_COLOR,
+                        color_error=ERROR_COLOR
                     )
 
                 log.i("Opening %s locally", fname)
@@ -1644,7 +1662,8 @@ class Client:
                         fsize,
                         description="PUT " + local_path_pretty,
                         color_progress=PROGRESS_COLOR,
-                        color_done=DONE_COLOR
+                        color_success=SUCCESS_COLOR,
+                        color_error=ERROR_COLOR
                     )
 
                 if ftype == FTYPE_DIR:
@@ -2240,11 +2259,14 @@ class Client:
 
             return True         # Continue DISCOVER
 
-        Discoverer(
+        Client._discover(
             discover_port=self._discover_port,
             discover_addr=server_ip or ADDR_BROADCAST,
             discover_timeout=self._discover_timeout,
-            response_handler=response_handler).discover()
+            response_handler=response_handler,
+            progress=True,
+            success_if_ends=False
+        )
 
         return server_info
 
@@ -2310,9 +2332,9 @@ class Client:
 
         log.d("constr server name: %s", server_name)
         log.d("constr server ip: %s", server_ip)
-        log.d("constr server port: %d", server_port)
-        log.d("constr sharing name: %d", sharing_name)
-        log.d("constr sharing ftype: %d", sharing_ftype)
+        log.d("constr server port: %s", str(server_port))
+        log.d("constr sharing name: %s", sharing_name)
+        log.d("constr sharing ftype: %s", sharing_ftype)
 
         if not server_info:
             return False
@@ -2403,6 +2425,155 @@ class Client:
                 log.w("Invalid answer, asking again")
 
         return cur_decision, new_default
+
+    @staticmethod
+    def _discover(
+            discover_port: int,
+            discover_timeout: int,
+            response_handler: Callable[[Endpoint, ServerInfoFull], bool],
+            discover_addr: str = ADDR_BROADCAST,
+            progress: bool = False,
+            success_if_ends: bool = True):
+
+        discover_start_t = time.monotonic_ns()
+
+        DISCOVER_RUNNING = 0
+        DISCOVER_TIMEDOUT = 1   # Timedout (can be good (e.g. scan) or bad (e.g. open)
+        DISCOVER_FOUND = 2      # Completed (e.g. found a sharing)
+        DISCOVER_ABORTED = 3    # CTRL+C
+
+        discover_state = DISCOVER_RUNNING
+
+        pbar = None
+        pbar_done_lock = None
+
+        if progress:
+            K = 200  # This can be anything actually, but don't set it too small
+                     # or the accuracy might be no enough
+            pbar = SimpleProgressor(
+                K,
+                color_progress=PROGRESS_COLOR,
+                color_success=SUCCESS_COLOR,
+                color_error=ERROR_COLOR,
+                progress_bar_renderer=ProgressBarRendererFactory.ascii(
+                    # mark="\u2014" if is_unicode_supported() else "-",
+                    mark=".",
+                    prefix="|",
+                    postfix="|")
+            )
+
+            pbar_done_lock = threading.Lock()
+
+        def stop_pbar(state: int):
+            if not progress:
+                # Progress bar not used at all
+                return
+
+            # Update the state, but only if it is still running
+            # Otherwise consider the first state the good one
+            nonlocal discover_state
+
+            with pbar_done_lock:
+                if discover_state == DISCOVER_RUNNING:
+                    log.d("discover_state will be %d", state)
+
+                    if state == DISCOVER_TIMEDOUT:
+                        # Timeout can either be good or bad
+                        if success_if_ends:
+                            log.d("DISCOVER_TIMEDOUT => success")
+                            pbar.success()
+                        else:
+                            log.d("DISCOVER_TIMEDOUT => error")
+                            pbar.error(completed=True)
+                    elif state == DISCOVER_FOUND:
+                        # Found is always a success
+                        # pbar.success()
+
+                        # Add a carriage return so that the bar will be hided
+                        # by the next print statement.
+                        # The sense is that we have found what we want, there
+                        # no need to show the pbar after the finding
+                        # ^ NOT NEEEDED? ^
+                        # DELETE_EOL for overwrite the bar
+                        print(ansi.DELETE_EOL, end="")
+                    elif state == DISCOVER_ABORTED:
+                        # Abort is always an error
+                        pbar.error() # don't set completed=True, since is aborted in the middle
+                    else:
+                        log.w("Unexpected new discover state: %d", discover_state)
+
+                    # Set the new state
+                    discover_state = state
+
+
+        def discover_ui():
+            # In the meanwhile, show a progress bar
+
+            for i in range(K):
+                if discover_state != DISCOVER_RUNNING:
+                    break
+
+                # Update the count
+                pbar.update(i)
+
+                # Sleep for approximately discover_timeout / K
+                # but for a better accuracy we have to see actually how remaining
+                # time of discover we have
+
+                t = time.monotonic_ns()
+                sleep_t = (discover_timeout - (t - discover_start_t) * 1e-9) / (K - i)
+                time.sleep(sleep_t)
+
+                # time.sleep(discover_timeout / K)
+
+            stop_pbar(DISCOVER_TIMEDOUT)
+
+
+        discover_ui_thread = None
+
+        if progress:
+            # Show the progress
+            discover_ui_thread = threading.Thread(target=discover_ui)
+            discover_ui_thread.start()
+
+        # -----
+
+        original_sigint_handler = signal.getsignal(signal.SIGINT)
+
+        def custom_sigint_handler(sig, frame):
+            # Seems an overkill, but what this handler does is stop the
+            # the bar now (a lock is needed since shared with the ui thread)
+            # and raise a custom exception so that easyshare.shell won't
+            # print an empty line
+            nonlocal discover_state
+            log.d("SIGINT while discovering")
+            signal.signal(signal.SIGINT, original_sigint_handler)
+
+            stop_pbar(DISCOVER_ABORTED)
+
+            raise HandledKeyboardInterrupt()
+
+        # Set the custom handler
+        signal.signal(signal.SIGINT, custom_sigint_handler)
+
+        timedout = Discoverer(
+            discover_addr=discover_addr,
+            discover_port=discover_port,
+            discover_timeout=discover_timeout,
+            response_handler=response_handler).discover()
+
+        # Restore the original handler
+        signal.signal(signal.SIGINT, original_sigint_handler)
+
+        # ------
+
+        stop_pbar(DISCOVER_TIMEDOUT if timedout else DISCOVER_FOUND)
+
+        if discover_ui_thread:
+            # Wait for the ui
+            discover_ui_thread.join()
+
+
 
     def destroy_connection(self):
         try:

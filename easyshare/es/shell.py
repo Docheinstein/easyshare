@@ -12,7 +12,7 @@ from easyshare import logging
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
 from easyshare.consts import ansi
 
-from easyshare.es.client import Client
+from easyshare.es.client import Client, HandledKeyboardInterrupt
 from easyshare.helps.commands import Commands, matches_special_command, Verbose
 from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.es.errors import print_error, ClientErrors
@@ -164,6 +164,9 @@ class Shell:
                 log.i("\nCTRL+D: exiting")
                 self._client.destroy_connection()
                 break
+
+            except HandledKeyboardInterrupt:
+                log.d("\nCTRL+C (already handled)")
 
             except KeyboardInterrupt:
                 log.d("\nCTRL+C")
@@ -329,7 +332,11 @@ class Shell:
         # so that readline can handle those well and deal with terminal/prompt
         # width properly
         # prompt = remote + sep + local + "> "
-        prompt = \
+
+        # use a leading DELETE_EOL for overwrite eventual previously printed ^Cself.self.
+        # (won't overwrite the previous prompt since KeyboardInterrupt is captured
+        # and prints a new line)
+        prompt = ansi.DELETE_EOL + \
             ((IS + B + M + IE + remote + IS + R + IE) if remote else "") + \
             ((IS + B + IE + sep + IS + R + IE) if sep else "") + \
             IS + B + C + IE + local + IS + R + IE + \
