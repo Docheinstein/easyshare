@@ -256,13 +256,28 @@ class BaseClientSharingService(BaseClientService):
                   *subjects # if a suject is a Path, must be a FPath (relative to the file system)
           ):
         """ Sanitize subjects so that they are Path relative to the sharing root """
-        if not subjects:
-            create_error_response(err)
 
-        return create_error_response(err, *[
-            (q(self._spath_rel_to_root_of_fpath(o)) if (isinstance(o, Path) or isinstance(o, str)) else str(o))
-            for o in subjects
-        ])
+        log.d("_err_resp of subjects %s", subjects)
+
+        return create_error_response(err, *self._qspathify(*subjects))
+
+
+    def _qspathify(self, *fpaths_or_strs) -> List[str]:
+        # quote the spaths of fpaths
+        if not fpaths_or_strs:
+            return []
+
+        log.d("_qspathify of %s", fpaths_or_strs)
+
+        qspathified = [
+            # leave str as str
+            q(self._spath_rel_to_root_of_fpath(o)) if isinstance(o, Path) else str(o)
+            for o in fpaths_or_strs
+        ]
+
+        log.d("qspathified -> %s", qspathified)
+
+        return qspathified
 
 
     # ---- NEW ----
@@ -307,7 +322,7 @@ class BaseClientSharingService(BaseClientService):
             log.d("Path is allowed for this sharing. spath is: %s", spath_from_root)
             return True
         except:
-            log.d("Path is not allowed for this sharing %s", p)
+            log.d("Path is not allowed for this sharing: %s", p)
             return False
 
 

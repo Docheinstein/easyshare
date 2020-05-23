@@ -32,6 +32,17 @@ class ClientErrors:
     DIRECTORY_ALREADY_EXISTS =      115
     NOT_EXISTS =                    116
 
+    CANNOT_MOVE =                   117
+    CANNOT_COPY =                   118
+
+    MV_NOT_EXISTS =                 119
+    MV_PERMISSION_DENIED =          120
+    MV_SPECIFIED_ERROR =            121
+
+    CP_NOT_EXISTS =                 121
+    CP_PERMISSION_DENIED =          122
+    CP_SPECIFIED_ERROR =            123
+
 
 class ErrorsStrings:
     """
@@ -43,6 +54,8 @@ class ErrorsStrings:
     PERMISSION_DENIED = "Permission denied: {}"
     DIRECTORY_ALREADY_EXISTS = "Directory already exists: {}"
     NOT_A_DIRECTORY = "Not a directory: {}"
+    INVALID_PATH = "Invalid path: {}"
+    SHARING_NOT_FOUND = "Sharing not found: {}"
 
 
     ERR = "Error"
@@ -56,9 +69,7 @@ class ErrorsStrings:
     NOT_IMPLEMENTED = "Not implemented"
     NOT_CONNECTED = "Not connected"
     COMMAND_EXECUTION_FAILED = "Command execution failed"
-    SHARING_NOT_FOUND = "Sharing not found: {}"
     SERVER_NOT_FOUND = "Server not found"
-    INVALID_PATH = "Invalid path"
     INVALID_DIRECTORY = "Invalid directory"
     INVALID_TRANSACTION = "Invalid transaction"
     NOT_ALLOWED = "Not allowed"
@@ -79,10 +90,14 @@ class ErrorsStrings:
     SUPPORTED_ONLY_FOR_UNIX = "Supported only for Unix"
 
 
+class SubErrorsStrings:
+    CANNOT_MOVE = "cannot move {} to {}"
+    CANNOT_COPY = "cannot copy {} to {}"
+
 # Maps the errors (any kind of error) to its string
 _ERRORS_STRINGS_MAP = {
-    ServerErrors.UNSPECIFIED_ERROR: "{}",
-    ServerErrors.SPECIFIED_ERROR: ErrorsStrings.ERROR,
+    ServerErrors.UNSPECIFIED_ERROR: ErrorsStrings.ERR,
+    ServerErrors.SPECIFIED_ERROR: ErrorsStrings.ERR1,
     ServerErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
     ServerErrors.NOT_IMPLEMENTED: ErrorsStrings.NOT_IMPLEMENTED,
     ServerErrors.NOT_CONNECTED: ErrorsStrings.NOT_CONNECTED,
@@ -98,6 +113,15 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.NOT_A_DIRECTORY: ErrorsStrings.NOT_A_DIRECTORY,
     ServerErrors.PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED,
     ServerErrors.DIRECTORY_ALREADY_EXISTS: ErrorsStrings.DIRECTORY_ALREADY_EXISTS,
+
+    ServerErrors.MV_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_MOVE),
+    ServerErrors.MV_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_MOVE),
+    ServerErrors.MV_SPECIFIED_ERROR: ErrorsStrings.ERR1.format(SubErrorsStrings.CANNOT_MOVE),
+
+    ServerErrors.CP_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_COPY),
+    ServerErrors.CP_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_COPY),
+    ServerErrors.CP_SPECIFIED_ERROR: ErrorsStrings.ERR1.format(SubErrorsStrings.CANNOT_COPY),
+
 
     ClientErrors.ERR: ErrorsStrings.ERR,
     ClientErrors.ERR1: ErrorsStrings.ERR1,
@@ -117,6 +141,15 @@ _ERRORS_STRINGS_MAP = {
     ClientErrors.PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED,
     ClientErrors.NOT_A_DIRECTORY: ErrorsStrings.NOT_A_DIRECTORY,
     ClientErrors.NOT_EXISTS: ErrorsStrings.NOT_EXISTS,
+
+
+    ClientErrors.MV_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_MOVE),
+    ClientErrors.MV_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_MOVE),
+    ClientErrors.MV_SPECIFIED_ERROR: ErrorsStrings.ERR1.format(SubErrorsStrings.CANNOT_MOVE),
+
+    ClientErrors.CP_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_COPY),
+    ClientErrors.CP_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_COPY),
+    ClientErrors.CP_SPECIFIED_ERROR: ErrorsStrings.ERR1.format(SubErrorsStrings.CANNOT_COPY),
 
     TransferOutcomes.SUCCESS: ErrorsStrings.SUCCESS,
     TransferOutcomes.ERROR: ErrorsStrings.ERROR,

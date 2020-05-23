@@ -617,15 +617,18 @@ class Client:
         errors = []
 
         def handle_mv_error(exc: Exception, src: Path, dst: Path):
-            cannot_move = f"cannot move '{src}' to '{dst}"
             if isinstance(exc, PermissionError):
-                errors.append(errno_str(ClientErrors.PERMISSION_DENIED, cannot_move))
+                errors.append(errno_str(ClientErrors.MV_PERMISSION_DENIED,
+                                        q(src), q(dst)))
             elif isinstance(exc, FileNotFoundError):
-                errors.append(errno_str(ClientErrors.NOT_EXISTS, cannot_move))
+                errors.append(errno_str(ClientErrors.MV_NOT_EXISTS,
+                                        q(src), q(dst)))
             elif isinstance(exc, OSError):
-                errors.append(errno_str(ClientErrors.ERR2, os_error_str(exc), cannot_move))
+                errors.append(errno_str(ClientErrors.MV_SPECIFIED_ERROR,
+                                        os_error_str(exc), q(src), q(dst)))
             else:
-                errors.append(errno_str(ClientErrors.ERR1, exc))
+                errors.append(errno_str(ClientErrors.MV_SPECIFIED_ERROR,
+                                        exc, q(src), q(dst)))
 
         Client._mvcp(args, mv, "MV", error_callback=handle_mv_error)
 
@@ -638,15 +641,18 @@ class Client:
         errors = []
 
         def handle_cp_error(exc: Exception, src: Path, dst: Path):
-            cannot_copy = f"cannot copy '{src}' to '{dst}"
             if isinstance(exc, PermissionError):
-                errors.append(errno_str(ClientErrors.PERMISSION_DENIED, cannot_copy))
+                errors.append(errno_str(ClientErrors.CP_PERMISSION_DENIED,
+                                        q(src), q(dst)))
             elif isinstance(exc, FileNotFoundError):
-                errors.append(errno_str(ClientErrors.NOT_EXISTS, cannot_copy))
+                errors.append(errno_str(ClientErrors.CP_NOT_EXISTS,
+                                        q(src), q(dst)))
             elif isinstance(exc, OSError):
-                errors.append(errno_str(ClientErrors.ERR2, os_error_str(exc), cannot_copy))
+                errors.append(errno_str(ClientErrors.CP_SPECIFIED_ERROR,
+                                        os_error_str(exc), q(src), q(dst)))
             else:
-                errors.append(errno_str(ClientErrors.ERR1, exc))
+                errors.append(errno_str(ClientErrors.CP_SPECIFIED_ERROR,
+                                        exc, q(src), q(dst)))
 
         Client._mvcp(args, cp, "CP", error_callback=handle_cp_error)
 

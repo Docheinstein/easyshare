@@ -15,16 +15,25 @@ class ServerErrors:
     NOT_CONNECTED =             204 # 0
     COMMAND_EXECUTION_FAILED =  205 # 0
     SHARING_NOT_FOUND =         206 # 1
-    INVALID_PATH =              207 # 0
+    INVALID_PATH =              207 # 1
     INVALID_TRANSACTION =       208
     NOT_ALLOWED =               209 # 0
     AUTHENTICATION_FAILED =     210
     INTERNAL_SERVER_ERROR =     211
     NOT_WRITABLE =              212
     NOT_ALLOWED_FOR_F_SHARING = 213
-    NOT_A_DIRECTORY =           214
-    PERMISSION_DENIED =         215
+    NOT_A_DIRECTORY =           214 # 1
+    PERMISSION_DENIED =         215 # 1
     DIRECTORY_ALREADY_EXISTS =  216
+    NOT_EXISTS =                217 # 1
+
+    MV_NOT_EXISTS =             218 # 2
+    MV_PERMISSION_DENIED =      219 # 2
+    MV_SPECIFIED_ERROR =        220 # 3
+
+    CP_NOT_EXISTS =             221 # 2
+    CP_PERMISSION_DENIED =      222 # 2
+    CP_SPECIFIED_ERROR =        223 # 3
 
 
 class TransferOutcomes:
@@ -43,7 +52,8 @@ class TransferOutcomes:
 
 try:
     # From python 3.8
-    from typing import Literal, TypedDict, Any, Dict, Union, List
+    from typing import Literal, TypedDict, Any, Dict, Union, List, Optional
+
 
     class ResponseError(TypedDict, total=False):
         errno: int
@@ -54,7 +64,8 @@ try:
         errors: List[ResponseError]
         data: Any
 except:
-    Response = Dict[str, Union[str, List[Dict], Any]]
+    ResponseError = Dict[str, Union[str, List[Dict]]]
+    Response = Dict[str, Union[str, List[ResponseError], Any]]
 
 
 def create_success_response(data=None) -> Response:
@@ -97,15 +108,17 @@ def create_error_response(err: Union[str, int, Dict, List[Dict]] = None, *subjec
 
     # Build "errors"
     errors = []
-    if is_int(err):
-        # Consider err as error number
-        if subjects:
-            errors.append({"errno": err, "subjects": subjects})
-        else:
-            errors.append({"errno": err})
-    elif is_str(err):
-        # Consider err as a reason for a SPECIFIED_ERROR
-        errors.append({"errno": ServerErrors.SPECIFIED_ERROR, "subjects": err})
+
+    # Try to create from err (works if it's int or str)
+    if subjects:
+        resp_err = create_error_of_response(err, *subjects)
+    else:
+        resp_err = create_error_of_response(err)
+
+    if resp_err:
+        errors.append(resp_err)
+
+    # We can handle a ResponseError or a list of ResponseError as well
     elif is_dict(err):
         # Must have at least errno, subjects is optional
         if "errno" not in err:
@@ -126,6 +139,19 @@ def create_error_response(err: Union[str, int, Dict, List[Dict]] = None, *subjec
         return {"success": False}
 
     return {"success": False, "errors": errors}
+
+def create_error_of_response(err: Union[int, str], *subjects) -> Optional[ResponseError]:
+    if is_int(err):
+        # Consider err as an error number
+        if not subjects:
+            return {"errno": err}
+        return {"errno": err, "subjects": [str(s) for s in subjects] }
+
+    if is_str(err):
+        # Consider err as a reason of a SPECIFIED_ERROR
+        return {"errno": ServerErrors.SPECIFIED_ERROR, "subjects": err}
+
+    return None
 
 
 def is_success_response(resp: Response) -> bool:

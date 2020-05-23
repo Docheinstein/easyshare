@@ -1,20 +1,22 @@
 import os
 from pathlib import Path
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Optional
 
 from Pyro5.server import expose
-from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner
+from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner, FPath
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services.transfer.get import GetService
 from easyshare.esd.services.transfer.put import PutService
 from easyshare.logging import get_logger
 from easyshare.protocol.services import ISharingService
-from easyshare.protocol.responses import create_success_response, ServerErrors, create_error_response, Response
+from easyshare.protocol.responses import create_success_response, ServerErrors, create_error_response, Response, \
+    create_error_of_response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
 from easyshare.utils.json import j
 from easyshare.utils.os import rm, mv, cp, tree, ls, os_error_str
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
+from easyshare.utils.str import q
 from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list
 
 log = get_logger(__name__)
@@ -85,7 +87,7 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(new_rcwd_fpath):
-            return self._err_resp(ServerErrors.INVALID_PATH)
+            return self._err_resp(ServerErrors.INVALID_PATH, q(spath))
 
         # Check if it actually exists
         if not new_rcwd_fpath.is_dir():
@@ -224,7 +226,7 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(directory_fpath):
-            return self._err_resp(ServerErrors.INVALID_PATH)
+            return self._err_resp(ServerErrors.INVALID_PATH, q(directory))
 
         log.i("Going to mkdir on valid path %s", directory_fpath)
 
@@ -247,8 +249,35 @@ class SharingService(ISharingService, BaseClientSharingService):
     @check_write_permission
     @ensure_d_sharing
     def rcp(self, sources: List[str], destination: str) -> Response:
-        return self._rmvcp(sources, destination, cp, "CP")
+        errors = []
 
+        def handle_errno(errno: int, *subjects):
+            errors.append(create_error_of_response(errno, *subjects))
+
+        def handle_cp_exception(exc: Exception, src: FPath, dst: FPath):
+            if isinstance(exc, PermissionError):
+                errors.append(create_error_of_response(ServerErrors.CP_PERMISSION_DENIED,
+                                                       *self._qspathify(src, dst)))
+            elif isinstance(exc, FileNotFoundError):
+                errors.append(create_error_of_response(ServerErrors.CP_NOT_EXISTS,
+                                                       *self._qspathify(src, dst)))
+            elif isinstance(exc, OSError):
+                errors.append(create_error_of_response(ServerErrors.CP_SPECIFIED_ERROR,
+                                                       os_error_str(exc), *self._qspathify(src, dst)))
+            else:
+                errors.append(create_error_of_response(ServerErrors.CP_SPECIFIED_ERROR,
+                                                       exc, *self._qspathify(src, dst)))
+
+        resp = self._rmvcp(sources, destination, cp, "CP",
+                           errno_callback=handle_errno,
+                           exception_callback=handle_cp_exception)
+        if resp:
+            return resp # e.g. invalid path
+
+        if errors:
+            return create_error_response(errors) # e.g. permission denied
+
+        return create_success_response()
 
     @expose
     @trace_api
@@ -257,13 +286,43 @@ class SharingService(ISharingService, BaseClientSharingService):
     @check_write_permission
     @ensure_d_sharing
     def rmv(self, sources: List[str], destination: str) -> Response:
-        return self._rmvcp(sources, destination, mv, "MV")
+        errors = []
 
+        def handle_errno(errno: int, *subjects):
+            errors.append(create_error_of_response(errno, *subjects))
+
+        def handle_mv_exception(exc: Exception, src: FPath, dst: FPath):
+            if isinstance(exc, PermissionError):
+                errors.append(create_error_of_response(ServerErrors.MV_PERMISSION_DENIED,
+                                                       *self._qspathify(src, dst)))
+            elif isinstance(exc, FileNotFoundError):
+                errors.append(create_error_of_response(ServerErrors.MV_NOT_EXISTS,
+                                                       *self._qspathify(src, dst)))
+            elif isinstance(exc, OSError):
+                errors.append(create_error_of_response(ServerErrors.MV_SPECIFIED_ERROR,
+                                                       os_error_str(exc), *self._qspathify(src, dst)))
+            else:
+                errors.append(create_error_of_response(ServerErrors.MV_SPECIFIED_ERROR,
+                                                       exc, *self._qspathify(src, dst)))
+
+        resp = self._rmvcp(sources, destination, mv, "MV",
+                           errno_callback=handle_errno,
+                           exception_callback=handle_mv_exception)
+
+        if resp:
+            return resp  # e.g. invalid path
+
+        if errors:
+            return create_error_response(errors)  # e.g. permission denied
+
+        return create_success_response()
 
     def _rmvcp(self,
                sources: List[str], destination: str,
                primitive: Callable[[Path, Path], bool],
-               primitive_name: str = "MV/CP"):
+               primitive_name: str = "MV/CP",
+               errno_callback: Callable[..., None] = None,
+               exception_callback: Callable[[Exception, FPath, FPath], None] = None) -> Optional[Response]:
 
         # mv <src>... <dest>
         #
@@ -287,12 +346,11 @@ class SharingService(ISharingService, BaseClientSharingService):
         if not is_valid_list(sources, str) or not is_str(destination):
             return self._err_resp(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        destination_path = self._path_from_rcwd(destination)
-        sources_paths = [self._path_from_rcwd(s) for s in sources]
+        destination_fpath = self._fpath_joining_rcwd_and_spath(destination)
 
-        if not self._is_fpath_allowed(destination_path):
+        if not self._is_fpath_allowed(destination_fpath):
             log.e("Path is invalid (out of sharing domain)")
-            return self._err_resp(ServerErrors.INVALID_PATH)
+            return self._err_resp(ServerErrors.INVALID_PATH, q(destination))
 
         # sources_paths will be checked after, since if we are copy more than
         # a file and only one is invalid we won't throw a global exception
@@ -302,9 +360,9 @@ class SharingService(ISharingService, BaseClientSharingService):
             # C1  if <dest> exists => must be a dir
             # C2  If <dest> doesn't exist => ERROR
             # => must be a valid dir
-            if not destination_path.is_dir():
-                log.e("'%s' must be an existing directory", destination_path)
-                return self._err_resp(ServerErrors.NOT_A_DIRECTORY)
+            if not destination_fpath.is_dir():
+                log.e("'%s' must be an existing directory", destination_fpath)
+                return self._err_resp(ServerErrors.NOT_A_DIRECTORY, destination_fpath)
 
         errors = []
 
@@ -313,33 +371,24 @@ class SharingService(ISharingService, BaseClientSharingService):
         log.i("<< %s %s %s [%s]",
               primitive_name, sources, destination, str(client_endpoint))
 
-        for src_path in sources_paths:
+        for source_path in sources:
+            source_fpath = self._fpath_joining_rcwd_and_spath(source_path)
+
             # Path validity check
-            if not self._is_fpath_allowed(src_path):
+            if self._is_fpath_allowed(source_fpath):
+                try:
+                    log.i("%s %s -> %s", primitive_name, source_fpath, destination_fpath)
+                    primitive(source_fpath, destination_fpath)
+                except Exception as ex:
+                    if exception_callback:
+                        exception_callback(ex, source_fpath, destination_fpath)
+            else:
                 log.e("Path is invalid (out of sharing domain)")
-                errors.append(ServerErrors.INVALID_PATH)
-                continue
 
-            try:
-                log.i("%s %s -> %s", primitive_name, src_path, destination_path)
-                primitive(src_path, destination_path)
-            except Exception as ex:
-                errors.append(str(ex))
+                if errno_callback:
+                    errno_callback(ServerErrors.INVALID_PATH, q(source_path))
 
-        # Eventually report errors
-        response_data = None
-
-        if errors:
-            log.e("Reporting %d errors to the es", len(errors))
-
-            if len(errors) == len(sources):
-                # Only a request with a fail: global fail
-                return self._err_resp(errors[0])
-
-            # Otherwise it is a success, but tell the client about the errors
-            response_data = {"errors": errors}
-
-        return create_success_response(response_data)
+        return None
 
 
     @expose
