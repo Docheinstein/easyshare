@@ -5,7 +5,6 @@ from typing import Callable, List, Tuple
 from Pyro5.server import expose
 from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner
 
-from easyshare.common import transfer_port
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services.transfer.get import GetService
 from easyshare.esd.services.transfer.put import PutService
@@ -19,7 +18,6 @@ from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_
 from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list
 
 log = get_logger(__name__)
-
 
 # =============================================
 # ============== SHARING SERVICE ==============
@@ -72,41 +70,41 @@ class SharingService(ISharingService, BaseClientSharingService):
     @try_or_command_failed_response
     @check_sharing_service_owner
     @ensure_d_sharing
-    def rcd(self, path: str) -> Response:
-        path = path or "/"
+    def rcd(self, spath: str) -> Response:
+        spath = spath or "/"
 
-        if not is_str(path):
+        if not is_str(spath):
             return self._err_resp(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         client_endpoint = pyro_client_endpoint()
 
-        log.i("<< RCD %s [%s]", path, str(client_endpoint))
-        new_rcwd_path = self._path_join_from_rcwd(path)
+        log.i("<< RCD %s [%s]", spath, str(client_endpoint))
+        new_rcwd_fpath = self._fpath_joining_rcwd_and_spath(spath)
 
-        log.d("User would cd into: %s", new_rcwd_path)
+        log.d("User would cd into: %s", new_rcwd_fpath)
 
         # Check if it's inside the sharing domain
-        if not self._path_is_allowed(new_rcwd_path):
-            return self._err_resp(ServerErrors.INVALID_PATH, new_rcwd_path)
+        if not self._is_fpath_allowed(new_rcwd_fpath):
+            return self._err_resp(ServerErrors.INVALID_PATH)
 
         # Check if it actually exists
-        if not new_rcwd_path.is_dir():
-            return self._err_resp(ServerErrors.NOT_A_DIRECTORY, new_rcwd_path)
+        if not new_rcwd_fpath.is_dir():
+            return self._err_resp(ServerErrors.NOT_A_DIRECTORY, new_rcwd_fpath)
 
         # The path is allowed and exists, setting it as new rcwd
-        self._rcwd = new_rcwd_path
+        self._rcwd_fpath = new_rcwd_fpath
 
-        log.i("New valid rcwd: %s", self._rcwd)
+        log.i("New valid rcwd: %s", self._rcwd_fpath)
 
         # Tell the client the new rcwd
-        rcwd_client = str(self._path_rel_to_root(self._rcwd))
-        rcwd_client = "" if rcwd_client == "." else rcwd_client
+        rcwd_spath_str = str(self._rcwd_spath)
+        rcwd_spath_str = "" if rcwd_spath_str == "." else rcwd_spath_str
 
-        log.d("RCWD for the client: %s", rcwd_client)
+        log.d("RCWD for the client: %s", rcwd_spath_str)
 
-        print(f"[{self._client.tag}] rcd '{self._rcwd}'")
+        print(f"[{self._client.tag}] rcd '{self._rcwd_fpath}'")
 
-        return create_success_response(rcwd_client)
+        return create_success_response(rcwd_spath_str)
 
     @expose
     @trace_api
@@ -117,11 +115,12 @@ class SharingService(ISharingService, BaseClientSharingService):
         client_endpoint = pyro_client_endpoint()
         log.i("<< RPWD %s", str(client_endpoint))
 
-        rcwd_client = str(self._path_rel_to_root(self._rcwd))
+        rcwd_spath_str = str(self._rcwd_spath)
+        rcwd_spath_str = "" if rcwd_spath_str == "." else rcwd_spath_str
 
         print(f"[{self._client.tag}] rpwd'")
 
-        return create_success_response(rcwd_client)
+        return create_success_response(rcwd_spath_str)
 
     @expose
     @trace_api
@@ -220,24 +219,24 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         log.i("<< RMKDIR %s [%s]", directory, str(client_endpoint))
 
-        directory_path = self._path_from_rcwd(directory)
-        log.d("User would create directory: %s", directory_path)
+        directory_fpath = self._fpath_joining_rcwd_and_spath(directory)
+        log.d("User would create directory: %s", directory_fpath)
 
         # Check if it's inside the sharing domain
-        if not self._path_is_allowed(directory_path):
+        if not self._is_fpath_allowed(directory_fpath):
             return self._err_resp(ServerErrors.INVALID_PATH)
 
-        log.i("Going to mkdir on valid path %s", directory_path)
+        log.i("Going to mkdir on valid path %s", directory_fpath)
 
         try:
-            directory_path.mkdir(parents=True)
-            print(f"[{self._client.tag}] rmkdir '{directory_path}'")
+            directory_fpath.mkdir(parents=True)
+            print(f"[{self._client.tag}] rmkdir '{directory_fpath}'")
         except PermissionError:
-            return self._err_resp(ServerErrors.PERMISSION_DENIED)
+            return self._err_resp(ServerErrors.PERMISSION_DENIED, directory_fpath)
         except FileExistsError:
-            return self._err_resp(ServerErrors.DIRECTORY_ALREADY_EXISTS)
+            return self._err_resp(ServerErrors.DIRECTORY_ALREADY_EXISTS, directory_fpath)
         except OSError as oserr:
-            return self._err_resp(os_error_str(oserr))
+            return self._err_resp(os_error_str(oserr), directory_fpath)
 
         return create_success_response()
 
@@ -291,7 +290,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         destination_path = self._path_from_rcwd(destination)
         sources_paths = [self._path_from_rcwd(s) for s in sources]
 
-        if not self._path_is_allowed(destination_path):
+        if not self._is_fpath_allowed(destination_path):
             log.e("Path is invalid (out of sharing domain)")
             return self._err_resp(ServerErrors.INVALID_PATH)
 
@@ -316,7 +315,7 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         for src_path in sources_paths:
             # Path validity check
-            if not self._path_is_allowed(src_path):
+            if not self._is_fpath_allowed(src_path):
                 log.e("Path is invalid (out of sharing domain)")
                 errors.append(ServerErrors.INVALID_PATH)
                 continue

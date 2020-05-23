@@ -1,7 +1,6 @@
 import traceback
 from typing import Union, List, Tuple, Any, Dict
 
-from easyshare.consts import ansi
 from easyshare.styling import fg
 from easyshare.utils.types import is_str
 

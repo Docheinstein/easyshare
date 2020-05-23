@@ -15,7 +15,7 @@ class ServerErrors:
     NOT_CONNECTED =             204 # 0
     COMMAND_EXECUTION_FAILED =  205 # 0
     SHARING_NOT_FOUND =         206 # 1
-    INVALID_PATH =              207 # 1
+    INVALID_PATH =              207 # 0
     INVALID_TRANSACTION =       208
     NOT_ALLOWED =               209 # 0
     AUTHENTICATION_FAILED =     210
