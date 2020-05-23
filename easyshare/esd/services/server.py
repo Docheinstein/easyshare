@@ -134,7 +134,9 @@ class ServerService(IServer, BaseService):
         else:
             log.i("Authentication OK")
 
-        self._add_client(client_endpoint)
+        ctx = self._add_client(client_endpoint)
+
+        print(green(f"[{ctx.tag}] connected - {ctx.endpoint[0]}"))
 
         return create_success_response()
 
@@ -210,6 +212,8 @@ class ServerService(IServer, BaseService):
 
         log.i("Opened sharing UID: %s", uid)
 
+        print(f"[{client.tag}] open '{sharing_name}'")
+
         return create_success_response(uid)
 
 
@@ -244,6 +248,9 @@ class ServerService(IServer, BaseService):
         uri = rx.publish()
 
         log.d("Rexec handler initialized; uri: %s", uri)
+
+        print(f"[{client.tag}] rexec '{cmd}'")
+
         return create_success_response(uri)
 
     @expose
@@ -269,6 +276,9 @@ class ServerService(IServer, BaseService):
         uri = rsh.publish()
 
         log.d("Rexec handler initialized; uri: %s", uri)
+
+        print(f"[{client.tag}] rshell")
+
         return create_success_response(uri)
 
     def server_info(self) -> ServerInfo:
@@ -286,11 +296,6 @@ class ServerService(IServer, BaseService):
         """ Adds the endpoint to the set of known clients """
         with self._clients_lock:
             ctx = ClientContext(endpoint)
-
-            log.i("Adding es %s", ctx)
-
-            print(green(f"[{ctx.tag}] Client connected - {ctx.endpoint[0]}"))
-
             self._clients[endpoint] = ctx
 
         return ctx
@@ -307,16 +312,14 @@ class ServerService(IServer, BaseService):
             if not ctx:
                 return False
 
-            print(red(f"[{ctx.tag}] Client disconnected - {ctx.endpoint[0]}"))
-
-            log.i("Removing es %s", ctx)
-
             daemon = get_pyro_daemon()
 
             with ctx.lock:
                 for service_id in ctx.services:
                     daemon.unpublish(service_id)
 
+
+        print(red(f"[{ctx.tag}] disconnected - {ctx.endpoint[0]}"))
 
         return True
 

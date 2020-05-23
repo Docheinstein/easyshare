@@ -8,8 +8,9 @@ from easyshare.utils.types import is_str, is_int, is_dict, is_list, is_valid_lis
 
 class ServerErrors:
     """ Server side errors """
-    UNSPECIFIED_ERROR =         200 # 0
-    SPECIFIED_ERROR =           201 # 1
+    ERR_0 =                      199 # 0
+    ERR_1 =                      200 # 1
+    ERR_2 =                      201 # 1
     INVALID_COMMAND_SYNTAX =    202 # 0
     NOT_IMPLEMENTED =           203 # 0
     NOT_CONNECTED =             204 # 0
@@ -29,11 +30,11 @@ class ServerErrors:
 
     MV_NOT_EXISTS =             218 # 2
     MV_PERMISSION_DENIED =      219 # 2
-    MV_SPECIFIED_ERROR =        220 # 3
+    MV_OTHER_ERROR =            220 # 3
 
     CP_NOT_EXISTS =             221 # 2
     CP_PERMISSION_DENIED =      222 # 2
-    CP_SPECIFIED_ERROR =        223 # 3
+    CP_OTHER_ERROR =            223 # 3
 
 
 class TransferOutcomes:
@@ -149,7 +150,7 @@ def create_error_of_response(err: Union[int, str], *subjects) -> Optional[Respon
 
     if is_str(err):
         # Consider err as a reason of a SPECIFIED_ERROR
-        return {"errno": ServerErrors.SPECIFIED_ERROR, "subjects": err}
+        return {"errno": ServerErrors.ERR_1, "subjects": err}
 
     return None
 

@@ -489,7 +489,7 @@ class Client:
             raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
                                                   q(directory)))
         except OSError as oserr:
-            raise CommandExecutionError(errno_str(ClientErrors.ERR2,
+            raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
                                                   os_error_str(oserr),
                                                   q(directory)))
 
@@ -516,7 +516,7 @@ class Client:
                 raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
                                                       q(p)))
             except OSError as oserr:
-                raise CommandExecutionError(errno_str(ClientErrors.ERR2,
+                raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
                                                       os_error_str(oserr), q(p)))
 
             return ls_res
@@ -547,7 +547,7 @@ class Client:
                 raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
                                                       q(p)))
             except OSError as oserr:
-                raise CommandExecutionError(errno_str(ClientErrors.ERR2,
+                raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
                                                       os_error_str(oserr),
                                                       q(p)))
 
@@ -575,7 +575,7 @@ class Client:
             raise CommandExecutionError(errno_str(ClientErrors.DIRECTORY_ALREADY_EXISTS,
                                                   q(directory)))
         except OSError as oserr:
-            raise CommandExecutionError(errno_str(ClientErrors.ERR2,
+            raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
                                                   os_error_str(oserr),
                                                   q(directory)))
 
@@ -598,11 +598,11 @@ class Client:
                 errors.append(errno_str(ClientErrors.NOT_EXISTS,
                                         q(path)))
             elif isinstance(exc, OSError):
-                errors.append(errno_str(ClientErrors.ERR2,
+                errors.append(errno_str(ClientErrors.ERR_2,
                                         os_error_str(exc),
                                         q(path)))
             else:
-                errors.append(errno_str(ClientErrors.ERR1, exc))
+                errors.append(errno_str(ClientErrors.ERR_1, exc))
 
         for p in paths:
             rm(p, error_callback=handle_rm_error)
@@ -624,10 +624,10 @@ class Client:
                 errors.append(errno_str(ClientErrors.MV_NOT_EXISTS,
                                         q(src), q(dst)))
             elif isinstance(exc, OSError):
-                errors.append(errno_str(ClientErrors.MV_SPECIFIED_ERROR,
+                errors.append(errno_str(ClientErrors.MV_OTHER_ERROR,
                                         os_error_str(exc), q(src), q(dst)))
             else:
-                errors.append(errno_str(ClientErrors.MV_SPECIFIED_ERROR,
+                errors.append(errno_str(ClientErrors.MV_OTHER_ERROR,
                                         exc, q(src), q(dst)))
 
         Client._mvcp(args, mv, "MV", error_callback=handle_mv_error)
@@ -648,10 +648,10 @@ class Client:
                 errors.append(errno_str(ClientErrors.CP_NOT_EXISTS,
                                         q(src), q(dst)))
             elif isinstance(exc, OSError):
-                errors.append(errno_str(ClientErrors.CP_SPECIFIED_ERROR,
+                errors.append(errno_str(ClientErrors.CP_OTHER_ERROR,
                                         os_error_str(exc), q(src), q(dst)))
             else:
-                errors.append(errno_str(ClientErrors.CP_SPECIFIED_ERROR,
+                errors.append(errno_str(ClientErrors.CP_OTHER_ERROR,
                                         exc, q(src), q(dst)))
 
         Client._mvcp(args, cp, "CP", error_callback=handle_cp_error)
@@ -1949,7 +1949,7 @@ class Client:
     @staticmethod
     def _mvcp(args: Args,
               primitive: Callable[[Path, Path], bool],
-              primitive_name: str = "MV/CP",
+              primitive_name: str = "mv/cp",
               error_callback: Callable[[Exception, Path, Path], None] = None):
 
 
@@ -1992,7 +1992,7 @@ class Client:
         # Every other constraint is well handled by shutil.move() or shutil.copytree()
 
         for src in sources:
-            log.i(">> %s '%s' '%s'", primitive_name, src, dest)
+            log.i(">> %s '%s' '%s'", primitive_name.upper(), src, dest)
 
             try:
                 primitive(src, dest)

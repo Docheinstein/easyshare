@@ -137,7 +137,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         sort_by = sort_by or ["name"]
         reverse = reverse or False
 
-        if not is_str(path) or not is_list(sort_by) or not is_bool(reverse):
+        if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse):
             return self._err_resp(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         client_endpoint = pyro_client_endpoint()
@@ -147,18 +147,26 @@ class SharingService(ISharingService, BaseClientSharingService):
               " | reverse " if reverse else "",
               str(client_endpoint))
 
-        # Compute real path and check path legality
-        real_path = self._real_path_from_rcwd(path)
 
-        if not self._is_real_path_allowed(real_path):
-            log.e("Path is invalid (out of sharing domain)")
-            return self._err_resp(ServerErrors.INVALID_PATH)
+        ls_fpath = self._fpath_joining_rcwd_and_spath(path)
+        log.d("User would ls into: %s", ls_fpath)
 
-        log.i("Going to ls on %s", real_path)
+        # Check if it's inside the sharing domain
+        if not self._is_fpath_allowed(ls_fpath):
+            return self._err_resp(ServerErrors.INVALID_PATH, q(path))
 
-        ls_result = ls(real_path, sort_by=sort_by, reverse=reverse)
-        if ls_result is None:  # Check is None, since might be empty
-            return self._err_resp(ServerErrors.COMMAND_EXECUTION_FAILED)
+        log.i("Going to ls on valid path %s", ls_fpath)
+
+        try:
+            ls_result = ls(ls_fpath, sort_by=sort_by, reverse=reverse, hidden=hidden)
+            # OK - report it
+            print(f"[{self._client.tag}] rls '{ls_fpath}'")
+        except FileNotFoundError:
+            return self._err_resp(ServerErrors.NOT_EXISTS, ls_fpath)
+        except PermissionError:
+            return self._err_resp(ServerErrors.PERMISSION_DENIED, ls_fpath)
+        except OSError as oserr:
+            return self._err_resp(ServerErrors.ERR_2, os_error_str(oserr), ls_fpath)
 
         log.i("RLS response %s", str(ls_result))
 
@@ -178,7 +186,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         sort_by = sort_by or ["name"]
         reverse = reverse or False
 
-        if not is_str(path) or not is_list(sort_by) or not is_bool(reverse):
+        if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse):
             return self._err_resp(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         client_endpoint = pyro_client_endpoint()
@@ -188,18 +196,27 @@ class SharingService(ISharingService, BaseClientSharingService):
               " | reverse " if reverse else "",
               str(client_endpoint))
 
-        # Compute real path and check path legality
-        real_path = self._real_path_from_rcwd(path)
+        tree_fpath = self._fpath_joining_rcwd_and_spath(path)
+        log.d("User would tree into: %s", tree_fpath)
 
-        if not self._is_real_path_allowed(real_path):
-            log.e("Path is invalid (out of sharing domain)")
-            return self._err_resp(ServerErrors.INVALID_PATH)
+        # Check if it's inside the sharing domain
+        if not self._is_fpath_allowed(tree_fpath):
+            return self._err_resp(ServerErrors.INVALID_PATH, q(path))
 
-        log.i("Going to tree on %s", real_path)
+        log.i("Going to tree on valid path %s", tree_fpath)
 
-        tree_root = tree(real_path, sort_by=sort_by, reverse=reverse, max_depth=max_depth)
-        if tree_root is None:  # Check is None, since might be empty
-            return self._err_resp(ServerErrors.COMMAND_EXECUTION_FAILED)
+        try:
+            tree_root = tree(tree_fpath,
+                             sort_by=sort_by, reverse=reverse,
+                             hidden=hidden, max_depth=max_depth)
+            # OK - report it
+            print(f"[{self._client.tag}] rtree '{tree_fpath}'")
+        except FileNotFoundError:
+            return self._err_resp(ServerErrors.NOT_EXISTS, tree_fpath)
+        except PermissionError:
+            return self._err_resp(ServerErrors.PERMISSION_DENIED, tree_fpath)
+        except OSError as oserr:
+            return self._err_resp(ServerErrors.ERR_2, os_error_str(oserr), tree_fpath)
 
         log.i("RTREE response %s", j(tree_root))
 
@@ -232,13 +249,14 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         try:
             directory_fpath.mkdir(parents=True)
+            # OK - report it
             print(f"[{self._client.tag}] rmkdir '{directory_fpath}'")
         except PermissionError:
             return self._err_resp(ServerErrors.PERMISSION_DENIED, directory_fpath)
         except FileExistsError:
             return self._err_resp(ServerErrors.DIRECTORY_ALREADY_EXISTS, directory_fpath)
         except OSError as oserr:
-            return self._err_resp(os_error_str(oserr), directory_fpath)
+            return self._err_resp(ServerErrors.ERR_2, os_error_str(oserr), directory_fpath)
 
         return create_success_response()
 
@@ -262,13 +280,13 @@ class SharingService(ISharingService, BaseClientSharingService):
                 errors.append(create_error_of_response(ServerErrors.CP_NOT_EXISTS,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, OSError):
-                errors.append(create_error_of_response(ServerErrors.CP_SPECIFIED_ERROR,
+                errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
                                                        os_error_str(exc), *self._qspathify(src, dst)))
             else:
-                errors.append(create_error_of_response(ServerErrors.CP_SPECIFIED_ERROR,
+                errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
                                                        exc, *self._qspathify(src, dst)))
 
-        resp = self._rmvcp(sources, destination, cp, "CP",
+        resp = self._rmvcp(sources, destination, cp, "rcp",
                            errno_callback=handle_errno,
                            exception_callback=handle_cp_exception)
         if resp:
@@ -299,13 +317,13 @@ class SharingService(ISharingService, BaseClientSharingService):
                 errors.append(create_error_of_response(ServerErrors.MV_NOT_EXISTS,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, OSError):
-                errors.append(create_error_of_response(ServerErrors.MV_SPECIFIED_ERROR,
+                errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
                                                        os_error_str(exc), *self._qspathify(src, dst)))
             else:
-                errors.append(create_error_of_response(ServerErrors.MV_SPECIFIED_ERROR,
+                errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
                                                        exc, *self._qspathify(src, dst)))
 
-        resp = self._rmvcp(sources, destination, mv, "MV",
+        resp = self._rmvcp(sources, destination, mv, "rmv",
                            errno_callback=handle_errno,
                            exception_callback=handle_mv_exception)
 
@@ -320,7 +338,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     def _rmvcp(self,
                sources: List[str], destination: str,
                primitive: Callable[[Path, Path], bool],
-               primitive_name: str = "MV/CP",
+               primitive_name: str = "mv/cp",
                errno_callback: Callable[..., None] = None,
                exception_callback: Callable[[Exception, FPath, FPath], None] = None) -> Optional[Response]:
 
@@ -369,7 +387,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< %s %s %s [%s]",
-              primitive_name, sources, destination, str(client_endpoint))
+              primitive_name.upper(), sources, destination, str(client_endpoint))
 
         for source_path in sources:
             source_fpath = self._fpath_joining_rcwd_and_spath(source_path)
@@ -379,6 +397,8 @@ class SharingService(ISharingService, BaseClientSharingService):
                 try:
                     log.i("%s %s -> %s", primitive_name, source_fpath, destination_fpath)
                     primitive(source_fpath, destination_fpath)
+                    # OK - report it
+                    print(f"[{self._client.tag}] {primitive_name} '{source_fpath}' '{destination_fpath}'")
                 except Exception as ex:
                     if exception_callback:
                         exception_callback(ex, source_fpath, destination_fpath)
@@ -532,5 +552,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         log.i("Deallocating es resources...")
 
         # TODO remove gets/puts
+
+        print(f"[{self._client.tag}] close '{self._sharing.name}'")
 
         self._notify_service_end()

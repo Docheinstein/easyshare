@@ -12,9 +12,10 @@ log = get_logger(__name__)
 class ClientErrors:
     # TODO: probably we have to delete these
     """ Client side errors """
-    ERR =                           97
-    ERR1 =                          98
-    ERR2 =                          99
+    ERR_0 =                          97
+    ERR_1 =                          98
+    ERR_2 =                          99
+
     COMMAND_NOT_RECOGNIZED =        101
     INVALID_COMMAND_SYNTAX =        102
     INVALID_PARAMETER_VALUE =       103
@@ -37,11 +38,11 @@ class ClientErrors:
 
     MV_NOT_EXISTS =                 119
     MV_PERMISSION_DENIED =          120
-    MV_SPECIFIED_ERROR =            121
+    MV_OTHER_ERROR =                121
 
     CP_NOT_EXISTS =                 121
     CP_PERMISSION_DENIED =          122
-    CP_SPECIFIED_ERROR =            123
+    CP_OTHER_ERROR =                123
 
 
 class ErrorsStrings:
@@ -58,9 +59,9 @@ class ErrorsStrings:
     SHARING_NOT_FOUND = "Sharing not found: {}"
 
 
-    ERR = "Error"
-    ERR1 = "{}"
-    ERR2 = "{}: '{}'"
+    ERR_0 = "Error"
+    ERR_1 = "{}"
+    ERR_2 = "{}: {}"
 
     SUCCESS = "Success"
     ERROR = "Error"
@@ -96,8 +97,9 @@ class SubErrorsStrings:
 
 # Maps the errors (any kind of error) to its string
 _ERRORS_STRINGS_MAP = {
-    ServerErrors.UNSPECIFIED_ERROR: ErrorsStrings.ERR,
-    ServerErrors.SPECIFIED_ERROR: ErrorsStrings.ERR1,
+    ServerErrors.ERR_0: ErrorsStrings.ERR_0,
+    ServerErrors.ERR_1: ErrorsStrings.ERR_1,
+    ServerErrors.ERR_2: ErrorsStrings.ERR_2,
     ServerErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
     ServerErrors.NOT_IMPLEMENTED: ErrorsStrings.NOT_IMPLEMENTED,
     ServerErrors.NOT_CONNECTED: ErrorsStrings.NOT_CONNECTED,
@@ -113,19 +115,20 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.NOT_A_DIRECTORY: ErrorsStrings.NOT_A_DIRECTORY,
     ServerErrors.PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED,
     ServerErrors.DIRECTORY_ALREADY_EXISTS: ErrorsStrings.DIRECTORY_ALREADY_EXISTS,
+    ServerErrors.NOT_EXISTS: ErrorsStrings.NOT_EXISTS,
 
     ServerErrors.MV_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_MOVE),
     ServerErrors.MV_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_MOVE),
-    ServerErrors.MV_SPECIFIED_ERROR: ErrorsStrings.ERR1.format(SubErrorsStrings.CANNOT_MOVE),
+    ServerErrors.MV_OTHER_ERROR: ErrorsStrings.ERR_1.format(SubErrorsStrings.CANNOT_MOVE),
 
     ServerErrors.CP_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_COPY),
     ServerErrors.CP_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_COPY),
-    ServerErrors.CP_SPECIFIED_ERROR: ErrorsStrings.ERR1.format(SubErrorsStrings.CANNOT_COPY),
+    ServerErrors.CP_OTHER_ERROR: ErrorsStrings.ERR_1.format(SubErrorsStrings.CANNOT_COPY),
 
 
-    ClientErrors.ERR: ErrorsStrings.ERR,
-    ClientErrors.ERR1: ErrorsStrings.ERR1,
-    ClientErrors.ERR2: ErrorsStrings.ERR2,
+    ClientErrors.ERR_0: ErrorsStrings.ERR_0,
+    ClientErrors.ERR_1: ErrorsStrings.ERR_1,
+    ClientErrors.ERR_2: ErrorsStrings.ERR_2,
     ClientErrors.COMMAND_NOT_RECOGNIZED: ErrorsStrings.COMMAND_NOT_RECOGNIZED,
     ClientErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
     ClientErrors.INVALID_PARAMETER_VALUE: ErrorsStrings.INVALID_PARAMETER_VALUE,
@@ -145,11 +148,11 @@ _ERRORS_STRINGS_MAP = {
 
     ClientErrors.MV_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_MOVE),
     ClientErrors.MV_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_MOVE),
-    ClientErrors.MV_SPECIFIED_ERROR: ErrorsStrings.ERR1.format(SubErrorsStrings.CANNOT_MOVE),
+    ClientErrors.MV_OTHER_ERROR: ErrorsStrings.ERR_1.format(SubErrorsStrings.CANNOT_MOVE),
 
     ClientErrors.CP_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_COPY),
     ClientErrors.CP_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_COPY),
-    ClientErrors.CP_SPECIFIED_ERROR: ErrorsStrings.ERR1.format(SubErrorsStrings.CANNOT_COPY),
+    ClientErrors.CP_OTHER_ERROR: ErrorsStrings.ERR_1.format(SubErrorsStrings.CANNOT_COPY),
 
     TransferOutcomes.SUCCESS: ErrorsStrings.SUCCESS,
     TransferOutcomes.ERROR: ErrorsStrings.ERROR,
