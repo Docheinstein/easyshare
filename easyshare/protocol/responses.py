@@ -36,6 +36,10 @@ class ServerErrors:
     CP_PERMISSION_DENIED =      222 # 2
     CP_OTHER_ERROR =            223 # 3
 
+    RM_NOT_EXISTS =             224 # 1
+    RM_PERMISSION_DENIED =      225 # 1
+    RM_OTHER_ERROR =            226 # 2
+
 
 class TransferOutcomes:
     """ Possibles results of outcome() of a 'TransferService' """

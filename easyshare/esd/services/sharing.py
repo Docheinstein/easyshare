@@ -30,7 +30,7 @@ def check_write_permission(api):
     def check_write_permission_wrapper(service: 'SharingService', *vargs, **kwargs):
         if service._sharing.read_only:
             log.e("Forbidden: write action on read only sharing by [%s]", pyro_client_endpoint())
-            return service._err_resp(ServerErrors.NOT_WRITABLE)
+            return service._create_error_response(ServerErrors.NOT_WRITABLE)
         return api(service, *vargs, **kwargs)
 
     check_write_permission_wrapper.__name__ = api.__name__
@@ -42,7 +42,7 @@ def ensure_d_sharing(api):
     def ensure_d_sharing_wrapper(service: 'SharingService', *vargs, **kwargs):
         if service._sharing.ftype != FTYPE_DIR:
             log.e("Forbidden: command allowed only for DIR sharing by [%s]", pyro_client_endpoint())
-            return service._err_resp(ServerErrors.NOT_ALLOWED_FOR_F_SHARING)
+            return service._create_error_response(ServerErrors.NOT_ALLOWED_FOR_F_SHARING)
         return api(service, *vargs, **kwargs)
 
     ensure_d_sharing_wrapper.__name__ = api.__name__
@@ -76,7 +76,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         spath = spath or "/"
 
         if not is_str(spath):
-            return self._err_resp(ServerErrors.INVALID_COMMAND_SYNTAX)
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         client_endpoint = pyro_client_endpoint()
 
@@ -87,11 +87,11 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(new_rcwd_fpath):
-            return self._err_resp(ServerErrors.INVALID_PATH, q(spath))
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(spath))
 
         # Check if it actually exists
         if not new_rcwd_fpath.is_dir():
-            return self._err_resp(ServerErrors.NOT_A_DIRECTORY, new_rcwd_fpath)
+            return self._create_error_response(ServerErrors.NOT_A_DIRECTORY, new_rcwd_fpath)
 
         # The path is allowed and exists, setting it as new rcwd
         self._rcwd_fpath = new_rcwd_fpath
@@ -138,7 +138,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         reverse = reverse or False
 
         if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse):
-            return self._err_resp(ServerErrors.INVALID_COMMAND_SYNTAX)
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         client_endpoint = pyro_client_endpoint()
 
@@ -153,7 +153,7 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(ls_fpath):
-            return self._err_resp(ServerErrors.INVALID_PATH, q(path))
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
 
         log.i("Going to ls on valid path %s", ls_fpath)
 
@@ -162,11 +162,14 @@ class SharingService(ISharingService, BaseClientSharingService):
             # OK - report it
             print(f"[{self._client.tag}] rls '{ls_fpath}'")
         except FileNotFoundError:
-            return self._err_resp(ServerErrors.NOT_EXISTS, ls_fpath)
+            return self._create_error_response(ServerErrors.NOT_EXISTS,
+                                               ls_fpath)
         except PermissionError:
-            return self._err_resp(ServerErrors.PERMISSION_DENIED, ls_fpath)
+            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
+                                               ls_fpath)
         except OSError as oserr:
-            return self._err_resp(ServerErrors.ERR_2, os_error_str(oserr), ls_fpath)
+            return self._create_error_response(ServerErrors.ERR_2, os_error_str(oserr),
+                                               ls_fpath)
 
         log.i("RLS response %s", str(ls_result))
 
@@ -187,7 +190,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         reverse = reverse or False
 
         if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse):
-            return self._err_resp(ServerErrors.INVALID_COMMAND_SYNTAX)
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         client_endpoint = pyro_client_endpoint()
 
@@ -201,7 +204,7 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(tree_fpath):
-            return self._err_resp(ServerErrors.INVALID_PATH, q(path))
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
 
         log.i("Going to tree on valid path %s", tree_fpath)
 
@@ -212,11 +215,14 @@ class SharingService(ISharingService, BaseClientSharingService):
             # OK - report it
             print(f"[{self._client.tag}] rtree '{tree_fpath}'")
         except FileNotFoundError:
-            return self._err_resp(ServerErrors.NOT_EXISTS, tree_fpath)
+            return self._create_error_response(ServerErrors.NOT_EXISTS,
+                                               tree_fpath)
         except PermissionError:
-            return self._err_resp(ServerErrors.PERMISSION_DENIED, tree_fpath)
+            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
+                                               tree_fpath)
         except OSError as oserr:
-            return self._err_resp(ServerErrors.ERR_2, os_error_str(oserr), tree_fpath)
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               os_error_str(oserr), tree_fpath)
 
         log.i("RTREE response %s", j(tree_root))
 
@@ -232,7 +238,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @ensure_d_sharing
     def rmkdir(self, directory: str) -> Response:
         if not is_str(directory):
-            return self._err_resp(ServerErrors.INVALID_COMMAND_SYNTAX)
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         client_endpoint = pyro_client_endpoint()
 
@@ -243,7 +249,7 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(directory_fpath):
-            return self._err_resp(ServerErrors.INVALID_PATH, q(directory))
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(directory))
 
         log.i("Going to mkdir on valid path %s", directory_fpath)
 
@@ -252,11 +258,14 @@ class SharingService(ISharingService, BaseClientSharingService):
             # OK - report it
             print(f"[{self._client.tag}] rmkdir '{directory_fpath}'")
         except PermissionError:
-            return self._err_resp(ServerErrors.PERMISSION_DENIED, directory_fpath)
+            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
+                                               directory_fpath)
         except FileExistsError:
-            return self._err_resp(ServerErrors.DIRECTORY_ALREADY_EXISTS, directory_fpath)
+            return self._create_error_response(ServerErrors.DIRECTORY_ALREADY_EXISTS,
+                                               directory_fpath)
         except OSError as oserr:
-            return self._err_resp(ServerErrors.ERR_2, os_error_str(oserr), directory_fpath)
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               os_error_str(oserr), directory_fpath)
 
         return create_success_response()
 
@@ -362,13 +371,13 @@ class SharingService(ISharingService, BaseClientSharingService):
 
 
         if not is_valid_list(sources, str) or not is_str(destination):
-            return self._err_resp(ServerErrors.INVALID_COMMAND_SYNTAX)
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         destination_fpath = self._fpath_joining_rcwd_and_spath(destination)
 
         if not self._is_fpath_allowed(destination_fpath):
             log.e("Path is invalid (out of sharing domain)")
-            return self._err_resp(ServerErrors.INVALID_PATH, q(destination))
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(destination))
 
         # sources_paths will be checked after, since if we are copy more than
         # a file and only one is invalid we won't throw a global exception
@@ -380,7 +389,7 @@ class SharingService(ISharingService, BaseClientSharingService):
             # => must be a valid dir
             if not destination_fpath.is_dir():
                 log.e("'%s' must be an existing directory", destination_fpath)
-                return self._err_resp(ServerErrors.NOT_A_DIRECTORY, destination_fpath)
+                return self._create_error_response(ServerErrors.NOT_A_DIRECTORY, destination_fpath)
 
         errors = []
 
@@ -420,55 +429,50 @@ class SharingService(ISharingService, BaseClientSharingService):
     def rrm(self, paths: List[str]) -> Response:
         client_endpoint = pyro_client_endpoint()
 
-        if not is_list(paths) or len(paths) < 1:
-            return self._err_resp(ServerErrors.INVALID_COMMAND_SYNTAX)
+        if not is_valid_list(paths, str):
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         log.i("<< RRM %s [%s]", paths, str(client_endpoint))
 
         errors = []
+        def handle_rm_error(exc: Exception, path: Path):
+            if isinstance(exc, PermissionError):
+                errors.append(create_error_of_response(ServerErrors.RM_PERMISSION_DENIED,
+                                                       *self._qspathify(path)))
+            elif isinstance(exc, FileNotFoundError):
+                errors.append(create_error_of_response(ServerErrors.RM_NOT_EXISTS,
+                                                       *self._qspathify(path)))
+            elif isinstance(exc, OSError):
+                errors.append(create_error_of_response(ServerErrors.RM_OTHER_ERROR,
+                                                       os_error_str(exc),
+                                                       *self._qspathify(path)))
+            else:
+                errors.append(create_error_of_response(ServerErrors.RM_OTHER_ERROR,
+                                                       exc,
+                                                       *self._qspathify(path)))
 
-        def handle_rm_error(err):
-            log.i("RM error: %s", err)
-            errors.append(str(err))
+        for p in paths:
+            fpath = self._fpath_joining_rcwd_and_spath(p)
 
-
-        for path in paths:
-            rm_path = self._real_path_from_rcwd(path)
-
-            log.i("RM on path: %s", rm_path)
-
-            if not self._is_real_path_allowed(rm_path):
+            if self._is_fpath_allowed(fpath):
+                errcnt = len(errors)
+                rm(fpath, error_callback=handle_rm_error)
+                new_errcnt = len(errors)
+                # OK - report it (even if failures might happen within it)
+                #    - at least notify the number of failures, if any
+                report = f"[{self._client.tag}] rm '{fpath}'"
+                if new_errcnt > errcnt:
+                    report += f" ({new_errcnt - errcnt} failures)"
+                print(report)
+            else:
                 log.e("Path is invalid (out of sharing domain)")
-                errors.append(ServerErrors.INVALID_PATH)
-                continue
+                errors.append(create_error_of_response(ServerErrors.INVALID_PATH, q(p)))
 
-            # Do not allow to remove the entire sharing
-            try:
-                if os.path.samefile(self._sharing.path, rm_path):
-                    log.e("Cannot delete the sharing's root directory")
-                    errors.append(ServerErrors.INVALID_PATH)
-                    continue
-            except:
-                # Maybe the file does not exists, don't worry and pass
-                # it to rm that will handle it properly with error_callback
-                # and report the error description
-                pass
-            finally:
-                rm(rm_path, error_callback=handle_rm_error)
-
-        # Eventually put errors in the response
-        response_data = None
 
         if errors:
-            log.e("Reporting %d errors to the es", len(errors))
+            return create_error_response(errors)
 
-            if len(paths) == 1:
-                # Only a request with a fail: global fail
-                return self._err_resp(errors[0])
-
-            response_data = {"errors": errors}
-
-        return create_success_response(response_data)
+        return create_success_response()
 
     @expose
     @trace_api

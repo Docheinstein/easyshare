@@ -40,9 +40,14 @@ class ClientErrors:
     MV_PERMISSION_DENIED =          120
     MV_OTHER_ERROR =                121
 
-    CP_NOT_EXISTS =                 121
-    CP_PERMISSION_DENIED =          122
-    CP_OTHER_ERROR =                123
+    CP_NOT_EXISTS =                 122
+    CP_PERMISSION_DENIED =          123
+    CP_OTHER_ERROR =                124
+
+
+    RM_NOT_EXISTS =                 125
+    RM_PERMISSION_DENIED =          126
+    RM_OTHER_ERROR =                127
 
 
 class ErrorsStrings:
@@ -94,6 +99,7 @@ class ErrorsStrings:
 class SubErrorsStrings:
     CANNOT_MOVE = "cannot move {} to {}"
     CANNOT_COPY = "cannot copy {} to {}"
+    CANNOT_REMOVE = "cannot remove {}"
 
 # Maps the errors (any kind of error) to its string
 _ERRORS_STRINGS_MAP = {
@@ -119,11 +125,15 @@ _ERRORS_STRINGS_MAP = {
 
     ServerErrors.MV_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_MOVE),
     ServerErrors.MV_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_MOVE),
-    ServerErrors.MV_OTHER_ERROR: ErrorsStrings.ERR_1.format(SubErrorsStrings.CANNOT_MOVE),
+    ServerErrors.MV_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_MOVE,
 
     ServerErrors.CP_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_COPY),
     ServerErrors.CP_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_COPY),
-    ServerErrors.CP_OTHER_ERROR: ErrorsStrings.ERR_1.format(SubErrorsStrings.CANNOT_COPY),
+    ServerErrors.CP_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_COPY,
+
+    ServerErrors.RM_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_REMOVE),
+    ServerErrors.RM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
+    ServerErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
 
 
     ClientErrors.ERR_0: ErrorsStrings.ERR_0,
@@ -148,11 +158,15 @@ _ERRORS_STRINGS_MAP = {
 
     ClientErrors.MV_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_MOVE),
     ClientErrors.MV_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_MOVE),
-    ClientErrors.MV_OTHER_ERROR: ErrorsStrings.ERR_1.format(SubErrorsStrings.CANNOT_MOVE),
+    ClientErrors.MV_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_MOVE,
 
     ClientErrors.CP_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_COPY),
     ClientErrors.CP_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_COPY),
-    ClientErrors.CP_OTHER_ERROR: ErrorsStrings.ERR_1.format(SubErrorsStrings.CANNOT_COPY),
+    ClientErrors.CP_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_COPY,
+
+    ClientErrors.RM_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_REMOVE),
+    ClientErrors.RM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
+    ClientErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
 
     TransferOutcomes.SUCCESS: ErrorsStrings.SUCCESS,
     TransferOutcomes.ERROR: ErrorsStrings.ERROR,

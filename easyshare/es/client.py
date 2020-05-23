@@ -193,7 +193,7 @@ def provide_server_connection(api):
 # ==================================================================
 
 class CommandExecutionError(Exception):
-    def __init__(self, errors: Union[int, str, List[str]]):
+    def __init__(self, errors: Union[int, str, List[str]] = ClientErrors.ERR_0):
         self.errors = errors
 
 class HandledKeyboardInterrupt(KeyboardInterrupt):
@@ -517,7 +517,8 @@ class Client:
                                                       q(p)))
             except OSError as oserr:
                 raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
-                                                      os_error_str(oserr), q(p)))
+                                                      os_error_str(oserr),
+                                                      q(p)))
 
             return ls_res
 
@@ -591,18 +592,21 @@ class Client:
         errors = []
 
         def handle_rm_error(exc: Exception, path):
+
             if isinstance(exc, PermissionError):
-                errors.append(errno_str(ClientErrors.PERMISSION_DENIED,
+                errors.append(errno_str(ClientErrors.RM_PERMISSION_DENIED,
                                         q(path)))
             elif isinstance(exc, FileNotFoundError):
-                errors.append(errno_str(ClientErrors.NOT_EXISTS,
+                errors.append(errno_str(ClientErrors.RM_NOT_EXISTS,
                                         q(path)))
             elif isinstance(exc, OSError):
-                errors.append(errno_str(ClientErrors.ERR_2,
+                errors.append(errno_str(ClientErrors.RM_OTHER_ERROR,
                                         os_error_str(exc),
                                         q(path)))
             else:
-                errors.append(errno_str(ClientErrors.ERR_1, exc))
+                errors.append(errno_str(ClientErrors.RM_OTHER_ERROR,
+                                        exc,
+                                        q(path)))
 
         for p in paths:
             rm(p, error_callback=handle_rm_error)
@@ -623,12 +627,14 @@ class Client:
             elif isinstance(exc, FileNotFoundError):
                 errors.append(errno_str(ClientErrors.MV_NOT_EXISTS,
                                         q(src), q(dst)))
-            elif isinstance(exc, OSError):
+            if isinstance(exc, OSError):
+                print(exc)
                 errors.append(errno_str(ClientErrors.MV_OTHER_ERROR,
                                         os_error_str(exc), q(src), q(dst)))
             else:
                 errors.append(errno_str(ClientErrors.MV_OTHER_ERROR,
-                                        exc, q(src), q(dst)))
+                                    exc, q(src),
+                                    q(dst)))
 
         Client._mvcp(args, mv, "MV", error_callback=handle_mv_error)
 
@@ -1987,7 +1993,7 @@ class Client:
             # => must be a valid dir
             if not dest.is_dir():
                 log.e("'%s' must be an existing directory", dest)
-                raise CommandExecutionError(f"{ErrorsStrings.NOT_A_DIRECTORY}: '{dest}'")
+                raise CommandExecutionError(errno_str(ErrorsStrings.NOT_A_DIRECTORY, q(dest)))
 
         # Every other constraint is well handled by shutil.move() or shutil.copytree()
 

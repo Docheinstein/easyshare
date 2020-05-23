@@ -214,23 +214,24 @@ def tree(path: Path,
 
 
 
-def rm(path: Path, error_callback: Callable[[Exception, Union[str, Path]], None] = None):
+def rm(path: Path, error_callback: Callable[[Exception, Path], None] = None) -> bool:
     if not path:
         raise TypeError("found invalid path")
+
 
     # Catch everything, and report any error to error_callback if it's valid
     try:
         if path.is_file():
             log.d("unlink since '%s' is a file", path)
             path.unlink()
-            return
+            return True
 
         if not path.is_dir():
             log.e("Cannot perform rm; invalid path")
             raise FileNotFoundError()
 
         def handle_rmtree_error(error_func,
-                                error_path,
+                                error_path: Path,
                                 error_excinfo: Tuple[Any, Exception, Any]):
 
             excinfo_class, excinfo_error, excinfo_traceback = error_excinfo
@@ -239,7 +240,7 @@ def rm(path: Path, error_callback: Callable[[Exception, Union[str, Path]], None]
 
             # Notify the observer
             if error_callback:
-                error_callback(excinfo_error, error_path)
+                error_callback(excinfo_error, Path(error_path))
 
         log.d("rmtree since '%s' is a directory", path)
         ignore_errors = False if error_callback else True

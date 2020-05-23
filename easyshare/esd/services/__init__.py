@@ -251,10 +251,10 @@ class BaseClientSharingService(BaseClientService):
         return self._trailing_path(self._sharing.path, path)
 
 
-    def _err_resp(self,
-                  err: Union[str, int, Dict, List[Dict]] = None,
-                  *subjects # if a suject is a Path, must be a FPath (relative to the file system)
-          ):
+    def _create_error_response(self,
+                               err: Union[str, int, Dict, List[Dict]] = None,
+                               *subjects  # if a suject is a Path, must be a FPath (relative to the file system)
+                               ):
         """ Sanitize subjects so that they are Path relative to the sharing root """
 
         log.d("_err_resp of subjects %s", subjects)
