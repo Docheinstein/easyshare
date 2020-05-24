@@ -33,6 +33,10 @@ class GetService(IGetService, TransferService):
     Implementation of 'IGetService' interface that will be published with Pyro.
     Handles a single execution of a get command.
     """
+
+    def name(self) -> str:
+        return "get"
+
     # TODO - known bugs
     #   1.  client can submit ../sharing_name and see if the transfer works for
     #       figure out the name of folder of the sharing (and eventually the complete path
@@ -44,8 +48,9 @@ class GetService(IGetService, TransferService):
                  sharing: Sharing,
                  sharing_rcwd: FPath,
                  client: ClientContext,
+                 conn_callback: Callable[['BaseClientService'], None],
                  end_callback: Callable[[BaseClientService], None]):
-        super().__init__(sharing, sharing_rcwd, client, end_callback)
+        super().__init__(sharing, sharing_rcwd, client, conn_callback, end_callback)
         self._check = check
         self._next_servings: List[Tuple[FPath, FPath, str]] = [] # fpath, basedir, prefix (only for is_root case)
         self._active_servings: Queue[Union[Tuple[FPath, BinaryIO], None]] = Queue() # fpath, fd
@@ -280,13 +285,20 @@ class GetService(IGetService, TransferService):
             log.i("Next outgoing file to handle: %s", next_serving_fpath)
 
             # Report it
-            print(f"[{self._client.tag}] get '{next_serving_fpath}'")
+            print(f"[{self.client.tag}] get '{next_serving_fpath}'")
 
             file_len = next_serving_fpath.stat().st_size
 
-            # TODO: if open fails, we are K.O. since the client still wait data
-            # The solution is to notify it on the pyro channel...
-            # f = next_serving.open("rb")
+            # File is already opened
+
+            # TODO:
+            #  if something about IO goes wrong all the transfer is compromised
+            #  since we can't tell the user about it.
+            #  Open is already done so there should be no permissions problems
+            # The solution is to notify the client on the pyro channel, but this
+            # implies that the client use an async mechanism for get (while for
+            # now is synchronous)
+
             cur_pos = 0
             crc = 0
 

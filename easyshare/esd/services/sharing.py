@@ -1,18 +1,17 @@
-import os
 from pathlib import Path
-from typing import Callable, List, Tuple, Optional
+from typing import Callable, List, Optional
 
 from Pyro5.server import expose
-from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner, FPath
 
 from easyshare.esd.common import ClientContext, Sharing
+from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner, FPath
 from easyshare.esd.services.transfer.get import GetService
 from easyshare.esd.services.transfer.put import PutService
 from easyshare.logging import get_logger
-from easyshare.protocol.services import ISharingService
 from easyshare.protocol.responses import create_success_response, ServerErrors, create_error_response, Response, \
     create_error_of_response
-from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
+from easyshare.protocol.services import ISharingService
+from easyshare.protocol.types import FTYPE_DIR
 from easyshare.utils.json import j
 from easyshare.utils.os import rm, mv, cp, tree, ls, os_error_str
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
@@ -57,13 +56,17 @@ class SharingService(ISharingService, BaseClientSharingService):
     Offers all the methods that operate on a sharing (e.g. rls, rmv, get, put).
     """
 
+    def name(self) -> str:
+        return "sharing"
+
     def __init__(self,
                  server_port: int,
                  sharing: Sharing,
                  sharing_rcwd: Path,
                  client: ClientContext,
+                 conn_callback: Callable[[BaseClientService], None],
                  end_callback: Callable[[BaseClientService], None]):
-        super().__init__(sharing, sharing_rcwd, client, end_callback)
+        super().__init__(sharing, sharing_rcwd, client, conn_callback, end_callback)
         self._server_port = server_port
 
 
@@ -104,7 +107,7 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         log.d("RCWD for the client: %s", rcwd_spath_str)
 
-        print(f"[{self._client.tag}] rcd '{self._rcwd_fpath}'")
+        print(f"[{self.client.tag}] rcd '{self._rcwd_fpath}'")
 
         return create_success_response(rcwd_spath_str)
 
@@ -120,7 +123,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         rcwd_spath_str = str(self._rcwd_spath)
         rcwd_spath_str = "" if rcwd_spath_str == "." else rcwd_spath_str
 
-        print(f"[{self._client.tag}] rpwd'")
+        print(f"[{self.client.tag}] rpwd'")
 
         return create_success_response(rcwd_spath_str)
 
@@ -160,7 +163,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         try:
             ls_result = ls(ls_fpath, sort_by=sort_by, reverse=reverse, hidden=hidden)
             # OK - report it
-            print(f"[{self._client.tag}] rls '{ls_fpath}'")
+            print(f"[{self.client.tag}] rls '{ls_fpath}'")
         except FileNotFoundError:
             return self._create_error_response(ServerErrors.NOT_EXISTS,
                                                ls_fpath)
@@ -218,7 +221,7 @@ class SharingService(ISharingService, BaseClientSharingService):
                              sort_by=sort_by, reverse=reverse,
                              hidden=hidden, max_depth=max_depth)
             # OK - report it
-            print(f"[{self._client.tag}] rtree '{tree_fpath}'")
+            print(f"[{self.client.tag}] rtree '{tree_fpath}'")
         except FileNotFoundError:
             return self._create_error_response(ServerErrors.NOT_EXISTS,
                                                tree_fpath)
@@ -266,7 +269,7 @@ class SharingService(ISharingService, BaseClientSharingService):
         try:
             directory_fpath.mkdir(parents=True)
             # OK - report it
-            print(f"[{self._client.tag}] rmkdir '{directory_fpath}'")
+            print(f"[{self.client.tag}] rmkdir '{directory_fpath}'")
         except PermissionError:
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                directory_fpath)
@@ -422,7 +425,7 @@ class SharingService(ISharingService, BaseClientSharingService):
                     log.i("%s %s -> %s", primitive_name, source_fpath, destination_fpath)
                     primitive(source_fpath, destination_fpath)
                     # OK - report it
-                    print(f"[{self._client.tag}] {primitive_name} '{source_fpath}' '{destination_fpath}'")
+                    print(f"[{self.client.tag}] {primitive_name} '{source_fpath}' '{destination_fpath}'")
                 except Exception as ex:
                     if exception_callback:
                         exception_callback(ex, source_fpath, destination_fpath)
@@ -475,7 +478,7 @@ class SharingService(ISharingService, BaseClientSharingService):
                 new_errcnt = len(errors)
                 # OK - report it (even if failures might happen within it)
                 #    - at least notify the number of failures, if any
-                report = f"[{self._client.tag}] rm '{fpath}'"
+                report = f"[{self.client.tag}] rm '{fpath}'"
                 if new_errcnt > errcnt:
                     report += f" ({new_errcnt - errcnt} failures)"
                 print(report)
@@ -532,14 +535,15 @@ class SharingService(ISharingService, BaseClientSharingService):
             check=check,
             sharing=self._sharing,
             sharing_rcwd=self._rcwd_fpath,
-            client=self._client,
+            client=self.client,
+            conn_callback=self._conn_callback,
             end_callback=lambda getserv: getserv.unpublish()
         )
 
         uid = get.publish()
 
         # OK - report it
-        # print(f"[{self._client.tag}] get '{' '.join(str(p) for p in get_paths)}'")
+        # print(f"[{self.client.tag}] get '{' '.join(str(p) for p in get_paths)}'")
 
         # return create_error_response(ServerErrors.NOT_IMPLEMENTED)
         return create_success_response({
@@ -561,7 +565,8 @@ class SharingService(ISharingService, BaseClientSharingService):
             check=check,
             sharing=self._sharing,
             sharing_rcwd=self._rcwd_fpath,
-            client=self._client,
+            client=self.client,
+            conn_callback=self._conn_callback,
             end_callback=lambda putserv: putserv.unpublish()
         )
 
@@ -582,6 +587,6 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         # TODO remove gets/puts
 
-        print(f"[{self._client.tag}] close '{self._sharing.name}'")
+        print(f"[{self.client.tag}] close '{self._sharing.name}'")
 
         self._notify_service_end()

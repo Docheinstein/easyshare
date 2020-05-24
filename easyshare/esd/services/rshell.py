@@ -63,11 +63,15 @@ class RshellService(IRshellService, BaseClientService):
     Handles a single execution of a rshell command.
     """
 
+    def name(self) -> str:
+        return "rshell"
+
 
     def __init__(self, *,
                  client: ClientContext,
+                 conn_callback: Callable[[BaseClientService], None],
                  end_callback: Callable[[BaseClientService], None]):
-        super().__init__(client, end_callback)
+        super().__init__(client, conn_callback, end_callback)
         self._buffer = BlockingBuffer()
         self._ptyproc: Optional[PtyProcess] = None
 

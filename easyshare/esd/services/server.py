@@ -134,7 +134,7 @@ class ServerService(IServer, BaseService):
         else:
             log.i("Authentication OK")
 
-        ctx = self._add_client(client_endpoint)
+        ctx = self._add_client_endpoint(client_endpoint)
 
         print(green(f"[{ctx.tag}] connected - {ctx.endpoint[0]}"))
 
@@ -205,6 +205,7 @@ class ServerService(IServer, BaseService):
             sharing=sharing,
             sharing_rcwd=sharing.path,
             client=client,
+            conn_callback=lambda cs: self._add_endpoint_for_client(cs.endpoint, cs.client),
             end_callback=lambda cs: cs.unpublish()
         )
 
@@ -241,6 +242,7 @@ class ServerService(IServer, BaseService):
         rx = RexecService(
             cmd,
             client=client,
+            conn_callback=lambda cs: self._add_endpoint_for_client(cs.endpoint, cs.client),
             end_callback=lambda cs: cs.unpublish()
         )
         rx.run()
@@ -269,6 +271,7 @@ class ServerService(IServer, BaseService):
 
         rsh = RshellService(
             client=client,
+            conn_callback=lambda cs: self._add_endpoint_for_client(cs.endpoint, cs.client),
             end_callback=lambda cs: cs.unpublish()
         )
         rsh.run()
@@ -292,11 +295,35 @@ class ServerService(IServer, BaseService):
 
         return si
 
-    def _add_client(self, endpoint: Endpoint) -> ClientContext:
-        """ Adds the endpoint to the set of known clients """
+    def _add_endpoint_for_client(self, endpoint: Endpoint, client: ClientContext = None):
+        self._add_client_endpoint(endpoint, client)
+
+    def _add_client_endpoint(self, endpoint: Endpoint, client: ClientContext = None) -> ClientContext:
+        """
+        Adds the endpoint to the set of known clients' endpoints.
+        (Each service has a different endpoint, we have to store all the associations)
+         """
+        if not client:
+            client = ClientContext(endpoint)
+
         with self._clients_lock:
-            ctx = ClientContext(endpoint)
-            self._clients[endpoint] = ctx
+            self._clients[endpoint] = client
+
+        log.i("New client for endpoint %s", endpoint)
+
+        return client
+
+
+    def _del_client_endpoint(self, endpoint: Endpoint) -> ClientContext:
+        """
+        Removes the endpoint from the set of known clients
+        and cleanups associated resources
+        """
+        with self._clients_lock:
+            ctx = self._clients.pop(endpoint, None)
+
+        if ctx:
+            log.d("Removed endpoint %s from client %s", endpoint, ctx)
 
         return ctx
 
@@ -305,21 +332,19 @@ class ServerService(IServer, BaseService):
         Removes the endpoint from the set of known clients
         and cleanups associated resources
         """
+        ctx = self._del_client_endpoint(endpoint)
 
-        with self._clients_lock:
-            ctx = self._clients.pop(endpoint, None)
-
-            if not ctx:
-                return False
-
+        if ctx:
             daemon = get_pyro_daemon()
 
             with ctx.lock:
                 for service_id in ctx.services:
                     daemon.unpublish(service_id)
 
-
-        print(red(f"[{ctx.tag}] disconnected - {ctx.endpoint[0]}"))
+        if ctx:
+            print(red(f"[{ctx.tag}] disconnected - {ctx.endpoint[0]}"))
+        else:
+            log.w("No client to remove for endpoint %s", endpoint)
 
         return True
 
@@ -344,4 +369,4 @@ class ServerService(IServer, BaseService):
         """
         endpoint = pyroconn.sock.getpeername()
         log.d("Cleaning up client %s resources", endpoint)
-        self._del_client(endpoint)
+        self._del_client_endpoint(endpoint)

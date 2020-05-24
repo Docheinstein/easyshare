@@ -22,10 +22,14 @@ class ClientContext:
     """ Contains the server-side information kept for a connected client """
 
     def __init__(self, endpoint: Endpoint):
+        # Actually the endpoint it's just the first of the endpoints the client
+        # can have due to different connections to server/sharing, transfer, rexec, ...
+        # We have to bind all the endpoints to client in the server logic for
+        # handle disconnection properly
         self.endpoint: Optional[Endpoint] = endpoint
-        self.services: Set[str] = set()
-        self.tag = randstring(4, alphabet=string.ascii_lowercase) # Not an unique id, just a tag
-        self.lock = threading.Lock()
+        self.services: Set[str] = set() # list of services published for this client
+        self.tag = randstring(4, alphabet=string.ascii_lowercase) # not an unique id, just a tag
+        self.lock = threading.Lock() # for atomic operations on services
 
 
     def __str__(self):
@@ -37,14 +41,14 @@ class ClientContext:
         Bounds a service to this client (in order to unpublish
         the service when the user connection is down)
         """
-        log.d("Service [%s] added", service_id)
+        log.d("Service [%s] added to client ctx", service_id)
         with self.lock:
             self.services.add(service_id)
 
 
     def remove_service(self, service_id: str):
         """ Unbounds a previously added service from this client"""
-        log.d("Service [%s] removed", service_id)
+        log.d("Service [%s] removed from client ctx", service_id)
         with self.lock:
             self.services.remove(service_id)
 

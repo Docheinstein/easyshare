@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Callable, Optional, Union, Dict, List
 
+from easyshare.endpoint import Endpoint
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.daemons.pyro import get_pyro_daemon
 from easyshare.logging import get_logger
@@ -43,6 +44,11 @@ class BaseService(ABC):
         """ Whether the service is published """
         pass
 
+    @abstractmethod
+    def name(self) -> str:
+        """ Name of the service (debug purpose) """
+        pass
+
 
 # =============================================
 # ============ BASE CLIENT SERVICE ============
@@ -56,53 +62,77 @@ class BaseClientService(BaseService):
     when is published, in order to be unpublished when the client disconnects.
     """
 
-    def __init__(self, client: ClientContext,
+    def __init__(self,
+                 client: ClientContext,
+                 conn_callback: Callable[['BaseClientService'], None],
                  end_callback: Callable[['BaseClientService'], None]):
         self.service_uri = None
         self.service_uid = None
         self.published = False
 
-        self._client = client
+        self.client = client
+        self.endpoint = None
+
+        self._conn_callback = conn_callback
         self._end_callback = end_callback
 
         self._lock = threading.Lock()
 
     def publish(self) -> str:
         """ Publishes the service to the Pyro Daemon """
+        log.d("Service [%s - %s] added", self.name(), self.service_uid)
         with self._lock:
             self.service_uri, self.service_uid = \
                 get_pyro_daemon().publish(self, uid=self.service_uid)
             self.published = True
-            self._client.add_service(self.service_uid)
+            self.client.add_service(self.service_uid)
             return self.service_uid
 
     def unpublish(self):
         """ Unpublishes the service from the Pyro Daemon """
+        log.d("Service [%s - %s] removed", self.name(), self.service_uid)
         with self._lock:
             if self.is_published():
                 get_pyro_daemon().unpublish(self.service_uid)
                 self.published = False
-                self._client.remove_service(self.service_uid)
+                self.client.remove_service(self.service_uid)
 
     def is_published(self) -> bool:
         """ Whether the service is published """
         return self.published
 
+    def _notify_service_conn(self):
+        if self._conn_callback:
+            self._conn_callback(self)
+
     def _notify_service_end(self):
         if self._end_callback:
             self._end_callback(self)
 
-    def _is_request_allowed(self):
-        # A request is allowed if at least the address is the same
-        # We can't check the port since the remote port will be different
-        # (different socket)
+    def _accept_request_if_allowed(self):
+        # For the first request we can't check the port since the remote
+        # port will be different from the original one of client, therefore
+        # we will check the IP the first time, but further times we will
+        # check the new port too
         current_client_endpoint = pyro_client_endpoint()
-        allowed = self._client.endpoint[0] == current_client_endpoint[0]
+        if self.endpoint:
+            # IP + port match
+            allowed = current_client_endpoint == self.endpoint
+        else:
+            # IP match
+            allowed = self.client.endpoint[0] == current_client_endpoint[0]
 
         if allowed:
             log.d("Service owner check OK")
+            # Set the endpoint forever
+            if not self.endpoint:
+                self.endpoint = current_client_endpoint
+                log.i("Definitive client endpoint for this service (%s) is :%s", self.name(), self.endpoint)
+                # Notify the new connection
+                self._notify_service_conn()
         else:
-            log.w("Not allowed, address mismatch between %s and %s", current_client_endpoint, self._client.endpoint)
+            log.w("Not allowed, address mismatch %s and %s", current_client_endpoint, self.client.endpoint)
+
         return allowed
 
 
@@ -124,8 +154,9 @@ class BaseClientSharingService(BaseClientService):
                  sharing: Sharing,
                  sharing_rcwd: FPath,
                  client: ClientContext,
+                 conn_callback: Callable[['BaseClientService'], None],
                  end_callback: Callable[['BaseClientService'], None]):
-        super().__init__(client, end_callback)
+        super().__init__(client, conn_callback, end_callback)
         self._sharing = sharing
         self._rcwd_fpath: FPath = sharing_rcwd
 
@@ -365,7 +396,7 @@ def check_sharing_service_owner(api):
     based on its IP/port before invoking the wrapped API,
     """
     def check_sharing_service_owner_wrapper(client_service: BaseClientService, *vargs, **kwargs):
-        if not client_service._is_request_allowed():
+        if not client_service._accept_request_if_allowed():
             return create_error_response(ServerErrors.NOT_ALLOWED)
         return api(client_service, *vargs, **kwargs)
 
@@ -377,4 +408,3 @@ def check_sharing_service_owner(api):
 if __name__ == "__main__":
     sh = Sharing.create("test", "/tmp")
     serv = BaseClientSharingService(sh, sh.path, None, None)
-    serv

@@ -1671,10 +1671,20 @@ class Client:
                 # Consider the path without the last *
                 p = p.parent
 
-            log.d("p(f) = %s", p)
 
+            log.d("p(f) = %s", p)
             fpath = p.resolve()
-            sendfile = (fpath, Path(fpath.name))
+
+            log.d("fpath(f) = %s", fpath)
+
+            if take_all_unwrapped:
+                rpath = Path("")
+            else:
+                rpath = Path(fpath.name)
+
+            log.d("rpath(f) = %s", rpath)
+
+            sendfile = (fpath, rpath)
             log.i("Adding sendfile %s", sendfile)
             sendfiles.append(sendfile)
 
@@ -1736,7 +1746,9 @@ class Client:
 
                 progressor = None
 
-                finfo = create_file_info(local_path)
+                # Create the file info for the local file, but set the
+                # remote path as name
+                finfo = create_file_info(local_path, name=str(remote_path))
                 log.i("send_file finfo: %s", j(finfo))
                 fsize = finfo.get("size")
                 ftype = finfo.get("ftype")
@@ -1803,6 +1815,15 @@ class Client:
                 put_next_resp = put_service.next(finfo, overwrite_policy=overwrite_policy)
                 ensure_data_response(put_next_resp)
 
+                if is_error_response(put_next_resp):
+                    log.w("Received error response for next()")
+                    errors += put_next_resp.get("errors")
+                    # All the errors will be reported at the end
+                    return
+
+                if not is_data_response(put_next_resp):
+                    raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
                 # Possible responses:
                 # "accepted" => add the file to the transfer socket
                 # "refused"  => do not add the file to the transfer socket
@@ -1833,12 +1854,7 @@ class Client:
                         log.d("Transfer can actually began")
                     elif is_error_response(put_next_resp):
                         log.w("Transfer cannot be initialized due to remote error")
-                        # errstrings = formatted_errors_from_error_response(get_next_resp)
-                        # for errstring in errstrings:
-                        #     log.w("Reason: %s", errstring)
-
                         errors += put_next_resp.get("errors")
-
                         # All the errors will be reported at the end
                         return
                     else:
@@ -1854,6 +1870,8 @@ class Client:
 
                 if put_next_resp.get("data") != PutNextResponse.ACCEPTED:
                     raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+                # File has been accepted by the remote, we can begin the transfer
 
                 # local_path_pretty = os.path.normpath(local_path)
                 # if local_path.startswith(os.getcwd()):
@@ -1969,7 +1987,7 @@ class Client:
                         log.i("Found a filled directory: adding all inner files to remaining_files")
                         for file_in_dir in dir_files:
                             sendfile = (file_in_dir, next_file_remote / file_in_dir.name)
-                            log.i("Adding sendfile %s", j(sendfile))
+                            log.i("Adding sendfile %s", sendfile)
                             sendfiles.append(sendfile)
                         # for f in dir_files:
                         #     f_path_local = os.path.join(next_file_local, f)

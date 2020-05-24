@@ -31,8 +31,9 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
                  sharing: Sharing,
                  sharing_rcwd: FPath,
                  client: ClientContext,
+                 conn_callback: Callable[['BaseClientService'], None],
                  end_callback: Callable[[BaseClientService], None]):
-        super().__init__(sharing, sharing_rcwd, client, end_callback)
+        super().__init__(sharing, sharing_rcwd, client, conn_callback, end_callback)
         log.d("Creating a transfer service")
         get_transfer_daemon().add_callback(self._handle_new_connection)
         self._outcome_sync = threading.Semaphore(0)
@@ -79,7 +80,7 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
             self._finish(TransferOutcomes.CONNECTION_ESTABLISHMENT_ERROR)
             return False # not handled - eventually will be closed
 
-        if sock.remote_endpoint()[0] != self._client.endpoint[0]:
+        if sock.remote_endpoint()[0] != self.client.endpoint[0]:
             log.e("Unexpected client connected: forbidden")
             return False # not handled - eventually will be closed
 

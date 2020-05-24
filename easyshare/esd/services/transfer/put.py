@@ -1,4 +1,3 @@
-import os
 import zlib
 from typing import Callable, Tuple, BinaryIO
 
@@ -34,13 +33,22 @@ class PutService(IPutService, TransferService):
     Implementation of 'IPutService' interface that will be published with Pyro.
     Handles a single execution of a put command.
     """
+
+    def name(self) -> str:
+        return "put"
+
+    # TODO - known bugs
+    #   1.  client can submit ../sharing_name and see if the transfer works for
+    #       figure out the name of folder of the sharing (and eventually the complete path
+    #       with consecutive attempts such as ../../something/sharing_name)
     def __init__(self,
                  check: bool,
                  sharing: Sharing,
                  sharing_rcwd,
                  client: ClientContext,
+                 conn_callback: Callable[['BaseClientService'], None],
                  end_callback: Callable[[BaseClientService], None]):
-        super().__init__(sharing, sharing_rcwd, client, end_callback)
+        super().__init__(sharing, sharing_rcwd, client, conn_callback, end_callback)
         self._check = check
         self._incomings: Queue[Tuple[FPath, int, BinaryIO]] = Queue() # fpath, size, fd
 
@@ -122,7 +130,7 @@ class PutService(IPutService, TransferService):
         log.d("Trying to open file before initializing transfer")
 
         try:
-            local_fd = fpath.open("rb")
+            local_fd = fpath.open("wb")
             log.d("Able to open file: %s", fpath)
         except FileNotFoundError:
             return create_error_response(ServerErrors.NOT_EXISTS, q(fname))
@@ -158,7 +166,15 @@ class PutService(IPutService, TransferService):
             incoming_fpath, incoming_size, local_fd = next_incoming
 
             # File is already opened
-            # f = incoming_fpath.open("wb")
+
+            # TODO:
+            #  if something about IO goes wrong all the transfer is compromised
+            #  since we can't tell the user about it.
+            #  Open is already done so there should be no permissions problems
+            # The solution is to notify the client on the pyro channel, but this
+            # implies that the client use an async mechanism for get (while for
+            # now is synchronous)
+
             cur_pos = 0
             crc = 0
 
