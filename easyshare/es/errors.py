@@ -49,6 +49,8 @@ class ClientErrors:
     RM_PERMISSION_DENIED =          126
     RM_OTHER_ERROR =                127
 
+    TRANSFER_CONNECTION_CANT_BE_ESTABLISHED =     128
+
 
 class ErrorsStrings:
     """
@@ -90,10 +92,12 @@ class ErrorsStrings:
     IMPLEMENTATION_ERROR = "Implementation error"
     CONNECTION_ERROR = "Connection error"
     CONNECTION_CANT_BE_ESTABLISHED = "Connection can't be established"
+    TRANSFER_CONNECTION_CANT_BE_ESTABLISHED = "Transfer connection can't be established"
 
     NOT_ALLOWED_FOR_F_SHARING = "Not allowed: action can be performed only on sharings of type directory"
     WINDOWS_NOT_SUPPORTED = "Not supported for Windows"
     SUPPORTED_ONLY_FOR_UNIX = "Supported only for Unix"
+
 
 
 class SubErrorsStrings:
@@ -164,6 +168,7 @@ _ERRORS_STRINGS_MAP = {
     ClientErrors.NOT_A_DIRECTORY: ErrorsStrings.NOT_A_DIRECTORY,
     ClientErrors.NOT_EXISTS: ErrorsStrings.NOT_EXISTS,
 
+    ClientErrors.TRANSFER_CONNECTION_CANT_BE_ESTABLISHED: ErrorsStrings.TRANSFER_CONNECTION_CANT_BE_ESTABLISHED,
 
     ClientErrors.MV_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_MOVE),
     ClientErrors.MV_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_MOVE),
@@ -176,6 +181,7 @@ _ERRORS_STRINGS_MAP = {
     ClientErrors.RM_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_REMOVE),
     ClientErrors.RM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
     ClientErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
+
 }
 
 _OUTCOMES_STRINGS_MAP = {

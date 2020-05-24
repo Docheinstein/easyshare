@@ -4,6 +4,7 @@ import pty
 import random
 import select
 import signal
+import socket
 import sys
 import threading
 import time
@@ -36,9 +37,9 @@ from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
 from easyshare.logging import get_logger
 from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService, IRshellService
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ServerErrors, \
-    ResponseError
+    ResponseError, create_error_of_response
 from easyshare.protocol.types import FileType, ServerInfoFull, SharingInfo, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
-    OverwritePolicy, FTYPE_FILE, ServerInfo
+    OverwritePolicy, FTYPE_FILE, ServerInfo, create_file_info, PutNextResponse
 from easyshare.sockets import SocketTcpOut
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import red, bold
@@ -1127,7 +1128,7 @@ class Client:
 
             return True     # Continue DISCOVER
 
-        Client._discover(
+        self._discover(
             discover_port=self._discover_port,
             discover_timeout=self._discover_timeout,
             response_handler=response_handler,
@@ -1212,7 +1213,6 @@ class Client:
         log.i(">> RCD %s", directory)
 
         resp = sharing_conn.rcd(directory)
-
         ensure_data_response(resp)
 
         log.d("Current rcwd: %s", sharing_conn._rcwd)
@@ -1261,16 +1261,6 @@ class Client:
         log.i(">> RMKDIR %s", directory)
 
         resp = sharing_conn.rmkdir(directory)
-
-        if is_error_response(resp):
-            err = resp.get("error")
-            if err == ServerErrors.PERMISSION_DENIED:
-                raise CommandExecutionError(f"{ErrorsStrings.PERMISSION_DENIED}: '{directory}'")
-            if err == ServerErrors.DIRECTORY_ALREADY_EXISTS:
-                raise CommandExecutionError(f"{ErrorsStrings.DIRECTORY_ALREADY_EXISTS}: '{directory}'")
-            # TODO: OSError from remote won't be displayed such as mkdir with trailing 'directory'
-            # => implement error as struct {str, errno} ?
-
         ensure_success_response(resp)
 
     @provide_d_sharing_connection
@@ -1287,13 +1277,6 @@ class Client:
 
         resp = sharing_conn.rrm(paths)
         ensure_success_response(resp)
-
-        # TODO:err
-        # if is_data_response(resp, "errors"):
-        #     errors = resp.get("data").get("errors")
-        #     log.e("%d errors occurred while doing rrm", len(errors))
-        #     for err in errors:
-        #         print_error(err)
 
     @provide_d_sharing_connection
     def rmv(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
@@ -1329,12 +1312,27 @@ class Client:
         log.d("Remote GetService URI: %s", get_service_uri)
 
         # Raw transfer socket
-        # TODO: what's happen if the socke conn can't be established?
-        transfer_socket = SocketTcpOut(
-            address=sharing_conn.server_info.get("ip"),
-            port=transfer_port(sharing_conn.server_info.get("port")),
-            ssl_context=get_ssl_context(),
-        )
+        try:
+            transfer_socket = SocketTcpOut(
+                address=sharing_conn.server_info.get("ip"),
+                port=transfer_port(sharing_conn.server_info.get("port")),
+                ssl_context=get_ssl_context(),
+                timeout=self._discover_timeout  # well it's not a discovery,
+                                                # but at least should be a
+                                                # timeout that make sense
+            )
+        except ConnectionRefusedError:
+            log.exception("Transfer socket creation failed (closed)")
+            raise CommandExecutionError("Transfer connection can't be established: refused")
+        except socket.timeout:
+            log.exception("Transfer socket creation failed (timeout)")
+            raise CommandExecutionError("Transfer connection can't be established: timed out")
+        except OSError as oserr:
+            log.exception("Transfer socket creation failed")
+            raise CommandExecutionError(os_error_str(oserr))
+        except Exception as exc:
+            log.exception("Transfer socket creation failed")
+            raise CommandExecutionError(str(exc))
 
         # Overwrite preference
 
@@ -1361,6 +1359,8 @@ class Client:
         timer = Timer(start=True)
         tot_bytes = 0
         n_files = 0
+
+        # Errors
 
         errors = []
 
@@ -1430,7 +1430,7 @@ class Client:
 
                     timer.stop() # Don't take the user time into account
                     current_overwrite_decision, overwrite_policy = \
-                        Client._ask_overwrite(fname, current_policy=overwrite_policy)
+                        self._ask_overwrite(fname, current_policy=overwrite_policy)
                     timer.start()
 
                     log.d("Overwrite decision: %s", str(current_overwrite_decision))
@@ -1577,7 +1577,7 @@ class Client:
             log.i("GET outcome: %d", outcome)
 
             print("")
-            print("GET outcome: {}".format(outcome_str(outcome)))
+            print("GET outcome:  {}".format(outcome_str(outcome)))
             print("-----------------------")
             print("Files:        {}  ({})".format(n_files, size_str(tot_bytes)))
             print("Time:         {}".format(duration_str_human(round(elapsed_s))))
@@ -1598,7 +1598,7 @@ class Client:
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         files = args.get_positionals()
-        sendfiles: List[dict] = []
+        sendfiles: List[Tuple[Path, Path]] = []
 
         if len(files) == 0:
             files = ["."]
@@ -1616,11 +1616,27 @@ class Client:
         log.d("Remote PutService URI: %s", put_service_uri)
 
         # Raw transfer socket
-        transfer_socket = SocketTcpOut(
-            address=sharing_conn.server_info.get("ip"),
-            port=transfer_port(sharing_conn.server_info.get("port")),
-            ssl_context=get_ssl_context(),
-        )
+        try:
+            transfer_socket = SocketTcpOut(
+                address=sharing_conn.server_info.get("ip"),
+                port=transfer_port(sharing_conn.server_info.get("port")),
+                ssl_context=get_ssl_context(),
+                timeout=self._discover_timeout  # well it's not a discovery,
+                                                # but at least should be a
+                                                # timeout that make sense
+            )
+        except ConnectionRefusedError:
+            log.exception("Transfer socket creation failed (closed)")
+            raise CommandExecutionError("Transfer connection can't be established: refused")
+        except socket.timeout:
+            log.exception("Transfer socket creation failed (timeout)")
+            raise CommandExecutionError("Transfer connection can't be established: timed out")
+        except OSError as oserr:
+            log.exception("Transfer socket creation failed")
+            raise CommandExecutionError(os_error_str(oserr))
+        except Exception as exc:
+            log.exception("Transfer socket creation failed")
+            raise CommandExecutionError(str(exc))
 
         for f in files:
             # STANDARD CASE
@@ -1643,21 +1659,40 @@ class Client:
             #     _, dot_head_trail = os.path.split(dot_head)
             #     trail = os.path.join(dot_head_trail, dot_trail)
             # else:
-            if f == ".":
-                f = os.getcwd()
+            log.d("f = %s", f)
 
-            f = f.replace("*", ".") # glob
+            p = LocalPath(f)
+
+            take_all_unwrapped = True if (p.parts and p.parts[len(p.parts) - 1]) == "*" else False
+
+            log.d("is * = %s", take_all_unwrapped)
+
+            if take_all_unwrapped:
+                # Consider the path without the last *
+                p = p.parent
+
+            log.d("p(f) = %s", p)
+
+            fpath = p.resolve()
+            sendfile = (fpath, Path(fpath.name))
+            log.i("Adding sendfile %s", sendfile)
+            sendfiles.append(sendfile)
+
+            # if f == ".":
+                # f = os.getcwd()
+
+            # f = f.replace("*", ".") # glob
 
             # standard case
-            _, trail = os.path.split(f)
-
-            log.i("-> trail: %s", trail)
-            sendfile = {
-                "local": f,
-                "remote": trail
-            }
-            log.i("Adding sendfile %s", j(sendfile))
-            sendfiles.append(sendfile)
+            # _, trail = os.path.split(f)
+            #
+            # log.i("-> trail: %s", trail)
+            # sendfile = {
+            #     "local": f,
+            #     "remote": trail
+            # }
+            # log.i("Adding sendfile %s", j(sendfile))
+            # sendfiles.append(sendfile)
 
         # Overwrite preference
 
@@ -1683,43 +1718,89 @@ class Client:
         tot_bytes = 0
         n_files = 0
 
+        # Errors
+
+        errors = []
+
         # Proxy
 
         put_service: Union[TracedPyroProxy, IPutService]
 
         with TracedPyroProxy(put_service_uri) as put_service:
 
-            def send_file(local_path: str, remote_path: str):
+            def send_file(local_path: Path, remote_path: Path):
                 nonlocal overwrite_policy
                 nonlocal tot_bytes
                 nonlocal n_files
+                nonlocal errors
 
                 progressor = None
 
-                fstat = os.lstat(local_path)
-                fsize = fstat.st_size
+                finfo = create_file_info(local_path)
+                log.i("send_file finfo: %s", j(finfo))
+                fsize = finfo.get("size")
+                ftype = finfo.get("ftype")
 
-                if S_ISDIR(fstat.st_mode):
-                    ftype = FTYPE_DIR
-                elif S_ISREG(fstat.st_mode):
-                    ftype = FTYPE_FILE
-                else:
-                    log.w("Unknown file type")
+                #
+                # fstat = os.lstat(local_path)
+                # fsize = fstat.st_size
+                #
+                # if S_ISDIR(fstat.st_mode):
+                #     ftype = FTYPE_DIR
+                # elif S_ISREG(fstat.st_mode):
+                #     ftype = FTYPE_FILE
+                # else:
+                #     log.w("Unknown file type")
+                #     return
+                #
+                # finfo = {
+                #     "name": remote_path,
+                #     "ftype": ftype,
+                #     "size": fsize,
+                #     "mtime": fstat.st_mtime_ns
+                # }
+
+
+                # Case: DIR => no transfer
+                if ftype == FTYPE_DIR:
+
+                    log.d("Sent a DIR, nothing else to do")
+                    # if not quiet:
+                    #     progressor.done()
                     return
 
-                finfo = {
-                    "name": remote_path,
-                    "ftype": ftype,
-                    "size": fsize,
-                    "mtime": fstat.st_mtime_ns
-                }
+                # Case: FILE => transfer
 
-                log.i("send_file finfo: %s", j(finfo))
+                # Before invoke next(), try to open the file for real.
+                # At least we are able to detect any error (e.g. perm denied)
+                # before say the server that the transfer is began
+                log.d("Trying to open file before initializing transfer")
+
+                try:
+                    local_fd = local_path.open("rb")
+                    log.d("Able to open file: %s", local_path)
+                except FileNotFoundError:
+                    errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
+                                                             q(next_file_local)))
+                    return
+                except PermissionError:
+                    errors.append(create_error_of_response(ClientErrors.PERMISSION_DENIED,
+                                                             q(next_file_local)))
+                    return
+                except OSError as oserr:
+                    errors.append(create_error_of_response(ClientErrors.ERR_2,
+                                                           os_error_str(oserr),
+                                                            q(next_file_local)))
+                    return
+                except Exception as exc:
+                    errors.append(create_error_of_response(ClientErrors.ERR_2,
+                                                           exc,
+                                                           q(next_file_local)))
+                    return
 
                 log.d("doing a put_next")
 
-                put_next_resp = put_service.next(finfo,
-                                                 overwrite_policy=overwrite_policy)
+                put_next_resp = put_service.next(finfo, overwrite_policy=overwrite_policy)
                 ensure_data_response(put_next_resp)
 
                 # Possible responses:
@@ -1731,65 +1812,73 @@ class Client:
 
                 # First of all handle the ask_overwrite, and contact the esd
                 # again for tell the response
-                if put_next_resp.get("data") == "ask_overwrite":
+                if put_next_resp.get("data") == PutNextResponse.ASK_OVERWRITE:
                     # Ask the user what to do
 
                     timer.stop() # Don't take the user time into account
                     current_overwrite_decision, overwrite_policy =\
-                        Client._ask_overwrite(remote_path, current_policy=overwrite_policy)
+                        self._ask_overwrite(str(remote_path), current_policy=overwrite_policy)
                     timer.start()
 
                     if current_overwrite_decision == OverwritePolicy.NO:
-                        log.i("Skipping " + remote_path)
+                        log.i("Skipping %s", remote_path)
                         return
 
                     # If overwrite policy is NEWER or YES we have to tell it
                     # to the server so that it will take the right action
                     put_next_resp = put_service.next(finfo,
                                                      overwrite_policy=current_overwrite_decision)
-                    ensure_success_response(put_next_resp)
 
+                    if is_success_response(put_next_resp):
+                        log.d("Transfer can actually began")
+                    elif is_error_response(put_next_resp):
+                        log.w("Transfer cannot be initialized due to remote error")
+                        # errstrings = formatted_errors_from_error_response(get_next_resp)
+                        # for errstring in errstrings:
+                        #     log.w("Reason: %s", errstring)
+
+                        errors += put_next_resp.get("errors")
+
+                        # All the errors will be reported at the end
+                        return
+                    else:
+                        raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
                 # The current put_next_resp is either the original one
                 # or the one got after the ask_overwrite response we sent
-                # to the esd.
+                # to the server.
                 # By the way, it should not contain an ask_overwrite
                 # since we specified a policy among YES/NEWER
-                if put_next_resp.get("data") == "refused":
-                    log.i("Skipping " + remote_path)
+                if put_next_resp.get("data") == PutNextResponse.REFUSED:
+                    log.i("Skipping %s ", remote_path)
                     return
 
-                if put_next_resp.get("data") != "accepted":
+                if put_next_resp.get("data") != PutNextResponse.ACCEPTED:
                     raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
-                local_path_pretty = os.path.normpath(local_path)
-                if local_path.startswith(os.getcwd()):
-                    local_path_pretty = relpath(unprefix(local_path_pretty, os.getcwd()))
+                # local_path_pretty = os.path.normpath(local_path)
+                # if local_path.startswith(os.getcwd()):
+                #     local_path_pretty = relpath(unprefix(local_path_pretty, os.getcwd()))
 
                 if not quiet:
                     progressor = FileProgressor(
                         fsize,
-                        description="PUT " + local_path_pretty,
+                        description="PUT " + str(remote_path),
                         color_progress=PROGRESS_COLOR,
                         color_success=SUCCESS_COLOR,
                         color_error=ERROR_COLOR
                     )
 
-                if ftype == FTYPE_DIR:
-                    log.d("Sent a DIR, nothing else to do")
-                    # if not quiet:
-                    #     progressor.done()
-                    return
+                # log.i("Opening %s locally", local_path)
+                # local_f = local_fd.op("rb")
 
-                log.i("Opening %s locally", local_path)
-
-                f = open(local_path, "rb")
+                # File is already opened
 
                 cur_pos = 0
                 crc = 0
 
                 while cur_pos < fsize:
 
-                    chunk = f.read(BEST_BUFFER_SIZE)
+                    chunk = local_fd.read(BEST_BUFFER_SIZE)
                     chunk_len = len(chunk)
 
                     log.i("Read chunk of %dB", chunk_len)
@@ -1816,7 +1905,7 @@ class Client:
                 if do_check:
                     transfer_socket.send(int_to_bytes(crc, 4))
 
-                f.close()
+                local_fd.close()
 
                 n_files += 1
                 if not quiet:
@@ -1831,58 +1920,79 @@ class Client:
                 # 1. Non existing: skip
                 # 2. A file: send it directly (parent dirs won't be replicated)
                 # 3. A dir: send it recursively
+                next_file_local, next_file_remote = next_file
 
-                next_file_local = next_file.get("local")
-                next_file_remote = next_file.get("remote")
-
-                if os.path.isfile(next_file_local):
+                if next_file_local.is_file():
                     # Send it directly
                     log.d("-> is a FILE")
                     send_file(next_file_local, next_file_remote)
-
-                elif os.path.isdir(next_file_local):
+                elif next_file_local.is_dir():
                     # Send it recursively
 
                     log.d("-> is a DIR")
 
                     try:
-                        # os.listdir might fail if we have not read permissions
-                        dir_files = sorted(os.listdir(next_file_local), reverse=True)
+                        dir_files: List[Path] = list(next_file_local.iterdir())
+                    except FileNotFoundError:
+                        errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
+                                                                 q(next_file_local)))
+                        continue
                     except PermissionError:
-                        log.w("Not enough permissions for read %s", next_file_local)
+                        errors.append(create_error_of_response(ClientErrors.PERMISSION_DENIED,
+                                                                 q(next_file_local)))
                         continue
-                    except Exception:
-                        log.w("Unexpected exception occurred for directory: %s - skipping it", next_file_local)
+                    except OSError as oserr:
+                        errors.append(create_error_of_response(ClientErrors.ERR_2,
+                                                               os_error_str(oserr),
+                                                                q(next_file_local)))
                         continue
+                    except Exception as exc:
+                        errors.append(create_error_of_response(ClientErrors.ERR_2,
+                                                               exc,
+                                                               q(next_file_local)))
+                        continue
+
+                    # try:
+                    #     # os.listdir might fail if we have not read permissions
+                    #     dir_files = sorted(os.listdir(next_file_local), reverse=True)
+                    # except PermissionError:
+                    #     log.w("Not enough permissions for read %s", next_file_local)
+                    #     continue
+                    # except Exception:
+                    #     log.w("Unexpected exception occurred for directory: %s - skipping it", next_file_local)
+                    #     continue
 
                     # Directory found
 
                     if dir_files:
 
                         log.i("Found a filled directory: adding all inner files to remaining_files")
-                        for f in dir_files:
-                            f_path_local = os.path.join(next_file_local, f)
-                            f_path_remote = os.path.join(next_file_remote, f)
-                            # Push to the begin instead of the end
-                            # In this way we perform a breadth-first search
-                            # instead of a depth-first search, which makes more sense
-                            # because we will push the files that belongs to the same
-                            # directory at the same time
-                            sendfile = {
-                                "local": f_path_local,
-                                "remote": f_path_remote
-                            }
+                        for file_in_dir in dir_files:
+                            sendfile = (file_in_dir, next_file_remote / file_in_dir.name)
                             log.i("Adding sendfile %s", j(sendfile))
-
                             sendfiles.append(sendfile)
+                        # for f in dir_files:
+                        #     f_path_local = os.path.join(next_file_local, f)
+                        #     f_path_remote = os.path.join(next_file_remote, f)
+                        #     # Push to the begin instead of the end
+                        #     # In this way we perform a breadth-first search
+                        #     # instead of a depth-first search, which makes more sense
+                        #     # because we will push the files that belongs to the same
+                        #     # directory at the same time
+                        #     sendfile = {
+                        #         "local": f_path_local,
+                        #         "remote": f_path_remote
+                        #     }
+                        #     log.i("Adding sendfile %s", j(sendfile))
+                        #
+                        #     sendfiles.append(sendfile)
                     else:
                         log.i("Found an empty directory")
                         log.d("Pushing an info for the empty directory")
 
                         send_file(next_file_local, next_file_remote)
                 else:
-                    eprint("Failed to send '{}'".format(next_file_local))
-                    log.w("Unknown file type, doing nothing")
+                    log.w(f"Failed to send '{next_file_local}': unknown file type, doing nothing")
 
             log.i("Sending DONE")
 
@@ -1891,25 +2001,36 @@ class Client:
 
             # Wait for completion
             outcome_resp = put_service.outcome()
-            ensure_data_response(outcome_resp)
-            outcome = outcome_resp.get("data")
+            ensure_data_response(outcome_resp, "outcome")
 
             timer.stop()
             elapsed_s = timer.elapsed_s()
 
             transfer_socket.close()
 
+            # Take outcome and (eventually) errors out of the resp
+            outcome = outcome_resp.get("data").get("outcome")
+            outcome_errors = outcome_resp.get("data").get("errors")
+            if outcome_errors:
+                log.w("Response has errors")
+                errors += outcome_errors
+
             log.i("PUT outcome: %d", outcome)
 
-            if outcome > 0:
-                log.e("PUT reported an error: %d", outcome)
-                raise CommandExecutionError(outcome)
+            print("")
+            print("PUT outcome:  {}".format(outcome_str(outcome)))
+            print("-----------------------")
+            print("Files:        {}  ({})".format(n_files, size_str(tot_bytes)))
+            print("Time:         {}".format(duration_str_human(round(elapsed_s))))
+            print("Avg. speed:   {}".format(speed_str(tot_bytes / elapsed_s)))
 
-            print("PUT outcome: OK")
-            print("Files        {}  ({})".format(n_files, size_str(tot_bytes)))
-            print("Time         {}".format(duration_str_human(round(elapsed_s))))
-            print("Avg. speed   {}".format(speed_str(tot_bytes / elapsed_s)))
-
+            # Any error? (e.g. permission denied)
+            if errors:
+                print("-----------------------")
+                print("Errors:       {}".format(len(errors)))
+                for idx, err in enumerate(errors):
+                    err_str = formatted_error_from_error_of_response(err)
+                    print(f"{idx + 1}. {err_str}")
 
     @staticmethod
     def _xls(args: Args,
@@ -2368,7 +2489,7 @@ class Client:
 
             return True         # Continue DISCOVER
 
-        Client._discover(
+        self._discover(
             discover_port=self._discover_port,
             discover_addr=server_ip or ADDR_BROADCAST,
             discover_timeout=self._discover_timeout,
@@ -2493,8 +2614,8 @@ class Client:
 
         return True
 
-    @staticmethod
-    def _ask_overwrite(fname: str, current_policy: OverwritePolicy) \
+    @classmethod
+    def _ask_overwrite(cls, fname: str, current_policy: OverwritePolicy) \
             -> Tuple[OverwritePolicy, OverwritePolicy]:  # cur_decision, new_default
 
         log.d("ask_overwrite - default policy: %s", str(current_policy))
@@ -2535,8 +2656,9 @@ class Client:
 
         return cur_decision, new_default
 
-    @staticmethod
+    @classmethod
     def _discover(
+            cls,
             discover_port: int,
             discover_timeout: int,
             response_handler: Callable[[Endpoint, ServerInfoFull], bool],

@@ -1,12 +1,12 @@
 import os
 import zlib
-from typing import Callable
+from typing import Callable, Tuple, BinaryIO
 
 from queue import Queue
 from Pyro5.server import expose
 
 from easyshare.common import BEST_BUFFER_SIZE
-from easyshare.esd.services import BaseClientService, check_sharing_service_owner
+from easyshare.esd.services import BaseClientService, check_sharing_service_owner, FPath
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services.transfer import TransferService
@@ -14,8 +14,11 @@ from easyshare.logging import get_logger
 from easyshare.protocol.services import OverwritePolicy, IPutService
 from easyshare.protocol.responses import TransferOutcomes, create_success_response, ServerErrors, create_error_response, \
     Response
-from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfo
+from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfo, PutNextResponse
+from easyshare.utils.json import j
+from easyshare.utils.os import os_error_str
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
+from easyshare.utils.str import q
 from easyshare.utils.types import bytes_to_int
 
 log = get_logger(__name__)
@@ -39,7 +42,7 @@ class PutService(IPutService, TransferService):
                  end_callback: Callable[[BaseClientService], None]):
         super().__init__(sharing, sharing_rcwd, client, end_callback)
         self._check = check
-        self._incomings = Queue()
+        self._incomings: Queue[Tuple[FPath, int, BinaryIO]] = Queue() # fpath, size, fd
 
     @expose
     @trace_api
@@ -60,7 +63,7 @@ class PutService(IPutService, TransferService):
             self._incomings.put(None)
             return create_success_response()
 
-        log.i("<< PUT_NEXT [%s]", str(client_endpoint))
+        log.i("<< PUT_NEXT %s [%s]", j(finfo), str(client_endpoint))
 
         # Check whether is a dir or a file
         fname = finfo.get("name")
@@ -68,44 +71,73 @@ class PutService(IPutService, TransferService):
         fsize = finfo.get("size")
         fmtime = finfo.get("mtime")
 
-        real_path = self._real_path_from_rcwd(fname)
+        # real_path = self._real_path_from_rcwd(fname)
+        fpath = self._fpath_joining_rcwd_and_spath(fname)
+
+        if not self._is_fpath_allowed(fpath):
+            log.e("Path %s is invalid (out of sharing domain)", fpath)
+            return create_error_response(ServerErrors.INVALID_PATH, q(fname))
+
+        log.d("Sharing domain check OK")
 
         if ftype == FTYPE_DIR:
-            log.i("Creating dirs %s", real_path)
-            os.makedirs(real_path, exist_ok=True)
-            return create_success_response("accepted")
+            log.i("Creating dirs %s", fpath)
+            fpath.mkdir(parents=True, exist_ok=True)
+            return create_success_response(PutNextResponse.ACCEPTED)
 
-        if ftype == FTYPE_FILE:
-            parent_dirs, _ = os.path.split(real_path)
-            if parent_dirs:
-                log.i("Creating parent dirs %s", parent_dirs)
-                os.makedirs(parent_dirs, exist_ok=True)
-        else:
+        if not ftype == FTYPE_FILE: # wtf
             return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
+        if ftype == FTYPE_FILE:
+            fpath_parent = fpath.parent
+            if fpath_parent:
+                log.i("Creating parent dirs %s", fpath_parent)
+                fpath_parent.mkdir(parents=True, exist_ok=True)
+
         # Check whether it already exists
-        if os.path.isfile(real_path):
+        if fpath.is_file():
             log.w("File already exists; deciding what to do based on overwrite policy: %s",
                   overwrite_policy)
 
             # Take a decision based on the overwrite policy
             if overwrite_policy == OverwritePolicy.PROMPT:
                 log.d("Overwrite policy is PROMPT, asking the client whether overwrite")
-                return create_success_response("ask_overwrite")
+                return create_success_response(PutNextResponse.ASK_OVERWRITE)
 
             if overwrite_policy == OverwritePolicy.NEWER:
                 log.d("Overwrite policy is NEWER, checking mtime")
-                stat = os.lstat(real_path)
+                stat = fpath.stat()
                 if stat.st_mtime_ns >= fmtime:
                     # Our version is newer, won't accept the file
-                    return create_success_response("refused")
+                    return create_success_response(PutNextResponse.REFUSED)
                 else:
                     log.d("Our version is older, will accept file")
 
             elif overwrite_policy == OverwritePolicy.YES:
                 log.d("Overwrite policy is YES, overwriting it unconditionally")
 
-        self._incomings.put((real_path, fsize))
+        # Before accept it for real, try to open the file.
+        # At least we are able to detect any error (e.g. perm denied)
+        # before say the the that the transfer is began.
+        log.d("Trying to open file before initializing transfer")
+
+        try:
+            local_fd = fpath.open("rb")
+            log.d("Able to open file: %s", fpath)
+        except FileNotFoundError:
+            return create_error_response(ServerErrors.NOT_EXISTS, q(fname))
+        except PermissionError:
+            return create_error_response(ServerErrors.PERMISSION_DENIED, q(fname))
+        except OSError as oserr:
+            return create_error_response(ServerErrors.ERR_2,
+                                         os_error_str(oserr),
+                                         q(fname))
+        except Exception as exc:
+            return create_error_response(ServerErrors.ERR_2,
+                                         exc,
+                                         q(fname))
+
+        self._incomings.put((fpath, fsize, local_fd))
 
         return create_success_response("accepted")
 
@@ -123,15 +155,16 @@ class PutService(IPutService, TransferService):
                 break
 
             log.i("Next incoming file to handle: %s", next_incoming)
-            incoming_file, incoming_file_len = next_incoming
+            incoming_fpath, incoming_size, local_fd = next_incoming
 
-            f = open(incoming_file, "wb")
+            # File is already opened
+            # f = incoming_fpath.open("wb")
             cur_pos = 0
             crc = 0
 
             # Recv file
-            while cur_pos < incoming_file_len:
-                readlen = min(incoming_file_len - cur_pos, BEST_BUFFER_SIZE)
+            while cur_pos < incoming_size:
+                readlen = min(incoming_size - cur_pos, BEST_BUFFER_SIZE)
 
                 # Read from the remote
                 log.d("Waiting a chunk of %dB", readlen)
@@ -139,7 +172,7 @@ class PutService(IPutService, TransferService):
 
                 if not chunk:
                     # EOF
-                    log.i("Finished to handle: %s", incoming_file)
+                    log.i("Finished to handle: %s", incoming_fpath)
                     break
 
                 log.d("Received chunk of %dB", len(chunk))
@@ -149,12 +182,12 @@ class PutService(IPutService, TransferService):
                     # Eventually update the CRC
                     crc = zlib.crc32(chunk, crc)
 
-                f.write(chunk)
+                local_fd.write(chunk)
 
-                log.d("%d/%d (%.2f%%)", cur_pos, incoming_file_len, cur_pos / incoming_file_len * 100)
+                log.d("%d/%d (%.2f%%)", cur_pos, incoming_size, cur_pos / incoming_size * 100)
 
-            log.i("Closing file %s", incoming_file)
-            f.close()
+            log.i("Closing file %s", incoming_fpath)
+            local_fd.close()
 
             # Eventually do CRC check
             if self._check:
@@ -169,10 +202,10 @@ class PutService(IPutService, TransferService):
                     log.d("CRC check: OK")
 
                 # Length check on the written file
-                written_size = os.path.getsize(incoming_file)
-                if written_size != incoming_file_len:
+                written_size = incoming_fpath.stat().st_size
+                if written_size != incoming_size:
                     log.e("File length mismatch; transfer failed. expected=%s ; written=%d",
-                          incoming_file_len, written_size)
+                          incoming_size, written_size)
                     self._finish(TransferOutcomes.CHECK_FAILED)
                     break
                 else:

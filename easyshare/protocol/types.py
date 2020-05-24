@@ -144,3 +144,15 @@ class OverwritePolicy:
     YES = 1
     NO = 2
     NEWER = 3
+
+
+
+# ================================================
+# ============== PUT NEXT RESPONSE ===============
+# ================================================
+
+
+class PutNextResponse:
+    ACCEPTED = "accepted"
+    ASK_OVERWRITE = "ask_overwrite"
+    REFUSED = "refused"

@@ -1,10 +1,10 @@
 import os
-import queue
 import zlib
 from pathlib import Path
 from typing import Callable, List, Tuple, Union, BinaryIO
 
 from Pyro5.server import expose
+from queue import Queue
 
 from easyshare.common import BEST_BUFFER_SIZE
 from easyshare.esd.common import ClientContext, Sharing
@@ -33,6 +33,10 @@ class GetService(IGetService, TransferService):
     Implementation of 'IGetService' interface that will be published with Pyro.
     Handles a single execution of a get command.
     """
+    # TODO - known bugs
+    #   1.  client can submit ../sharing_name and see if the transfer works for
+    #       figure out the name of folder of the sharing (and eventually the complete path
+    #       with consecutive attempts such as ../../something/sharing_name)
     def __init__(self,
                  # files: List[Tuple[str, str]], # local path, remote prefix
                  files: List[str], # fpath, prefix
@@ -44,7 +48,7 @@ class GetService(IGetService, TransferService):
         super().__init__(sharing, sharing_rcwd, client, end_callback)
         self._check = check
         self._next_servings: List[Tuple[FPath, FPath, str]] = [] # fpath, basedir, prefix (only for is_root case)
-        self._active_servings: queue.Queue[Union[Tuple[FPath, BinaryIO], None]] = queue.Queue() # fpath, fd
+        self._active_servings: Queue[Union[Tuple[FPath, BinaryIO], None]] = Queue() # fpath, fd
 
         # get_paths = []
         for f in files:

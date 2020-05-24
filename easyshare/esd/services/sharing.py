@@ -551,21 +551,16 @@ class SharingService(ISharingService, BaseClientSharingService):
     @trace_api
     @try_or_command_failed_response
     @check_sharing_service_owner
-    @ensure_d_sharing
+    @ensure_d_sharing # Allowed only for F sharings
     def put(self, check: bool = False) -> Response:
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< PUT [%s]", str(client_endpoint))
 
-        if self._sharing.ftype == FTYPE_FILE:
-            # Cannot put within a file
-            log.e("Cannot put within a file sharing")
-            return create_error_response(ServerErrors.NOT_ALLOWED)
-
         put = PutService(
             check=check,
             sharing=self._sharing,
-            sharing_rcwd=self._rcwd,
+            sharing_rcwd=self._rcwd_fpath,
             client=self._client,
             end_callback=lambda putserv: putserv.unpublish()
         )
