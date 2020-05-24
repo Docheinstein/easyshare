@@ -1,5 +1,5 @@
 import threading
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 
 from Pyro5 import socketutil
 from Pyro5.api import expose, oneway
@@ -8,7 +8,7 @@ from easyshare.common import ESD_PYRO_UID
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.daemons.pyro import get_pyro_daemon
-from easyshare.esd.services import BaseService
+from easyshare.esd.services import BaseService, BaseClientService
 from easyshare.esd.services.rexec import RexecService
 from easyshare.esd.services.rshell import RshellService
 from easyshare.esd.services.sharing import SharingService
@@ -67,6 +67,9 @@ class ServerService(IServer, BaseService):
 
         self._clients: Dict[Endpoint, ClientContext] = {}
         self._clients_lock = threading.Lock()
+
+        self._services: Dict[Endpoint, BaseClientService] = {}
+        self._services_lock = threading.Lock()
 
         self.published = False
 
@@ -134,7 +137,7 @@ class ServerService(IServer, BaseService):
         else:
             log.i("Authentication OK")
 
-        ctx = self._add_client_endpoint(client_endpoint)
+        ctx = self._add_client(client_endpoint)
 
         print(green(f"[{ctx.tag}] connected - {ctx.endpoint[0]}"))
 
@@ -205,8 +208,8 @@ class ServerService(IServer, BaseService):
             sharing=sharing,
             sharing_rcwd=sharing.path,
             client=client,
-            conn_callback=lambda cs: self._add_endpoint_for_client(cs.endpoint, cs.client),
-            end_callback=lambda cs: cs.unpublish()
+            conn_callback=lambda cs: self._add_client_service(cs),
+            end_callback=lambda cs: self._del_client_service(cs.endpoint)
         )
 
         uid = serving.publish()
@@ -242,8 +245,8 @@ class ServerService(IServer, BaseService):
         rx = RexecService(
             cmd,
             client=client,
-            conn_callback=lambda cs: self._add_endpoint_for_client(cs.endpoint, cs.client),
-            end_callback=lambda cs: cs.unpublish()
+            conn_callback=lambda cs: self._add_client_service(cs),
+            end_callback=lambda cs: self._del_client_service(cs.endpoint)
         )
         rx.run()
 
@@ -271,8 +274,8 @@ class ServerService(IServer, BaseService):
 
         rsh = RshellService(
             client=client,
-            conn_callback=lambda cs: self._add_endpoint_for_client(cs.endpoint, cs.client),
-            end_callback=lambda cs: cs.unpublish()
+            conn_callback=lambda cs: self._add_client_service(cs),
+            end_callback=lambda cs: self._del_client_service(cs.endpoint)
         )
         rsh.run()
 
@@ -295,10 +298,36 @@ class ServerService(IServer, BaseService):
 
         return si
 
-    def _add_endpoint_for_client(self, endpoint: Endpoint, client: ClientContext = None):
-        self._add_client_endpoint(endpoint, client)
+    def _add_client_service(self, service: BaseClientService):
+        with self._services_lock:
+            self._services[service.endpoint] = service
 
-    def _add_client_endpoint(self, endpoint: Endpoint, client: ClientContext = None) -> ClientContext:
+        log.d("Bounded service at %s {%d} to client %s",
+              service.endpoint, service.service_uid, service.client)
+
+        self._dump_server_state()
+
+
+    def _del_client_service(self, endpoint: Endpoint, unpublish: bool = True) -> Optional[BaseClientService]:
+        """
+        Removes the endpoint from the set of known clients
+        and cleanups associated resources
+        """
+        with self._services_lock:
+            service = self._services.pop(endpoint, None)
+
+        if service:
+            log.d("Unbound service at %s {%d} from client %s", endpoint, service.service_uid, service.client)
+
+            if unpublish:
+                log.d("Unpublishing too")
+                service.unpublish()
+
+        self._dump_server_state()
+
+        return service
+
+    def _add_client(self, endpoint: Endpoint, client: ClientContext = None) -> ClientContext:
         """
         Adds the endpoint to the set of known clients' endpoints.
         (Each service has a different endpoint, we have to store all the associations)
@@ -309,44 +338,51 @@ class ServerService(IServer, BaseService):
         with self._clients_lock:
             self._clients[endpoint] = client
 
-        log.i("New client for endpoint %s", endpoint)
+        log.i("Added client %s", client)
+
+        self._dump_server_state()
 
         return client
-
-
-    def _del_client_endpoint(self, endpoint: Endpoint) -> ClientContext:
-        """
-        Removes the endpoint from the set of known clients
-        and cleanups associated resources
-        """
-        with self._clients_lock:
-            ctx = self._clients.pop(endpoint, None)
-
-        if ctx:
-            log.d("Removed endpoint %s from client %s", endpoint, ctx)
-
-        return ctx
 
     def _del_client(self, endpoint: Endpoint) -> bool:
         """
         Removes the endpoint from the set of known clients
         and cleanups associated resources
         """
-        ctx = self._del_client_endpoint(endpoint)
 
-        if ctx:
-            daemon = get_pyro_daemon()
+        with self._clients_lock:
+            client = self._clients.pop(endpoint, None)
 
-            with ctx.lock:
-                for service_id in ctx.services:
-                    daemon.unpublish(service_id)
+            if client:
+                daemon = get_pyro_daemon()
 
-        if ctx:
-            print(red(f"[{ctx.tag}] disconnected - {ctx.endpoint[0]}"))
+                with client.lock:
+                    for service_id in client.services:
+                        daemon.unpublish(service_id)
+
+                # Remove all the services
+
+        if client:
+            log.i("Removed client %s", client)
+            print(red(f"[{client.tag}] disconnected - {client.endpoint[0]}"))
         else:
             log.w("No client to remove for endpoint %s", endpoint)
 
+        self._dump_server_state()
+
         return True
+
+    def _dump_server_state(self):
+        log.d("--- SERVER DUMP ---")
+        with self._clients_lock:
+            log.d("# clients = %d", len(self._clients))
+            for endpoint, client in self._clients.items():
+                log.d("%s -> %s (%d services)", endpoint, client, len(client.services))
+        with self._services_lock:
+            log.d("# bound services = %d", len(self._services))
+            for endpoint, service in self._services.items():
+                log.d("%s {%d} -> %s", endpoint, service.service_uid, service.client)
+        log.d("--- SERVER DUMP END ---")
 
     def _current_request_endpoint(self) -> Optional[Endpoint]:
         """
@@ -368,5 +404,5 @@ class ServerService(IServer, BaseService):
         cleanup the client's resources
         """
         endpoint = pyroconn.sock.getpeername()
-        log.d("Cleaning up client %s resources", endpoint)
-        self._del_client_endpoint(endpoint)
+        log.d("Cleaning up resources for endpoint %s", endpoint)
+        self._del_client_service(endpoint)

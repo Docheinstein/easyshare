@@ -55,7 +55,7 @@ class BaseService(ABC):
 # =============================================
 
 
-class BaseClientService(BaseService):
+class BaseClientService(BaseService, ABC):
     """
     Represents a 'BaseService' bound to a specific client.
     Is automatically added to the set of services of the client
@@ -82,10 +82,11 @@ class BaseClientService(BaseService):
         """ Publishes the service to the Pyro Daemon """
         log.d("Service [%s - %s] added", self.name(), self.service_uid)
         with self._lock:
-            self.service_uri, self.service_uid = \
-                get_pyro_daemon().publish(self, uid=self.service_uid)
-            self.published = True
-            self.client.add_service(self.service_uid)
+            if not self.is_published():
+                self.service_uri, self.service_uid = \
+                    get_pyro_daemon().publish(self, uid=self.service_uid)
+                self.published = True
+                self.client.add_service(self.service_uid)
             return self.service_uid
 
     def unpublish(self):
@@ -141,7 +142,7 @@ class BaseClientService(BaseService):
 # =============================================
 
 
-class BaseClientSharingService(BaseClientService):
+class BaseClientSharingService(BaseClientService, ABC):
     """
     Represents a 'BaseService' bound to a specific client and sharing.
     Is automatically added to the set of services of the client

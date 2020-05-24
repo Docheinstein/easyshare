@@ -54,7 +54,7 @@ class PyroDaemon(pyro.Daemon):
 
     def clientDisconnect(self, conn: socketutil.SocketConnection):
         """ Callback which will be invoked by pyro when a client disconnects """
-        log.i("Client disconnected: %s", conn.sock.getpeername())
+        log.d("Pyro endpoint disconnected: %s", conn.sock.getpeername())
         log.d("Notifying %d listeners", len(self.disconnection_callbacks))
         for cb in self.disconnection_callbacks:
             cb(conn)

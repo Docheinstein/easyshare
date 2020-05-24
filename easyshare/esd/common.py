@@ -85,6 +85,10 @@ class Sharing:
 
         path = LocalPath(path)
 
+        if not path.exists():
+            log.w("Nothing exists at path %s", path)
+            return None
+
         sh_ftype = ftype(path)
         if sh_ftype != FTYPE_FILE and sh_ftype != FTYPE_DIR:
             log.e("Invalid sharing path")
