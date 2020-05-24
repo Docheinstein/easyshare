@@ -1,7 +1,6 @@
 import fcntl
 import os
 import pty
-import random
 import select
 import signal
 import socket
@@ -37,7 +36,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
     create_error_of_response
 from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService, IRshellService
-from easyshare.protocol.types import FileType, ServerInfoFull, SharingInfo, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
+from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
     OverwritePolicy, FTYPE_FILE, ServerInfo, create_file_info, PutNextResponse
 from easyshare.sockets import SocketTcpOut
 from easyshare.ssl import get_ssl_context
@@ -462,8 +461,21 @@ class Client:
     def is_connected_to_sharing(self) -> bool:
         return True if self.sharing_connection and \
                        self.sharing_connection.is_connected() else False
-    # def is_connected(self) -> bool:
-    #     return self.connection and self.connection.is_connected()
+
+
+    def destroy_connection(self):
+        """ Destroy an eventual established server connection (and thus sharing conn) """
+        try:
+            log.d("Destroying connection and invalidating it")
+            if self.is_connected_to_server():
+                self.server_connection.disconnect()
+            # Server closes the sharing by itself
+            # There's no need to close() the sharing connection
+        except:
+            log.w("Clean disconnection failed, invalidating connection anyway")
+        finally:
+            self.server_connection = None
+            self.sharing_connection = None
 
     # === LOCAL Commands ===
 
@@ -1033,21 +1045,6 @@ class Client:
 
             # Wait everybody
             rshell_stdout_receiver_th.join()
-    #
-    # @staticmethod
-    # def rshell(args: Args, _, _2):
-    #     def out_hook(s: str):
-    #         # os.write(pty.STDOUT_FILENO, data)
-    #
-    #         # sys.stdout.write()
-    #         print(s, end="", flush=True)
-    #
-    #     log.i(">> RSH %s")
-    #     retcode = pty_detached(out_hook)
-    #     if retcode != 0:
-    #         log.w("Command failed with return code: %d", retcode)
-
-
 
     @provide_server_connection
     def ping(self, args: Args, server_conn: ServerConnection, _):
@@ -1214,7 +1211,7 @@ class Client:
         resp = sharing_conn.rcd(directory)
         ensure_data_response(resp)
 
-        log.d("Current rcwd: %s", sharing_conn._rcwd)
+        log.d("Current rcwd: %s", sharing_conn.rcwd())
 
     @provide_d_sharing_connection
     def rls(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
@@ -1469,9 +1466,6 @@ class Client:
                         log.d("Transfer can actually began")
                     elif is_error_response(get_next_resp):
                         log.w("Transfer cannot be initialized due to remote error")
-                        # errstrings = formatted_errors_from_error_response(get_next_resp)
-                        # for errstring in errstrings:
-                        #     log.w("Reason: %s", errstring)
 
                         errors += get_next_resp.get("errors")
 
@@ -1578,7 +1572,7 @@ class Client:
             print("")
             print("GET outcome:  {}".format(outcome_str(outcome)))
             print("-----------------------")
-            print("Files:        {}  ({})".format(n_files, size_str(tot_bytes)))
+            print("Files:        {} ({})".format(n_files, size_str(tot_bytes)))
             print("Time:         {}".format(duration_str_human(round(elapsed_s))))
             print("Avg. speed:   {}".format(speed_str(tot_bytes / elapsed_s)))
 
@@ -1651,13 +1645,6 @@ class Client:
             # e.g.  local:      ./to/adir/*         [/tmp/to/adir]
             #                   (with content f1, f2)
             #       remote:     f1, f2
-
-            # if f == ".":
-            #     # Special case
-            #     dot_head, dot_trail = os.path.split(os.getcwd())
-            #     _, dot_head_trail = os.path.split(dot_head)
-            #     trail = os.path.join(dot_head_trail, dot_trail)
-            # else:
             log.d("f = %s", f)
 
             p = LocalPath(f)
@@ -1686,22 +1673,6 @@ class Client:
             sendfile = (fpath, rpath)
             log.i("Adding sendfile %s", sendfile)
             sendfiles.append(sendfile)
-
-            # if f == ".":
-                # f = os.getcwd()
-
-            # f = f.replace("*", ".") # glob
-
-            # standard case
-            # _, trail = os.path.split(f)
-            #
-            # log.i("-> trail: %s", trail)
-            # sendfile = {
-            #     "local": f,
-            #     "remote": trail
-            # }
-            # log.i("Adding sendfile %s", j(sendfile))
-            # sendfiles.append(sendfile)
 
         # Overwrite preference
 
@@ -1752,32 +1723,9 @@ class Client:
                 fsize = finfo.get("size")
                 ftype = finfo.get("ftype")
 
-                #
-                # fstat = os.lstat(local_path)
-                # fsize = fstat.st_size
-                #
-                # if S_ISDIR(fstat.st_mode):
-                #     ftype = FTYPE_DIR
-                # elif S_ISREG(fstat.st_mode):
-                #     ftype = FTYPE_FILE
-                # else:
-                #     log.w("Unknown file type")
-                #     return
-                #
-                # finfo = {
-                #     "name": remote_path,
-                #     "ftype": ftype,
-                #     "size": fsize,
-                #     "mtime": fstat.st_mtime_ns
-                # }
-
-
                 # Case: DIR => no transfer
                 if ftype == FTYPE_DIR:
-
                     log.d("Sent a DIR, nothing else to do")
-                    # if not quiet:
-                    #     progressor.done()
                     return
 
                 # Case: FILE => transfer
@@ -1872,10 +1820,6 @@ class Client:
 
                 # File has been accepted by the remote, we can begin the transfer
 
-                # local_path_pretty = os.path.normpath(local_path)
-                # if local_path.startswith(os.getcwd()):
-                #     local_path_pretty = relpath(unprefix(local_path_pretty, os.getcwd()))
-
                 if not quiet:
                     progressor = FileProgressor(
                         fsize,
@@ -1884,9 +1828,6 @@ class Client:
                         color_success=SUCCESS_COLOR,
                         color_error=ERROR_COLOR
                     )
-
-                # log.i("Opening %s locally", local_path)
-                # local_f = local_fd.op("rb")
 
                 # File is already opened
 
@@ -1969,15 +1910,6 @@ class Client:
                                                                q(next_file_local)))
                         continue
 
-                    # try:
-                    #     # os.listdir might fail if we have not read permissions
-                    #     dir_files = sorted(os.listdir(next_file_local), reverse=True)
-                    # except PermissionError:
-                    #     log.w("Not enough permissions for read %s", next_file_local)
-                    #     continue
-                    # except Exception:
-                    #     log.w("Unexpected exception occurred for directory: %s - skipping it", next_file_local)
-                    #     continue
 
                     # Directory found
 
@@ -1988,21 +1920,6 @@ class Client:
                             sendfile = (file_in_dir, next_file_remote / file_in_dir.name)
                             log.i("Adding sendfile %s", sendfile)
                             sendfiles.append(sendfile)
-                        # for f in dir_files:
-                        #     f_path_local = os.path.join(next_file_local, f)
-                        #     f_path_remote = os.path.join(next_file_remote, f)
-                        #     # Push to the begin instead of the end
-                        #     # In this way we perform a breadth-first search
-                        #     # instead of a depth-first search, which makes more sense
-                        #     # because we will push the files that belongs to the same
-                        #     # directory at the same time
-                        #     sendfile = {
-                        #         "local": f_path_local,
-                        #         "remote": f_path_remote
-                        #     }
-                        #     log.i("Adding sendfile %s", j(sendfile))
-                        #
-                        #     sendfiles.append(sendfile)
                     else:
                         log.i("Found an empty directory")
                         log.d("Pushing an info for the empty directory")
@@ -2037,7 +1954,7 @@ class Client:
             print("")
             print("PUT outcome:  {}".format(outcome_str(outcome)))
             print("-----------------------")
-            print("Files:        {}  ({})".format(n_files, size_str(tot_bytes)))
+            print("Files:        {} ({})".format(n_files, size_str(tot_bytes)))
             print("Time:         {}".format(duration_str_human(round(elapsed_s))))
             print("Avg. speed:   {}".format(speed_str(tot_bytes / elapsed_s)))
 
@@ -2193,17 +2110,16 @@ class Client:
         resp = api(paths, dest)
         ensure_success_response(resp)
 
-        # TODO: erss
-        # if is_data_response(resp, "errors"):
-        #     errors = resp.get("data").get("errors")
-        #     log.e("%d errors occurred while doing %s", len(errors), api_name)
-        #     for err in errors:
-        #         print_error(err)
 
 
     def _get_current_sharing_connection_or_create_from_sharing_location_args(
             self, args: Args, sharing_ftype: FileType) \
             -> Tuple[Optional[SharingConnection], ServerConnection]:
+        """
+        Returns the current sharing, server connection if already established.
+        Otherwise tries to create a new one considering the first arg of 'args'
+        as a sharing location (popping the arg).
+        """
 
         if self.is_connected_to_server() and self.is_connected_to_sharing():
             log.i("Providing already established sharing connection")
@@ -2225,6 +2141,11 @@ class Client:
 
     def _get_current_server_connection_or_create_from_server_location_args(
             self, args: Args, connect: bool) -> ServerConnection:
+        """
+        Returns the current server connection if already established.
+        Otherwise tries to create a new one considering the first arg of 'args'
+        as a server location (popping the arg).
+        """
 
         if self.is_connected_to_server():
             log.i("Providing already established server connection")
@@ -2248,6 +2169,10 @@ class Client:
             sharing_location: SharingLocation,
             sharing_ftype: FileType = None,
     ) -> Tuple[Optional[SharingConnection], ServerConnection]:
+        """
+        Creates a new SharingConnection (and thus a ServerConnection)
+        for the given sharing location.
+        """
 
         server_conn = self._create_server_connection(
             connect=True,
@@ -2272,21 +2197,11 @@ class Client:
         return sharing_conn, server_conn
 
 
-    def _create_server_connection_from_sharing_location(
-            self, server_location: SharingLocation,
-            connect: bool, sharing_ftype: FileType = None) -> ServerConnection:
-        return self._create_server_connection(
-            connect=connect,
-            server_name=server_location.server_name,
-            server_ip=server_location.server_ip,
-            server_port=server_location.server_port,
-            sharing_name=server_location.name,
-            sharing_ftype=sharing_ftype
-
-        )
-
     def _create_server_connection_from_server_location(
             self, server_location: ServerLocation, connect: bool) -> ServerConnection:
+        """
+        Creates a new ServerConnection for the given server location.
+        """
         return self._create_server_connection(
             connect=connect,
             server_name=server_location.name,
@@ -2299,6 +2214,25 @@ class Client:
             self, connect: bool,
             server_name: str = None, server_ip: str = None, server_port: int = None,
             sharing_name: str = None, sharing_ftype: FileType = None) -> ServerConnection:
+        """
+        Real method that creates a server connection based on the params.
+        The connection is created as smartly as possible.
+        In particular:
+        1.  If both IP and PORT are specified, the connection is tried to be
+            established (just) directly
+        2.  If only IP is specified, the connection is tried to be established
+            directly but a scan is performed for it fails (maybe it is on non default port?)
+        3.  If IP is not specified, a scan is involved and the server is filtered
+            based on the given filter (server name, sharing name, sharing ftype)
+
+        For 1. and 2. the connection is attempted to be established with and
+        without SSL since we can't know whether the server use it or not
+        without perform a preliminary scan.
+
+        The server connection is then authenticated if 'connect' is True,
+        otherwise an unconnected connection is returned (e.g. for unauthenticated
+        method such as ping, list, ...)
+        """
 
         # server_port = server_port or DEFAULT_SERVER_PORT
 
@@ -2444,51 +2378,20 @@ class Client:
 
         return server_conn
 
-    @staticmethod
-    def create_sharing_connection_from_server_connection(
-            server_conn: ServerConnection, sharing_name: str) -> SharingConnection:
-        if not server_conn:
-            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
-
-        # Create the sharing connection: open()
-
-        open_resp = server_conn.open(sharing_name)
-        ensure_data_response(open_resp)
-
-        sharing_uid = open_resp.get("data")
-
-        # Take out the sharing info from the server info
-        for shinfo in server_conn.server_info.get("sharings"):
-            if shinfo.get("name") == sharing_name:
-                log.d("Found the sharing info among server_info sharings")
-
-                sharing_conn = SharingConnection(
-                    sharing_uid,
-                    sharing_info=shinfo,
-                    server_info=server_conn.server_info
-                )
-
-                return sharing_conn
-
-        raise CommandExecutionError(ClientErrors.SHARING_NOT_FOUND)
-
-    def _discover_sharing(
-            self, sharing_location: SharingLocation, ftype: FileType = None) -> \
-            Tuple[Optional[SharingInfo], Optional[ServerInfoFull]]:
-        pass
-        # call _discover and takes the info from its sharings
 
     def _discover_server(
             self,
             server_name: str = None, server_ip: str = None,
             server_port: int = None, sharing_name: str = None,
-            sharing_ftype: FileType = None) -> ServerInfoFull:
+            sharing_ftype: FileType = None) -> Optional[ServerInfoFull]:
+        """
+        Performs a discover looking for a server that satisfy the given filters.
+        """
 
         server_info: Optional[ServerInfoFull] = None
 
         def response_handler(client_endpoint: Endpoint,
                              a_server_info: ServerInfoFull) -> bool:
-            time.sleep(self._discover_timeout * 0.8)
             nonlocal server_info
 
             log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
@@ -2517,52 +2420,95 @@ class Client:
 
         return server_info
 
+    @classmethod
+    def create_sharing_connection_from_server_connection(cls,
+            server_conn: ServerConnection, sharing_name: str) -> SharingConnection:
+        """
+        Given an already valid server connection, tries to establish a sharing
+        connection to the sharing with the given name (=> does open())
+        """
 
-    @staticmethod
-    def server_info_satisfy_server_location(
+        if not server_conn:
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
+
+        # Create the sharing connection: open()
+
+        open_resp = server_conn.open(sharing_name)
+        ensure_data_response(open_resp)
+
+        sharing_uid = open_resp.get("data")
+
+        # Take out the sharing info from the server info
+        for shinfo in server_conn.server_info.get("sharings"):
+            if shinfo.get("name") == sharing_name:
+                log.d("Found the sharing info among server_info sharings")
+
+                sharing_conn = SharingConnection(
+                    sharing_uid,
+                    sharing_info=shinfo,
+                    server_info=server_conn.server_info
+                )
+
+                return sharing_conn
+
+        raise CommandExecutionError(ClientErrors.SHARING_NOT_FOUND)
+
+
+    @classmethod
+    def server_info_satisfy_server_location(cls,
             server_info: ServerInfo, server_location: ServerLocation):
-        return Client.server_info_satisfy_constraints(
+        """ Whether 'server_info' satisfy 'server_location' """
+        return cls.server_info_satisfy_constraints(
                 server_info,
                 server_name=server_location.name)
 
-    @staticmethod
-    def server_info_satisfy_sharing_location(
+    @classmethod
+    def server_info_satisfy_sharing_location(cls,
             server_info: ServerInfo, sharing_location: SharingLocation):
-        return Client.server_info_satisfy_constraints(
+        """ Whether 'server_info' satisfy 'sharing_location' """
+
+        return cls.server_info_satisfy_constraints(
                 server_info,
                 server_name=sharing_location.server_name,
                 sharing_name=sharing_location.name,
                 sharing_ftype=FTYPE_DIR)
 
-    @staticmethod
-    def server_info_satisfy_constraints(
+    @classmethod
+    def server_info_satisfy_constraints(cls,
             server_info: ServerInfo,
             server_name: str = None,
-            sharing_name: str = None, sharing_ftype: FileType = None) -> bool:
+            sharing_name: str = None,
+            sharing_ftype: FileType = None) -> bool:
+        """ Whether 'server_info' satisfy the given filters """
+
         # Make a shallow copy
         server_info_full: ServerInfoFull = cast(ServerInfoFull, {**server_info})
         server_info_full["ip"] = None
         server_info_full["port"] = None
 
-        return Client.server_info_satisfy_constraints_full(
+        return cls.server_info_satisfy_constraints_full(
             server_info_full,
             server_name=server_name,
             sharing_name=sharing_name,
             sharing_ftype=sharing_ftype)
 
-    @staticmethod
-    def server_info_satisfy_server_location_full(
+    @classmethod
+    def server_info_satisfy_server_location_full(cls,
             server_info_full: ServerInfoFull, server_location: ServerLocation):
-        return Client.server_info_satisfy_constraints_full(
+        """ Whether 'server_info_full' satisfy the given 'server_location' """
+
+        return cls.server_info_satisfy_constraints_full(
             server_info_full,
             server_name=server_location.name,
             server_ip=server_location.ip,
             server_port=server_location.port)
 
-    @staticmethod
-    def server_info_satisfy_sharing_location_full(
+    @classmethod
+    def server_info_satisfy_sharing_location_full(cls,
             server_info_full: ServerInfoFull, sharing_location: SharingLocation):
-        return Client.server_info_satisfy_constraints_full(
+        """ Whether 'server_info_full' satisfy the given 'sharing_location' """
+
+        return cls.server_info_satisfy_constraints_full(
             server_info_full,
             server_name=sharing_location.server_name,
             server_ip=sharing_location.server_ip,
@@ -2570,11 +2516,14 @@ class Client:
             sharing_name=sharing_location.name,
             sharing_ftype=FTYPE_DIR)
 
-    @staticmethod
-    def server_info_satisfy_constraints_full(
+    @classmethod
+    def server_info_satisfy_constraints_full(cls,
             server_info: ServerInfoFull,
             server_name: str = None, server_ip: str = None, server_port: int = None,
             sharing_name: str = None, sharing_ftype: FileType = None) -> bool:
+        """
+        Actually check if the given 'server_info' satisfy the given filters.
+        """
 
 
         log.d("constr server name: %s", server_name)
@@ -2634,6 +2583,13 @@ class Client:
     @classmethod
     def _ask_overwrite(cls, fname: str, current_policy: OverwritePolicy) \
             -> Tuple[OverwritePolicy, OverwritePolicy]:  # cur_decision, new_default
+        """
+        If the 'current_policy' is PROMPT asks the user whether override
+        a file with name 'fname'.
+        Returns a tuple tha contains the instant decision and eventually
+        the new default (which is the same as before the user didn't opt for
+        set a default action)
+        """
 
         log.d("ask_overwrite - default policy: %s", str(current_policy))
         # Ask whether overwrite just once or forever
@@ -2682,6 +2638,12 @@ class Client:
             discover_addr: str = ADDR_BROADCAST,
             progress: bool = False,
             success_if_ends: bool = True):
+        """
+        Actually performs the discover.
+        The method is overcomplex basically just for handle the progress bar
+        of the scan in a consistent manner, but otherwise is just a call
+        to Discoverer.discover().
+        """
 
         discover_start_t = time.monotonic_ns()
 
@@ -2813,18 +2775,3 @@ class Client:
         if discover_ui_thread:
             # Wait for the ui
             discover_ui_thread.join()
-
-
-
-    def destroy_connection(self):
-        try:
-            log.d("Destroying connection and invalidating it")
-            if self.is_connected_to_server():
-                self.server_connection.disconnect()
-            # Server closes the sharing by itself
-            # There's no need to close() the sharing connection
-        except:
-            log.w("Clean disconnection failed, invalidating connection anyway")
-        finally:
-            self.server_connection = None
-            self.sharing_connection = None

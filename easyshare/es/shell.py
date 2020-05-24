@@ -140,33 +140,10 @@ class Shell:
 
                 log.d("Detected command '%s'", command)
 
-                outcome = ClientErrors.COMMAND_NOT_RECOGNIZED
-
-                if self.has_command(command):
-                    outcome = self.execute_shell_command(command, command_args)
-                elif self._client.has_command(command):
-                    outcome = self._client.execute_command(command, command_args)
-
-                print_errors(outcome)
-
-            except PyroError as pyroerr:
-                log.exception("Pyro error occurred %s", pyroerr)
-                print_errors(ClientErrors.CONNECTION_ERROR)
-                self._client.destroy_connection()
-                break
-
-            except EOFError:
-                log.i("\nCTRL+D: exiting")
-                self._client.destroy_connection()
-                break
-
-            except HandledKeyboardInterrupt:
-                log.d("\nCTRL+C (already handled)")
-                # do not print()
-
-            except KeyboardInterrupt:
-                log.d("\nCTRL+C")
-                print()
+                self.execute(command, command_args)
+            except Exception:
+                log.exception("Unexpected exception")
+                continue
 
 
     def has_command(self, command: str) -> bool:
@@ -199,6 +176,29 @@ class Shell:
 
         return 0
 
+    def execute(self, command: str, command_args: List[str]):
+        try:
+            outcome = ClientErrors.COMMAND_NOT_RECOGNIZED
+
+            if self.has_command(command):
+                outcome = self.execute_shell_command(command, command_args)
+            elif self._client.has_command(command):
+                outcome = self._client.execute_command(command, command_args)
+
+            print_errors(outcome)
+        except PyroError as pyroerr:
+            log.exception("Pyro error occurred %s", pyroerr)
+            print_errors(ClientErrors.CONNECTION_ERROR)
+            self._client.destroy_connection()
+        except EOFError:
+            log.i("\nCTRL+D: exiting")
+            self._client.destroy_connection()
+        except HandledKeyboardInterrupt:
+            log.d("\nCTRL+C (already handled)")
+            # do not print()
+        except KeyboardInterrupt:
+            log.d("\nCTRL+C")
+            print()
 
     def _display_suggestions_wrapper(self, substitution, matches, longest_match_length):
         """ Called by GNU readline when suggestions have to be rendered """

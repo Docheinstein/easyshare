@@ -157,6 +157,7 @@ class ServerConnectionMinimal(Connection):
     def rshell(self) -> Response:
         return self.server.rshell()
 
+
 class ServerConnection(ServerConnectionMinimal):
     """
     Complete server connection; in addition to 'ServerConnectionMinimal' provide

@@ -46,10 +46,10 @@ setup(
     # Metadata
     author="Stefano Dottore",
     author_email="docheinstein@gmail.com",
-    description="client-server command line application written in Python 3 for transfer files between network hosts",
+    description="Client-Server command line application for share files, similar to FTP; written in Python 3 + Pyro5.",
     long_description=read('README.MD'),
     license="MIT",
     keywords="easyshare",
     url="https://github.com/Docheinstein/easyshare",
-    install_requires=['Pyro5', 'colorama']
+    install_requires=['Pyro5', 'colorama', 'ptyprocess']
 )

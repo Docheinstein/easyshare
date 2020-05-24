@@ -29,7 +29,7 @@ BG_WHITE =          "\033[47m"
 
 
 PROMPT_BLINK_OFF =   "\033[25m"
-DELETE_EOL =         "\033[K"
+DELETE_EOL =         "\033[K"  # delete until end of line
 
 # From readline docs
 # declared in `readline.h'

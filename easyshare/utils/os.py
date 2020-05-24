@@ -1,4 +1,3 @@
-import errno
 import fcntl
 import os
 import pty
@@ -17,7 +16,7 @@ from ptyprocess import PtyProcess, PtyProcessUnicode
 from easyshare.logging import get_logger
 from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info
 from easyshare.utils.path import is_hidden
-from easyshare.utils.types import list_wrap, bytes_to_str
+from easyshare.utils.types import list_wrap
 
 log = get_logger(__name__)
 
@@ -28,49 +27,16 @@ def is_unix():
 def is_windows():
     return os.name == "nt"
 
-
 def get_passwd() -> struct_passwd:
+    """ Get the /etc/passwd entry for the current effective user id """
     return getpwuid(os.geteuid())
-
-def is_relpath(s: str) -> bool:
-    raise ValueError("not impl")
-    # s = pathify(s)
-    # return not s.startswith(os.sep)
-
-# def is_hidden(s):
-#     raise ValueError("not impl")
-
-def is_abspath(s: str) -> bool:
-    raise ValueError("not impl")
-    # s = pathify(s)
-    # return s.startswith(os.sep)
-
-
-def relpath(s: str) -> str:
-    raise ValueError("not impl")
-    # s = pathify(s)
-    # return s.lstrip(os.sep)
-
-
-def abspath(s: str) -> str:
-    raise ValueError("not impl")
-    # s = pathify(s)
-    # return s if is_abspath(s) else (os.sep + s)
-
-
-# def pathify(s: str) -> str:
-#     return os.path.expanduser(s)
-
-# def parent_dir(p: Path):
-#     # os.path.split() differs from pathlib.parent
-#     # pathlib.parent of /home/user/ is "/home"
-#     # os.path.split of /home/user/ is ("/home/user/", "")
-#     return p if str(p).endswith(os.path.sep) else p.parent
 
 def ls(path: Path,
        sort_by: Union[str, List[str]] = "name",
        reverse: bool = False,
        hidden: bool = False) -> Optional[List[FileInfo]]:
+    """ Wrapper of Path.iterdir() that provides a list of FileInfo """
+
     if not path:
         raise TypeError("found invalid path")
 
@@ -115,6 +81,10 @@ def tree(path: Path,
          reverse: bool = False,
          max_depth: int = None,
          hidden: bool = False) -> Optional[FileInfoTreeNode]:
+    """
+    Performs a traversal from the given 'path' and provide a 'FileInfoTreeNode'
+    that represent the tree structure.
+    """
     if not path:
         raise TypeError("found invalid path")
 
@@ -200,21 +170,11 @@ def tree(path: Path,
     return root
 
 
-# def ls(path: Path, sort_by: Union[str, List[str]] = "name", reverse=False) -> Optional[List[FileInfo]]:
-    # sort_by = list(filter(lambda sort_field: sort_field in ["name", "size", "ftype"],
-    #                       list_wrap(sort_by)))
-    #
-    # log.i("LS sorting by %s%s", sort_by, " (reverse)" if reverse else "")
-
-    # try:
-    #     return _ls(path, sort_by, reverse)
-    # except Exception as ex:
-    #     log.e("LS execution exception %s", ex)
-    #     return None
-
-
-
 def rm(path: Path, error_callback: Callable[[Exception, Path], None] = None) -> bool:
+    """
+    Wrapper that remove path either if it is a file or a (even filled) directory.
+    Reports the errors to error_callback.
+    """
     if not path:
         raise TypeError("found invalid path")
 
@@ -255,10 +215,13 @@ def rm(path: Path, error_callback: Callable[[Exception, Path], None] = None) -> 
             raise ex
 
 def mv(src: Path, dest: Path):
+    """ Moves src to dest, even recursively """
     shutil.move(str(src), str(dest))
 
 
 def cp(src: Path, dest: Path):
+    """ Copies src to dest, even recursively """
+
     # shutil.copy doesn't handle directories recursively as move
     # we have to use copytree if we detect a DIR to DIR copy
     if src.is_dir() and dest.is_dir():
@@ -271,6 +234,7 @@ def cp(src: Path, dest: Path):
 
 
 def run_attached(cmd: str, stderr_redirect: int = None):
+    """ Run a command while being attached to this terminal """
     proc = subprocess.Popen(cmd, shell=True, text=True, stderr=stderr_redirect)
     proc.wait()
     return proc.returncode
@@ -279,7 +243,11 @@ def run_attached(cmd: str, stderr_redirect: int = None):
 def run_detached(cmd: str,
                  stdout_hook: Callable[[str], None],
                  stderr_hook: Callable[[str], None],
-                 end_hook: Callable[[int], None]):
+                 end_hook: Callable[[int], None]) -> Tuple[subprocess.Popen, threading.Thread]:
+    """
+    Run a command, reporting stdout and stderr of the process outside.
+    The stdin can be provided writing on proc.stdin of this subprocess
+    """
 
     def proc_handler(proc: subprocess.Popen):
         flags = fcntl.fcntl(proc.stdout, fcntl.F_GETFL)
@@ -311,9 +279,12 @@ def run_detached(cmd: str,
     proc_handler_th = threading.Thread(target=proc_handler, daemon=True, args=(popen_proc, ))
     proc_handler_th.start()
 
-    return popen_proc, proc_handler
+    return popen_proc, proc_handler_th
 
 def pty_attached(cmd: str = "/bin/sh") -> int:
+    """
+    Run a command in a pseudo terminal, while being attached to this terminal.
+    """
     argv = shlex.split(cmd)
 
     master_read = pty._read
@@ -345,6 +316,11 @@ def pty_attached(cmd: str = "/bin/sh") -> int:
 def pty_detached(out_hook: Callable[[str], None],
                  end_hook: Callable[[int], None],
                  cmd: str = "/bin/sh") -> PtyProcess:
+    """
+    Run a command, reporting stdout and stderr of the process outside (via out_hook).
+    The stdin can be provided with ptyproc.write().
+    """
+
     argv = shlex.split(cmd)
     ptyproc = PtyProcessUnicode.spawn(argv)
 

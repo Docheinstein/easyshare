@@ -88,6 +88,8 @@ Type "**help** *command*" for the full documentation of a command.
 > rm                remove files and directories locally
 
 > exec, :           execute an arbitrary command locally
+>
+> shell, shell      start a local shell
 
 
 ## Remote commands
@@ -109,7 +111,9 @@ Type "**help** *command*" for the full documentation of a command.
 
 > rrm               remove files and directories remotely
 
-> rexec, ::         execute an arbitrary command remotely (disabled by default) since it will compromise server security
+> rexec, ::         execute an arbitrary command remotely (disabled by default)
+
+> rshell, rsh       start a remote shell (disabled by default)
 
 
 # EXAMPLES

@@ -48,7 +48,7 @@ rmkdir              create a remote directory
 rcp                 copy files and directories remotely
 rmv                 move files and directories remotely
 rrm                 remove files and directories remotely
-rexec, ::           execute an arbitrary command remotely (disabled by default) since it will compromise server security
+rexec, ::           execute an arbitrary command remotely
 rshell, rsh         start a remote shell
 
 </i>

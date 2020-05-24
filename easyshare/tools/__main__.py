@@ -57,7 +57,7 @@ def main():
     try:
         args = EsTools().parse(sys.argv[1:])
     except ArgsParseError as err:
-        abort("Parse of arguments failed: {}".format(str(err)))
+        abort(f"Parse of arguments failed: {str(err)}")
 
 
     # Help?

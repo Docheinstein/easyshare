@@ -263,6 +263,7 @@ cp               copy files and directories locally
 mv               move files and directories locally
 rm               remove files and directories locally
 exec, :          execute an arbitrary command locally
+shell, sh        start a local shell
 ```
 
 You should really be familiar with these commands since behave quite similar 
@@ -282,7 +283,8 @@ rmkdir           create a remote directory
 rcp              copy files and directories remotely
 rmv              move files and directories remotely
 rrm              remove files and directories remotely
-rexec, ::        execute an arbitrary command remotely (disabled by default) since it will compromise server security
+rexec, ::        execute an arbitrary command remotely (disabled by default)
+rshell, rsh      start a remote shell (disabled by default)
 ```
 
 These are the counterparts of the **Local commands** that work on the remote sharing

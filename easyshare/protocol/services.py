@@ -65,7 +65,7 @@ class IServer(ABC):
         pass
 
     @abstractmethod
-    def rshell(self, cmd: str) -> Response:
+    def rshell(self) -> Response:
         """
         Execute a remote shell on the server, instantiate a 'RshellService'
         the client can access for receive stdout and send stdin.

@@ -49,15 +49,11 @@ NON_CLI_COMMANDS = [
     Commands.EXIT,                              # exit
     Commands.QUIT, Commands.QUIT_SHORT          # quit
 
-    # Commands.LOCAL_CHANGE_DIRECTORY,            # cd
-    # Commands.REMOTE_CHANGE_DIRECTORY,           # rcd
-    # Commands.CLOSE                              # close
-
-    # ^ Not really useful, but we can leave these anyway ^
+    # Others commands doesn't make sense (xCD, xPWD, close), but we can leave
+    # those anyway after all...
 ]
 
 CLI_COMMANDS = [k for k in values(Commands) if k not in NON_CLI_COMMANDS]
-
 
 
 # ==================================================================
@@ -73,7 +69,7 @@ def main():
         args = Es().parse(sys.argv[1:])
     except ArgsParseError as err:
         log.exception("Exception occurred while parsing args")
-        abort("Parse of arguments failed: {}".format(str(err)))
+        abort(f"Parse of arguments failed: {str(err)}")
 
     # Eventually set verbosity before anything else
     # so that the rest of the startup (config parsing, ...)
@@ -179,28 +175,7 @@ def main():
             log.i("Found a valid CLI command '%s'", command)
             command_args = pargs[1:]
 
-            outcome = None
-
-            # TODO: use the shell wrapper in some way
-            raise ValueError("NOT IMPL")
-            # try:
-            #     if shell.has_command(command):
-            #         outcome = shell.execute_shell_command(command, command_args)
-            #     elif client.has_command(command):
-            #         outcome = client.execute_command(command, command_args)
-            #     else:
-            #         abort("Unknown CLI command '{}'".format(command))
-            # except PyroError as pyroerr:
-            #     log.exception("Pyro error occurred %s", pyroerr)
-            #     print_error(ClientErrors.CONNECTION_ERROR)
-            # except KeyboardInterrupt:
-            #     log.d("\nCTRL+C")
-
-
-            if is_int(outcome) and outcome > 0:
-                abort(errno_str(outcome))
-            elif is_str(outcome):
-                abort(str)
+            shell.execute(command, command_args)
 
             # Keep the shell opened only if we performed an 'open'
             # Otherwise close it after the action
