@@ -90,6 +90,7 @@ class Shell:
 
         rl.set_completer(self._next_suggestion_wrapper)
 
+
     def input_loop(self):
         """
         Starts the shell.
@@ -213,9 +214,15 @@ class Shell:
         #    way we can render a colored suggestion while using the readline
         #    core for treat it as a simple string
         # 2. Internally handles the max_columns constraints
-        print("")
-        print_tabulated(self._suggestions_intent.suggestions,
+
+        print("") # break the prompt line
+
+        # print the suggestions (without the dummy addition for avoid completion)
+        real_suggestions = [s for s in self._suggestions_intent.suggestions if s.string]
+        print_tabulated(real_suggestions,
                         max_columns=self._suggestions_intent.max_columns)
+
+        # Manually print what was displayed (prompt plus content)
         print(self._prompt + self._current_line, end="", flush=True)
 
     def _next_suggestion_wrapper(self, token: str, count: int):
@@ -260,9 +267,17 @@ class Shell:
                     log.d("Fetching suggestions for command completion of '%s'", comm_name)
                     self._suggestions_intent.suggestions.append(StyledString(comm_name))
 
+            if not self._suggestions_intent.completion:
+                # TODO: find a way for not show the the suggestion inline
+                #  probably see https://tiswww.case.edu/php/chet/readline/readline.html#SEC45
+                #  for now we add a dummy suggestion that we won't print in our
+                #  custom renderer
+                self._suggestions_intent.suggestions.append(StyledString(""))
+
             self._suggestions_intent.suggestions = \
                 sorted(self._suggestions_intent.suggestions,
                        key=lambda sug: sug.string.lower())
+
 
         if count < len(self._suggestions_intent.suggestions):
             log.d("Returning suggestion %d", count)
@@ -271,19 +286,20 @@ class Shell:
             # Escape whitespaces
             sug = sug.replace(" ", "\\ ")
 
+            log.d("Completion is enabled = %s", self._suggestions_intent.completion)
+
             # If there is only a command that begins with
             # this name, complete the command (and eventually insert a space)
             if self._suggestions_intent.completion and \
                     self._suggestions_intent.space_after_completion and \
-                    count == len(self._suggestions_intent.suggestions) - 1:
+                    len(self._suggestions_intent.suggestions) == 1:
+
+                log.d("Last command with autocomplete -> adding space")
 
                 if is_bool(self._suggestions_intent.space_after_completion):
                     append_space = self._suggestions_intent.space_after_completion
-                else:
-                    # Hook
-                    append_space = self._suggestions_intent.space_after_completion(
-                        sug
-                    )
+                else: # is a hook
+                    append_space = self._suggestions_intent.space_after_completion(sug)
 
                 if append_space:
                     sug += " "
