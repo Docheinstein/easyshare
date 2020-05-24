@@ -1,14 +1,14 @@
 import os
-import threading
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Callable, Optional, Union, Dict, List
 
-from easyshare.endpoint import Endpoint
+from easyshare.consts import ansi
 from easyshare.esd.common import ClientContext, Sharing
-from easyshare.esd.daemons.pyro import get_pyro_daemon
+from easyshare.esd.daemons.pyro import get_pyro_daemon, PyroObject
 from easyshare.logging import get_logger
 from easyshare.protocol.responses import ServerErrors, create_error_response
+from easyshare.utils.inspection import stacktrace
 from easyshare.utils.os import is_relpath, relpath
 from easyshare.utils.pyro.server import pyro_client_endpoint
 from easyshare.utils.str import unprefix, q
@@ -25,30 +25,48 @@ FPath = Path
 # =============================================
 
 
-class BaseService(ABC):
+class BaseService(PyroObject):
     """
     Base service: an object that can be published to a Pyro Daemon.
     """
-    @abstractmethod
-    def publish(self) -> str:
-        """ Publishes the service to the Pyro Daemon """
-        pass
 
-    @abstractmethod
-    def unpublish(self):
-        """ Unpublishes the service from the Pyro Daemon """
-        pass
-
-    @abstractmethod
-    def is_published(self) -> bool:
-        """ Whether the service is published """
-        pass
+    def __init__(self):
+        self.service_uri = None
+        self.service_uid = None
+        self.published = False
 
     @abstractmethod
     def name(self) -> str:
         """ Name of the service (debug purpose) """
         pass
 
+    def publish(self) -> str:
+        """ Publishes the service to the Pyro Daemon """
+        if not self.is_published():
+            self.published = True
+            self.service_uri, self.service_uid = \
+                get_pyro_daemon().publish(self, uid=self.service_uid, track=self.is_tracked())
+        log.d("Service [%s - %s] added", self.name(), self.service_uid)
+        return self.service_uid
+
+    def unpublish(self):
+        """ Unpublishes the service from the Pyro Daemon """
+        if self.is_published():
+            self.published = False
+            get_pyro_daemon().unpublish(self)
+        log.d("Service [%s - %s] removed", self.name(), self.service_uid)
+
+    def is_published(self) -> bool:
+        """ Whether the service is published """
+        return self.published
+
+    @abstractmethod
+    def is_tracked(self) -> bool:
+        pass
+
+    def close(self):
+        log.d("Service '%s' unpublished | uid = %s",
+              self.name(), self.service_uid)
 
 # =============================================
 # ============ BASE CLIENT SERVICE ============
@@ -62,53 +80,13 @@ class BaseClientService(BaseService, ABC):
     when is published, in order to be unpublished when the client disconnects.
     """
 
-    def __init__(self,
-                 client: ClientContext,
-                 conn_callback: Callable[['BaseClientService'], None],
-                 end_callback: Callable[['BaseClientService'], None]):
-        self.service_uri = None
-        self.service_uid = None
-        self.published = False
-
+    def __init__(self, client: ClientContext):
+        super().__init__()
         self.client = client
         self.endpoint = None
 
-        self._conn_callback = conn_callback
-        self._end_callback = end_callback
-
-        self._lock = threading.Lock()
-
-    def publish(self) -> str:
-        """ Publishes the service to the Pyro Daemon """
-        log.d("Service [%s - %s] added", self.name(), self.service_uid)
-        with self._lock:
-            if not self.is_published():
-                self.service_uri, self.service_uid = \
-                    get_pyro_daemon().publish(self, uid=self.service_uid)
-                self.published = True
-                self.client.add_service(self.service_uid)
-            return self.service_uid
-
-    def unpublish(self):
-        """ Unpublishes the service from the Pyro Daemon """
-        log.d("Service [%s - %s] removed", self.name(), self.service_uid)
-        with self._lock:
-            if self.is_published():
-                get_pyro_daemon().unpublish(self.service_uid)
-                self.published = False
-                self.client.remove_service(self.service_uid)
-
-    def is_published(self) -> bool:
-        """ Whether the service is published """
-        return self.published
-
-    def _notify_service_conn(self):
-        if self._conn_callback:
-            self._conn_callback(self)
-
-    def _notify_service_end(self):
-        if self._end_callback:
-            self._end_callback(self)
+    def is_tracked(self) -> bool:
+        return True
 
     def _accept_request_if_allowed(self):
         # For the first request we can't check the port since the remote
@@ -118,7 +96,8 @@ class BaseClientService(BaseService, ABC):
         current_client_endpoint = pyro_client_endpoint()
         if self.endpoint:
             # IP + port match
-            allowed = current_client_endpoint == self.endpoint
+            allowed = current_client_endpoint[0] == self.endpoint[0] and \
+                        current_client_endpoint[1] == self.endpoint[1]
         else:
             # IP match
             allowed = self.client.endpoint[0] == current_client_endpoint[0]
@@ -128,12 +107,10 @@ class BaseClientService(BaseService, ABC):
             # Set the endpoint forever
             if not self.endpoint:
                 self.endpoint = current_client_endpoint
-                log.i("Definitive client endpoint for this service (%s) is :%s", self.name(), self.endpoint)
-                # Notify the new connection
-                self._notify_service_conn()
+                log.i("Definitive client endpoint for this service (%s) is: %s", self.name(), self.endpoint)
         else:
-            log.w("Not allowed, address mismatch %s and %s", current_client_endpoint, self.client.endpoint)
-
+            log.w("Not allowed, mismatch between %s and %s", current_client_endpoint, self.client.endpoint)
+            log.w(stacktrace(color=ansi.FG_YELLOW))
         return allowed
 
 
@@ -154,10 +131,8 @@ class BaseClientSharingService(BaseClientService, ABC):
     def __init__(self,
                  sharing: Sharing,
                  sharing_rcwd: FPath,
-                 client: ClientContext,
-                 conn_callback: Callable[['BaseClientService'], None],
-                 end_callback: Callable[['BaseClientService'], None]):
-        super().__init__(client, conn_callback, end_callback)
+                 client: ClientContext):
+        super().__init__(client)
         self._sharing = sharing
         self._rcwd_fpath: FPath = sharing_rcwd
 

@@ -47,10 +47,8 @@ class GetService(IGetService, TransferService):
                  check: bool,
                  sharing: Sharing,
                  sharing_rcwd: FPath,
-                 client: ClientContext,
-                 conn_callback: Callable[['BaseClientService'], None],
-                 end_callback: Callable[[BaseClientService], None]):
-        super().__init__(sharing, sharing_rcwd, client, conn_callback, end_callback)
+                 client: ClientContext):
+        super().__init__(sharing, sharing_rcwd, client)
         self._check = check
         self._next_servings: List[Tuple[FPath, FPath, str]] = [] # fpath, basedir, prefix (only for is_root case)
         self._active_servings: Queue[Union[Tuple[FPath, BinaryIO], None]] = Queue() # fpath, fd

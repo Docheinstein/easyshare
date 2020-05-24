@@ -1,11 +1,9 @@
 import string
-import threading
 from pathlib import Path
-from typing import Optional, Set
-
+from typing import Optional
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType, create_file_info, ftype
+from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType, ftype
 from easyshare.utils.json import j
 from easyshare.utils.path import LocalPath
 from easyshare.utils.rand import randstring
@@ -27,30 +25,30 @@ class ClientContext:
         # We have to bind all the endpoints to client in the server logic for
         # handle disconnection properly
         self.endpoint: Optional[Endpoint] = endpoint
-        self.services: Set[str] = set() # list of services published for this client
+        # self.services: Set[str] = set() # list of services published for this client
         self.tag = randstring(4, alphabet=string.ascii_lowercase) # not an unique id, just a tag
-        self.lock = threading.Lock() # for atomic operations on services
+        # self.lock = threading.Lock() # for atomic operations on services
 
 
     def __str__(self):
         return f"{self.endpoint} [{self.tag}]"
 
-
-    def add_service(self, service_id: str):
-        """
-        Bounds a service to this client (in order to unpublish
-        the service when the user connection is down)
-        """
-        log.d("Service [%s] added to client ctx", service_id)
-        with self.lock:
-            self.services.add(service_id)
-
-
-    def remove_service(self, service_id: str):
-        """ Unbounds a previously added service from this client"""
-        log.d("Service [%s] removed from client ctx", service_id)
-        with self.lock:
-            self.services.remove(service_id)
+    #
+    # def add_service(self, service_id: str):
+    #     """
+    #     Bounds a service to this client (in order to unpublish
+    #     the service when the user connection is down)
+    #     """
+    #     log.d("Service [%s] added to client ctx", service_id)
+    #     with self.lock:
+    #         self.services.add(service_id)
+    #
+    #
+    # def remove_service(self, service_id: str):
+    #     """ Unbounds a previously added service from this client"""
+    #     log.d("Service [%s] removed from client ctx", service_id)
+    #     with self.lock:
+    #         self.services.remove(service_id)
 
 
 # =============================================

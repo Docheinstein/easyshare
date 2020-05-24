@@ -75,7 +75,7 @@ class SharingConnection:
 
     @require_connected_connection
     def close(self):
-        self.service.close()         # async
+        self.service.close_()         # async
         self.destroy_connection()
 
     @require_connected_connection

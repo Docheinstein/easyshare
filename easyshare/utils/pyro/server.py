@@ -12,6 +12,9 @@ from easyshare.utils.json import j
 log = get_logger(__name__)
 
 
+def pyro_context():
+    return pyro.current_context
+
 def pyro_client_endpoint() -> Endpoint:
     """
     If executed on the thread of a Pyro.Daemon, returns the

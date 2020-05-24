@@ -30,10 +30,8 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
     def __init__(self,
                  sharing: Sharing,
                  sharing_rcwd: FPath,
-                 client: ClientContext,
-                 conn_callback: Callable[['BaseClientService'], None],
-                 end_callback: Callable[[BaseClientService], None]):
-        super().__init__(sharing, sharing_rcwd, client, conn_callback, end_callback)
+                 client: ClientContext):
+        super().__init__(sharing, sharing_rcwd, client)
         log.d("Creating a transfer service")
         get_transfer_daemon().add_callback(self._handle_new_connection)
         self._outcome_sync = threading.Semaphore(0)
@@ -53,10 +51,10 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
 
         log.i("Transfer outcome: %d", outcome)
 
-        self._notify_service_end()
-
         # It's always a success response, but eventually will have errors
         # (e.g. a transfer is failed (invalid path, ...) but the transaction is ok)
+
+        self.unpublish() # job finished
 
         if not self._errors:
             return create_success_response({"outcome": outcome})

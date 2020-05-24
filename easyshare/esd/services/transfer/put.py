@@ -45,10 +45,8 @@ class PutService(IPutService, TransferService):
                  check: bool,
                  sharing: Sharing,
                  sharing_rcwd,
-                 client: ClientContext,
-                 conn_callback: Callable[['BaseClientService'], None],
-                 end_callback: Callable[[BaseClientService], None]):
-        super().__init__(sharing, sharing_rcwd, client, conn_callback, end_callback)
+                 client: ClientContext):
+        super().__init__(sharing, sharing_rcwd, client)
         self._check = check
         self._incomings: Queue[Tuple[FPath, int, BinaryIO]] = Queue() # fpath, size, fd
 
@@ -162,8 +160,11 @@ class PutService(IPutService, TransferService):
                 log.i("No more files: transfer completed")
                 break
 
-            log.i("Next incoming file to handle: %s", next_incoming)
             incoming_fpath, incoming_size, local_fd = next_incoming
+            log.i("Next incoming file to handle: %s", incoming_fpath)
+
+            # Report it
+            print(f"[{self.client.tag}] put '{incoming_fpath}'")
 
             # File is already opened
 

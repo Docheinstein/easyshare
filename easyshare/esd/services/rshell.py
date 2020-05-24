@@ -67,11 +67,8 @@ class RshellService(IRshellService, BaseClientService):
         return "rshell"
 
 
-    def __init__(self, *,
-                 client: ClientContext,
-                 conn_callback: Callable[[BaseClientService], None],
-                 end_callback: Callable[[BaseClientService], None]):
-        super().__init__(client, conn_callback, end_callback)
+    def __init__(self, client: ClientContext):
+        super().__init__(client)
         self._buffer = BlockingBuffer()
         self._ptyproc: Optional[PtyProcess] = None
 
@@ -105,7 +102,7 @@ class RshellService(IRshellService, BaseClientService):
             # Command finished, notify the remote and close the service
             data["retcode"] = retcode
 
-            self._notify_service_end()
+            self.unpublish()  # job finished
 
         return create_success_response(data)
 

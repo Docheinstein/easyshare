@@ -4,7 +4,7 @@ from typing import Callable, List, Optional
 from Pyro5.server import expose
 
 from easyshare.esd.common import ClientContext, Sharing
-from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner, FPath
+from easyshare.esd.services import BaseClientSharingService, check_sharing_service_owner, FPath
 from easyshare.esd.services.transfer.get import GetService
 from easyshare.esd.services.transfer.put import PutService
 from easyshare.logging import get_logger
@@ -63,10 +63,8 @@ class SharingService(ISharingService, BaseClientSharingService):
                  server_port: int,
                  sharing: Sharing,
                  sharing_rcwd: Path,
-                 client: ClientContext,
-                 conn_callback: Callable[[BaseClientService], None],
-                 end_callback: Callable[[BaseClientService], None]):
-        super().__init__(sharing, sharing_rcwd, client, conn_callback, end_callback)
+                 client: ClientContext):
+        super().__init__(sharing, sharing_rcwd, client)
         self._server_port = server_port
 
 
@@ -409,8 +407,6 @@ class SharingService(ISharingService, BaseClientSharingService):
                 log.e("'%s' must be an existing directory", destination_fpath)
                 return self._create_error_response(ServerErrors.NOT_A_DIRECTORY, destination_fpath)
 
-        errors = []
-
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< %s %s %s [%s]",
@@ -535,9 +531,7 @@ class SharingService(ISharingService, BaseClientSharingService):
             check=check,
             sharing=self._sharing,
             sharing_rcwd=self._rcwd_fpath,
-            client=self.client,
-            conn_callback=self._conn_callback,
-            end_callback=lambda getserv: getserv.unpublish()
+            client=self.client
         )
 
         uid = get.publish()
@@ -565,9 +559,7 @@ class SharingService(ISharingService, BaseClientSharingService):
             check=check,
             sharing=self._sharing,
             sharing_rcwd=self._rcwd_fpath,
-            client=self.client,
-            conn_callback=self._conn_callback,
-            end_callback=lambda putserv: putserv.unpublish()
+            client=self.client
         )
 
         uid = put.publish()
@@ -579,14 +571,12 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @check_sharing_service_owner
-    def close(self):
+    def close_(self):
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< CLOSE [%s]", str(client_endpoint))
         log.i("Deallocating client resources...")
 
-        # TODO remove gets/puts
-
         print(f"[{self.client.tag}] close '{self._sharing.name}'")
 
-        self._notify_service_end()
+        self.unpublish() # job finished

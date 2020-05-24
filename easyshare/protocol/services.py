@@ -158,7 +158,7 @@ class ISharingService(ABC):
     """ Interface of a sharing service (sharing opened by a client) """
 
     @abstractmethod
-    def close(self):
+    def close_(self):
         """ Close the sharing, destroying the 'SharingService' """
         pass
 

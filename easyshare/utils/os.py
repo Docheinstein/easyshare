@@ -357,7 +357,7 @@ def pty_detached(out_hook: Callable[[str], None],
                 break
             except EOFError:
                 break
-        end_hook(0)
+        end_hook(0) # TODO how get the real return code?
 
     proc_handler_th = threading.Thread(target=proc_handler, daemon=True)
     proc_handler_th.start()

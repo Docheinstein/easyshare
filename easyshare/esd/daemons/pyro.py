@@ -1,4 +1,5 @@
 import ssl
+from abc import ABC, abstractmethod
 from typing import Optional, Any, Tuple
 
 import Pyro5.api as pyro
@@ -6,10 +7,16 @@ from Pyro5 import socketutil
 
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
+from easyshare.utils.pyro.server import pyro_context
 from easyshare.utils.rand import uuid
 
 log = get_logger(__name__)
 
+
+class PyroObject(ABC):
+    @abstractmethod
+    def close(self):
+        pass
 
 # =============================================
 # ============== PYRO DAEMON ================
@@ -26,37 +33,56 @@ class PyroDaemon(pyro.Daemon):
     Each 'Service' will be registered to to daemon for being exposed outside.
     """
 
+
     def __init__(self, *vargs, **kwargs):
         super().__init__(*vargs, **kwargs)
-        self.disconnection_callbacks = set()
+        self._disconnection_callbacks = set()
+        self._published = {}
 
     def add_disconnection_callback(self, callback):
         """ Adds a callback to invoke when a client disconnects """
-        self.disconnection_callbacks.add(callback)
+        self._disconnection_callbacks.add(callback)
 
     def remove_disconnection_callback(self, callback):
         """ Removes a callback from the set of callbacks """
-        self.disconnection_callbacks.remove(callback)
+        self._disconnection_callbacks.remove(callback)
 
-    def publish(self, obj: Any, uid: str = None) -> Tuple[str, str]:  # uri, uid
+    def publish(self, obj: PyroObject, uid: str = None, track: bool = True) -> Tuple[str, str]: # uri, uid
         """ Publishes an object which will be available through a remote Pyro.Proxy """
+
         obj_id = uid or uuid()
+
         log.i("Publishing pyro object %s with uid='%s'",
               obj.__class__.__name__, obj_id[:6] + "..." + obj_id[-6:])
 
-        return str(super().register(obj, objectId=obj_id)), obj_id
+        setattr(obj, "_publish_id", obj_id)
 
-    def unpublish(self, obj_id):
+        if track:
+            pyro_context().track_resource(obj)
+
+        return str(self.register(obj, obj_id)), obj_id
+
+    def unpublish(self, obj: PyroObject):
         """ Unpublishes an object from the set of published pyro objects """
-        log.i("Unpublishing pyro object with uid='%s'",
-              obj_id[:6] + "..." + obj_id[-6:])
-        self.unregister(obj_id)
+
+        obj_id = getattr(obj, "_publish_id")
+        if obj_id:
+            log.i("Unpublishing pyro object %s with uid='%s'",
+                  obj.__class__.__name__, obj_id[:6] + "..." + obj_id[-6:])
+        else:
+            log.w("Object does not have a _publish_id, is it really published?")
+
+        pyro_context().untrack_resource(obj)
+
+        self.unregister(obj)
+
+        obj.close()
 
     def clientDisconnect(self, conn: socketutil.SocketConnection):
         """ Callback which will be invoked by pyro when a client disconnects """
         log.d("Pyro endpoint disconnected: %s", conn.sock.getpeername())
-        log.d("Notifying %d listeners", len(self.disconnection_callbacks))
-        for cb in self.disconnection_callbacks:
+        log.d("Notifying %d listeners", len(self._disconnection_callbacks))
+        for cb in self._disconnection_callbacks:
             cb(conn)
 
     def endpoint(self) -> Endpoint:

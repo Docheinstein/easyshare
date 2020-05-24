@@ -67,11 +67,8 @@ class RexecService(IRexecService, BaseClientService):
     def name(self) -> str:
         return "rexec"
 
-    def __init__(self, cmd: str, *,
-                 client: ClientContext,
-                 conn_callback: Callable[['BaseClientService'], None],
-                 end_callback: Callable[[BaseClientService], None]):
-        super().__init__(client, conn_callback, end_callback)
+    def __init__(self, cmd: str, client: ClientContext):
+        super().__init__(client)
         self._cmd = cmd
         self._buffer = BlockingBuffer()
         self.proc: Optional[subprocess.Popen] = None
@@ -112,7 +109,7 @@ class RexecService(IRexecService, BaseClientService):
             # Command finished, notify the remote and close the service
             data["retcode"] = retcode
 
-            self._notify_service_end()
+            self.unpublish()  # job finished
 
         return create_success_response(data)
 
