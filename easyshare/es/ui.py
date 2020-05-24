@@ -1,13 +1,12 @@
 from math import ceil
 from typing import List
 
-from easyshare.consts import ansi
-from easyshare.logging import get_logger
 from easyshare.common import DIR_COLOR, FILE_COLOR
+from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull, FTYPE_DIR, FileInfo, SharingInfo, FTYPE_FILE
-from easyshare.styling import styled, fg
-from easyshare.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.ssl import get_cached_or_fetch_ssl_certificate_for_endpoint
+from easyshare.styling import fg, bold
+from easyshare.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.utils.env import terminal_size, is_unicode_supported
 from easyshare.utils.measures import size_str
 from easyshare.utils.path import is_hidden
@@ -161,18 +160,19 @@ def ssl_certificate_to_pretty_str(ssl_cert: SSLCertificate) -> str:
     subject = ssl_cert.get("subject")
     issuer = ssl_cert.get("issuer")
 
-    return \
-        "Common name:        {}\n".format(subject.get("common_name")) + \
-        "Organization:       {}\n".format(subject.get("organization")) + \
-        "Organization Unit:  {}\n".format(subject.get("organization_unit")) + \
-        "Email:              {}\n".format(subject.get("email")) + \
-        "Locality:           {}\n".format(subject.get("locality")) + \
-        "State:              {}\n".format(subject.get("state")) + \
-        "Country:            {}\n\n".format(subject.get("country")) + \
-        "Valid From:         {}\n".format(ssl_cert.get("valid_from")) + \
-        "Valid To:           {}\n\n".format(ssl_cert.get("valid_to")) + \
-        "Issuer:             {}\n".format(", ".join([issuer.get("common_name"), issuer.get("organization")])) + \
-        "Signing:            {}".format("self signed" if ssl_cert.get("self_signed") else "signed")
+    return f"""\
+Common name:        {subject.get("common_name")}
+Organization:       {subject.get("organization")}
+Organization:       {subject.get("organization")}
+Organization Unit:  {subject.get("organization_unit")}
+Email:              {subject.get("email")}
+Locality:           {subject.get("locality")}
+State:              {subject.get("state")}
+Country:            {subject.get("country")}
+Valid From:         {ssl_cert.get("valid_from")}
+Valid To:           {ssl_cert.get("valid_to")}
+Issuer:             {", ".join([issuer.get("common_name"), issuer.get("organization")])}
+Signing:            {"self signed" if ssl_cert.get("self_signed") else "signed"}"""
 
 
 def server_info_to_pretty_str(info: ServerInfoFull, sharing_details: bool = False, separators: bool = False) -> str:
@@ -180,22 +180,21 @@ def server_info_to_pretty_str(info: ServerInfoFull, sharing_details: bool = Fals
 
     discover_port_str = ""
     if info.get("discoverable", False):
-        discover_port_str = "Discover Port: {}\n".format(info.get("discover_port"))
+        discover_port_str = "Discover Port:   {}\n".format(info.get("discover_port"))
 
 
     s = f"""\
 ================================
 
-{styled("SERVER INFO", attrs=ansi.ATTR_BOLD)}
+{bold("SERVER INFO")}
 
-Name:           {info.get("name")}
-Address:        {info.get("ip")}
-Port:           {info.get("port")}
-Discoverable:   {yn(info.get("discoverable", False))}
+Name:            {info.get("name")}
+Address:         {info.get("ip")}
+Port:            {info.get("port")}
+Discoverable:    {yn(info.get("discoverable", False))}
 {discover_port_str}\
-Auth:           {info.get("auth")}
-Auth:           {info.get("auth")}
-SSL:            {tf(info.get("ssl"), "enabled", "disabled")}
+Auth:            {yn(info.get("auth"))}
+SSL:             {tf(info.get("ssl"), "enabled", "disabled")}
 
 ================================"""
 
@@ -206,7 +205,8 @@ SSL:            {tf(info.get("ssl"), "enabled", "disabled")}
         )
 
         s += f"""
-{styled("SSL CERTIFICATE", attrs=ansi.ATTR_BOLD)}
+
+{bold("SSL CERTIFICATE")}
 
 {ssl_certificate_to_pretty_str(ssl_cert)}
 
@@ -214,12 +214,12 @@ SSL:            {tf(info.get("ssl"), "enabled", "disabled")}
 
     # Sharings
     s += f"""
-{styled("SHARINGS", attrs=ansi.ATTR_BOLD)}
+
+{bold("SHARINGS")}
 
 {sharings_to_pretty_str(info.get("sharings"), details=sharing_details, indent=2)}
 
-================================
-"""
+================================"""
 
     return s
 

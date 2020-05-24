@@ -13,7 +13,6 @@ import zlib
 from getpass import getpass
 from pathlib import Path
 from pwd import struct_passwd
-from stat import S_ISDIR, S_ISREG
 from typing import Optional, Callable, List, Dict, Union, Tuple, cast
 
 from Pyro5.errors import PyroError
@@ -25,8 +24,6 @@ from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, SUCCESS_COLOR, 
 from easyshare.consts import ansi
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
-from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
-    ListSharings, Ping
 from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connections.server import ServerConnection, ServerConnectionMinimal
 from easyshare.es.connections.sharing import SharingConnection
@@ -34,30 +31,29 @@ from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str, server_info_to_short_str
+from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
+    ListSharings, Ping
 from easyshare.logging import get_logger
+from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
+    create_error_of_response
 from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService, IRshellService
-from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ServerErrors, \
-    ResponseError, create_error_of_response
 from easyshare.protocol.types import FileType, ServerInfoFull, SharingInfo, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
     OverwritePolicy, FTYPE_FILE, ServerInfo, create_file_info, PutNextResponse
 from easyshare.sockets import SocketTcpOut
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import red, bold
 from easyshare.timer import Timer
-from easyshare.utils import eprint
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
-from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, relpath, get_passwd, is_unix, is_windows, \
-    pty_attached, os_error_str
+from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str
 from easyshare.utils.path import LocalPath
 from easyshare.utils.progress import ProgressBarRendererFactory
 from easyshare.utils.progress.file import FileProgressor
 from easyshare.utils.progress.simple import SimpleProgressor
-from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.pyro import pyro_uri
-from easyshare.utils.str import unprefix, q
+from easyshare.utils.pyro.client import TracedPyroProxy
+from easyshare.utils.str import q
 from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
-
 
 log = get_logger(__name__)
 
@@ -666,6 +662,10 @@ class Client:
 
     @staticmethod
     def exec(args: Args, _, _2):
+        if not is_unix():
+            log.w("exec not supported on this platform")
+            raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
+
         popen_args = args.get_unparsed_args(default=[])
         popen_cmd = " ".join(popen_args)
 
@@ -677,10 +677,9 @@ class Client:
 
     @staticmethod
     def shell(args: Args, _, _2):
-        if is_windows():
-            raise CommandExecutionError(ErrorsStrings.WINDOWS_NOT_SUPPORTED)
         if not is_unix():
-            log.w("Not unix? This probably won't work")
+            log.w("shell not supported on this platform")
+            raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
 
         passwd: struct_passwd = get_passwd()
 
@@ -1092,7 +1091,7 @@ class Client:
         def response_handler(client: Endpoint,
                              server_info_full: ServerInfoFull) -> bool:
             nonlocal servers_found
-            time.sleep(random.random() * self._discover_timeout / 2)
+
             log.i("Handling DISCOVER response from %s\n%s", str(client), str(server_info_full))
             # Print as soon as they come
 
@@ -1122,7 +1121,7 @@ class Client:
 
             # DELETE_EOL for overwrite progress bar render
 
-            print(ansi.DELETE_EOL + s)
+            print(ansi.DELETE_EOL + s, flush=True)
 
             servers_found += 1
 
@@ -2489,7 +2488,7 @@ class Client:
 
         def response_handler(client_endpoint: Endpoint,
                              a_server_info: ServerInfoFull) -> bool:
-
+            time.sleep(self._discover_timeout * 0.8)
             nonlocal server_info
 
             log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
@@ -2727,7 +2726,7 @@ class Client:
                     log.d("discover_state will be %d", state)
 
                     if state == DISCOVER_TIMEDOUT:
-                        # Timeout can either be good or bad
+                        # DISCOVER_TIMEDOUT can either be good or bad
                         if success_if_ends:
                             log.d("DISCOVER_TIMEDOUT => success")
                             pbar.success()
@@ -2735,18 +2734,11 @@ class Client:
                             log.d("DISCOVER_TIMEDOUT => error")
                             pbar.error(completed=True)
                     elif state == DISCOVER_FOUND:
-                        # Found is always a success
-                        # pbar.success()
-
-                        # Add a carriage return so that the bar will be hided
-                        # by the next print statement.
-                        # The sense is that we have found what we want, there
-                        # no need to show the pbar after the finding
-                        # ^ NOT NEEEDED? ^
+                        # DISCOVER_FOUND is always a success
                         # DELETE_EOL for overwrite the bar
-                        print(ansi.DELETE_EOL, end="")
+                        print(ansi.DELETE_EOL, end="", flush=True)
                     elif state == DISCOVER_ABORTED:
-                        # Abort is always an error
+                        # DISCOVER_ABORTED is always an error
                         pbar.error() # don't set completed=True, since is aborted in the middle
                     else:
                         log.w("Unexpected new discover state: %d", discover_state)

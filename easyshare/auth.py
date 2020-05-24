@@ -90,7 +90,7 @@ class AuthHash(Auth, ABC):
 
     @classmethod
     def algo_type(cls) -> str:
-        return "hash"
+        return "secure hash"
 
     def __init__(self, algo_id: str, salt: b64, hash: b64):
         self.algo_id = algo_id

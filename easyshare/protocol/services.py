@@ -158,7 +158,8 @@ class ISharingService(ABC):
     """ Interface of a sharing service (sharing opened by a client) """
 
     @abstractmethod
-    def close_(self):
+    def close_(self): # can't call this close() due to a
+                      # pyro conflict for resources tracking
         """ Close the sharing, destroying the 'SharingService' """
         pass
 

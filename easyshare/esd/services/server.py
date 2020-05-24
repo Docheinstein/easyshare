@@ -3,19 +3,21 @@ from typing import Dict, Optional, List
 from Pyro5 import socketutil
 from Pyro5.api import expose, oneway
 
+from easyshare.auth import Auth
 from easyshare.common import ESD_PYRO_UID
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.daemons.pyro import get_pyro_daemon
 from easyshare.esd.services import BaseService
-from easyshare.esd.services.rexec import RexecService
-from easyshare.esd.services.rshell import RshellService
+from easyshare.esd.services.execution.rexec import RexecService
+from easyshare.esd.services.execution.rshell import RshellService
 from easyshare.esd.services.sharing import SharingService
 from easyshare.logging import get_logger
 from easyshare.protocol.responses import ServerErrors, create_error_response, create_success_response, Response
 from easyshare.protocol.services import IServer
 from easyshare.protocol.types import ServerInfo
 from easyshare.styling import red, green
+from easyshare.utils.os import is_unix
 from easyshare.utils.pyro.server import pyro_client_endpoint, try_or_command_failed_response, trace_api
 from easyshare.utils.str import q
 
@@ -26,7 +28,7 @@ log = get_logger(__name__)
 # ============== SERVER SERVICE ===============
 # =============================================
 
-
+# decorator
 def require_connected_client(api):
     """
     Decorator for require that the client that performs the request is actually
@@ -51,11 +53,11 @@ class ServerService(IServer, BaseService):
 
     def __init__(self, *,
                  sharings: List[Sharing],
-                 name,
-                 address,
-                 port,
-                 auth,
-                 rexec):
+                 name: str,
+                 address: str,
+                 port: int,
+                 auth: Auth,
+                 rexec: bool):
         super().__init__()
         self._sharings = {s.name: s for s in sharings}
         self._name = name
@@ -85,9 +87,9 @@ class ServerService(IServer, BaseService):
         """ Name of the server"""
         return self._name
 
-    def auth_type(self) -> str:
-        """ Authentication type """
-        return self._auth.algo_type()
+    def auth(self) -> Auth:
+        """ Authentication """
+        return self._auth
 
     def is_rexec_enabled(self) -> bool:
         """ Whether rexec is enabled """
@@ -214,6 +216,13 @@ class ServerService(IServer, BaseService):
             log.w("Client attempted remote command execution; denying since rexec is disabled")
             return create_error_response(ServerErrors.NOT_ALLOWED)
 
+        # Check that we are on Unix
+
+        if not is_unix():
+            log.w("rexec not supported on this platform")
+            return create_error_response(ServerErrors.SUPPORTED_ONLY_FOR_UNIX)
+
+
         client = self._current_request_client()
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
@@ -242,6 +251,10 @@ class ServerService(IServer, BaseService):
             log.w("Client attempted remote command execution; denying since rexec is disabled")
             return create_error_response(ServerErrors.NOT_ALLOWED)
 
+        if not is_unix():
+            log.w("rshell not supported on this platform")
+            return create_error_response(ServerErrors.SUPPORTED_ONLY_FOR_UNIX)
+
         client = self._current_request_client()
         if not client:
             return create_error_response(ServerErrors.NOT_CONNECTED)
@@ -269,35 +282,6 @@ class ServerService(IServer, BaseService):
         }
 
         return si
-    #
-    # def _add_client_service(self, service: BaseClientService):
-    #     with self._services_lock:
-    #         self._services[service.endpoint] = service
-    #
-    #     log.d("Bounded service at %s {%d} to client %s",
-    #           service.endpoint, service.service_uid, service.client)
-    #
-    #     self._dump_server_state()
-
-    #
-    # def _del_client_service(self, endpoint: Endpoint, unpublish: bool = True) -> Optional[BaseClientService]:
-    #     """
-    #     Removes the endpoint from the set of known clients
-    #     and cleanups associated resources
-    #     """
-    #     with self._services_lock:
-    #         service = self._services.pop(endpoint, None)
-    #
-    #     if service:
-    #         log.d("Unbound service at %s {%d} from client %s", endpoint, service.service_uid, service.client)
-    #
-    #         if unpublish:
-    #             log.d("Unpublishing too")
-    #             service.unpublish()
-    #
-    #     self._dump_server_state()
-    #
-    #     return service
 
     def _add_client(self, endpoint: Endpoint) -> ClientContext:
         """
@@ -356,5 +340,4 @@ class ServerService(IServer, BaseService):
         cleanup the client's resources
         """
         endpoint = pyroconn.sock.getpeername()
-        # log.d("Cleaning up resources for endpoint %s", endpoint)
         self._del_client(endpoint)

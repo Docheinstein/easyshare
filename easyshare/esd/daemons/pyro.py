@@ -1,6 +1,6 @@
 import ssl
 from abc import ABC, abstractmethod
-from typing import Optional, Any, Tuple
+from typing import Optional, Tuple
 
 import Pyro5.api as pyro
 from Pyro5 import socketutil
@@ -15,7 +15,10 @@ log = get_logger(__name__)
 
 class PyroObject(ABC):
     @abstractmethod
-    def close(self):
+    def close(self): # pyro will call this when the associated client disconnects
+        pass
+
+    def is_tracked(self) -> bool:
         pass
 
 # =============================================
@@ -47,7 +50,7 @@ class PyroDaemon(pyro.Daemon):
         """ Removes a callback from the set of callbacks """
         self._disconnection_callbacks.remove(callback)
 
-    def publish(self, obj: PyroObject, uid: str = None, track: bool = True) -> Tuple[str, str]: # uri, uid
+    def publish(self, obj: PyroObject, uid: str = None) -> Tuple[str, str]: # uri, uid
         """ Publishes an object which will be available through a remote Pyro.Proxy """
 
         obj_id = uid or uuid()
@@ -57,7 +60,7 @@ class PyroDaemon(pyro.Daemon):
 
         setattr(obj, "_publish_id", obj_id)
 
-        if track:
+        if obj.is_tracked():
             pyro_context().track_resource(obj)
 
         return str(self.register(obj, obj_id)), obj_id
@@ -76,7 +79,7 @@ class PyroDaemon(pyro.Daemon):
 
         self.unregister(obj)
 
-        obj.close()
+        # obj.close()
 
     def clientDisconnect(self, conn: socketutil.SocketConnection):
         """ Callback which will be invoked by pyro when a client disconnects """
@@ -105,7 +108,7 @@ def init_pyro_daemon(address: str,
     global _pyro_daemon
     log.i("Initializing pyro daemon\n"
           "\tAddress: %s\n"
-          "\tPort: %s\n",
+          "\tPort: %s",
           address, port)
 
     _pyro_daemon = PyroDaemon(

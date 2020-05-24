@@ -75,6 +75,7 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
         if it is valid, invoke the _run of the subclass .
         """
         if not sock:
+            log.w("Invalid sock provided to TransferService")
             self._finish(TransferOutcomes.CONNECTION_ESTABLISHMENT_ERROR)
             return False # not handled - eventually will be closed
 
@@ -107,4 +108,8 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
         self._outcome_sync.release()
 
     def _add_error(self, err: ResponseError):
+        """
+        Add an error to the list of errors that will be reporte to the client
+        at the end of the transfer.
+        """
         self._errors.append(err)

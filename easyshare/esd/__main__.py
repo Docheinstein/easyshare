@@ -2,22 +2,21 @@ import socket
 import sys
 from typing import List, Optional
 
-from easyshare.esd.common import Sharing
-
 from easyshare import logging
-from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, StopParseArgsSpec, PosArgsSpec
+from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, PosArgsSpec
+from easyshare.auth import AuthFactory
+from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
+from easyshare.esd.common import Sharing
 from easyshare.esd.daemons.discover import get_discover_daemon
 from easyshare.esd.daemons.transfer import get_transfer_daemon
+from easyshare.esd.server import Server
 from easyshare.helps.esd import Esd
 from easyshare.logging import get_logger
-from easyshare.auth import AuthFactory
-from easyshare.esd.server import Server
-from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO
 from easyshare.res.helps import get_command_usage
 from easyshare.ssl import get_ssl_context
-from easyshare.tracing import enable_tracing
 from easyshare.styling import enable_colors, bold
+from easyshare.tracing import enable_tracing
 from easyshare.utils import terminate, abort
 from easyshare.utils.env import are_colors_supported
 from easyshare.utils.net import is_valid_port
@@ -198,7 +197,7 @@ def main():
             )
         except ConfParseError as err:
             log.exception("Exception occurred while parsing conf")
-            abort("Parse of config file failed: {}".format(str(err)))
+            abort(f"Parse of config file failed: {err}")
 
         if cfg:
             _, global_section = cfg.global_section()
@@ -416,7 +415,7 @@ def main():
                 log.w("ssl_privkey not specified; SSL will be disabled")
             server_ssl_enabled = False
 
-    if not server_ssl_enabled:
+    if not server_ssl_enabled or not ssl_context:
         log.w("Server will start in plaintext mode; please consider using SSL")
 
     # Configure server and add sharings to it
@@ -449,10 +448,14 @@ def main():
 
     # Print server start info
 
-
     sharings_str = \
         "\n".join([("* " + sh.name + " --> " + str(sh.path))
                    for sh in sharings.values()]) if sharings else "NONE"
+
+    if not server.server_service.auth().algo_security():
+        auth_str = "no"
+    else:
+        auth_str = f"yes ({server.server_service.auth().algo_type()})"
 
     print(f"""\
 ================================
@@ -464,7 +467,7 @@ Address:            {server.server_service.address()}
 Server port:        {server.server_service.port()}
 Transfer port:      {get_transfer_daemon().port()}
 Discover port:      {get_discover_daemon().port() if get_discover_daemon() else "disabled"}
-Auth:               {server.server_service.auth_type()}
+Auth:               {auth_str}
 SSL:                {tf(get_ssl_context(), "enabled", "disabled")}
 Remote execution:   {tf(server.server_service.is_rexec_enabled(), "enabled", "disabled")}
 

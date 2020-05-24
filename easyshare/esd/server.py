@@ -42,6 +42,9 @@ class Server:
         port = port if port is not None else DEFAULT_SERVER_PORT
         discover_port = discover_port if discover_port is not None else DEFAULT_DISCOVER_PORT
 
+        # First of all set the SSL context since is used by all the daemons
+        # (transfer and pyro actually, discover no since is UDP)
+        set_ssl_context(ssl_context)
 
         # === DISCOVER DAEMON ===
         if is_valid_port(discover_port):
@@ -56,9 +59,7 @@ class Server:
         # We don't have to listen to the transfer daemon
         # get and put services will do so
 
-
         # === PYRO DAEMON ===
-        set_ssl_context(ssl_context)
         self._ssl_context = get_ssl_context()
 
         init_pyro_daemon(
@@ -76,7 +77,6 @@ class Server:
         )
         self.server_service.publish()
 
-
         log.i("Server real address: %s", self.server_service.address())
         log.i("Server real port: %d", self.server_service.port())
         if get_discover_daemon():
@@ -87,7 +87,8 @@ class Server:
 
     def start(self):
         """ Starts the the daemons """
-        th_discover = threading.Thread(target=get_discover_daemon().run, daemon=True) if get_discover_daemon() else None
+        th_discover = threading.Thread(target=get_discover_daemon().run, daemon=True) \
+            if get_discover_daemon() else None # discover can be disabled with discover_port = -1
         th_pyro = threading.Thread(target=get_pyro_daemon().requestLoop, daemon=True)
         th_transfer = threading.Thread(target=get_transfer_daemon().run, daemon=True)
 
@@ -114,7 +115,7 @@ class Server:
 
         except KeyboardInterrupt:
             log.d("CTRL+C detected; quitting")
-            # Formally not a clean quit, but who cares we are exiting...
+            # Formally not a clean quit of the threads, but who cares we are exiting...
 
         log.i("FINISH")
 
@@ -152,7 +153,7 @@ class Server:
 
         log.i("Client response port is %d", client_discover_response_port)
 
-        # Respond to the port the client  says in the paylod
+        # Respond to the port the client says in the paylod
         # (not necessary the one from which the request come)
         sock = SocketUdpOut()
 

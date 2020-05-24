@@ -1,6 +1,6 @@
 import subprocess
 import threading
-from typing import Callable, Optional, List
+from typing import Optional
 
 from Pyro5.server import expose
 from easyshare.esd.services import BaseClientService, check_sharing_service_owner
@@ -8,6 +8,7 @@ from easyshare.esd.services import BaseClientService, check_sharing_service_owne
 from easyshare.consts.os import STDOUT, STDERR
 
 from easyshare.esd.common import ClientContext
+from easyshare.esd.services.execution import BlockingBuffer
 from easyshare.logging import get_logger
 from easyshare.protocol.services import IRexecService
 from easyshare.protocol.responses import create_success_response, ServerErrors, create_error_response, Response
@@ -20,42 +21,6 @@ log = get_logger(__name__)
 # =============================================
 # ============== REXEC SERVICE ==============
 # =============================================
-
-
-
-class BlockingBuffer:
-    """
-    Implementation of a blocking queue for a buffer of  lines.
-    (probably python Queue will do the job as well).
-    """
-    def __init__(self):
-        self._buffer = []
-        self._sync = threading.Semaphore(0)
-        self._lock = threading.Lock()
-
-    def pull(self) -> List:
-        ret = []
-
-        self._sync.acquire()
-        self._lock.acquire()
-
-        while self._buffer:
-            val = self._buffer.pop(0)
-            log.d("[-] %s", val)
-            ret.append(val)
-
-        self._lock.release()
-
-        return ret
-
-    def push(self, val):
-        self._lock.acquire()
-
-        log.d("[+] %s", val)
-        self._buffer.append(val)
-
-        self._sync.release()
-        self._lock.release()
 
 class RexecService(IRexecService, BaseClientService):
     """

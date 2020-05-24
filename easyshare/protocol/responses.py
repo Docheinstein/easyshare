@@ -42,6 +42,8 @@ class ServerErrors:
 
     TRANSFER_SKIPPED =          227 # 1
 
+    SUPPORTED_ONLY_FOR_UNIX =   228 # 1
+
 
 class TransferOutcomes:
     """ Possibles results of outcome() of a 'TransferService' """

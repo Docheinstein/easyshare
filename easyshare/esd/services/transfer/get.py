@@ -1,19 +1,19 @@
 import os
 import zlib
 from pathlib import Path
-from typing import Callable, List, Tuple, Union, BinaryIO
+from queue import Queue
+from typing import List, Tuple, Union, BinaryIO
 
 from Pyro5.server import expose
-from queue import Queue
 
 from easyshare.common import BEST_BUFFER_SIZE
 from easyshare.esd.common import ClientContext, Sharing
-from easyshare.esd.services import BaseClientService, check_sharing_service_owner, FPath
+from easyshare.esd.services import check_sharing_service_owner, FPath
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
-from easyshare.protocol.services import IGetService
 from easyshare.protocol.responses import create_success_response, TransferOutcomes, create_error_response, Response, \
     create_error_of_response, ServerErrors
+from easyshare.protocol.services import IGetService
 from easyshare.protocol.types import create_file_info
 from easyshare.utils.os import os_error_str
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
@@ -53,14 +53,10 @@ class GetService(IGetService, TransferService):
         self._next_servings: List[Tuple[FPath, FPath, str]] = [] # fpath, basedir, prefix (only for is_root case)
         self._active_servings: Queue[Union[Tuple[FPath, BinaryIO], None]] = Queue() # fpath, fd
 
-        # get_paths = []
         for f in files:
 
             # "." is equal to "" and means get the rcwd wrapped into a folder
-            # with the same name as rcwd => is well handled as a standard case
-
             # "*" means get everything inside the rcwd without wrapping it into a folder
-            # => we have to handle it
             log.d("f = %s", f)
 
             p = Path(f)

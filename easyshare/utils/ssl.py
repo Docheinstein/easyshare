@@ -41,6 +41,7 @@ except:
 def create_server_ssl_context(cert: str, privkey: str) -> Optional[ssl.SSLContext]:
     """ Create a server ssl.SSLContext from the given certificate an private key paths """
     if not os.path.isfile(cert) or not os.path.isfile(privkey):
+        log.e("SLL context can't be created, invalid cert or privkey files")
         return None
 
     try:
@@ -73,10 +74,13 @@ def sslify_socket(sock: socket.socket, ssl_context: ssl.SSLContext,
     ssock = sock
     if ssl_context:
         if server_side:
+            log.d("Wrapping a server_side socket")
             ssock = ssl_context.wrap_socket(sock, server_side=server_side)
         elif server_hostname:
+            log.d("Wrapping a client_side socket - server hostname = %s", server_hostname)
             ssock = ssl_context.wrap_socket(sock, server_hostname=server_hostname)
         else:
+            log.w("Wrapping a socket without knowning whether is a client or a server side")
             ssock = ssl_context.wrap_socket(sock)
     return ssock
 

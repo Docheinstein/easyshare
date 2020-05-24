@@ -15,9 +15,12 @@ KeyValParser = Callable[[Union[str, None], str, str], Any] # section, key, val =
 SectionContent = Dict[str, Any] # key => parsed value
 Section = Tuple[Union[str, None], SectionContent] # str => section content
 
-STR_VAL = lambda sec, key, val: val.strip('"\'') if val else val
+STR_VAL = lambda sec, key, val: val.strip('"\'') if val else val # strip quotes
 INT_VAL = lambda sec, key, val: to_int(val, raise_exceptions=True)
-BOOL_VAL = lambda sec, key, val: True if val.lower() == "true" or val.lower() == "y" or val.lower() == "yes" else False
+BOOL_VAL = lambda sec, key, val: True if (val.lower() == "true" or
+                                         val.lower() == "y" or
+                                         val.lower() == "yes" or
+                                         val.lower == "enable") else False
 
 
 class Conf:

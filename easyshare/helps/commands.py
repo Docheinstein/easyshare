@@ -21,7 +21,6 @@ log = get_logger(__name__)
 # Contains only helps and meta information
 # of the commands, not the real implementation
 
-
 # =============================================
 # =============== COMMANDS ====================
 # =============================================
@@ -1339,7 +1338,9 @@ shell features (e.g. variables, glob expansions, redirection).
 This might be useful for execute commands without exiting the easyshare's shell.
 
 The command can be run either with "<b>exec</b> <u>COMMAND</u>",  \
-"<b>:</b> <u>COMMAND</u>" or "<b>:</b><u>COMMAND</u>"."""
+"<b>:</b> <u>COMMAND</u>" or "<b>:</b><u>COMMAND</u>".
+
+Currently supported only for Unix."""
 
     @classmethod
     def examples(cls):
@@ -1396,7 +1397,9 @@ This might be useful for execute commands remotely, giving the client \
 a kind of easy and plug-and-play shell.
 
 The command can be run either with "<b>rexec</b> <u>COMMAND</u>",  \
-"<b>::</b> <u>COMMAND</u>" or "<b>::</b><u>COMMAND</u>"."""
+"<b>::</b> <u>COMMAND</u>" or "<b>::</b><u>COMMAND</u>".
+
+Currently supported only for Unix."""
 
     @classmethod
     def examples(cls):
@@ -1441,6 +1444,7 @@ shell <A> # just for alignment
     def long_description(cls):
         return """\
 Start a local shell using the user's preferred shell.
+Differently from exec, this really opens a pseudo terminal (ssh style).
 
 Currently supported only for Unix."""
 
@@ -1470,6 +1474,7 @@ rshell <A> # just for alignment
     def long_description(cls):
         return """\
 Start a remote shell using the remote user's preferred shell.
+Differently from rexec, this really opens a pseudo terminal (ssh style).
 
 Currently supported only if the server is Unix."""
 

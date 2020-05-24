@@ -106,15 +106,8 @@ class SocketTcp(Socket):
 
 class SocketTcpIn(SocketTcp):
     def __init__(self,
-                 sock: socket.socket,
-                 ssl_context: Optional[ssl.SSLContext] = None):
-        super().__init__(
-            sslify_socket(
-                sock,
-                ssl_context=ssl_context,
-                server_side=True
-            )
-        )
+                 sock: socket.socket):
+        super().__init__(sock) # already sslified by the acceptor, eventually
 
 class SocketTcpOut(SocketTcp):
     def __init__(self,
@@ -142,7 +135,7 @@ class SocketTcpAcceptor(Socket):
                 socket_tcp_in(address, port,
                               pending_connections=pending_connections),
                 ssl_context=ssl_context,
-                server_hostname=address
+                server_side=True
             )
         )
 
@@ -152,7 +145,5 @@ class SocketTcpAcceptor(Socket):
 
         newsock, endpoint = self.sock.accept()
         sock = SocketTcpIn(newsock)
-
-        assert sock.remote_endpoint() == endpoint
 
         return sock  # sock is already ssl-protected if the acceptor was protected

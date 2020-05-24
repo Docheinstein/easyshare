@@ -24,8 +24,12 @@ log = get_logger(__name__)
 # ============== SHARING SERVICE ==============
 # =============================================
 
-
+# decorator
 def check_write_permission(api):
+    """
+    Decorator that aborts the request if a write operation is performed
+    on a readonly sharing.
+    """
     def check_write_permission_wrapper(service: 'SharingService', *vargs, **kwargs):
         if service._sharing.read_only:
             log.e("Forbidden: write action on read only sharing by [%s]", pyro_client_endpoint())
@@ -36,8 +40,11 @@ def check_write_permission(api):
 
     return check_write_permission_wrapper
 
-
+# decorator
 def ensure_d_sharing(api):
+    """
+    Decorator that aborts the requests if the sharing is not a "directory sharing"
+    """
     def ensure_d_sharing_wrapper(service: 'SharingService', *vargs, **kwargs):
         if service._sharing.ftype != FTYPE_DIR:
             log.e("Forbidden: command allowed only for DIR sharing by [%s]", pyro_client_endpoint())
@@ -385,7 +392,6 @@ class SharingService(ISharingService, BaseClientSharingService):
         # C1  if <dest> exists => must be a dir
         # C2  If <dest> doesn't exist => ERROR
 
-
         if not is_valid_list(sources, str) or not is_str(destination):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
@@ -503,27 +509,6 @@ class SharingService(ISharingService, BaseClientSharingService):
         if not is_valid_list(paths, str):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        # "." means: get the sharing, wrapped into a folder with this sharing name
-
-        # get_paths = [self._fpath_joining_rcwd_and_spath(p) for p in paths]
-        # get_paths = []
-        # for f in paths:
-        #     if f == ".":
-        #         get_paths.append((self._rcwd_fpath, self._sharing.name))
-        #     else:
-        #         f = f.replace("*", ".")
-        #         get_paths.append((self._fpath_joining_rcwd_and_spath(f), ""))
-        # Compute real path for each name
-        # real_paths: List[Tuple[str, str]] = []
-        # for f in paths:
-        #     if f == ".":
-        #         # get the sharing, wrapped into a folder with this sharing name
-        #         real_paths.append((self._current_real_path(), self._sharing.name))  # no prefixes
-        #     else:
-        #         f = f.replace("*", ".")  # glob
-        #         real_paths.append((self._real_path_from_rcwd(f), ""))  # no prefixes
-        #
-        # normalized_paths = sorted(real_paths, reverse=True)
         log.d("Would get:\n%s", paths)
 
         get = GetService(
@@ -536,10 +521,6 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         uid = get.publish()
 
-        # OK - report it
-        # print(f"[{self.client.tag}] get '{' '.join(str(p) for p in get_paths)}'")
-
-        # return create_error_response(ServerErrors.NOT_IMPLEMENTED)
         return create_success_response({
             "uid": uid,
         })
@@ -571,11 +552,12 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @check_sharing_service_owner
+    # so bad that pyro calls the "close" object when a tracked resource is released
+    # we have to call this close_
     def close_(self):
         client_endpoint = pyro_client_endpoint()
 
         log.i("<< CLOSE [%s]", str(client_endpoint))
-        log.i("Deallocating client resources...")
 
         print(f"[{self.client.tag}] close '{self._sharing.name}'")
 

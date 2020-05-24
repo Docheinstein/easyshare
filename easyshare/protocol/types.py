@@ -146,11 +146,9 @@ class OverwritePolicy:
     NEWER = 3
 
 
-
 # ================================================
 # ============== PUT NEXT RESPONSE ===============
 # ================================================
-
 
 class PutNextResponse:
     ACCEPTED = "accepted"

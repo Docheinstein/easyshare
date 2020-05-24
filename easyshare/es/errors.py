@@ -9,8 +9,11 @@ from easyshare.utils.types import is_int, is_str, is_list
 
 log = get_logger(__name__)
 
+
+# TODO: cleanup - remove unused errors
+
+
 class ClientErrors:
-    # TODO: probably we have to delete these
     """ Client side errors """
     ERR_0 =                          97
     ERR_1 =                          98
@@ -148,6 +151,8 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
 
     ServerErrors.TRANSFER_SKIPPED: ErrorsStrings.TRANSFER_SKIPPED,
+
+    ServerErrors.SUPPORTED_ONLY_FOR_UNIX: ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX,
 
     ClientErrors.ERR_0: ErrorsStrings.ERR_0,
     ClientErrors.ERR_1: ErrorsStrings.ERR_1,
