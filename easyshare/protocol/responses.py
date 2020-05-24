@@ -71,7 +71,7 @@ try:
         errors: List[ResponseError]
         data: Any
 except:
-    ResponseError = Dict[str, Union[str, List[Dict]]]
+    ResponseError = Dict[str, Union[int, List[Dict]]]
     Response = Dict[str, Union[str, List[ResponseError], Any]]
 
 

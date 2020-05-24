@@ -81,27 +81,33 @@ class ErrorsStrings:
     INVALID_TRANSACTION = "Invalid transaction"
     NOT_ALLOWED = "Not allowed"
     AUTHENTICATION_FAILED = "Authentication failed"
-    INTERNAL_SERVER_ERROR = "Internal esd error"
+    INTERNAL_SERVER_ERROR = "Internal server error"
     NOT_WRITABLE = "Forbidden: sharing is readonly"
     FILE_NOT_FOUND = "File not found"
 
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
-    UNEXPECTED_SERVER_RESPONSE = "Unexpected esd response"
+    UNEXPECTED_SERVER_RESPONSE = "Unexpected server response"
     IMPLEMENTATION_ERROR = "Implementation error"
     CONNECTION_ERROR = "Connection error"
     CONNECTION_CANT_BE_ESTABLISHED = "Connection can't be established"
 
-    TRANSFER_CHECK_FAILED = "Check failed"
     NOT_ALLOWED_FOR_F_SHARING = "Not allowed: action can be performed only on sharings of type directory"
     WINDOWS_NOT_SUPPORTED = "Not supported for Windows"
     SUPPORTED_ONLY_FOR_UNIX = "Supported only for Unix"
-
 
 
 class SubErrorsStrings:
     CANNOT_MOVE = "cannot move {} to {}"
     CANNOT_COPY = "cannot copy {} to {}"
     CANNOT_REMOVE = "cannot remove {}"
+
+class TransferOutcomesStrings:
+    SUCCESS = "OK"
+    ERROR = "ERROR"
+    CONNECTION_ESTABLISHMENT_ERROR = "ERROR: connection establishment failed"
+    TRANSFER_CLOSED = "ERROR: transfer closed"
+    CHECK_FAILED = "ERROR: CRC check failed"
+
 
 # Maps the errors (any kind of error) to its string
 _ERRORS_STRINGS_MAP = {
@@ -170,12 +176,15 @@ _ERRORS_STRINGS_MAP = {
     ClientErrors.RM_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_REMOVE),
     ClientErrors.RM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
     ClientErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
-
-    TransferOutcomes.SUCCESS: ErrorsStrings.SUCCESS,
-    TransferOutcomes.ERROR: ErrorsStrings.ERROR,
-    TransferOutcomes.CHECK_FAILED: ErrorsStrings.TRANSFER_CHECK_FAILED
 }
 
+_OUTCOMES_STRINGS_MAP = {
+    TransferOutcomes.SUCCESS: TransferOutcomesStrings.SUCCESS,
+    TransferOutcomes.ERROR: TransferOutcomesStrings.ERROR,
+    TransferOutcomes.CONNECTION_ESTABLISHMENT_ERROR: TransferOutcomesStrings.CONNECTION_ESTABLISHMENT_ERROR,
+    TransferOutcomes.TRANSFER_CLOSED: TransferOutcomesStrings.TRANSFER_CLOSED,
+    TransferOutcomes.CHECK_FAILED: TransferOutcomesStrings.CHECK_FAILED
+}
 
 def errno_str(errno: int, *formats) -> str:
     """ Returns the string associated with the error with number 'error_code' """
@@ -190,6 +199,9 @@ def errno_str(errno: int, *formats) -> str:
 
     return errstr
 
+
+def outcome_str(outcomeno: int) -> str:
+    return _OUTCOMES_STRINGS_MAP.get(outcomeno, ErrorsStrings.ERROR)
 
 
 def print_errors(err: Union[int, str, List[Union[int, str]]]):

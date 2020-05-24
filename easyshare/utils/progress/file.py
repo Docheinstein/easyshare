@@ -93,7 +93,7 @@ class FileProgressor(Progressor):
         )
         S = ""
 
-        if self._done:
+        if self._success is not None:
             S = duration_str_human(round((t - self._first_t) * 1e-9), )
         elif self._speed_last_period_avg:
             S = speed_str(self._speed_last_period_avg)

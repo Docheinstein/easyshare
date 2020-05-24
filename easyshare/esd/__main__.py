@@ -5,7 +5,7 @@ from typing import List, Optional
 from easyshare.esd.common import Sharing
 
 from easyshare import logging
-from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, StopParseArgsSpec
+from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, StopParseArgsSpec, PosArgsSpec
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.daemons.discover import get_discover_daemon
 from easyshare.esd.daemons.transfer import get_transfer_daemon
@@ -53,7 +53,7 @@ log = get_logger(__name__)
 
 # === ARGUMENTS ===
 
-class SharingArgs(StopParseArgsSpec):
+class SharingArgs(PosArgsSpec):
     """ Command line arguments provided after the sharing path/name"""
     READ_ONLY = ["-r", "--read-only"]
 
@@ -351,9 +351,9 @@ def main():
 
     # Validation
 
-    # - esd name
+    # - server name
     if not satisfychars(server_name, SERVER_NAME_ALPHABET):
-        abort("Invalid esd name: '{}'".format(server_name))
+        abort("Invalid server name: '{}'".format(server_name))
 
     # - ports
     for p in [server_port, server_discover_port]:
@@ -419,14 +419,14 @@ def main():
     if not server_ssl_enabled:
         log.w("Server will start in plaintext mode; please consider using SSL")
 
-    # Configure esd and add sharings to it
+    # Configure server and add sharings to it
 
     auth = AuthFactory.parse(server_password)
 
-    log.i("Required esd name: %s", server_name)
-    log.i("Required esd address: %s", server_address)
-    log.i("Required esd port: %s", str(server_port))
-    log.i("Required esd discover port: %s", str(server_discover_port))
+    log.i("Required server name: %s", server_name)
+    log.i("Required server address: %s", server_address)
+    log.i("Required server port: %s", str(server_port))
+    log.i("Required server discover port: %s", str(server_discover_port))
     log.i("Required auth: %s", auth.algo_type())
 
     if not sharings and not server_rexec:

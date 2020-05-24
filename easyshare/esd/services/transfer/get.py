@@ -1,20 +1,21 @@
 import os
 import queue
 import zlib
-from typing import Callable, List, Tuple, Union
+from pathlib import Path
+from typing import Callable, List, Tuple, Union, BinaryIO
 
 from Pyro5.server import expose
 
 from easyshare.common import BEST_BUFFER_SIZE
 from easyshare.esd.common import ClientContext, Sharing
-from easyshare.esd.services import BaseClientService, check_sharing_service_owner, FPath, SPath
+from easyshare.esd.services import BaseClientService, check_sharing_service_owner, FPath
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
 from easyshare.protocol.services import IGetService
 from easyshare.protocol.responses import create_success_response, TransferOutcomes, create_error_response, Response, \
     create_error_of_response, ServerErrors
-from easyshare.protocol.types import FTYPE_DIR, FTYPE_FILE, create_file_info
-from easyshare.utils.os import relpath, os_error_str
+from easyshare.protocol.types import create_file_info
+from easyshare.utils.os import os_error_str
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
 from easyshare.utils.str import q
 from easyshare.utils.types import int_to_bytes
@@ -34,7 +35,7 @@ class GetService(IGetService, TransferService):
     """
     def __init__(self,
                  # files: List[Tuple[str, str]], # local path, remote prefix
-                 files: List[Tuple[FPath, str]], # fpath, prefix
+                 files: List[str], # fpath, prefix
                  check: bool,
                  sharing: Sharing,
                  sharing_rcwd: FPath,
@@ -42,8 +43,68 @@ class GetService(IGetService, TransferService):
                  end_callback: Callable[[BaseClientService], None]):
         super().__init__(sharing, sharing_rcwd, client, end_callback)
         self._check = check
-        self._next_servings: List[Tuple[FPath, str]] = files # fpath, prefix
-        self._active_servings: queue.Queue[Union[FPath, None]] = queue.Queue()
+        self._next_servings: List[Tuple[FPath, FPath, str]] = [] # fpath, basedir, prefix (only for is_root case)
+        self._active_servings: queue.Queue[Union[Tuple[FPath, BinaryIO], None]] = queue.Queue() # fpath, fd
+
+        # get_paths = []
+        for f in files:
+
+            # "." is equal to "" and means get the rcwd wrapped into a folder
+            # with the same name as rcwd => is well handled as a standard case
+
+            # "*" means get everything inside the rcwd without wrapping it into a folder
+            # => we have to handle it
+            log.d("f = %s", f)
+
+            p = Path(f)
+
+            take_all_unwrapped = True if (p.parts and p.parts[len(p.parts) - 1]) == "*" else False
+
+            log.d("is * = %s", take_all_unwrapped)
+
+            if take_all_unwrapped:
+                # Consider the path without the last *
+                p = p.parent
+
+            log.d("p(f) = %s", p)
+
+            # Compute the absolute path depending on the user request (p)
+            # and our current rcwd
+            fpath = self._fpath_joining_rcwd_and_spath(p)
+
+            is_root = fpath == self._sharing.path
+            log.d("is root = %s", is_root)
+
+            # Compute the basedir: the directory from which the user takes
+            # the files (this will have effect on the location of the files on
+            # the client)
+            # If the last component is a *, consider the entire content of the folder (unwrapped)
+            # Otherwise the basedir is the parent (so that the folder will be wrapped)
+
+            prefix = ""
+
+            if take_all_unwrapped:
+                basedir = fpath
+            else:
+                if is_root: # don't go outside "."
+                    basedir = fpath
+                    prefix = self._sharing.name
+                else:
+                    basedir = fpath.parent
+
+            log.d("fpath(f)         = %s", fpath)
+            log.d("basedir(f)  = %s", basedir)
+            log.d("prefix = %s", self._sharing.name)
+
+            # Do domain check now, after this check it should not be
+            # necessary to check it since we can only go deeper
+
+            if self._is_fpath_allowed(fpath) and self._is_fpath_allowed(basedir):
+                self._next_servings.append((fpath, basedir, prefix))
+            else:
+                log.e("Path %s is invalid (out of sharing domain)", f)
+                self._add_error(create_error_of_response(ServerErrors.INVALID_PATH,
+                                                         q(f)))
 
     @expose
     @trace_api
@@ -65,36 +126,28 @@ class GetService(IGetService, TransferService):
             # for a regular file before being popped out
             # (In this way we can handle cases in which the client don't
             # want to receive the file (because of overwrite, or anything else)
-            next_fpath, prefix = self._next_servings[len(self._next_servings) - 1]
-            # next_fpath: FPath = self._fpath_joining_rcwd_and_spath(next_spath)
-            next_spath = self._spath_rel_to_rcwd_of_fpath(next_fpath)
+            next_fpath, next_basedir, prefix = self._next_servings[len(self._next_servings) - 1]
 
-
-            log.i("Next file spath: %s", next_spath)
-            log.i("Next file fpath: %s", next_fpath)
-            log.d("Prefix: '%s'", prefix)
+            log.d("Next file fpath: %s", next_fpath)
+            log.d("Next file basedir: %s", next_basedir)
 
             # Check domain validity
-            if not self._is_fpath_allowed(next_fpath):
+            # Should never fail since we have already checked in __init__
+            if not self._is_fpath_allowed(next_fpath) or \
+                    not self._is_fpath_allowed(next_basedir):
                 log.e("Path is invalid (out of sharing domain)")
                 self._next_servings.pop()
-                self._add_error(create_error_of_response(ServerErrors.INVALID_PATH,
-                                                         q(next_spath)))
+                # can't even provide a name since we only have fpath at this point
+                self._add_error(create_error_of_response(ServerErrors.INVALID_PATH))
                 continue
 
-            # Check whether is a file or a directory sharing
-            # if self._sharing.path == next_file_local_path:
-            #     # Getting (file) sharing
-            #     sharing_path_head, _ = os.path.split(self._sharing.path)
-            #     log.d("sharing_path_head: %s", sharing_path_head)
-            #     next_file_client_path = self._trailing_path(sharing_path_head, next_file_local_path)
-            # else:
-            #     trail = self._trailing_path_from_rcwd(next_file_local_path)
-            #     log.d("Trail: %s", trail)
-            #     # Eventually add a starting prefix (for wrap into a folder)
-            #     next_file_client_path = relpath(os.path.join(next_file_client_prefix, trail))
-            #
-            # log.d("File path for client is: %s", next_file_client_path)
+            log.d("Sharing domain check OK")
+
+            # Compute the path relative to the basedir (depends on the user request)
+            # e.g. can be public/f1 or ../public or /path/to/dir ...
+            next_spath_str = os.path.join(prefix, next_fpath.relative_to(next_basedir))
+
+            log.d("Next file spath: %s", next_spath_str)
 
             # Case: FILE
             if next_fpath.is_file():
@@ -107,17 +160,44 @@ class GetService(IGetService, TransferService):
                     if transfer:
                         # Actually put the file on the queue of the files
                         # to be send through the transfer socket
-                        log.d("Actually adding file to the transfer queue")
-                        self._active_servings.put(next_fpath)
 
-                return create_success_response(create_file_info(next_fpath, name=q(next_spath)))
-                # stat = os.lstat(next_file_local_path)
-                # return create_success_response({
-                #     "name": next_file_client_path,
-                #     "ftype": FTYPE_FILE,
-                #     "size": stat.st_size,
-                #     "mtime": stat.st_mtime_ns
-                # })
+                        # Before doing so, try to open the file for real.
+                        # At least we are able to detect any error (e.g. perm denied)
+                        # before say the client that the transfer is began
+                        # We have to report the error now (create_error_response)
+                        # not later (_add_error()) because the user have to
+                        # take a decision based on this (skip the file)
+                        log.d("Trying to open file before initializing transfer")
+
+                        try:
+                            fd = next_fpath.open("rb")
+                            log.d("Able to open file: %s", next_fpath)
+                        except FileNotFoundError:
+                            log.w("Can't open file - not transferring file (file not found error)")
+                            return create_error_response(ServerErrors.NOT_EXISTS,
+                                                         q(next_spath_str))
+                        except PermissionError:
+                            log.w("Can't open file - not transferring file (permission error)")
+                            return create_error_response(ServerErrors.PERMISSION_DENIED,
+                                                         q(next_spath_str))
+                        except OSError as oserr:
+                            log.w("Can't open file - not transferring file (oserror)")
+                            return create_error_response(ServerErrors.ERR_2,
+                                                         os_error_str(oserr),
+                                                         q(next_spath_str))
+                        except Exception as exc:
+                            log.w("Can't open file - not transferring file")
+                            return create_error_response(ServerErrors.ERR_2,
+                                                         exc,
+                                                         q(next_spath_str))
+
+                        log.d("Actually adding file to the transfer queue")
+                        self._active_servings.put((next_fpath, fd))
+
+                return create_success_response(create_file_info(
+                    next_fpath,
+                    name=next_spath_str
+                ))
 
             # Case: DIR
             elif next_fpath.is_dir():
@@ -127,52 +207,47 @@ class GetService(IGetService, TransferService):
 
                 # Directory found
                 try:
-                    # os.listdir is all what we want (instead of next_fpath.iterdir or ls())
                     dir_files: List[FPath] = list(next_fpath.iterdir())
-                    # dir_files = sorted(os.listdir(str(next_fpath)), reverse=True)
                 except FileNotFoundError:
                     self._add_error(create_error_of_response(ServerErrors.NOT_EXISTS,
-                                                             q(next_spath)))
+                                                             q(next_spath_str)))
                     continue
                 except PermissionError:
                     self._add_error(create_error_of_response(ServerErrors.PERMISSION_DENIED,
-                                                             q(next_spath)))
+                                                             q(next_spath_str)))
                     continue
                 except OSError as oserr:
                     self._add_error(create_error_of_response(ServerErrors.ERR_2,
                                                              os_error_str(oserr),
-                                                             q(next_spath)))
+                                                             q(next_spath_str)))
                     continue
                 except Exception as exc:
                     self._add_error(create_error_of_response(ServerErrors.ERR_2,
                                                              exc,
-                                                             q(next_spath)))
+                                                             q(next_spath_str)))
                     continue
 
 
                 if dir_files:
                     log.i("Found a filled directory: adding all inner files to remaining_files")
                     for file_in_dir in dir_files:
-                        # file_in_dir_fpath = next_fpath.joinpath(file_in_dir)
-                        # f_path = os.path.join(next_file_local_path, f)
                         log.i("Adding %s", file_in_dir)
-                        self._next_servings.append((file_in_dir, prefix))
+                        self._next_servings.append((file_in_dir, next_basedir, prefix))
                 else:
                     log.i("Found an empty directory")
                     log.d("Returning an info for the empty directory")
 
-                    return create_success_response(create_file_info(next_fpath, name=q(next_spath)))
-                    # return create_success_response({
-                    #     "name": next_file_client_path,
-                    #     "ftype": FTYPE_DIR,
-                    # })
+                    return create_success_response(create_file_info(
+                        next_fpath,
+                        name=next_spath_str
+                    ))
             # Case: UNKNOWN (non-existing/link/special files/...)
             else:
                 # Pop it now
                 self._next_servings.pop()
                 log.w("Not file nor dir? skipping %s", next_fpath)
                 self._add_error(create_error_of_response(ServerErrors.TRANSFER_SKIPPED,
-                                                         q(next_spath)))
+                                                         q(next_spath_str)))
                 continue
 
         log.i("No remaining files")
@@ -186,20 +261,28 @@ class GetService(IGetService, TransferService):
         while True:
             log.d("Blocking and waiting for a file to handle...")
 
-            next_serving: FPath = self._active_servings.get()
+
+            next_serving = self._active_servings.get()
 
             if not next_serving:
                 log.i("No more files: transfer completed")
                 break
 
-            log.i("Next outgoing file to handle: %s", next_serving)
+            next_serving_fpath: FPath
+            next_serving_f: BinaryIO
+
+            next_serving_fpath, next_serving_f = next_serving
+
+            log.i("Next outgoing file to handle: %s", next_serving_fpath)
 
             # Report it
-            print(f"[{self._client.tag}] get '{next_serving}'")
+            print(f"[{self._client.tag}] get '{next_serving_fpath}'")
 
-            file_len = next_serving.stat().st_size
+            file_len = next_serving_fpath.stat().st_size
 
-            f = next_serving.open("rb")
+            # TODO: if open fails, we are K.O. since the client still wait data
+            # The solution is to notify it on the pyro channel...
+            # f = next_serving.open("rb")
             cur_pos = 0
             crc = 0
 
@@ -208,11 +291,11 @@ class GetService(IGetService, TransferService):
                 readlen = min(file_len - cur_pos, BEST_BUFFER_SIZE)
 
                 # Read from file
-                chunk = f.read(readlen)
+                chunk = next_serving_f.read(readlen)
 
                 if not chunk:
                     # EOF
-                    log.i("Finished to handle: %s", next_serving)
+                    log.i("Finished to handle: %s", next_serving_fpath)
                     break
 
                 log.i("Read chunk of %dB", len(chunk))
@@ -226,8 +309,8 @@ class GetService(IGetService, TransferService):
 
                 self._transfer_sock.send(chunk)
 
-            log.i("Closing file %s", next_serving)
-            f.close()
+            log.i("Closing file %s", next_serving_fpath)
+            next_serving_f.close()
 
             # Eventually send the CRC in-band
             if self._check:
@@ -237,3 +320,4 @@ class GetService(IGetService, TransferService):
         log.i("GET finished")
 
         self._success()
+

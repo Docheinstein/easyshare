@@ -40,8 +40,8 @@ extensions = [
 # Add any paths that contain templates here, relative to this directory.
 # templates_path = ['_templates']
 
-# List of patterns, relative to esd directory, that match files and
-# directories to ignore when looking for esd files.
+# List of patterns, relative to server directory, that match files and
+# directories to ignore when looking for server files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 

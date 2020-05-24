@@ -70,7 +70,7 @@ class ServerLocation:
             server_port = None
 
         if not server_name and not server_ip:
-            log.w("Invalid esd location for '%s'", location)
+            log.w("Invalid server location for '%s'", location)
             return None
 
         server_location = ServerLocation(

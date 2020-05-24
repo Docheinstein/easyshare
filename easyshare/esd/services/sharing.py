@@ -507,14 +507,13 @@ class SharingService(ISharingService, BaseClientSharingService):
         # "." means: get the sharing, wrapped into a folder with this sharing name
 
         # get_paths = [self._fpath_joining_rcwd_and_spath(p) for p in paths]
-        get_paths = []
-        for f in paths:
-            if f == ".":
-                get_paths.append((self._rcwd_fpath, self._sharing.name))
-
-            else:
-                f = f.replace("*", ".")
-                get_paths.append((self._fpath_joining_rcwd_and_spath(f), ""))
+        # get_paths = []
+        # for f in paths:
+        #     if f == ".":
+        #         get_paths.append((self._rcwd_fpath, self._sharing.name))
+        #     else:
+        #         f = f.replace("*", ".")
+        #         get_paths.append((self._fpath_joining_rcwd_and_spath(f), ""))
         # Compute real path for each name
         # real_paths: List[Tuple[str, str]] = []
         # for f in paths:
@@ -526,10 +525,10 @@ class SharingService(ISharingService, BaseClientSharingService):
         #         real_paths.append((self._real_path_from_rcwd(f), ""))  # no prefixes
         #
         # normalized_paths = sorted(real_paths, reverse=True)
-        log.d("Would get:\n%s", get_paths)
+        log.d("Would get:\n%s", paths)
 
         get = GetService(
-            get_paths,
+            paths,
             check=check,
             sharing=self._sharing,
             sharing_rcwd=self._rcwd_fpath,

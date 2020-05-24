@@ -98,7 +98,7 @@ class Shell:
         """
         while True:
             try:
-                log.d("Connected to esd : %s%s",
+                log.d("Connected to server : %s%s",
                       self._client.is_connected_to_server(),
                       " ({}:{} {})".format(
                           self._client.server_connection.server_info.get("ip"),

@@ -30,12 +30,13 @@ from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connections.server import ServerConnection, ServerConnectionMinimal
 from easyshare.es.connections.sharing import SharingConnection
 from easyshare.es.discover import Discoverer
-from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors
+from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str, server_info_to_short_str
 from easyshare.logging import get_logger
 from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService, IRshellService
-from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ServerErrors
+from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ServerErrors, \
+    ResponseError
 from easyshare.protocol.types import FileType, ServerInfoFull, SharingInfo, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
     OverwritePolicy, FTYPE_FILE, ServerInfo
 from easyshare.sockets import SocketTcpOut
@@ -62,7 +63,7 @@ log = get_logger(__name__)
 
 def formatted_errors_from_error_response(resp: Response) -> Optional[List]:
     """
-    Returns an array of strings of  build from the resp errors
+    Returns an array of strings built from the resp errors
     (which contains either strings and err [+params].
     """
     if not is_error_response(resp):
@@ -72,21 +73,19 @@ def formatted_errors_from_error_response(resp: Response) -> Optional[List]:
     if not errors:
         return None
 
-    errors_strings = []
-
     # For each error build a formatted string using the subjects, if any
-    for er in errors:
-        errno = er.get("errno")
-        subjects = er.get("subjects")
+    return [formatted_error_from_error_of_response(er) for er in errors]
 
-        if subjects:
-            err_str = errno_str(errno, *subjects)
-        else:
-            err_str = errno_str(errno)
+def formatted_error_from_error_of_response(resp_err: ResponseError) -> str:
+    """
+    Returns a formatted string based on the 'errno' and the 'sujects' of resp_err'
+    """
+    errno = resp_err.get("errno")
+    subjects = resp_err.get("subjects")
 
-        errors_strings.append(err_str)
-
-    return errors_strings
+    if subjects:
+        return errno_str(errno, *subjects)
+    return errno_str(errno)
 
 
 def ensure_success_response(resp: Response):
@@ -1186,7 +1185,7 @@ class Client:
         # noinspection PyUnresolvedReferences
         if server_conn and server_conn.is_connected() and \
                 getattr(server_conn, "created_with_open", False):
-            log.d("Closing esd connection too since opened due open")
+            log.d("Closing server connection too since opened due open")
             server_conn.disconnect()
 
 
@@ -1330,6 +1329,7 @@ class Client:
         log.d("Remote GetService URI: %s", get_service_uri)
 
         # Raw transfer socket
+        # TODO: what's happen if the socke conn can't be established?
         transfer_socket = SocketTcpOut(
             address=sharing_conn.server_info.get("ip"),
             port=transfer_port(sharing_conn.server_info.get("port")),
@@ -1362,6 +1362,8 @@ class Client:
         tot_bytes = 0
         n_files = 0
 
+        errors = []
+
         # Proxy
 
         get_service: Union[TracedPyroProxy, IGetService]
@@ -1373,7 +1375,7 @@ class Client:
                 # The first next() fetch never implies a new file to be put
                 # on the transfer socket.
                 # We have to check whether we want to eventually overwrite
-                # the file, and then tell the esd next() if
+                # the file, and then tell the server next() if
                 # 1. Really transfer the file
                 # 2. Skip the file
 
@@ -1400,14 +1402,14 @@ class Client:
                 ftype = next_file.get("ftype")
                 fmtime = next_file.get("mtime")
 
+                local_path = Path(fname)
+
                 log.i("NEXT: %s of type %s", fname, ftype)
 
                 # Case: DIR
                 if ftype == FTYPE_DIR:
                     log.i("Creating dirs %s", fname)
-                    os.makedirs(fname, exist_ok=True)
-                    # if not quiet:
-                    #     progressor.done()
+                    local_path.mkdir(parents=True, exist_ok=True)
                     continue  # No FTYPE_FILE => neither skip nor transfer for next()
 
                 if ftype != FTYPE_FILE:
@@ -1415,13 +1417,13 @@ class Client:
                     continue  # No FTYPE_FILE => neither skip nor transfer for next()
 
                 # Case: FILE
-                parent_dirs, _ = os.path.split(fname)
-                if parent_dirs:
-                    log.i("Creating parent dirs %s", parent_dirs)
-                    os.makedirs(parent_dirs, exist_ok=True)
+                local_path_parent = local_path.parent
+                if local_path_parent:
+                    log.i("Creating parent dirs %s", local_path_parent)
+                    local_path_parent.mkdir(parents=True, exist_ok=True)
 
                 # Check whether it already exists
-                if os.path.isfile(fname):
+                if local_path.is_file():
                     log.w("File already exists, asking whether overwrite it (if needed)")
 
                     # Overwrite handling
@@ -1442,13 +1444,13 @@ class Client:
                         elif current_overwrite_decision == OverwritePolicy.NEWER:
                             # Check whether skip or not based on the last modified time
                             log.d("Checking whether skip based on mtime")
-                            stat = os.lstat(fname)
+                            stat = local_path.stat()
                             do_skip = stat.st_mtime_ns >= fmtime
                             log.d("Local mtime: %d | Remote mtime: %d => skip: %s",
                                   stat.st_mtime_ns, fmtime, do_skip)
 
                         if do_skip:
-                            log.d("Would have seek, have to tell esd to skip %s", fname)
+                            log.d("Would have seek, have to tell server to skip %s", fname)
                             get_next_resp = get_service.next(skip=True)
                             ensure_success_response(get_next_resp)
                             continue
@@ -1456,13 +1458,29 @@ class Client:
                             log.d("Not skipping")
 
 
-                # Eventually tell the esd to begin the transfer
-                # We have to call it now because the esd can't know
+                # Eventually tell the server to begin the transfer
+                # We have to call it now because the server can't know
                 # in advance if we want or not overwrite the file
                 if will_seek:
-                    log.d("Would have seek, have to tell esd to transfer %s", fname)
+                    log.d("Would have seek, have to tell server to transfer %s", fname)
                     get_next_resp = get_service.next(transfer=True)
-                    ensure_success_response(get_next_resp)
+
+                    # The server may say the transfer can't be done actually (e.g. EPERM)
+                    if is_success_response(get_next_resp):
+                        log.d("Transfer can actually began")
+                    elif is_error_response(get_next_resp):
+                        log.w("Transfer cannot be initialized due to remote error")
+                        # errstrings = formatted_errors_from_error_response(get_next_resp)
+                        # for errstring in errstrings:
+                        #     log.w("Reason: %s", errstring)
+
+                        errors += get_next_resp.get("errors")
+
+                        # All the errors will be reported at the end
+                        continue
+                    else:
+                        raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
                 # else: file already put into the transer socket
 
                 if not quiet:
@@ -1475,7 +1493,7 @@ class Client:
                     )
 
                 log.i("Opening %s locally", fname)
-                f = open(fname, "wb")
+                f = local_path.open("wb")
 
                 cur_pos = 0
                 expected_crc = 0
@@ -1528,7 +1546,7 @@ class Client:
                         log.d("CRC check: OK")
 
                     # Length check on the written file
-                    written_size = os.path.getsize(fname)
+                    written_size = local_path.stat().st_size
                     if written_size != fsize:
                         log.e("File length mismatch; transfer failed. expected=%s ; written=%d",
                               fsize, written_size)
@@ -1538,30 +1556,40 @@ class Client:
 
                 n_files += 1
                 if not quiet:
-                    progressor.done()
+                    progressor.success()
 
             # Wait for completion
             outcome_resp = get_service.outcome()
-            ensure_data_response(outcome_resp)
-            outcome = outcome_resp.get("data")
+            ensure_data_response(outcome_resp, "outcome")
 
             timer.stop()
             elapsed_s = timer.elapsed_s()
 
             transfer_socket.close()
 
+            # Take outcome and (eventually) errors out of the resp
+            outcome = outcome_resp.get("data").get("outcome")
+            outcome_errors = outcome_resp.get("data").get("errors")
+            if outcome_errors:
+                log.w("Response has errors")
+                errors += outcome_errors
+
             log.i("GET outcome: %d", outcome)
 
-            if outcome > 0:
-                log.e("GET reported an error: %d", outcome)
-                raise CommandExecutionError(outcome)
+            print("")
+            print("GET outcome: {}".format(outcome_str(outcome)))
+            print("-----------------------")
+            print("Files:        {}  ({})".format(n_files, size_str(tot_bytes)))
+            print("Time:         {}".format(duration_str_human(round(elapsed_s))))
+            print("Avg. speed:   {}".format(speed_str(tot_bytes / elapsed_s)))
 
-
-            print("GET outcome: OK")
-            print("Files        {}  ({})".format(n_files, size_str(tot_bytes)))
-            print("Time         {}".format(duration_str_human(round(elapsed_s))))
-            print("Avg. speed   {}".format(speed_str(tot_bytes / elapsed_s)))
-
+            # Any error? (e.g. permission denied)
+            if errors:
+                print("-----------------------")
+                print("Errors:       {}".format(len(errors)))
+                for idx, err in enumerate(errors):
+                    err_str = formatted_error_from_error_of_response(err)
+                    print(f"{idx + 1}. {err_str}")
 
     @provide_d_sharing_connection
     def put(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
@@ -1699,7 +1727,7 @@ class Client:
                 # "refused"  => do not add the file to the transfer socket
                 # "ask_overwrite" => ask to the user and tell it to the esd
                 #                    we got this response only if the overwrite
-                #                    policy told to the esd is PROMPT
+                #                    policy told to the server is PROMPT
 
                 # First of all handle the ask_overwrite, and contact the esd
                 # again for tell the response
@@ -1716,7 +1744,7 @@ class Client:
                         return
 
                     # If overwrite policy is NEWER or YES we have to tell it
-                    # to the esd so that it will take the right action
+                    # to the server so that it will take the right action
                     put_next_resp = put_service.next(finfo,
                                                      overwrite_policy=current_overwrite_decision)
                     ensure_success_response(put_next_resp)
@@ -1792,7 +1820,7 @@ class Client:
 
                 n_files += 1
                 if not quiet:
-                    progressor.done()
+                    progressor.success()
 
 
             while sendfiles:
@@ -2061,11 +2089,11 @@ class Client:
             self, args: Args, connect: bool) -> ServerConnection:
 
         if self.is_connected_to_server():
-            log.i("Providing already established esd connection")
+            log.i("Providing already established server connection")
             return self.server_connection
 
         # Create temporary connection
-        log.i("No established esd connection; creating a new one")
+        log.i("No established server connection; creating a new one")
 
         pargs = args.get_positionals()
 
@@ -2172,10 +2200,10 @@ class Client:
                     ensure_data_response(resp)
 
                     real_server_info = resp.get("data")
-                    log.d("Connection established is UP, retrieved esd info\n%s",
+                    log.d("Connection established is UP, retrieved server info\n%s",
                           j(real_server_info))
 
-                    # Fill the uncomplete esd info with the IP/port we used to connect
+                    # Fill the uncomplete server info with the IP/port we used to connect
                     break
                 except Exception:
                     log.w("Connection cannot be established directly %s SSL",
@@ -2195,12 +2223,12 @@ class Client:
 
             if real_server_info: # connection established directly
                 log.d("Connection has been established directly without perform a DISCOVER")
-                # Wraps the already established esd conn in a ServerConnection
-                # associated with the right esd info
+                # Wraps the already established server conn in a ServerConnection
+                # associated with the right server info
 
 
                 if self.server_info_satisfy_constraints(
-                        # DO not check esd identity: this is needed for allow servers
+                        # DO not check server identity: this is needed for allow servers
                         # behind NAT to be reached without know the real internal IP/port
                         real_server_info,
                         sharing_name=sharing_name, sharing_ftype=sharing_ftype):
@@ -2223,7 +2251,7 @@ class Client:
                 log.d("Connection not established directly and DISCOVER won't be "
                       "performed since IP and PORT has been specified both")
             else:
-                log.d("Will perform a DISCOVER for establish esd connection")
+                log.d("Will perform a DISCOVER for establish server connection")
                 real_server_info = self._discover_server(
                     server_name=server_name, server_ip=server_ip, server_port=server_port,
                     sharing_name=sharing_name, sharing_ftype=sharing_ftype
@@ -2258,7 +2286,7 @@ class Client:
               server_conn.server_info.get("port"))
 
         # Check whether we have to do connect()
-        # (It might be unnecessary for public esd api such as ping, info, list, ...)
+        # (It might be unnecessary for public server api such as ping, info, list, ...)
         if not connect:
             return server_conn
 
@@ -2291,7 +2319,7 @@ class Client:
 
         sharing_uid = open_resp.get("data")
 
-        # Take out the sharing info from the esd info
+        # Take out the sharing info from the server info
         for shinfo in server_conn.server_info.get("sharings"):
             if shinfo.get("name") == sharing_name:
                 log.d("Found the sharing info among server_info sharings")
@@ -2422,19 +2450,19 @@ class Client:
 
         # Server name
         if server_name and (server_name != server_info.get("name")):
-            log.d("Server info does not match the esd name filter '%s'",
+            log.d("Server info does not match the server name filter '%s'",
                   server_name)
             return False
 
         # Server IP
         if server_ip and (server_ip != server_info.get("ip")):
-            log.d("Server info does not match the esd ip filter '%s'",
+            log.d("Server info does not match the server ip filter '%s'",
                   server_ip)
             return False
 
         # Server  port
         if server_port and (server_port != server_info.get("port")):
-            log.d("Server info does not match the esd port filter '%d'",
+            log.d("Server info does not match the server port filter '%d'",
                   server_port)
             return False
 

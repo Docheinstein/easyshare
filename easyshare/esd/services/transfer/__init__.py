@@ -54,15 +54,16 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
 
         self._notify_service_end()
 
-        if not self._errors:
-            return create_success_response(outcome)
-
-        resp = create_success_response(outcome)
-        resp["errors"] = self._errors
-
         # It's always a success response, but eventually will have errors
         # (e.g. a transfer is failed (invalid path, ...) but the transaction is ok)
-        return resp
+
+        if not self._errors:
+            return create_success_response({"outcome": outcome})
+
+        return create_success_response({
+            "outcome": outcome,
+            "errors": self._errors
+        })
 
     @abstractmethod
     def _run(self):
