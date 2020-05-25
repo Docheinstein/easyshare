@@ -115,8 +115,16 @@ class Shell:
 
                 self._prompt = self._build_prompt_string()
 
-                # print(self._prompt, end="", flush=True)
-                command_line = input(self._prompt)
+                try:
+                    command_line = input(self._prompt)
+                except EOFError:
+                    log.i("\nCTRL+D: exiting")
+                    self._client.destroy_connection()
+                    break
+                except KeyboardInterrupt:
+                    log.d("\nCTRL+C")
+                    print()
+                    continue
 
                 if not command_line:
                     log.w("Empty command line")
@@ -141,6 +149,7 @@ class Shell:
                 log.d("Detected command '%s'", command)
 
                 self.execute(command, command_args)
+
             except Exception:
                 log.exception("Unexpected exception")
                 continue
@@ -193,12 +202,11 @@ class Shell:
         except EOFError:
             log.i("\nCTRL+D: exiting")
             self._client.destroy_connection()
-        except HandledKeyboardInterrupt:
-            log.d("\nCTRL+C (already handled)")
-            # do not print()
+            # for consistency with CTRL+D typed while reading command, exit
+            exit(0)
         except KeyboardInterrupt:
             log.d("\nCTRL+C")
-            print()
+
 
     def _display_suggestions_wrapper(self, substitution, matches, longest_match_length):
         """ Called by GNU readline when suggestions have to be rendered """
