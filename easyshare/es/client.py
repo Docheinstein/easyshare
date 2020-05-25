@@ -1731,6 +1731,10 @@ class Client:
                 # Create the file info for the local file, but set the
                 # remote path as name
                 finfo = create_file_info(local_path, name=str(remote_path))
+
+                if not finfo:
+                    return
+
                 log.i("send_file finfo: %s", j(finfo))
                 fsize = finfo.get("size")
                 ftype = finfo.get("ftype")

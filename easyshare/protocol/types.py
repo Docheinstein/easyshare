@@ -2,6 +2,7 @@ from os import stat_result
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
 
+from easyshare.logging import get_logger
 from easyshare.tree import TreeNodeDict
 
 # Use advanced typing if possible (Literal, TypedDict)
@@ -14,6 +15,7 @@ from easyshare.tree import TreeNodeDict
 # ================= FILE INFO  ===================
 # ================================================
 
+log = get_logger(__name__)
 
 FTYPE_FILE = "file"
 FTYPE_DIR = "dir"
@@ -58,19 +60,26 @@ except:
     FileInfoNode = Dict[str, Union[str, FileType, int, List['FileInfoNode']]]
 
 
-def create_file_info(path: Path, stat: stat_result = None, name: str = None):
+def create_file_info(path: Path, stat: stat_result = None,
+                     name: str = None, raise_exceptions=False) -> Optional[FileInfo]:
     """
     Helper that creates a 'FileInfo' for the given path;
     'stat' can be given for avoid a stat() call.
     If 'name' is given, then it will be used instead of path.name.
     """
-    stat = stat or path.stat()
-    return {
-        "name": name or path.name,
-        "ftype": ftype(path, stat),
-        "size": stat.st_size,
-        "mtime": stat.st_mtime_ns
-    }
+    try:
+        stat = stat or path.stat()
+        return {
+            "name": name or path.name,
+            "ftype": ftype(path, stat),
+            "size": stat.st_size,
+            "mtime": stat.st_mtime_ns
+        }
+    except Exception as ex:
+        log.w("Can't create file info - exception occurred")
+        if raise_exceptions:
+            raise ex
+        return None
 
 # ================================================
 # ================ SHARING INFO  =================

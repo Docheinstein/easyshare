@@ -152,8 +152,15 @@ class GetService(IGetService, TransferService):
 
             log.d("Next file spath: %s", next_spath_str)
 
+            finfo = create_file_info(
+                next_fpath,
+                name=next_spath_str
+            )
+
+
+
             # Case: FILE
-            if next_fpath.is_file():
+            if finfo and next_fpath.is_file():
                 log.i("NEXT FILE: %s", next_fpath)
 
                 # Pop only if transfer or skip is specified
@@ -197,13 +204,10 @@ class GetService(IGetService, TransferService):
                         log.d("Actually adding file to the transfer queue")
                         self._active_servings.put((next_fpath, fd))
 
-                return create_success_response(create_file_info(
-                    next_fpath,
-                    name=next_spath_str
-                ))
+                return create_success_response(finfo)
 
             # Case: DIR
-            elif next_fpath.is_dir():
+            elif finfo and next_fpath.is_dir():
                 # Pop it now; it doesn't make sense ask the user whether
                 # skip or overwrite as for files
                 self._next_servings.pop()
@@ -240,10 +244,7 @@ class GetService(IGetService, TransferService):
                     log.i("Found an empty directory")
                     log.d("Returning an info for the empty directory")
 
-                    return create_success_response(create_file_info(
-                        next_fpath,
-                        name=next_spath_str
-                    ))
+                    return create_success_response(finfo)
             # Case: UNKNOWN (non-existing/link/special files/...)
             else:
                 # Pop it now

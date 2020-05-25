@@ -51,7 +51,10 @@ def ls(path: Path,
     # Single file
     if path.is_file():
         # Show it even if it is hidden
-        return [create_file_info(path)]
+        finfo = create_file_info(path) # might fail (e.g. broken link)
+        if not finfo:
+            return []
+        return [finfo]
 
     if not path.is_dir():
         log.e("Cannot perform ls; invalid path")
@@ -65,7 +68,9 @@ def ls(path: Path,
             log.d("Not showing hidden file: %s", p)
             continue
 
-        ret.append(create_file_info(p))
+        finfo = create_file_info(p) # might fail (e.g. broken link)
+        if finfo:
+            ret.append(finfo)
 
     # Sort the result for each field of sort_by
     for sort_field in sort_by:
@@ -94,8 +99,11 @@ def tree(path: Path,
 
     log.i("TREE sorting by {}{}".format(sort_by, " (reverse)" if reverse else ""))
 
-    root = create_file_info(path)
-    # root["path"] = str(path)
+    root: Any = create_file_info(path) # might fail (e.g. broken link)
+
+    if not root:
+        return None
+
     root["path"] = path
 
     cursor = root
