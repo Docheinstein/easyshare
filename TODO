@@ -1,29 +1,17 @@
-- Better handling of client disconnection/cleanup for get/put
-- benchmark GET, for decide buffer size, ...
-- timeout (global, float)
-- Server concurrency on shared structures
-- decide whether catch or raise exceptions in utils.os
-- return string instead of int for response errors
-- timeouts pyro, keepalive, cleaning up,...
-- recap at the end of get/put or error at the mid
-- better error handling and server errors (err+errcode?)
-- refactor (and unify?) styledstring ansistr
-- refactor with Path
-- test on windows
-- use f-strings when possible
-- consistent args-options-params-operands naming
-- used bool2string instead of ternary operator
-- Add unit tests
+- Best BUFFER_SIZE (static or dinamic) ?
+- Refactor (and unifying) of StyledString and ansistr
+- test on windows - create an exe
+- Add more unit tests
 - Handle addresses instead of numeric IPs
 - Info/debug messages re-partition
 - find, rfind
-- sync / get --sync
-- rexec with pty
-- write a readthedocs
-- rename serverinfofull serverserviceinfo
-- scan bar
-- when do open and the conn satisfy the connection yet, at least try to ping the remote
-~x os.listdir and other stuff might fail
-- get and put should notify problems with permissions to
-
-- add a -a for get and put - by default do not transfer hidden files
+- sync / get --sync (just a get -N followed by a delete)
+- add an option for transfer/not transfer hidden files (get and put)
+- info() should return the server version too
+-   the client prints a warn if the version of the server mismatch the client one
+- rtree on large directories (maybe return the results as os.walk, one a time?)
+- bug: ls -la is not aligned as before
+- annotations with pyro?
+- use low socket for rsh? (or annotations)
+- custom serializer?
+- implement everything with lowe level socket instead of pyro?

@@ -170,16 +170,20 @@ class SharingService(ISharingService, BaseClientSharingService):
             # OK - report it
             print(f"[{self.client.tag}] rls '{ls_fpath}'")
         except FileNotFoundError:
+            log.exception("rls exception occurred")
             return self._create_error_response(ServerErrors.NOT_EXISTS,
                                                ls_fpath)
         except PermissionError:
+            log.exception("rls exception occurred")
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                ls_fpath)
         except OSError as oserr:
+            log.exception("rls exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                os_error_str(oserr),
                                                ls_fpath)
         except Exception as exc:
+            log.exception("rls exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                exc,
                                                ls_fpath)
@@ -228,16 +232,20 @@ class SharingService(ISharingService, BaseClientSharingService):
             # OK - report it
             print(f"[{self.client.tag}] rtree '{tree_fpath}'")
         except FileNotFoundError:
+            log.exception("rtree exception occurred")
             return self._create_error_response(ServerErrors.NOT_EXISTS,
                                                tree_fpath)
         except PermissionError:
+            log.exception("rtree exception occurred")
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                tree_fpath)
         except OSError as oserr:
+            log.exception("rtree exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                os_error_str(oserr),
                                                tree_fpath)
         except Exception as exc:
+            log.exception("rtree exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                exc,
                                                tree_fpath)
@@ -276,16 +284,20 @@ class SharingService(ISharingService, BaseClientSharingService):
             # OK - report it
             print(f"[{self.client.tag}] rmkdir '{directory_fpath}'")
         except PermissionError:
+            log.exception("rmkdir exception occurred")
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                directory_fpath)
         except FileExistsError:
+            log.exception("rmkdir exception occurred")
             return self._create_error_response(ServerErrors.DIRECTORY_ALREADY_EXISTS,
                                                directory_fpath)
         except OSError as oserr:
+            log.exception("rmkdir exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                os_error_str(oserr),
                                                directory_fpath)
         except Exception as exc:
+            log.exception("rmkdir exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                exc,
                                                directory_fpath)
@@ -306,15 +318,19 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         def handle_cp_exception(exc: Exception, src: FPath, dst: FPath):
             if isinstance(exc, PermissionError):
+                log.exception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_PERMISSION_DENIED,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, FileNotFoundError):
+                log.exception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_NOT_EXISTS,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, OSError):
+                log.exception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
                                                        os_error_str(exc), *self._qspathify(src, dst)))
             else:
+                log.exception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
                                                        exc, *self._qspathify(src, dst)))
 
@@ -343,15 +359,19 @@ class SharingService(ISharingService, BaseClientSharingService):
 
         def handle_mv_exception(exc: Exception, src: FPath, dst: FPath):
             if isinstance(exc, PermissionError):
+                log.exception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_PERMISSION_DENIED,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, FileNotFoundError):
+                log.exception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_NOT_EXISTS,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, OSError):
+                log.exception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
                                                        os_error_str(exc), *self._qspathify(src, dst)))
             else:
+                log.exception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
                                                        exc, *self._qspathify(src, dst)))
 
@@ -457,16 +477,20 @@ class SharingService(ISharingService, BaseClientSharingService):
         errors = []
         def handle_rm_error(exc: Exception, path: Path):
             if isinstance(exc, PermissionError):
+                log.exception("rrm exception occurred")
                 errors.append(create_error_of_response(ServerErrors.RM_PERMISSION_DENIED,
                                                        *self._qspathify(path)))
             elif isinstance(exc, FileNotFoundError):
+                log.exception("rrm exception occurred")
                 errors.append(create_error_of_response(ServerErrors.RM_NOT_EXISTS,
                                                        *self._qspathify(path)))
             elif isinstance(exc, OSError):
+                log.exception("rrm exception occurred")
                 errors.append(create_error_of_response(ServerErrors.RM_OTHER_ERROR,
                                                        os_error_str(exc),
                                                        *self._qspathify(path)))
             else:
+                log.exception("rrm exception occurred")
                 errors.append(create_error_of_response(ServerErrors.RM_OTHER_ERROR,
                                                        exc,
                                                        *self._qspathify(path)))
