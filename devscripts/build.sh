@@ -8,4 +8,4 @@ PROJECT_DIR="$SCRIPT_DIR/.."
 cd "$PROJECT_DIR" || exit
 
 echo_cyan "========= BUILDING ========"
-python setup.py sdist
+python setup.py sdist bdist_wheel

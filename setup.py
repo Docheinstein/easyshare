@@ -48,6 +48,7 @@ setup(
     author_email="docheinstein@gmail.com",
     description="Client-Server command line application for share files, similar to FTP; written in Python 3 + Pyro5.",
     long_description=read('README.MD'),
+    long_description_content_type="text/markdown",
     license="MIT",
     keywords="easyshare",
     url="https://github.com/Docheinstein/easyshare",
