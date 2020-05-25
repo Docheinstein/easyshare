@@ -25,3 +25,5 @@
 - when do open and the conn satisfy the connection yet, at least try to ping the remote
 ~x os.listdir and other stuff might fail
 - get and put should notify problems with permissions to
+
+- add a -a for get and put - by default do not transfer hidden files

@@ -2456,6 +2456,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_REMOVE: Rrm,
     Commands.REMOTE_EXEC: Rexec,
     Commands.REMOTE_EXEC_SHORT: Rexec,
+    Commands.REMOTE_SHELL: Rshell,
+    Commands.REMOTE_SHELL_SHORT: Rshell,
 
     Commands.SCAN: Scan,
     Commands.SCAN_SHORT: Scan,

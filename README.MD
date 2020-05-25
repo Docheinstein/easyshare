@@ -464,7 +464,7 @@ which can be used in other command (something like $1, $2)
 * Behind NAT section in README (open two external ports internally forwarded to 12020 and 12021)
 * Add unit tests
 * Handle addresses instead of numeric IPs
-
+* Do not transfer hidden files by default (add a -a option for transfer those)
 LICENSE
 -------
 
