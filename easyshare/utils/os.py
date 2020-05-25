@@ -15,6 +15,7 @@ from ptyprocess import PtyProcess, PtyProcessUnicode
 
 from easyshare.logging import get_logger
 from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info
+from easyshare.utils.env import terminal_size
 from easyshare.utils.path import is_hidden
 from easyshare.utils.types import list_wrap
 
@@ -324,9 +325,10 @@ def pty_detached(out_hook: Callable[[str], None],
     Run a command, reporting stdout and stderr of the process outside (via out_hook).
     The stdin can be provided with ptyproc.write().
     """
+    cols, rows = terminal_size() # use the current terminal size for the pty
 
     argv = shlex.split(cmd)
-    ptyproc = PtyProcessUnicode.spawn(argv)
+    ptyproc = PtyProcessUnicode.spawn(argv, dimensions=(rows, cols))
 
     def proc_handler():
         retcode = 0

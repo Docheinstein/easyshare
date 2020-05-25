@@ -50,7 +50,6 @@ rmv                 move files and directories remotely
 rrm                 remove files and directories remotely
 rexec, ::           execute an arbitrary command remotely
 rshell, rsh         start a remote shell
-
 </i>
 <I+4>
 info, i             show information about the remote server
