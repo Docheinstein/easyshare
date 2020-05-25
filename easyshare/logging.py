@@ -4,7 +4,7 @@ import sys
 from easyshare.styling import green, blue, yellow, red
 from easyshare.utils.mathematics import rangify
 
-ROOT_LOGGER_NAME = "__main__"           # the real name of the root logger
+ROOT_LOGGER_PATTERN = "__main__"           # the real name of the root logger
 ROOT_LOGGER_DISPLAY_NAME = "easyshare"  # the name we'll use to to render the root logger
 
 VERBOSITY_NONE = 0
@@ -138,7 +138,7 @@ def init_logging(default_verbosity: int = None):
 
 
 
-def get_logger(name: str = ROOT_LOGGER_NAME,
+def get_logger(name: str = ROOT_LOGGER_PATTERN,
                root: bool = False,
                verbosity: int = None) -> Logger:
     """
@@ -148,10 +148,10 @@ def get_logger(name: str = ROOT_LOGGER_NAME,
     # Don't call init_logging() even if is attempting...
     # We have to call it manually after checking the colors support
 
-    fetch_name = ROOT_LOGGER_DISPLAY_NAME if name == ROOT_LOGGER_NAME else name
+    fetch_name = ROOT_LOGGER_DISPLAY_NAME if ROOT_LOGGER_PATTERN in name else name
 
     logger: logging.Logger = logging.getLogger(fetch_name)
-    if name == ROOT_LOGGER_NAME or root:
+    if ROOT_LOGGER_PATTERN in name or root:
         logger.addHandler(_log_handler)
 
     verb = verbosity if verbosity is not None else _default_verbosity

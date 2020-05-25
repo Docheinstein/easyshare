@@ -108,6 +108,6 @@ def easyshare_setup():
                                 raise_exceptions=False,
                                 default=logging.VERBOSITY_NONE)
 
-    root_log = get_logger(logging.ROOT_LOGGER_NAME)
+    root_log = get_logger()
     root_log.set_verbosity(starting_verbosity)
     root_log.d("Starting with verbosity = %d", starting_verbosity)

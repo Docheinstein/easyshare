@@ -1,26 +1,22 @@
 import sys
 
-from Pyro5.errors import PyroError
-
 from easyshare import logging
-from easyshare.es.client import Client
-from easyshare.helps.commands import Commands, is_special_command
-from easyshare.es.errors import errno_str
-from easyshare.es.shell import Shell
-from easyshare.helps.es import Es
-from easyshare.logging import get_logger
+from easyshare.args import ArgsParseError
 from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT, APP_VERSION, easyshare_setup, \
     DEFAULT_DISCOVER_TIMEOUT, APP_INFO
+from easyshare.es.client import Client
+from easyshare.es.shell import Shell
+from easyshare.helps.commands import Commands, is_special_command
+from easyshare.helps.es import Es
+from easyshare.logging import get_logger
 from easyshare.res.helps import get_command_usage
+from easyshare.styling import enable_colors
 from easyshare.tracing import enable_tracing
 from easyshare.utils import abort, terminate
-from easyshare.styling import enable_colors
 from easyshare.utils.env import is_stdout_terminal, are_colors_supported
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
 from easyshare.utils.pyro import enable_pyro_logging
-from easyshare.utils.types import is_int, is_str
-from easyshare.args import ArgsParseError
 
 
 log = get_logger(__name__)

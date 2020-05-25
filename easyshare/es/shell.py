@@ -405,7 +405,7 @@ class Shell:
         """ verbose - changes the verbosity level """
 
         # Increase verbosity (or disable if is already max)
-        root_log = get_logger(logging.ROOT_LOGGER_NAME)
+        root_log = get_logger()
 
         current_verbosity = root_log.verbosity + is_pyro_logging_enabled()
 
