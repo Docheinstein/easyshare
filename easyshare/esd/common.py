@@ -70,12 +70,22 @@ class Sharing:
             log.e("Invalid sharing path")
             return None
 
-        return Sharing(
-            name=name or path.name,
+        path = path.resolve() # resolve so that we can user path.name safely
+
+        sh_name = name if name else path.name
+        if not name:
+            log.w("Name of sharing not provided, generating a default from path '%s' => '%s'", path, sh_name)
+
+        sh = Sharing(
+            name=sh_name,
             ftype=sh_ftype,
             path=path,
             read_only=True if read_only else False,
         )
+
+        log.i("Created sharing: %s", j(sh.info()))
+
+        return sh
 
     def info(self) -> SharingInfo:
         """ Returns information ('SharingInfo') for this sharing """
