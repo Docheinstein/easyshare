@@ -19,7 +19,7 @@ APP_NAME_SERVER = "esd"
 APP_NAME_CLIENT = "es"
 APP_VERSION = "0.1"
 
-APP_INFO = "{} {}".format(APP_NAME, APP_VERSION)
+APP_INFO = f"{APP_NAME} {APP_VERSION}"
 
 # =====================
 # ===== RESOURCES =====

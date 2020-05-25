@@ -896,7 +896,13 @@ class Client:
                         log.i("REXEC done (%d)", retcode)
                 except KeyboardInterrupt:
                     log.d("rexec CTRL+C detected on stdout thread, ignoring")
-
+                    retcode = -1
+                except PyroError:
+                    log.exception("Pyro error occurred on rexec stdout receiver thread")
+                    retcode = -1
+                except Exception:
+                    log.exception("Unexpected error occurred on rexec stdout receiver thread")
+                    retcode = -1
 
 
             rexec_stdout_receiver_th = threading.Thread(
@@ -997,7 +1003,13 @@ class Client:
                         log.i("RSHELL done (%d)", retcode)
                 except KeyboardInterrupt:
                     log.d("rshell CTRL+C detected on stdout thread, ignoring")
-
+                    retcode = -1
+                except PyroError:
+                    log.exception("Pyro error occurred on rhsell out receiver thread")
+                    retcode = -1
+                except Exception:
+                    log.exception("Unexpected error occurred on rshell out receiver thread")
+                    retcode = -1
 
 
             rshell_stdout_receiver_th = threading.Thread(

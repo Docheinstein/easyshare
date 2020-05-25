@@ -4,7 +4,8 @@ from Pyro5.server import expose
 from ptyprocess import PtyProcess
 
 from easyshare.esd.common import ClientContext
-from easyshare.esd.services import BaseClientService, check_sharing_service_owner
+from easyshare.esd.services import BaseClientService, \
+    check_sharing_service_owner_address
 from easyshare.esd.services.execution import BlockingBuffer
 from easyshare.logging import get_logger
 from easyshare.protocol.responses import create_success_response, ServerErrors, create_error_response, Response
@@ -38,7 +39,7 @@ class RshellService(IRshellService, BaseClientService):
 
     @expose
     @trace_api
-    @check_sharing_service_owner
+    @check_sharing_service_owner_address
     @try_or_command_failed_response
     def recv(self) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -72,7 +73,7 @@ class RshellService(IRshellService, BaseClientService):
 
     @expose
     @trace_api
-    @check_sharing_service_owner
+    @check_sharing_service_owner_address
     @try_or_command_failed_response
     def send_data(self, data: str) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -90,7 +91,7 @@ class RshellService(IRshellService, BaseClientService):
 
     @expose
     @trace_api
-    @check_sharing_service_owner
+    @check_sharing_service_owner_address
     @try_or_command_failed_response
     def send_event(self, ev: int) -> Response:
         client_endpoint = pyro_client_endpoint()

@@ -3,7 +3,8 @@ import threading
 from typing import Optional
 
 from Pyro5.server import expose
-from easyshare.esd.services import BaseClientService, check_sharing_service_owner
+from easyshare.esd.services import BaseClientService, check_sharing_service_owner_endpoint, \
+    check_sharing_service_owner_address
 
 from easyshare.consts.os import STDOUT, STDERR
 
@@ -41,7 +42,7 @@ class RexecService(IRexecService, BaseClientService):
 
     @expose
     @trace_api
-    @check_sharing_service_owner
+    @check_sharing_service_owner_address
     @try_or_command_failed_response
     def recv(self) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -80,7 +81,7 @@ class RexecService(IRexecService, BaseClientService):
 
     @expose
     @trace_api
-    @check_sharing_service_owner
+    @check_sharing_service_owner_address
     @try_or_command_failed_response
     def send_data(self, data: str) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -97,7 +98,7 @@ class RexecService(IRexecService, BaseClientService):
 
     @expose
     @trace_api
-    @check_sharing_service_owner
+    @check_sharing_service_owner_address
     @try_or_command_failed_response
     def send_event(self, ev: int) -> Response:
         client_endpoint = pyro_client_endpoint()

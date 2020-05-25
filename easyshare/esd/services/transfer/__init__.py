@@ -5,7 +5,7 @@ from typing import Callable
 from Pyro5.server import expose
 
 from easyshare.esd.daemons.transfer import get_transfer_daemon
-from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner, FPath
+from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner_endpoint, FPath
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.logging import get_logger
@@ -40,7 +40,7 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
 
     @expose
     @trace_api
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @try_or_command_failed_response
     def outcome(self) -> Response:
         log.d("Blocking and waiting for outcome...")

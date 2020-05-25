@@ -5,7 +5,7 @@ from queue import Queue
 from Pyro5.server import expose
 
 from easyshare.common import BEST_BUFFER_SIZE
-from easyshare.esd.services import BaseClientService, check_sharing_service_owner, FPath
+from easyshare.esd.services import BaseClientService, check_sharing_service_owner_endpoint, FPath
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services.transfer import TransferService
@@ -52,7 +52,7 @@ class PutService(IPutService, TransferService):
 
     @expose
     @trace_api
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @try_or_command_failed_response
     def next(self,
              finfo: FileInfo,

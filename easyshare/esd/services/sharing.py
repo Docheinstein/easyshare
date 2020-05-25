@@ -4,7 +4,7 @@ from typing import Callable, List, Optional
 from Pyro5.server import expose
 
 from easyshare.esd.common import ClientContext, Sharing
-from easyshare.esd.services import BaseClientSharingService, check_sharing_service_owner, FPath
+from easyshare.esd.services import BaseClientSharingService, check_sharing_service_owner_endpoint, FPath
 from easyshare.esd.services.transfer.get import GetService
 from easyshare.esd.services.transfer.put import PutService
 from easyshare.logging import get_logger
@@ -78,7 +78,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @ensure_d_sharing
     def rcd(self, spath: str) -> Response:
         spath = spath or "/"
@@ -119,7 +119,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @ensure_d_sharing
     def rpwd(self) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -135,7 +135,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @ensure_d_sharing
     def rls(self, *,
             path: str = None, sort_by: List[str] = None,
@@ -192,7 +192,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @ensure_d_sharing
     def rtree(self, *, path: str = None, sort_by: List[str] = None,
               reverse: bool = False, hidden: bool = False,
@@ -251,7 +251,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @check_write_permission
     @ensure_d_sharing
     def rmkdir(self, directory: str) -> Response:
@@ -295,7 +295,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @check_write_permission
     @ensure_d_sharing
     def rcp(self, sources: List[str], destination: str) -> Response:
@@ -332,7 +332,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @check_write_permission
     @ensure_d_sharing
     def rmv(self, sources: List[str], destination: str) -> Response:
@@ -443,7 +443,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @check_write_permission
     @ensure_d_sharing
     def rrm(self, paths: List[str]) -> Response:
@@ -496,7 +496,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     # NO  @ensure_d_sharing, allowed for files too
     def get(self, paths: List[str], check: bool = False) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -529,7 +529,7 @@ class SharingService(ISharingService, BaseClientSharingService):
     @expose
     @trace_api
     @try_or_command_failed_response
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @ensure_d_sharing # Allowed only for F sharings
     def put(self, check: bool = False) -> Response:
         client_endpoint = pyro_client_endpoint()
@@ -551,7 +551,7 @@ class SharingService(ISharingService, BaseClientSharingService):
 
     @expose
     @trace_api
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     # so bad that pyro calls the "close" object when a tracked resource is released
     # we have to call this close_
     def close_(self):

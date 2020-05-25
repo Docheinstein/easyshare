@@ -253,21 +253,25 @@ def run_detached(cmd: str,
         flags = fcntl.fcntl(proc.stdout, fcntl.F_GETFL)
         fcntl.fcntl(proc.stdout, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-        while proc.poll() is None:
-            rlist, wlist, xlist = select.select([proc.stdout, proc.stderr], [], [], 0.04)
+        try:
+            while proc.poll() is None:
+                rlist, wlist, xlist = select.select([proc.stdout, proc.stderr], [], [], 0.04)
 
-            if proc.stdout in rlist:
-                line = proc.stdout.read()
-                if line:
-                    if stdout_hook:
-                        stdout_hook(line)
-            elif proc.stderr in rlist:
-                line = proc.stderr.read()
-                if line:
-                    if stderr_hook:
-                        stderr_hook(line)
+                if proc.stdout in rlist:
+                    line = proc.stdout.read()
+                    if line:
+                        if stdout_hook:
+                            stdout_hook(line)
+                elif proc.stderr in rlist:
+                    line = proc.stderr.read()
+                    if line:
+                        if stderr_hook:
+                            stderr_hook(line)
+            retcode = proc.returncode
+        except:
+            retcode = -1
 
-        end_hook(proc.returncode)
+        end_hook(retcode) # Consider any exception as a shell failure
 
         fcntl.fcntl(proc.stdout, fcntl.F_SETFL, flags)
 
@@ -325,15 +329,17 @@ def pty_detached(out_hook: Callable[[str], None],
     ptyproc = PtyProcessUnicode.spawn(argv)
 
     def proc_handler():
+        retcode = 0
         while True:
             try:
                 data = ptyproc.read()
                 out_hook(data)
-            except OSError:
-                break
             except EOFError:
-                break
-        end_hook(0) # TODO how get the real return code?
+                break # CTRL+D => quit the shell
+            except Exception:
+                retcode = -1
+                break # Consider any exception as a shell failure
+        end_hook(retcode) # TODO how get the real return code?
 
     proc_handler_th = threading.Thread(target=proc_handler, daemon=True)
     proc_handler_th.start()

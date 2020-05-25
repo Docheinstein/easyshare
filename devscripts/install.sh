@@ -10,4 +10,4 @@ last_version="$(find "$DIST_DIR" | sort | tail -n 1)"
 
 echo_cyan "========= INSTALLING ========"
 
-pip install "$last_version"
+sudo pip install "$last_version"

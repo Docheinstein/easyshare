@@ -8,7 +8,7 @@ from Pyro5.server import expose
 
 from easyshare.common import BEST_BUFFER_SIZE
 from easyshare.esd.common import ClientContext, Sharing
-from easyshare.esd.services import check_sharing_service_owner, FPath
+from easyshare.esd.services import check_sharing_service_owner_endpoint, FPath
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
 from easyshare.protocol.responses import create_success_response, TransferOutcomes, create_error_response, Response, \
@@ -111,7 +111,7 @@ class GetService(IGetService, TransferService):
 
     @expose
     @trace_api
-    @check_sharing_service_owner
+    @check_sharing_service_owner_endpoint
     @try_or_command_failed_response
     def next(self, transfer: bool = False, skip: bool = False) -> Response:
         if self._outcome is not None:

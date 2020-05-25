@@ -5,4 +5,4 @@ SCRIPT_DIR="$(dirname "$0")"
 
 echo_cyan "========= UNINSTALL ========"
 
-pip uninstall easyshare
+sudo pip uninstall easyshare
