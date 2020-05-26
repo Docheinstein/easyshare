@@ -4,6 +4,8 @@ import re
 
 from typing import Optional
 
+from Pyro5 import socketutil
+
 from easyshare.consts.net import ADDR_ANY, PORT_ANY
 from easyshare.logging import get_logger
 from easyshare.utils.types import is_int
@@ -65,7 +67,7 @@ def socket_udp_out(*,
 
 def socket_tcp_in(address: str, port: int, *,
                   timeout: float = None,
-                  pending_connections: int = 0):
+                  pending_connections: int = 100):
     return _socket(SocketMode.TCP, SocketDirection.IN,
                    address=address, port=port, timeout=timeout,
                    pending_connections=pending_connections)
