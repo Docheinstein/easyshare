@@ -15,3 +15,4 @@
 - use low socket for rsh? (or annotations)
 - custom serializer?
 - implement everything with lowe level socket instead of pyro?
+- if TAB while name start with ., perform a xLS -a instead of xLS

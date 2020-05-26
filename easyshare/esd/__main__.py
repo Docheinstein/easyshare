@@ -269,7 +269,7 @@ def main():
 
             for s_name, s_settings in cfg.non_global_sections():
                 s_path = s_settings.get(EsdConfKeys.S_PATH)
-                s_readonly = s_settings.get(EsdConfKeys.S_PATH, False)
+                s_readonly = s_settings.get(EsdConfKeys.S_READONLY, False)
 
                 add_sharing(path=s_path, name=s_name, readonly=s_readonly)
 
