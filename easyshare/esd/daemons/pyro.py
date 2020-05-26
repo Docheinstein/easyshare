@@ -116,6 +116,8 @@ def init_pyro_daemon(address: str,
         port=port,
     )
 
+    return _pyro_daemon
+
 
 def get_pyro_daemon() -> Optional[PyroDaemon]:
     """ Get the global pyro daemon instance """

@@ -95,8 +95,12 @@ class SocketTcp(Socket):
     def recv(self, bufsize=DEFAULT_SOCKET_BUFSIZE) -> bytes:
         return self.sock.recv(bufsize)
 
-    def remote_endpoint(self) -> Endpoint:
-        return self.sock.getpeername()
+    def remote_endpoint(self) -> Optional[Endpoint]:
+        try:
+            return self.sock.getpeername()
+        except:
+            log.exception("Cannot determinate remote endpoint")
+            return None
 
     def remote_address(self) -> str:
         return self.remote_endpoint()[0]

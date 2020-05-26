@@ -1001,6 +1001,7 @@ class Client:
                                 log.w("Ignoring OSerror: %s", str(oserr))
 
                         log.i("RSHELL done (%d)", retcode)
+                        print()
                 except KeyboardInterrupt:
                     log.d("rshell CTRL+C detected on stdout thread, ignoring")
                     retcode = -1
@@ -1319,28 +1320,34 @@ class Client:
                                    server_conn.server_port())
         log.d("Remote GetService URI: %s", get_service_uri)
 
-        # Raw transfer socket
-        try:
-            transfer_socket = SocketTcpOut(
-                address=sharing_conn.server_info.get("ip"),
-                port=transfer_port(sharing_conn.server_info.get("port")),
-                ssl_context=get_ssl_context(),
-                timeout=self._discover_timeout  # well it's not a discovery,
-                                                # but at least should be a
-                                                # timeout that make sense
-            )
-        except ConnectionRefusedError:
-            log.exception("Transfer socket creation failed (closed)")
-            raise CommandExecutionError("Transfer connection can't be established: refused")
-        except socket.timeout:
-            log.exception("Transfer socket creation failed (timeout)")
-            raise CommandExecutionError("Transfer connection can't be established: timed out")
-        except OSError as oserr:
-            log.exception("Transfer socket creation failed")
-            raise CommandExecutionError(os_error_str(oserr))
-        except Exception as exc:
-            log.exception("Transfer socket creation failed")
-            raise CommandExecutionError(str(exc))
+        transfer_socket = None
+
+        def init_transfer_socket():
+            nonlocal transfer_socket
+
+            # Raw transfer socket
+            try:
+                log.d("Initializing transfer socket")
+                transfer_socket = SocketTcpOut(
+                    address=sharing_conn.server_info.get("ip"),
+                    port=transfer_port(sharing_conn.server_info.get("port")),
+                    ssl_context=get_ssl_context(),
+                    # timeout=self._discover_timeout  # well it's not a discovery,
+                                                    # but at least should be a
+                                                    # timeout that make sense
+                )
+            except ConnectionRefusedError:
+                log.exception("Transfer socket creation failed (closed)")
+                raise CommandExecutionError("Transfer connection can't be established: refused")
+            except socket.timeout:
+                log.exception("Transfer socket creation failed (timeout)")
+                raise CommandExecutionError("Transfer connection can't be established: timed out")
+            except OSError as oserr:
+                log.exception("Transfer socket creation failed")
+                raise CommandExecutionError(os_error_str(oserr))
+            except Exception as exc:
+                log.exception("Transfer socket creation failed")
+                raise CommandExecutionError(str(exc))
 
         # Overwrite preference
 
@@ -1377,7 +1384,6 @@ class Client:
         get_service: Union[TracedPyroProxy, IGetService]
 
         with TracedPyroProxy(get_service_uri) as get_service:
-
             while True:
                 log.i("Fetching another file info")
                 # The first next() fetch never implies a new file to be put
@@ -1486,7 +1492,11 @@ class Client:
                     else:
                         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
-                # else: file already put into the transer socket
+                # else: file already put into the transfer socket
+
+                # Initialize the transfer socket, if not already done
+                if not transfer_socket:
+                    init_transfer_socket()
 
                 if not quiet:
                     progressor = FileProgressor(

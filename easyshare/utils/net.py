@@ -65,7 +65,7 @@ def socket_udp_out(*,
 
 def socket_tcp_in(address: str, port: int, *,
                   timeout: float = None,
-                  pending_connections: int = 1):
+                  pending_connections: int = 0):
     return _socket(SocketMode.TCP, SocketDirection.IN,
                    address=address, port=port, timeout=timeout,
                    pending_connections=pending_connections)
@@ -80,7 +80,8 @@ def socket_tcp_out(address: str, port: int, *,
 def _socket(mode: SocketMode, direction: SocketDirection,
             address: str = None, port: int = None,
             timeout: float = None, broadcast: bool = False,
-            pending_connections: int = 0, reuse_addr: bool = True) -> Optional[socket.socket]:
+            pending_connections: int = 0, reuse_addr: bool = True,
+            no_delay: bool = True) -> Optional[socket.socket]:
     """ Utility for create a socket for the given parameters """
 
     log.d("Creating raw_socket\n"
@@ -89,17 +90,19 @@ def _socket(mode: SocketMode, direction: SocketDirection,
         "\taddress:         %s\n"
         "\tport:            %s\n"  
         "\ttimeout:         %s\n"
-        "\treuse_addr:      %s\n"
-        "\tout bcast:       %s\n"  
-        "\tin  no. allowed: %s",
+        "\tin  no. allowed: %s\n"
+        "\tSO_REUSEADDR:    %s\n"
+        "\tTCP_NODELAY:     %s\n"
+        "\tSO_BROADCAST:    %s\n",
           mode,
           direction,
           "<any>" if address == ADDR_ANY else address,
           "<any>" if port == PORT_ANY else port,
           timeout,
-          reuse_addr,
-          broadcast,
           str(pending_connections),
+          reuse_addr,
+          no_delay,
+          broadcast,
     )
 
     if mode == SocketMode.TCP:
@@ -112,8 +115,11 @@ def _socket(mode: SocketMode, direction: SocketDirection,
     if timeout:
         sock.settimeout(timeout)
 
-    # in_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO,
-    #                    struct.pack("LL", ceil(self.timeout), 0))
+    if mode == SocketMode.TCP and no_delay:
+        try:
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except:
+            log.w("TCP_NODELAY can't be set")
 
     if reuse_addr:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

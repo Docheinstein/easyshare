@@ -63,10 +63,11 @@ class DiscoverDaemon:
                 cb(client_endpoint, data)
 
 
-def init_discover_daemon(port: int):
+def init_discover_daemon(port: int) -> DiscoverDaemon:
     """ Initializes the global discover daemon on the given port """
     global _discover_daemon
     _discover_daemon = DiscoverDaemon(port)
+    return _discover_daemon
 
 
 def get_discover_daemon() -> Optional[DiscoverDaemon]:

@@ -24,8 +24,9 @@ class TransferDaemon:
     should handle the new socket (after some check, e.g. IP provenience).
     """
 
-    def __init__(self, port: int):
+    def __init__(self, address: str, port: int):
         self._acceptor = SocketTcpAcceptor(
+            address=address,
             port=port,
             ssl_context=get_ssl_context()
         )
@@ -58,7 +59,13 @@ class TransferDaemon:
         while True:
             log.d("Waiting for transfer connections on port %d...", self._acceptor.port())
             sock = self._acceptor.accept()
-            log.d("Received new connection from %s", sock.remote_endpoint())
+            remote_endpoint = sock.remote_endpoint()
+
+            if not remote_endpoint:
+                log.w("Invalid endpoint, refusing connection")
+                continue
+
+            log.d("Received new valid connection from %s", sock.remote_endpoint())
 
             # Ask the listeners (callbacks) whether they want to handle
             # this incoming connection
@@ -81,10 +88,11 @@ class TransferDaemon:
                 self.remove_callback(remove_cb)
 
 
-def init_transfer_daemon(port: int):
+def init_transfer_daemon(address: str, port: int) -> TransferDaemon:
     """ Initializes the global transfer daemon on the given port """
     global _transfer_daemon
-    _transfer_daemon = TransferDaemon(port)
+    _transfer_daemon = TransferDaemon(address, port)
+    return _transfer_daemon
 
 
 def get_transfer_daemon() -> Optional[TransferDaemon]:

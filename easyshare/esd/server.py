@@ -5,6 +5,7 @@ from typing import cast, List
 
 from easyshare.auth import Auth, AuthNone
 from easyshare.common import DEFAULT_DISCOVER_PORT, DEFAULT_SERVER_PORT, transfer_port
+from easyshare.consts.net import ADDR_ANY
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import Sharing
 from easyshare.esd.daemons.discover import get_discover_daemon, init_discover_daemon
@@ -15,7 +16,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.responses import create_success_response
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.sockets import SocketUdpOut
-from easyshare.ssl import set_ssl_context, get_ssl_context
+from easyshare.ssl import set_ssl_context
 from easyshare.tracing import trace_out
 from easyshare.utils.json import json_to_bytes, j
 from easyshare.utils.net import get_primary_ip, is_valid_port
@@ -47,21 +48,26 @@ class Server:
         set_ssl_context(ssl_context)
 
         # === DISCOVER DAEMON ===
+        discover_daemon = None
+
         if is_valid_port(discover_port):
-            init_discover_daemon(discover_port)
-            get_discover_daemon().add_callback(
+            discover_daemon = init_discover_daemon(
+                port=discover_port
+            )
+            discover_daemon.add_callback(
                 self._handle_discover_request
             )
 
         # === TRANSFER DAEMON ===
-        init_transfer_daemon(transfer_port(port))
+        transfer_daemon = init_transfer_daemon(
+            address=address,
+            port=transfer_port(port)
+        )
 
         # We don't have to listen to the transfer daemon
         # get and put services will do so
 
         # === PYRO DAEMON ===
-        self._ssl_context = get_ssl_context()
-
         init_pyro_daemon(
             address=address,
             port=port
@@ -77,11 +83,14 @@ class Server:
         )
         self.server_service.publish()
 
-        log.i("Server real address: %s", self.server_service.address())
-        log.i("Server real port: %d", self.server_service.port())
-        if get_discover_daemon():
-            log.i("Server real discover address: %s", get_discover_daemon().address())
-            log.i("Server real discover port: %d", get_discover_daemon().port())
+        log.i("PyroDaemon started at %s:%d",
+              self.server_service.address(), self.server_service.port())
+        log.i("TransferDaemon started at %s:%d",
+              transfer_daemon.address(), transfer_daemon.port())
+
+        if discover_daemon:
+            log.i("DiscoverDaemon started at %s:%d",
+                  discover_daemon.address(), discover_daemon.port())
         # else: disabled
 
 
