@@ -1,6 +1,7 @@
 from typing import Optional, Callable
 
 from easyshare.endpoint import Endpoint
+from easyshare.esd.daemons import Daemon, UdpDaemon
 from easyshare.logging import get_logger
 from easyshare.sockets import SocketUdpIn
 from easyshare.tracing import trace_in
@@ -17,50 +18,18 @@ log = get_logger(__name__)
 _discover_daemon: Optional['DiscoverDaemon'] = None
 
 
-class DiscoverDaemon:
+class DiscoverDaemon(UdpDaemon):
     """
     Daemon that listens to discover requests from the client (by default on port 12019)
     and notifies the listeners about it.
     """
 
-    def __init__(self, port: int):
-        self._sock = SocketUdpIn(
-            port=port
+    def _trace_hook(self, data: bytes, client_endpoint: Endpoint):
+        trace_in(
+            "DISCOVER {} ({})".format(str(data), bytes_to_int(data)),
+            ip=client_endpoint[0],
+            port=client_endpoint[1]
         )
-        self._callbacks = set()
-
-
-    def add_callback(self, callback: Callable[[Endpoint, bytes], None]):
-        """ Adds a callback to invoke when a discover request is received """
-        self._callbacks.add(callback)
-
-    def remove_callback(self, callback: Callable[[Endpoint, bytes], None]):
-        """ Removes a callback from the set of callbacks """
-        self._callbacks.remove(callback)
-
-    def endpoint(self) -> Endpoint:
-        return self._sock.endpoint()
-
-    def address(self) -> str:
-        return self._sock.address()
-
-    def port(self) -> int:
-        return self._sock.port()
-
-    def run(self):
-        while True:
-            log.d("Waiting for DISCOVER request to handle on port %d...", self._sock.port())
-            data, client_endpoint = self._sock.recv()
-
-            trace_in(
-                "DISCOVER {} ({})".format(str(data),  bytes_to_int(data)),
-                ip=client_endpoint[0],
-                port=client_endpoint[1]
-            )
-
-            log.i("Received DISCOVER request from: %s", client_endpoint)
-            for cb in self._callbacks:
-                cb(client_endpoint, data)
 
 
 def init_discover_daemon(port: int) -> DiscoverDaemon:
