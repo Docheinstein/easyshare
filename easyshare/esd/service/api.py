@@ -95,3 +95,4 @@ class ClientHandler:
         payload = bytes_to_json(payload_data)
 
         log.d("Received payload \n%s", j(payload))
+

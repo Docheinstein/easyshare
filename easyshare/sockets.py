@@ -89,14 +89,36 @@ class SocketUdpOut(SocketUdp):
 
 
 class SocketTcp(Socket):
+    def __init__(self, sock: socket.socket):
+        super().__init__(sock)
+        self._recv_buffer = bytearray()
+
     def send(self, data: bytes):
         self.sock.sendall(data)
 
-    def recv(self, bufsize) -> bytes:
-        return self.sock.recv(bufsize)
+    def recv(self, length: int) -> Optional[bytes]:
+        while True:
+            remaining_length = length - len(self._recv_buffer)
+            if remaining_length <= 0:
+                break
 
-    def recv_into(self, bufsize, buffer: bytearray = None) -> int:
-        return self.sock.recv_into(buffer, bufsize)
+            log.d("recv() - waiting for %d bytes", remaining_length)
+            recvlen = min(remaining_length, DEFAULT_SOCKET_BUFSIZE)
+            data = self.sock.recv(recvlen)
+            log.d("recv(): %s", repr(data))
+
+            if len(data) == 0:
+                log.d("EOF")
+                return None
+
+            self._recv_buffer += data
+
+        read = self._recv_buffer[0:length]
+        self._recv_buffer = self._recv_buffer[length:]
+        return read
+
+    # def recv_into(self, bufsize, buffer: bytearray = None) -> int:
+    #     return self.sock.recv_into(buffer, bufsize)
 
     def remote_endpoint(self) -> Optional[Endpoint]:
         try:
