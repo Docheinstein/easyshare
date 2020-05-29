@@ -17,30 +17,18 @@ def is_tracing_enabled() -> bool:
 
 def trace_out(message: str, ip: str, port: int, alias: str = None):
     """ Dump an outgoing message, if tracing is enabled """
-    _trace(
-        magenta(
-            ">> {}:{}{}\n>>   {}".format(
-                ip,
-                port,
-                " (" + alias + ")" if alias else "",
-                message
-            ),
-        )
-    )
+    _trace(magenta(f"""\
+>> {ip}:{port}{' (' + alias + ')' if alias else ''}
+>> {message}"""
+))
 
 
 def trace_in(message: str, ip: str, port: int, alias: str = None):
     """ Dump an ingoing message, if tracing is enabled """
-    _trace(
-        cyan(
-            "<< {}:{}{}\n<<   {}".format(
-                ip,
-                port,
-                " (" + alias + ")" if alias else "",
-                message
-            ),
-        )
-    )
+    _trace(cyan(f"""\
+<< {ip}:{port}{' (' + alias + ')' if alias else ''}
+<< {message}"""
+))
 
 
 def _trace(msg, *args, **kwargs):

@@ -26,7 +26,7 @@ class Client:
         self.tag = randstring(4, alphabet=string.ascii_lowercase) # not an unique id, just a tag
 
     def __str__(self):
-        return f"{self.endpoint} [{self.tag}]"
+        return f"{self.endpoint[0]}:{self.endpoint[1]} [{self.tag}]"
 
 # =============================================
 # ================== SHARING ==================

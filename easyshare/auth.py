@@ -36,8 +36,9 @@ class Auth(ABC):
 class AuthNone(Auth):
     """ No authentication """
     def authenticate(self, password: Optional[str]) -> bool:
-        # Always authenticated
-        return True
+        # Check at least that password is None (i.e. if a user submit a password
+        # while the authentication is None the auth must fail)
+        return not password
 
     @classmethod
     def algo_security(cls) -> int:

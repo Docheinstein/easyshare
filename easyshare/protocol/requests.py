@@ -6,6 +6,13 @@ from easyshare.utils.types import is_dict, is_str
 from typing import Any, Dict
 
 class Requests:
+    CONNECT = "connect"
+    DISCONNECT = "disconnect"
+
+    LIST = "list"
+    INFO = "info"
+    PING = "ping"
+
     LS = "ls"
 
 

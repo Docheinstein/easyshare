@@ -6,7 +6,7 @@ from easyshare.utils.types import str_to_bytes
 
 def json_to_str(d: Union[dict, list, tuple], pretty=False) -> str:
     if pretty:
-        return json.dumps(d, indent=4)
+        return json.dumps(d, indent=3)
     return json.dumps(d, separators=(",", ":"))
 
 

@@ -2,6 +2,7 @@ from typing import Optional, Union
 
 from easyshare.logging import get_logger
 from easyshare.sockets import SocketTcp
+from easyshare.tracing import trace_in
 from easyshare.utils.types import bytes_to_int, int_to_bytes
 
 log = get_logger(__name__)
