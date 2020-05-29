@@ -7,7 +7,7 @@ from typing import List, Tuple, Union, BinaryIO
 from Pyro5.server import expose
 
 from easyshare.common import BEST_BUFFER_SIZE
-from easyshare.esd.common import ClientContext, Sharing
+from easyshare.esd.common import Client, Sharing
 from easyshare.esd.services import check_sharing_service_owner_endpoint, FPath
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
@@ -43,11 +43,11 @@ class GetService(IGetService, TransferService):
     #       with consecutive attempts such as ../../something/sharing_name)
     def __init__(self,
                  # files: List[Tuple[str, str]], # local path, remote prefix
-                 files: List[str], # fpath, prefix
+                 files: List[str],  # fpath, prefix
                  check: bool,
                  sharing: Sharing,
                  sharing_rcwd: FPath,
-                 client: ClientContext):
+                 client: Client):
         super().__init__(sharing, sharing_rcwd, client)
         self._check = check
         self._next_servings: List[Tuple[FPath, FPath, str]] = [] # fpath, basedir, prefix (only for is_root case)

@@ -1,11 +1,10 @@
 from easyshare.endpoint import Endpoint
 from easyshare.esd.daemons.discover import get_discover_daemon
 from easyshare.logging import get_logger
-from easyshare.protocol.responses import create_success_response
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.sockets import SocketUdpOut
 from easyshare.tracing import trace_out
-from easyshare.utils.json import json_to_bytes
+from easyshare.utils.json import json_to_bytes, j
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.types import bytes_to_int
 
@@ -22,7 +21,7 @@ class DiscoverService:
         log.i("<< DISCOVER %s", client_endpoint)
         log.i("Handling discover %s", str(data))
 
-        response = create_success_response(self._server_info_full)
+        response = self._server_info_full
 
         client_discover_response_port = bytes_to_int(data)
 

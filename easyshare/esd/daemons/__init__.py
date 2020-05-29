@@ -3,7 +3,7 @@ from typing import Callable
 
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.sockets import SocketTcpAcceptor, SocketTcpIn, SocketUdpIn
+from easyshare.sockets import SocketTcpAcceptor, SocketUdpIn, SocketTcp
 from easyshare.ssl import get_ssl_context
 
 log = get_logger(__name__)
@@ -49,7 +49,7 @@ class UdpDaemon(Daemon):
         )
 
     def add_callback(self, callback: Callable[[Endpoint, bytes], bool], once: bool = False):
-        self._callbacks[callback] = (callback, once)
+        self._callbacks[callback] = once
         log.d("Added callback to %s; current size = %d", self.__class__.__name__, len(self._callbacks))
 
     def remove_callback(self, callback: Callable[[Endpoint, bytes], bool]):
@@ -69,6 +69,10 @@ class UdpDaemon(Daemon):
 
             log.i("Received UDP request from: %s", client_endpoint)
 
+            # Ask the listeners (callbacks) whether they want to handle
+            # this incoming message
+            # If someone wants to handle it, we stop notifying the others
+
             remove_cb = None
 
             for cb, once in self._callbacks.items():
@@ -80,7 +84,7 @@ class UdpDaemon(Daemon):
                         remove_cb = cb
                     break
             else:
-                log.w("No listeners wants to handle the request")
+                log.w("No listener wants to handle the request")
                 # Nothing to close, UDP
 
             if remove_cb:
@@ -99,11 +103,11 @@ class TcpDaemon(Daemon):
             ssl_context=get_ssl_context()
         )
 
-    def add_callback(self, callback: Callable[[SocketTcpIn], bool], once: bool = False):
-        self._callbacks[callback] = (callback, once)
+    def add_callback(self, callback: Callable[[SocketTcp], bool], once: bool = False):
+        self._callbacks[callback] = once
         log.d("Added callback to %s; current size = %d", self.__class__.__name__, len(self._callbacks))
 
-    def remove_callback(self, callback: Callable[[SocketTcpIn], bool]):
+    def remove_callback(self, callback: Callable[[SocketTcp], bool]):
         self._callbacks.pop(callback, None)
         log.d("Removed callback from %s; current size = %d", self.__class__.__name__, len(self._callbacks))
 
@@ -138,7 +142,7 @@ class TcpDaemon(Daemon):
                         remove_cb = cb
                     break
             else:
-                log.w("No listeners wants to handle the socket, closing it")
+                log.w("No listener wants to handle the socket, closing it")
                 sock.close()
 
             if remove_cb:

@@ -92,8 +92,11 @@ class SocketTcp(Socket):
     def send(self, data: bytes):
         self.sock.sendall(data)
 
-    def recv(self, bufsize=DEFAULT_SOCKET_BUFSIZE) -> bytes:
+    def recv(self, bufsize) -> bytes:
         return self.sock.recv(bufsize)
+
+    def recv_into(self, bufsize, buffer: bytearray = None) -> int:
+        return self.sock.recv_into(buffer, bufsize)
 
     def remote_endpoint(self) -> Optional[Endpoint]:
         try:

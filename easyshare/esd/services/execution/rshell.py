@@ -3,7 +3,7 @@ from typing import Optional
 from Pyro5.server import expose
 from ptyprocess import PtyProcess
 
-from easyshare.esd.common import ClientContext
+from easyshare.esd.common import Client
 from easyshare.esd.services import BaseClientService, \
     check_sharing_service_owner_address
 from easyshare.esd.services.execution import BlockingBuffer
@@ -32,7 +32,7 @@ class RshellService(IRshellService, BaseClientService):
         return "rshell"
 
 
-    def __init__(self, client: ClientContext):
+    def __init__(self, client: Client):
         super().__init__(client)
         self._buffer = BlockingBuffer()
         self._ptyproc: Optional[PtyProcess] = None

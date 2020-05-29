@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Union, Dict, List
 
 from easyshare.consts import ansi
-from easyshare.esd.common import ClientContext, Sharing
+from easyshare.esd.common import Client, Sharing
 from easyshare.esd.daemons.pyro import get_pyro_daemon, PyroObject
 from easyshare.logging import get_logger
 from easyshare.protocol.responses import ServerErrors, create_error_response
@@ -75,7 +75,7 @@ class BaseClientService(BaseService, ABC):
     when is published, in order to be unpublished when the client disconnects.
     """
 
-    def __init__(self, client: ClientContext):
+    def __init__(self, client: Client):
         super().__init__()
         self.client = client
         self.endpoint = None
@@ -159,7 +159,7 @@ class BaseClientSharingService(BaseClientService, ABC):
     def __init__(self,
                  sharing: Sharing,
                  sharing_rcwd: FPath,
-                 client: ClientContext):
+                 client: Client):
         super().__init__(client)
         self._sharing = sharing
         self._rcwd_fpath: FPath = sharing_rcwd

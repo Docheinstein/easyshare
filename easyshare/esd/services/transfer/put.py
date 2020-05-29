@@ -7,7 +7,7 @@ from Pyro5.server import expose
 from easyshare.common import BEST_BUFFER_SIZE
 from easyshare.esd.services import BaseClientService, check_sharing_service_owner_endpoint, FPath
 
-from easyshare.esd.common import ClientContext, Sharing
+from easyshare.esd.common import Client, Sharing
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
 from easyshare.protocol.services import OverwritePolicy, IPutService
@@ -45,7 +45,7 @@ class PutService(IPutService, TransferService):
                  check: bool,
                  sharing: Sharing,
                  sharing_rcwd,
-                 client: ClientContext):
+                 client: Client):
         super().__init__(sharing, sharing_rcwd, client)
         self._check = check
         self._incomings: Queue[Tuple[FPath, int, BinaryIO]] = Queue() # fpath, size, fd

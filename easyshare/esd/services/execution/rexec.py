@@ -8,7 +8,7 @@ from easyshare.esd.services import BaseClientService, check_sharing_service_owne
 
 from easyshare.consts.os import STDOUT, STDERR
 
-from easyshare.esd.common import ClientContext
+from easyshare.esd.common import Client
 from easyshare.esd.services.execution import BlockingBuffer
 from easyshare.logging import get_logger
 from easyshare.protocol.services import IRexecService
@@ -33,7 +33,7 @@ class RexecService(IRexecService, BaseClientService):
     def name(self) -> str:
         return "rexec"
 
-    def __init__(self, cmd: str, client: ClientContext):
+    def __init__(self, cmd: str, client: Client):
         super().__init__(client)
         self._cmd = cmd
         self._buffer = BlockingBuffer()

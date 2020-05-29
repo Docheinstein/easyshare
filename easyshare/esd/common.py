@@ -4,6 +4,7 @@ from typing import Optional
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
 from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType, ftype
+from easyshare.sockets import SocketTcp
 from easyshare.utils.json import j
 from easyshare.utils.path import LocalPath
 from easyshare.utils.rand import randstring
@@ -16,14 +17,12 @@ log = get_logger(__name__)
 # =============================================
 
 
-class ClientContext:
+class Client:
     """ Contains the server-side information kept for a connected client """
 
-    def __init__(self, endpoint: Endpoint):
-        # Actually the endpoint it's just the first of the endpoints the client
-        # can have due to different connections to server/sharing, transfer, rexec, ...
-        # (is the one that calls connect())
-        self.endpoint: Optional[Endpoint] = endpoint #
+    def __init__(self, sock: SocketTcp):
+        self.socket: SocketTcp = sock
+        self.endpoint: Optional[Endpoint] = sock.remote_endpoint()
         self.tag = randstring(4, alphabet=string.ascii_lowercase) # not an unique id, just a tag
 
     def __str__(self):

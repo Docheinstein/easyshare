@@ -1,6 +1,6 @@
 import select
 from datetime import datetime
-from typing import Callable
+from typing import Callable, cast
 
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
@@ -89,7 +89,7 @@ class Discoverer:
             raw_resp, endpoint = in_sock.recv()
 
             log.i("Received DISCOVER response from: %s", endpoint)
-            resp: Response = bytes_to_json(raw_resp)
+            resp: ServerInfoFull = cast(ServerInfoFull, bytes_to_json(raw_resp))
 
             trace_in(
                 "DISCOVER\n{}".format(j(resp)),
@@ -97,12 +97,8 @@ class Discoverer:
                 port=endpoint[1]
             )
 
-            if not is_data_response(resp):
-                log.w("Invalid DISCOVER response")
-                continue
-
             # Dispatch the response and check whether go on on listening
-            go_ahead = self._response_handler(endpoint, resp.get("data"))
+            go_ahead = self._response_handler(endpoint, resp)
 
             if not go_ahead:
                 log.d("Stopping DISCOVER since handle_discover_response_callback returned false")

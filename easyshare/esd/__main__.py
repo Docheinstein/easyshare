@@ -13,9 +13,8 @@ from easyshare.esd.common import Sharing
 from easyshare.esd.daemons.api import init_api_daemon, get_api_daemon
 from easyshare.esd.daemons.discover import get_discover_daemon, init_discover_daemon
 from easyshare.esd.daemons.transfer import get_transfer_daemon, init_transfer_daemon
-from easyshare.esd.server import Server
 from easyshare.esd.service.discover import DiscoverService
-from easyshare.esd.service.server import ServerService
+from easyshare.esd.service.api import ApiService
 from easyshare.helps.esd import Esd
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
@@ -25,7 +24,7 @@ from easyshare.styling import enable_colors, bold
 from easyshare.tracing import enable_tracing
 from easyshare.utils import terminate, abort
 from easyshare.utils.env import are_colors_supported
-from easyshare.utils.net import is_valid_port
+from easyshare.utils.net import is_valid_port, get_primary_ip
 from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfychars, tf
@@ -439,7 +438,6 @@ def main():
     # Auth
     auth = AuthFactory.parse(server_password)
 
-
     log.i("Required server name: %s", server_name)
     log.i("Required server address: %s", server_address)
     log.i("Required server port: %s", str(server_port))
@@ -449,6 +447,7 @@ def main():
 
     # Compute real name/port/discover port
     server_name = server_name or socket.gethostname()
+    server_address = server_address or get_primary_ip()
     server_port = server_port if server_port is not None else DEFAULT_SERVER_PORT
     server_discover_port = server_discover_port if server_discover_port is not None else DEFAULT_DISCOVER_PORT
 
@@ -478,7 +477,7 @@ def main():
 
     # - server
 
-    server_service = ServerService(
+    server_service = ApiService(
         sharings=list(sharings.values()),
         name=server_name,
         auth=AuthFactory.parse(server_password),
