@@ -13,6 +13,8 @@ class Requests:
     INFO = "info"
     PING = "ping"
 
+    REXEC = "rexec"
+
     LS = "ls"
 
 

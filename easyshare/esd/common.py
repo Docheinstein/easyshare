@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
+from easyshare.protocol.stream import Stream
 from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType, ftype
 from easyshare.sockets import SocketTcp
 from easyshare.utils.json import j
@@ -22,8 +23,10 @@ class Client:
 
     def __init__(self, sock: SocketTcp):
         self.socket: SocketTcp = sock
+        self.stream = Stream(sock)
         self.endpoint: Optional[Endpoint] = sock.remote_endpoint()
         self.tag = randstring(4, alphabet=string.ascii_lowercase) # not an unique id, just a tag
+
 
     def __str__(self):
         return f"{self.endpoint[0]}:{self.endpoint[1]} [{self.tag}]"

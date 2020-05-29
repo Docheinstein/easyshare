@@ -47,6 +47,7 @@ class ServerErrors:
     # -- no pryo --
     INVALID_REQUEST =           230
     UNKNOWN_API =               231
+    REXEC_DISABLED =            232
 
 
 class TransferOutcomes:

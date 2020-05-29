@@ -30,6 +30,10 @@ class Stream:
 
         log.d("Received an header, payload will be: %d bytes", payload_size)
 
+        if payload_size <= 0:
+            log.d("Nothing to receive")
+            return bytearray()
+
         # recv() the PAYLOAD (<header> bytes)
         payload_data = self._socket.recv(payload_size)
         self._ensure(header_data)

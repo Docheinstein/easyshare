@@ -6,6 +6,7 @@ from easyshare.auth import Auth
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import Sharing, Client
 from easyshare.esd.daemons.api import get_api_daemon
+from easyshare.esd.service.execution.rexec import RexecService
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response
@@ -14,8 +15,9 @@ from easyshare.protocol.types import ServerInfo
 from easyshare.sockets import SocketTcp
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import green, red
-from easyshare.tracing import trace_in, trace_out
+from easyshare.tracing import trace_in, trace_out, is_tracing_enabled
 from easyshare.utils.json import bytes_to_json, json_to_bytes, j
+from easyshare.utils.os import is_unix
 
 log = get_logger(__name__)
 
@@ -82,13 +84,40 @@ class ApiService:
         pass
 
 
+
+# decorator
+def ensure_connected(api):
+    def ensure_connected_wrapper(handler: 'ClientHandler', params: RequestParams):
+        if not handler._connected:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+        return api(handler, params)
+    return ensure_connected_wrapper
+
+
+# decorator
+def ensure_unix(api):
+    def ensure_unix_wrapper(handler: 'ClientHandler', params: RequestParams):
+        if not is_unix():
+            return create_error_response(ServerErrors.SUPPORTED_ONLY_FOR_UNIX)
+        return api(handler, params)
+    return ensure_unix_wrapper
+
+
+# decorator
+def ensure_rexec_enabled(api):
+    def ensure_rexec_enabled_wrapper(handler: 'ClientHandler', params: RequestParams):
+        if not handler._api_service.is_rexec_enabled():
+            return create_error_response(ServerErrors.REXEC_DISABLED)
+        return api(handler, params)
+    return ensure_rexec_enabled_wrapper
+
+
 class ClientHandler:
 
     def __init__(self, client: Client, api_service: ApiService):
         self._api_service = api_service
 
         self._client = client
-        self._client_stream = Stream(self._client.socket)
 
         self._connected = None # neither "connected" nor "disconnected"
 
@@ -98,13 +127,14 @@ class ClientHandler:
             Requests.LIST: self._list,
             Requests.INFO: self._info,
             Requests.PING: self._ping,
+            Requests.REXEC: self._rexec,
             "sleep": self._sleep
         }
 
     def handle(self):
         log.i("Handling client %s", self._client)
 
-        while self._client_stream.is_open() and self._connected is not False:
+        while self._client.stream.is_open() and self._connected is not False:
             try:
                 self._recv()
             except StreamClosedError:
@@ -122,7 +152,7 @@ class ClientHandler:
 
     def _recv(self):
         log.d("Waiting for messages from %s...", self._client)
-        req_payload_data = self._client_stream.read()
+        req_payload_data = self._client.stream.read()
 
         # Parse the request to JSON
         req_payload = None
@@ -136,9 +166,10 @@ class ClientHandler:
 
         if is_request(req_payload):
             # Trace IN
-            trace_in(f"{j(req_payload)}",
-                     ip=self._client.endpoint[0],
-                     port=self._client.endpoint[1])
+            if is_tracing_enabled():  # check for avoid json_pretty_str call
+                trace_in(f"{j(req_payload)}",
+                         ip=self._client.endpoint[0],
+                         port=self._client.endpoint[1])
 
             try:
                 resp_payload = self._handle_request(req_payload)
@@ -149,18 +180,8 @@ class ClientHandler:
             log.e("Invalid request - discarding it: %s", req_payload)
             resp_payload = create_error_response(ServerErrors.INVALID_REQUEST)
 
-        if not resp_payload:
-            resp_payload = create_error_response(ServerErrors.INTERNAL_SERVER_ERROR)
-
         # Send the response
-
-        # Trace OUT
-        trace_out(f"{j(resp_payload)}",
-                 ip=self._client.endpoint[0],
-                 port=self._client.endpoint[1])
-
-        # Really send back
-        self._client_stream.write(json_to_bytes(resp_payload))
+        self._send_response(resp_payload)
 
 
     def _handle_request(self, request: Request) -> Response:
@@ -173,9 +194,19 @@ class ClientHandler:
 
         return self._request_dispatcher[api](request.get("params", {}))
 
+    def _send_response(self, response: Response):
+        if not response:
+            log.d("null response, sending nothing")
+            return
 
-    # def _ls(self, params: RequestParams) -> Response:
-    #     return create_success_response(ls(Path()))
+        # Trace OUT
+        if is_tracing_enabled(): # check for avoid json_pretty_str call
+            trace_out(f"{j(response)}",
+                     ip=self._client.endpoint[0],
+                     port=self._client.endpoint[1])
+
+        # Really send it back
+        self._client.stream.write(json_to_bytes(response))
 
     def _sleep(self, params: RequestParams) -> Response:
         log.d("Sleeping...")
@@ -238,9 +269,29 @@ class ClientHandler:
 
 
     def _ping(self, _: RequestParams):
+        log.i("<< PING  |  %s", self._client)
+
         return create_success_response("pong")
 
+    @ensure_connected
+    @ensure_unix
+    @ensure_rexec_enabled
+    def _rexec(self, params: RequestParams):
+        cmd = params.get("cmd")
+        if not cmd:
+            create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
+        log.i("<< REXEC %s |  %s", cmd, self._client)
+
+
+        self._send_response(create_success_response())
+
+        rexec_service = RexecService(self._client, cmd)
+        retcode = rexec_service.run()
+
+        log.d("Rexec finished")
+
+        return create_success_response(retcode)
 
     # @expose
     # @trace_api
