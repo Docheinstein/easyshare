@@ -1,20 +1,26 @@
 import socket
 import sys
-from typing import List, Optional
+import threading
+from typing import List, Optional, cast
 
 from easyshare import logging
 from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, PosArgsSpec
 from easyshare.auth import AuthFactory
-from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO
+from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO, \
+    transfer_port, DEFAULT_SERVER_PORT, DEFAULT_DISCOVER_PORT
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.common import Sharing
-from easyshare.esd.daemons.discover import get_discover_daemon
-from easyshare.esd.daemons.transfer import get_transfer_daemon
+from easyshare.esd.daemons.api import init_api_daemon, get_api_daemon
+from easyshare.esd.daemons.discover import get_discover_daemon, init_discover_daemon
+from easyshare.esd.daemons.transfer import get_transfer_daemon, init_transfer_daemon
 from easyshare.esd.server import Server
+from easyshare.esd.service.discover import DiscoverService
+from easyshare.esd.service.server import ServerService
 from easyshare.helps.esd import Esd
 from easyshare.logging import get_logger
+from easyshare.protocol.types import ServerInfoFull
 from easyshare.res.helps import get_command_usage
-from easyshare.ssl import get_ssl_context
+from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.styling import enable_colors, bold
 from easyshare.tracing import enable_tracing
 from easyshare.utils import terminate, abort
@@ -348,20 +354,7 @@ def main():
             default=logging.VERBOSITY_MAX
         )
 
-    # Validation
-
-    # - server name
-    if not satisfychars(server_name, SERVER_NAME_ALPHABET):
-        abort("Invalid server name: '{}'".format(server_name))
-
-    # - ports
-    for p in [server_port, server_discover_port]:
-        # -1 is a special value for disable discovery
-        if p and not is_valid_port(p) and p != -1:
-            abort("Invalid port number {}".format(p))
-
     # Logging/Tracing/UI setup
-
     log.d("Colors: %s", not no_colors)
     log.d("Tracing: %s", tracing)
     log.d("Verbosity: %s", verbosity)
@@ -371,6 +364,7 @@ def main():
     if verbosity:
         log.set_verbosity(verbosity)
         enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
+
 
     # Parse sharing arguments (only a sharing is allowed in the cli)
 
@@ -398,6 +392,28 @@ def main():
 
             add_sharing(path=s_path, name=s_name, readonly=s_readonly)
 
+
+    # Validation
+
+    # - server name
+    if not satisfychars(server_name, SERVER_NAME_ALPHABET):
+        abort("Invalid server name: '{}'".format(server_name))
+
+    # - ports
+    for p in [server_port, server_discover_port]:
+        # -1 is a special value for disable discovery
+        if p and not is_valid_port(p) and p != -1:
+            abort("Invalid port number {}".format(p))
+
+    # - is a useful server?
+    if not sharings and not server_rexec:
+        log.e("No sharings found, and rexec disabled; nothing to do")
+        _print_usage_and_quit()
+
+    if not sharings:
+        log.w("No sharings found, it will be an empty esd")
+
+
     # SSL
 
     ssl_context = None
@@ -418,9 +434,11 @@ def main():
     if not server_ssl_enabled or not ssl_context:
         log.w("Server will start in plaintext mode; please consider using SSL")
 
-    # Configure server and add sharings to it
+    set_ssl_context(ssl_context)
 
+    # Auth
     auth = AuthFactory.parse(server_password)
+
 
     log.i("Required server name: %s", server_name)
     log.i("Required server address: %s", server_address)
@@ -428,48 +446,85 @@ def main():
     log.i("Required server discover port: %s", str(server_discover_port))
     log.i("Required auth: %s", auth.algo_type())
 
-    if not sharings and not server_rexec:
-        log.e("No sharings found, and rexec disabled; nothing to do")
-        _print_usage_and_quit()
 
-    if not sharings:
-        log.w("No sharings found, it will be an empty esd")
+    # Compute real name/port/discover port
+    server_name = server_name or socket.gethostname()
+    server_port = server_port if server_port is not None else DEFAULT_SERVER_PORT
+    server_discover_port = server_discover_port if server_discover_port is not None else DEFAULT_DISCOVER_PORT
 
-    server = Server(
+    # INIT daemons
+
+    # - discover daemon
+    discover_d = None
+    if is_valid_port(server_discover_port):
+        discover_d = init_discover_daemon(port=server_discover_port)
+
+    # - transfer daemon
+    transfer_d = init_transfer_daemon(
+        address=server_address, port=transfer_port(server_port))
+
+    # - api daemon
+    api_d = init_api_daemon(
+        address=server_address, port=server_port)
+
+
+    log.i("ApiDaemon started at %s:%d", api_d.address(), api_d.port())
+    log.i("TransferDaemon started at %s:%d", transfer_d.address(), transfer_d.port())
+
+    if discover_d:
+        log.i("DiscoverDaemon started at %s:%d", discover_d.address(), discover_d.port())
+
+    # START services
+
+    # - server
+
+    server_service = ServerService(
         sharings=list(sharings.values()),
         name=server_name,
-        address=server_address,
-        port=server_port,
-        discover_port=server_discover_port,
         auth=AuthFactory.parse(server_password),
-        ssl_context=ssl_context,
         rexec=server_rexec
     )
 
-    # Print server start info
+    # build server info
+
+    server_info_full: ServerInfoFull = cast(ServerInfoFull, server_service.server_info())
+    api_d, discover_d = get_api_daemon(), get_discover_daemon()
+
+    server_info_full["ip"] = api_d.address()
+    server_info_full["port"] = api_d.port()
+
+    server_info_full["discoverable"] = True if discover_d else False
+    if server_info_full["discoverable"]:
+        server_info_full["discover_port"] = discover_d.port()
+
+    # - discover
+    DiscoverService(server_info_full)
+
 
     sharings_str = \
         "\n".join([("* " + sh.name + " --> " + str(sh.path))
                    for sh in sharings.values()]) if sharings else "NONE"
 
-    if not server.server_service.auth().algo_security():
+    # PRINT info
+
+    if not auth.algo_security():
         auth_str = "no"
     else:
-        auth_str = f"yes ({server.server_service.auth().algo_type()})"
+        auth_str = f"yes ({auth.algo_type()})"
 
     print(f"""\
 ================================
 
 {bold("SERVER INFO")}
 
-Name:               {server.server_service.name()}
-Address:            {server.server_service.address()}
-Server port:        {server.server_service.port()}
+Name:               {server_name}
+Address:            {get_api_daemon().address()}
+Server port:        {get_api_daemon().port()}
 Transfer port:      {get_transfer_daemon().port()}
 Discover port:      {get_discover_daemon().port() if get_discover_daemon() else "disabled"}
 Auth:               {auth_str}
 SSL:                {tf(get_ssl_context(), "enabled", "disabled")}
-Remote execution:   {tf(server.server_service.is_rexec_enabled(), "enabled", "disabled")}
+Remote execution:   {tf(server_rexec, "enabled", "disabled")}
 
 ================================
 
@@ -482,7 +537,43 @@ Remote execution:   {tf(server.server_service.is_rexec_enabled(), "enabled", "di
 {bold("RUNNING...")}
 """)
 
-    server.start()
+    # START daemons
+
+    # - discover
+    th_discover = None
+    if get_discover_daemon():
+        th_discover = threading.Thread(target=get_discover_daemon().run, daemon=True)
+
+    # - api
+    th_api = threading.Thread(target=get_api_daemon().run, daemon=True)
+
+    # - transfer
+    th_transfer = threading.Thread(target=get_transfer_daemon().run, daemon=True)
+
+    try:
+        if th_discover:
+            log.i("Starting DISCOVER daemon")
+            th_discover.start()
+        else:
+            # Might be disabled for public server (for which discover won't work anyway)
+            log.w("NOT starting DISCOVER daemon")
+
+        log.i("Starting API daemon")
+        th_api.start()
+
+        log.i("Starting TRANSFER daemon")
+        th_transfer.start()
+
+        log.i("Ready to handle requests")
+
+        if th_discover:
+            th_discover.join()
+        th_api.join()
+        th_transfer.join()
+
+    except KeyboardInterrupt:
+        log.d("CTRL+C detected; quitting")
+        # Formally not a clean quit of the threads, but who cares we are exiting...
 
     print("\n" + bold("DONE"))
 

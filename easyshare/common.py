@@ -60,8 +60,8 @@ DEFAULT_DISCOVER_TIMEOUT = 2    # sec
 BEST_BUFFER_SIZE = 4096
 
 
-def transfer_port(server_port: int):
-    return server_port + 1
+def transfer_port(api_port: int):
+    return api_port + 1
 
 
 # =====================

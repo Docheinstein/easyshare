@@ -54,15 +54,11 @@ class ServerService(IServer, BaseService):
     def __init__(self, *,
                  sharings: List[Sharing],
                  name: str,
-                 address: str,
-                 port: int,
                  auth: Auth,
                  rexec: bool):
         super().__init__()
         self._sharings = {s.name: s for s in sharings}
         self._name = name
-        self._port = port
-        self._address = address
         self._auth = auth
         self._rexec_enabled = rexec
 
