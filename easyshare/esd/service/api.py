@@ -1,16 +1,22 @@
 import threading
-from typing import List, Dict
+from json import JSONDecodeError
+from pathlib import Path
+from typing import List, Dict, Callable
 
 from easyshare.auth import Auth
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import Sharing, Client
 from easyshare.esd.daemons.api import get_api_daemon
 from easyshare.logging import get_logger
+from easyshare.protocol.requests import Request, is_request, Requests, RequestParams
+from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response
+from easyshare.protocol.stream import Stream, StreamClosedError
 from easyshare.protocol.types import ServerInfo
 from easyshare.sockets import SocketTcp
 from easyshare.ssl import get_ssl_context
-from easyshare.utils.json import bytes_to_json, j
-from easyshare.utils.types import bytes_to_int
+from easyshare.utils.json import bytes_to_json, j, json_to_bytes
+from easyshare.utils.os import ls
+from easyshare.utils.types import bytes_to_int, int_to_bytes
 
 log = get_logger(__name__)
 
@@ -74,25 +80,66 @@ class ClientHandler:
 
     def __init__(self, client: Client):
         self._client = client
+        self._client_stream = Stream(self._client.socket)
+
+        self._request_dispatcher: Dict[str, Callable[[RequestParams], Response]] = {
+            Requests.LS: self._ls
+        }
 
     def handle(self):
         log.i("Handling client %s", self._client)
 
-        while True:
-            self._recv()
+        while self._client_stream.is_open():
+            try:
+                self._recv()
+            except StreamClosedError:
+                pass
+            except:
+                log.exception("Unexpected exception occurred")
 
+        log.i("Connection closed with client %s", self._client)
 
     def _recv(self):
         log.d("Waiting for messages from %s...", self._client)
-        header_data = self._client.socket.recv(2)
-        header = bytes_to_int(header_data)
+        req_payload_data = self._client_stream.read()
 
-        payload_size = header
+        # Parse the request to JSON
+        req_payload = None
 
-        log.d("Received an header, payload will be: %d bytes", payload_size)
+        try:
+            req_payload = bytes_to_json(req_payload_data)
+        except:
+            log.exception("Failed to parse payload - discarding it")
 
-        payload_data = self._client.socket.sock.recv(payload_size)
-        payload = bytes_to_json(payload_data)
+        # Handle the request (if it's valid) and take out the response
 
-        log.d("Received payload \n%s", j(payload))
+        if is_request(req_payload):
+            try:
+                resp_payload = self._handle_request(req_payload)
+            except:
+                log.exception("Exception occurred while handling request")
+                resp_payload = create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+        else:
+            log.e("Invalid request - discarding it: %s", req_payload)
+            resp_payload = create_error_response(ServerErrors.INVALID_REQUEST)
 
+        if not resp_payload:
+            resp_payload = create_error_response(ServerErrors.INTERNAL_SERVER_ERROR)
+
+        # Send the response
+        self._client_stream.write(json_to_bytes(resp_payload))
+
+
+    def _handle_request(self, request: Request) -> Response:
+        api = request.get("api")
+        if not api:
+            return create_error_response(ServerErrors.INVALID_REQUEST)
+
+        if api not in self._request_dispatcher:
+            return create_error_response(ServerErrors.UNKNOWN_API)
+
+        return self._request_dispatcher[api](request.get("params"))
+
+
+    def _ls(self, params: RequestParams) -> Response:
+        return create_success_response(ls(Path()))

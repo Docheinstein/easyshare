@@ -44,6 +44,10 @@ class ServerErrors:
 
     SUPPORTED_ONLY_FOR_UNIX =   228 # 1
 
+    # -- no pryo --
+    INVALID_REQUEST =           230
+    UNKNOWN_API =               231
+
 
 class TransferOutcomes:
     """ Possibles results of outcome() of a 'TransferService' """

@@ -96,7 +96,7 @@ class SocketTcp(Socket):
     def send(self, data: bytes):
         self.sock.sendall(data)
 
-    def recv(self, length: int) -> Optional[bytes]:
+    def recv(self, length: int) -> Optional[bytearray]:
         while True:
             remaining_length = length - len(self._recv_buffer)
             if remaining_length <= 0:
