@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Union
 
 from easyshare.consts import ansi
 from easyshare.es.errors import ClientErrors
@@ -57,7 +58,7 @@ class Connection(ABC):
     """
 
     @abstractmethod
-    def is_connected(self) -> bool:
+    def is_established(self) -> bool:
         """
         Whether this connection is connected.
         The meaning of 'connected' depends on the particular type of connection.
@@ -67,6 +68,14 @@ class Connection(ABC):
         pass
 
     @abstractmethod
-    def destroy_connection(self):
+    def destroy(self):
         """ Destroy the connection; all the resources should be released (e.g. pyro proxy) """
+        pass
+
+    @abstractmethod
+    def write(self, data: Union[bytes, bytearray]):
+        pass
+
+    @abstractmethod
+    def read(self) -> bytearray:
         pass

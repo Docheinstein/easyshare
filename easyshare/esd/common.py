@@ -18,7 +18,7 @@ log = get_logger(__name__)
 # =============================================
 
 
-class Client:
+class ClientContext:
     """ Contains the server-side information kept for a connected client """
 
     def __init__(self, sock: SocketTcp):

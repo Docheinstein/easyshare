@@ -1,10 +1,10 @@
 from easyshare.consts.os import STDOUT, STDERR
 
-from easyshare.esd.common import Client
+from easyshare.esd.common import ClientContext
 from easyshare.esd.services.execution import BlockingBuffer
 from easyshare.logging import get_logger
 from easyshare.utils.os import run_detached
-from easyshare.utils.types import str_to_bytes
+from easyshare.utils.types import stob
 
 log = get_logger(__name__)
 
@@ -14,7 +14,7 @@ log = get_logger(__name__)
 
 class RexecService():
 
-    def __init__(self, client: Client, cmd: str):
+    def __init__(self, client: ClientContext, cmd: str):
         self._client = client
         self._cmd = cmd
         self._buffer = BlockingBuffer()
@@ -110,12 +110,12 @@ class RexecService():
     def _stdout_hook(self, text: str):
         log.d("> %s", text)
         # self._buffer.push((line, STDOUT))
-        self._client.stream.write(str_to_bytes(text))
+        self._client.stream.write(stob(text))
 
     def _stderr_hook(self, text: str):
         log.w("> %s", text)
         # self._buffer.push((line, STDERR))
-        self._client.stream.write(str_to_bytes(text))
+        self._client.stream.write(stob(text))
 
 
     def _end_hook(self, retcode):

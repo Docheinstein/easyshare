@@ -9,8 +9,8 @@ from easyshare.protocol.responses import is_data_response, Response
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.tracing import trace_out, trace_in
 from easyshare.sockets import SocketUdpIn, SocketUdpOut
-from easyshare.utils.json import bytes_to_json, j
-from easyshare.utils.types import int_to_bytes
+from easyshare.utils.json import btoj, j
+from easyshare.utils.types import itob
 
 log = get_logger(__name__)
 
@@ -48,7 +48,7 @@ class Discoverer:
 
         # Send discover
         discover_message_raw = in_sock.port()
-        discover_message = int_to_bytes(discover_message_raw, 2)
+        discover_message = itob(discover_message_raw, 2)
         out_sock = SocketUdpOut(broadcast=self._discover_addr == ADDR_BROADCAST)
 
         log.i("Sending DISCOVER to %s:%d",
@@ -89,7 +89,7 @@ class Discoverer:
             raw_resp, endpoint = in_sock.recv()
 
             log.i("Received DISCOVER response from: %s", endpoint)
-            resp: ServerInfoFull = cast(ServerInfoFull, bytes_to_json(raw_resp))
+            resp: ServerInfoFull = cast(ServerInfoFull, btoj(raw_resp))
 
             trace_in(
                 "DISCOVER\n{}".format(j(resp)),

@@ -3,7 +3,7 @@ import os
 from base64 import b64encode, b64decode
 from typing import Union, Optional, Tuple
 
-from easyshare.utils.types import to_bytes, str_to_bytes, is_bytes
+from easyshare.utils.types import to_bytes, stob, is_bytes
 
 
 b64 = str
@@ -45,7 +45,7 @@ def scrypt_new(plain: Union[str, bytes], salt_length: int = 32,
 
 
 def str_to_b64(s: str) -> b64:
-    return bytes_to_b64(str_to_bytes(s))
+    return bytes_to_b64(stob(s))
 
 
 def bytes_to_b64(b: bytes) -> b64:

@@ -7,7 +7,7 @@ from typing import List, Tuple, Union, BinaryIO
 from Pyro5.server import expose
 
 from easyshare.common import BEST_BUFFER_SIZE
-from easyshare.esd.common import Client, Sharing
+from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services import check_sharing_service_owner_endpoint, FPath
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
@@ -18,7 +18,7 @@ from easyshare.protocol.types import create_file_info
 from easyshare.utils.os import os_error_str
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
 from easyshare.utils.str import q
-from easyshare.utils.types import int_to_bytes
+from easyshare.utils.types import itob
 
 log = get_logger(__name__)
 
@@ -47,7 +47,7 @@ class GetService(IGetService, TransferService):
                  check: bool,
                  sharing: Sharing,
                  sharing_rcwd: FPath,
-                 client: Client):
+                 client: ClientContext):
         super().__init__(sharing, sharing_rcwd, client)
         self._check = check
         self._next_servings: List[Tuple[FPath, FPath, str]] = [] # fpath, basedir, prefix (only for is_root case)
@@ -326,7 +326,7 @@ class GetService(IGetService, TransferService):
             # Eventually send the CRC in-band
             if self._check:
                 log.d("Sending CRC: %d", crc)
-                self._transfer_sock.send(int_to_bytes(crc, 4))
+                self._transfer_sock.send(itob(crc, 4))
 
         log.i("GET finished")
 

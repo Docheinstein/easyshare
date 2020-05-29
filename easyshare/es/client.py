@@ -33,16 +33,18 @@ from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
 from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
     ListSharings, Ping
 from easyshare.logging import get_logger
+from easyshare.protocol.requests import create_request, Requests
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
     create_error_of_response
 from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService, IRshellService
+from easyshare.protocol.stream import Stream
 from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
     OverwritePolicy, FTYPE_FILE, ServerInfo, create_file_info, PutNextResponse
-from easyshare.sockets import SocketTcpOut
+from easyshare.sockets import SocketTcpOut, SocketTcp
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import red, bold
 from easyshare.timer import Timer
-from easyshare.utils.json import j
+from easyshare.utils.json import j, jtob, btoj
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str
 from easyshare.utils.path import LocalPath
@@ -52,7 +54,7 @@ from easyshare.utils.progress.simple import SimpleProgressor
 from easyshare.utils.pyro import pyro_uri
 from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.str import q
-from easyshare.utils.types import bytes_to_str, int_to_bytes, bytes_to_int
+from easyshare.utils.types import btos, itob, btoi, stob
 
 log = get_logger(__name__)
 
@@ -85,6 +87,9 @@ def formatted_error_from_error_of_response(resp_err: ResponseError) -> str:
 
 
 def ensure_success_response(resp: Response):
+    if not resp:
+        raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
     if is_error_response(resp):
         raise CommandExecutionError(formatted_errors_from_error_response(resp))
     if not is_success_response(resp):
@@ -92,6 +97,9 @@ def ensure_success_response(resp: Response):
 
 
 def ensure_data_response(resp: Response, *data_fields):
+    if not resp:
+        raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
     if is_error_response(resp):
         raise CommandExecutionError(formatted_errors_from_error_response(resp))
     if not is_data_response(resp):
@@ -201,11 +209,16 @@ class Client:
 
     def __init__(self, discover_port: int, discover_timeout: int):
         # self.connection: Optional[Connection] = None
+        # self.server_connection: Optional[ServerConnection] = None
+        # self.sharing_connection: Optional[SharingConnection] = None
         self.server_connection: Optional[ServerConnection] = None
-        self.sharing_connection: Optional[SharingConnection] = None
 
         self._discover_port = discover_port
         self._discover_timeout = discover_timeout
+
+        # self._connection_socket: Optional[SocketTcp] = None
+        self._connection: Optional[Stream] = None
+        self._sharing: Optional[str] = None
 
 
         def LOCAL(parser: ArgsSpec) -> ArgsSpec:
@@ -436,11 +449,11 @@ class Client:
             executor(args, None, None)
             return 0
 
-        except PyroError:
-            # Pyro fail: destroy connection
-            log.exception("Pyro exception caught, destroying active connections...")
-            self.destroy_connection()
-            return ClientErrors.CONNECTION_ERROR
+        # except PyroError:
+        #     Pyro fail: destroy connection
+            # log.exception("Pyro exception caught, destroying active connections...")
+            # self.destroy_connection()
+            # return ClientErrors.CONNECTION_ERROR
 
         except CommandExecutionError as ex:
             # "Expected" fail
@@ -455,27 +468,30 @@ class Client:
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
     def is_connected_to_server(self) -> bool:
+        # return True if self._connection else False
         return True if self.server_connection and \
-                       self.server_connection.is_connected() else False
+                       self.server_connection.is_established() else False
 
     def is_connected_to_sharing(self) -> bool:
-        return True if self.sharing_connection and \
-                       self.sharing_connection.is_connected() else False
+        return True if self._connection and self._sharing else False
+        # return True if self.sharing_connection and \
+        #                self.sharing_connection.is_connected() else False
 
 
     def destroy_connection(self):
         """ Destroy an eventual established server connection (and thus sharing conn) """
-        try:
-            log.d("Destroying connection and invalidating it")
-            if self.is_connected_to_server():
-                self.server_connection.disconnect()
-            # Server closes the sharing by itself
-            # There's no need to close() the sharing connection
-        except:
-            log.w("Clean disconnection failed, invalidating connection anyway")
-        finally:
-            self.server_connection = None
-            self.sharing_connection = None
+        pass
+        # try:
+        #     log.d("Destroying connection and invalidating it")
+        #     if self.is_connected_to_server():
+        #         self.server_connection.disconnect()
+        #     # Server closes the sharing by itself
+        #     # There's no need to close() the sharing connection
+        # except:
+        #     log.w("Clean disconnection failed, invalidating connection anyway")
+        # finally:
+        #     self.server_connection = None
+        #     self.sharing_connection = None
 
     # === LOCAL Commands ===
 
@@ -716,7 +732,7 @@ class Client:
         # Just in case check whether we already connected to the right one
         if self.is_connected_to_server():
             if Client.server_info_satisfy_server_location(
-                    self.server_connection.server_info,
+                    self.server_connection.server_info(),
                     server_location
             ):
                 log.w("Current connection already satisfy server location constraints")
@@ -728,14 +744,14 @@ class Client:
             connect=True
         )
 
-        if not new_server_conn or not new_server_conn.is_connected():
+        if not new_server_conn or not new_server_conn.is_established():
             raise CommandExecutionError(ClientErrors.SERVER_NOT_FOUND)
 
         log.i("Server connection established")
 
         if self.is_connected_to_server():
             log.i("Disconnecting current server connection before set the new one")
-            self.server_connection.disconnect()
+            # self.server_connection.disconnect()
 
         self.server_connection = new_server_conn
 
@@ -927,7 +943,7 @@ class Client:
                         data_b = sys.stdin.buffer.read()
 
                         if data_b:
-                            data_s = bytes_to_str(data_b)
+                            data_s = btos(data_b)
                             log.d("Sending data: %s", data_s)
                             rexec_service.send_data(data_s)
                         else:
@@ -1037,7 +1053,7 @@ class Client:
                         if pty.STDIN_FILENO in rlist:
                             data_b = os.read(pty.STDIN_FILENO, 1024)
                             if data_b:
-                                data_s = bytes_to_str(data_b)
+                                data_s = btos(data_b)
                                 log.d("Sending data: %s", repr(data_b))
                                 rshell_service.send_data(data_s)
                             else:
@@ -1552,7 +1568,7 @@ class Client:
                 # Eventually do CRC check
                 if do_check:
                     # CRC check on the received bytes
-                    crc = bytes_to_int(transfer_socket.recv(4))
+                    crc = btoi(transfer_socket.recv(4))
                     if expected_crc != crc:
                         log.e("Wrong CRC; transfer failed. expected=%d | written=%d",
                               expected_crc, crc)
@@ -1887,7 +1903,7 @@ class Client:
                 log.d("- crc = %d", crc)
 
                 if do_check:
-                    transfer_socket.send(int_to_bytes(crc, 4))
+                    transfer_socket.send(itob(crc, 4))
 
                 local_fd.close()
 
@@ -2281,20 +2297,21 @@ class Client:
 
             while True: # actually two attempts are done: with/without SSL
 
-                # Create a connection
-                server_conn = ServerConnectionMinimal(
-                    server_ip=server_ip,
-                    server_port=attempt_port,
-                    server_ssl=server_ssl
-                )
-
-                # Check if it is up
-                # (e.g. if the port was not specified in case 2. maybe the user
-                # want to perform a scan instead of connect to the default port,
-                # by checking if the connection is up we are able to figure out that)
 
                 try:
-                    resp = server_conn.info()
+                    # Create a connection
+                    server_conn = ServerConnectionMinimal(
+                        server_ip=server_ip,
+                        server_port=attempt_port,
+                        server_ssl=server_ssl
+                    )
+
+                    # Check if it is up
+                    # (e.g. if the port was not specified in case 2. maybe the user
+                    # want to perform a scan instead of connect to the default port,
+                    # by checking if the connection is up we are able to figure out that)
+
+                    resp = server_conn.call(create_request(Requests.INFO))
                     ensure_data_response(resp)
 
                     real_server_info = resp.get("data")
@@ -2303,11 +2320,11 @@ class Client:
 
                     # Fill the uncomplete server info with the IP/port we used to connect
                     break
-                except Exception:
+                except:
                     log.w("Connection cannot be established directly %s SSL",
                           "with" if server_ssl else "without")
                     # Invalidate connection
-                    server_conn.destroy_connection()
+                    server_conn.destroy()
                     server_conn = None
 
                 if not server_ssl:
@@ -2336,11 +2353,11 @@ class Client:
                         server_ip=server_ip,
                         server_port=attempt_port,
                         server_info=real_server_info,
-                        established_server_connection=server_conn.server
+                        socket=server_conn._stream._socket
                     )
             elif server_conn:
                 # Invalidate connection
-                server_conn.destroy_connection()
+                server_conn.destroy()
                 server_conn = None
 
         # Eventually performs the scan
@@ -2363,11 +2380,14 @@ class Client:
                     log.d("Server info satisfy the constraints: FOUND w/ discover")
                     # IP and port can be provided from real_server_info
                     # since came from the discover and thus are real
-                    server_conn = ServerConnection(
-                        server_ip=real_server_info.get("ip"),
-                        server_port=real_server_info.get("port"),
-                        server_info=real_server_info
-                    )
+                    try:
+                        server_conn = ServerConnection(
+                            server_ip=real_server_info.get("ip"),
+                            server_port=real_server_info.get("port"),
+                            server_info=real_server_info
+                        )
+                    except:
+                        log.w("Connection establishment failed even if found with DISCOVER")
 
         if not server_conn:
             log.e("Connection can't be established")
@@ -2399,7 +2419,7 @@ class Client:
             log.i("Server '%s' is not protected", real_server_info.get("name"))
 
         # Performs connect() (and authentication)
-        resp = server_conn.connect(passwd)
+        resp = server_conn.call(create_request(Requests.CONNECT, {"password:":passwd}))
         ensure_success_response(resp)
 
         return server_conn

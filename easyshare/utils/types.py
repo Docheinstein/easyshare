@@ -1,6 +1,17 @@
 from typing import Union, Any, Optional, List
 
 
+# MISC
+
+
+def list_wrap(o: Any) -> List[Any]:
+    if not o:
+        return []
+    if is_list(o):
+        return o
+    return [o]
+
+
 # CHECKERS
 
 
@@ -37,6 +48,7 @@ def is_list(o: object, oftype = None) -> bool:
 def is_valid_list(o: object, oftype = None) -> bool:
     # noinspection PyTypeChecker
     return is_list(o, oftype) and len(o) > 0
+
 
 
 # CONVERTERS
@@ -92,7 +104,7 @@ def to_bytes(o: Any, default=None, raise_exceptions=False) -> Optional[bytes]:
         if is_bytes(o):
             val = o
         elif is_str(o):
-            val = str_to_bytes(o)
+            val = stob(o)
     except:
         pass
 
@@ -145,12 +157,9 @@ def int_to_bytes(i: int, length,  byteorder="big"):
     return i.to_bytes(length, byteorder)
 
 
-# MISC
+# shortcuts
 
-
-def list_wrap(o: Any) -> List[Any]:
-    if not o:
-        return []
-    if is_list(o):
-        return o
-    return [o]
+stob = str_to_bytes
+btos = bytes_to_str
+btoi = bytes_to_int
+itob = int_to_bytes

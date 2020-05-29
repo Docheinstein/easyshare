@@ -4,7 +4,7 @@ from easyshare.common import EASYSHARE_RESOURCES_PKG
 from easyshare.logging import get_logger
 from easyshare.utils import eprint
 from easyshare.utils.helpmarkdown import HelpMarkdown, HelpMarkdownParseError
-from easyshare.utils.json import str_to_json
+from easyshare.utils.json import stoj
 from easyshare.utils.resources import read_resource_string
 
 _help_map: Optional[Dict[str, str]] = None
@@ -21,7 +21,7 @@ def get_command_usage(cmd: str) -> Optional[str]:
     if not _usage_map:
         log.i("Loading usages map")
         try:
-            _usage_map = str_to_json(
+            _usage_map = stoj(
                 read_resource_string(EASYSHARE_RESOURCES_PKG,
                                      "helps/usages.json"))
         except Exception:
@@ -45,7 +45,7 @@ def get_command_help(cmd: Union[str, None], styled: bool = True) -> Optional[str
         log.i("Loading help map")
 
         try:
-            _help_map = str_to_json(
+            _help_map = stoj(
                 read_resource_string(EASYSHARE_RESOURCES_PKG,
                                      "helps/helps.json"))
         except Exception:

@@ -7,7 +7,7 @@ from Pyro5.server import expose
 from easyshare.esd.daemons.transfer import get_transfer_daemon
 from easyshare.esd.services import BaseClientSharingService, BaseClientService, check_sharing_service_owner_endpoint, FPath
 
-from easyshare.esd.common import Client, Sharing
+from easyshare.esd.common import ClientContext, Sharing
 from easyshare.logging import get_logger
 from easyshare.protocol.services import ITransferService
 from easyshare.protocol.responses import TransferOutcomes, create_success_response, Response, ResponseError
@@ -30,7 +30,7 @@ class TransferService(ITransferService, BaseClientSharingService, ABC):
     def __init__(self,
                  sharing: Sharing,
                  sharing_rcwd: FPath,
-                 client: Client):
+                 client: ClientContext):
         super().__init__(sharing, sharing_rcwd, client)
         log.d("Creating a transfer service")
         get_transfer_daemon().add_callback(self._handle_new_connection)

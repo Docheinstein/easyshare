@@ -1,9 +1,6 @@
 import ssl
 from typing import Optional, Dict, Callable
 
-import Pyro5
-import Pyro5.socketutil
-
 from easyshare.logging import get_logger
 from easyshare.endpoint import Endpoint
 from easyshare.sockets import SocketTcpOut
@@ -13,16 +10,14 @@ log = get_logger(__name__)
 
 # Global SSL context
 # If None, then SSL is disabled
-# (Pyro will be forced to use this as well)
 _ssl_context: Optional[ssl.SSLContext] = None
 
 # Parsed certificates cache
 _ssl_certs_cache: Dict[Endpoint, dict] = {}
 
 
-def get_ssl_context(*vargs, **kwargs) -> Optional[ssl.SSLContext]:
+def get_ssl_context() -> Optional[ssl.SSLContext]:
     """ Get the global SSLContext """
-    # ^ the signature must be generic for allow calls from pyro ^
     log.d("get_ssl_context (%s)", "enabled" if _ssl_context else "disabled")
     return _ssl_context
 
@@ -32,12 +27,6 @@ def set_ssl_context(ssl_context: Optional[ssl.SSLContext]):
 
     global _ssl_context
     _ssl_context = ssl_context
-
-    # Override pyro ssl context getter so that pyro will call
-    # our method for retrieve the SSL context
-    # (In this way we can reuse the context for our stuff (raw sockets))
-    Pyro5.config.SSL = True if ssl_context else False
-    Pyro5.socketutil.get_ssl_context = get_ssl_context
 
     log.i("SSL: %s", "enabled" if _ssl_context else "disabled")
 

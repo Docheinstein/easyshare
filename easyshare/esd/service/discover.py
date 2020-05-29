@@ -3,10 +3,10 @@ from easyshare.esd.daemons.discover import get_discover_daemon
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.sockets import SocketUdpOut
-from easyshare.tracing import trace_out
-from easyshare.utils.json import json_to_bytes, j
+from easyshare.tracing import trace_out, is_tracing_enabled
+from easyshare.utils.json import jtob, j
 from easyshare.utils.net import is_valid_port
-from easyshare.utils.types import bytes_to_int
+from easyshare.utils.types import btoi
 
 log = get_logger(__name__)
 
@@ -23,7 +23,7 @@ class DiscoverService:
 
         response = self._server_info_full
 
-        client_discover_response_port = bytes_to_int(data)
+        client_discover_response_port = btoi(data)
 
         if not is_valid_port(client_discover_response_port):
             log.w("Invalid DISCOVER message received, ignoring it")
@@ -35,16 +35,16 @@ class DiscoverService:
         # (not necessary the one from which the request come)
         sock = SocketUdpOut()
 
-        log.d("Sending DISCOVER response back to %s:%d\n%s",
-              client_endpoint[0], client_discover_response_port,
-              j(response))
+        log.d("Sending DISCOVER response back to %s:%d",
+              client_endpoint[0], client_discover_response_port)
 
-        trace_out(
-            "DISCOVER {}".format(j(response)),
-            ip=client_endpoint[0],
-            port=client_discover_response_port
-        )
+        if is_tracing_enabled():  # check for avoid json_pretty_str call
+            trace_out(
+                f"DISCOVER {j(response)}",
+                ip=client_endpoint[0],
+                port=client_discover_response_port
+            )
 
-        sock.send(json_to_bytes(response), client_endpoint[0], client_discover_response_port)
+        sock.send(jtob(response), client_endpoint[0], client_discover_response_port)
 
         return True # handled

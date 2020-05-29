@@ -7,7 +7,7 @@ from Pyro5.server import expose
 from easyshare.common import BEST_BUFFER_SIZE
 from easyshare.esd.services import BaseClientService, check_sharing_service_owner_endpoint, FPath
 
-from easyshare.esd.common import Client, Sharing
+from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
 from easyshare.protocol.services import OverwritePolicy, IPutService
@@ -18,7 +18,7 @@ from easyshare.utils.json import j
 from easyshare.utils.os import os_error_str
 from easyshare.utils.pyro.server import pyro_client_endpoint, trace_api, try_or_command_failed_response
 from easyshare.utils.str import q
-from easyshare.utils.types import bytes_to_int
+from easyshare.utils.types import btoi
 
 log = get_logger(__name__)
 
@@ -45,7 +45,7 @@ class PutService(IPutService, TransferService):
                  check: bool,
                  sharing: Sharing,
                  sharing_rcwd,
-                 client: Client):
+                 client: ClientContext):
         super().__init__(sharing, sharing_rcwd, client)
         self._check = check
         self._incomings: Queue[Tuple[FPath, int, BinaryIO]] = Queue() # fpath, size, fd
@@ -209,7 +209,7 @@ class PutService(IPutService, TransferService):
             # Eventually do CRC check
             if self._check:
                 # CRC check on the received bytes
-                expected_crc = bytes_to_int(self._transfer_sock.recv(4))
+                expected_crc = btoi(self._transfer_sock.recv(4))
                 if expected_crc != crc:
                     log.e("Wrong CRC; transfer failed. expected=%d | written=%d",
                           expected_crc, crc)

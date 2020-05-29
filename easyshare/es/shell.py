@@ -39,7 +39,6 @@ _VERBOSITY_EXPLANATION_MAP = {
     logging.VERBOSITY_WARNING: Verbose.V2[1],
     logging.VERBOSITY_INFO: Verbose.V3[1],
     logging.VERBOSITY_DEBUG: Verbose.V4[1],
-    logging.VERBOSITY_DEBUG + 1: Verbose.V5[1]  # pyro logging
 }
 
 
@@ -195,10 +194,10 @@ class Shell:
                 outcome = self._client.execute_command(command, command_args)
 
             print_errors(outcome)
-        except PyroError as pyroerr:
-            log.exception("Pyro error occurred %s", pyroerr)
-            print_errors(ClientErrors.CONNECTION_ERROR)
-            self._client.destroy_connection()
+        # except PyroError as pyroerr:
+        #     log.exception("Pyro error occurred %s", pyroerr)
+        #     print_errors(ClientErrors.CONNECTION_ERROR)
+        #     self._client.destroy_connection()
         except EOFError:
             log.i("\nCTRL+D: exiting")
             self._client.destroy_connection()
@@ -352,7 +351,7 @@ class Shell:
         # width properly
         # prompt = remote + sep + local + "> "
 
-        # use a leading DELETE_EOL for overwrite eventual previously printed ^Cself.self.
+        # use a leading DELETE_EOL for overwrite eventual previously printed ^C
         # (won't overwrite the previous prompt since KeyboardInterrupt is captured
         # and prints a new line)
         prompt = ansi.DELETE_EOL + \
@@ -407,18 +406,18 @@ class Shell:
         # Increase verbosity (or disable if is already max)
         root_log = get_logger()
 
-        current_verbosity = root_log.verbosity + is_pyro_logging_enabled()
+        current_verbosity = root_log.verbosity
 
         verbosity = args.get_positional(
-            default=(current_verbosity + 1) % (logging.VERBOSITY_MAX + 2)
+            default=(current_verbosity + 1) % (logging.VERBOSITY_MAX + 1)
         )
 
-        verbosity = rangify(verbosity, logging.VERBOSITY_MIN, logging.VERBOSITY_MAX + 1)
+        verbosity = rangify(verbosity, logging.VERBOSITY_MIN, logging.VERBOSITY_MAX)
 
         log.i(">> VERBOSE (%d)", verbosity)
 
         root_log.set_verbosity(verbosity)
-        enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
+        # enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
         print("Verbosity = {:d} ({})".format(
             verbosity,

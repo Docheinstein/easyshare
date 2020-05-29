@@ -5,7 +5,7 @@ from easyshare.esd.daemons import Daemon, UdpDaemon
 from easyshare.logging import get_logger
 from easyshare.sockets import SocketUdpIn
 from easyshare.tracing import trace_in
-from easyshare.utils.types import bytes_to_int
+from easyshare.utils.types import btoi
 
 log = get_logger(__name__)
 
@@ -26,7 +26,7 @@ class DiscoverDaemon(UdpDaemon):
 
     def _trace_hook(self, data: bytes, client_endpoint: Endpoint):
         trace_in(
-            "DISCOVER {} ({})".format(str(data), bytes_to_int(data)),
+            "DISCOVER {} ({})".format(str(data), btoi(data)),
             ip=client_endpoint[0],
             port=client_endpoint[1]
         )

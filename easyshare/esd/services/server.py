@@ -6,7 +6,7 @@ from Pyro5.api import expose, oneway
 from easyshare.auth import Auth
 from easyshare.common import ESD_PYRO_UID
 from easyshare.endpoint import Endpoint
-from easyshare.esd.common import Client, Sharing
+from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.daemons.pyro import get_pyro_daemon
 from easyshare.esd.services import BaseService
 from easyshare.esd.services.execution.rexec import RexecService
@@ -62,7 +62,7 @@ class ServerService(IServer, BaseService):
         self._auth = auth
         self._rexec_enabled = rexec
 
-        self._clients: Dict[Endpoint, Client] = {}
+        self._clients: Dict[Endpoint, ClientContext] = {}
 
         self.service_uid = ESD_PYRO_UID # fixed
         get_pyro_daemon().add_disconnection_callback(self._handle_client_disconnect)
@@ -279,12 +279,12 @@ class ServerService(IServer, BaseService):
 
         return si
 
-    def _add_client(self, endpoint: Endpoint) -> Client:
+    def _add_client(self, endpoint: Endpoint) -> ClientContext:
         """
         Adds the endpoint to the set of known clients' endpoints.
         (Each service has a different endpoint, we have to store all the associations)
          """
-        client = Client(endpoint)
+        client = ClientContext(endpoint)
         self._clients[endpoint] = client
 
         log.i("Added client %s", client)
@@ -293,7 +293,7 @@ class ServerService(IServer, BaseService):
 
         return client
 
-    def _del_client(self, endpoint: Endpoint) -> Optional[Client]:
+    def _del_client(self, endpoint: Endpoint) -> Optional[ClientContext]:
         """
         Removes the endpoint from the set of known clients
         and cleanups associated resources
@@ -323,7 +323,7 @@ class ServerService(IServer, BaseService):
         """
         return pyro_client_endpoint()
 
-    def _current_request_client(self) -> Optional[Client]:
+    def _current_request_client(self) -> Optional[ClientContext]:
         """
         Returns the client that belongs to the current request endpoint (ip, port)
         if exists among the known clients; otherwise returns None.

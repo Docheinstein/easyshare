@@ -4,19 +4,19 @@ from typing import List, Dict, Callable
 
 from easyshare.auth import Auth
 from easyshare.endpoint import Endpoint
-from easyshare.esd.common import Sharing, Client
+from easyshare.esd.common import Sharing, ClientContext
 from easyshare.esd.daemons.api import get_api_daemon
 from easyshare.esd.service.execution.rexec import RexecService
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response
-from easyshare.protocol.stream import Stream, StreamClosedError
+from easyshare.protocol.stream import StreamClosedError
 from easyshare.protocol.types import ServerInfo
 from easyshare.sockets import SocketTcp
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import green, red
 from easyshare.tracing import trace_in, trace_out, is_tracing_enabled
-from easyshare.utils.json import bytes_to_json, json_to_bytes, j
+from easyshare.utils.json import btoj, jtob, j
 from easyshare.utils.os import is_unix
 
 log = get_logger(__name__)
@@ -72,7 +72,7 @@ class ApiService:
 
 
     def _add_client(self, client_sock: SocketTcp):
-        client = Client(client_sock)
+        client = ClientContext(client_sock)
         client_handler = ClientHandler(client, self)
         log.i("Adding client %s", client)
         # no need to lock, still in single thread execution
@@ -114,7 +114,7 @@ def ensure_rexec_enabled(api):
 
 class ClientHandler:
 
-    def __init__(self, client: Client, api_service: ApiService):
+    def __init__(self, client: ClientContext, api_service: ApiService):
         self._api_service = api_service
 
         self._client = client
@@ -158,7 +158,7 @@ class ClientHandler:
         req_payload = None
 
         try:
-            req_payload = bytes_to_json(req_payload_data)
+            req_payload = btoj(req_payload_data)
         except:
             log.exception("Failed to parse payload - discarding it")
 
@@ -206,7 +206,7 @@ class ClientHandler:
                      port=self._client.endpoint[1])
 
         # Really send it back
-        self._client.stream.write(json_to_bytes(response))
+        self._client.stream.write(jtob(response))
 
     def _sleep(self, params: RequestParams) -> Response:
         log.d("Sleeping...")

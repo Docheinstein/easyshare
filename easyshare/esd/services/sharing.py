@@ -3,7 +3,7 @@ from typing import Callable, List, Optional
 
 from Pyro5.server import expose
 
-from easyshare.esd.common import Client, Sharing
+from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services import BaseClientSharingService, check_sharing_service_owner_endpoint, FPath
 from easyshare.esd.services.transfer.get import GetService
 from easyshare.esd.services.transfer.put import PutService
@@ -70,7 +70,7 @@ class SharingService(ISharingService, BaseClientSharingService):
                  server_port: int,
                  sharing: Sharing,
                  sharing_rcwd: Path,
-                 client: Client):
+                 client: ClientContext):
         super().__init__(sharing, sharing_rcwd, client)
         self._server_port = server_port
 

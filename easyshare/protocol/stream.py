@@ -2,8 +2,7 @@ from typing import Optional, Union
 
 from easyshare.logging import get_logger
 from easyshare.sockets import SocketTcp
-from easyshare.tracing import trace_in
-from easyshare.utils.types import bytes_to_int, int_to_bytes
+from easyshare.utils.types import btoi, itob
 
 log = get_logger(__name__)
 
@@ -24,11 +23,11 @@ class Stream:
         header_data = self._socket.recv(4)
         self._ensure(header_data)
 
-        header = bytes_to_int(header_data)
+        header = btoi(header_data)
 
         payload_size = header
 
-        log.d("Received an header, payload will be: %d bytes", payload_size)
+        log.d("stream.recv() - received header, payload will be: %d bytes", payload_size)
 
         if payload_size <= 0:
             log.d("Nothing to receive")
@@ -38,19 +37,24 @@ class Stream:
         payload_data = self._socket.recv(payload_size)
         self._ensure(header_data)
 
-        log.d("Received payload of %d", len(payload_data))
+        log.d("stream.recv() - received payload of %d", len(payload_data))
 
         return payload_data
 
     def write(self, /, payload_data: Union[bytearray, bytes]):
         payload_size = len(payload_data)
-        header = int_to_bytes(payload_size, 4)
+        header = itob(payload_size, 4)
 
         data = bytearray()
         data += header
         data += payload_data
 
+        log.d("stream.send() - sending %s", repr(data))
+
         self._socket.send(data)
+
+    def close(self):
+        self._socket.close()
 
     def _ensure(self, data):
         if data is None:
