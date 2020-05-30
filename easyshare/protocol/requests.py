@@ -13,9 +13,60 @@ class Requests:
     INFO = "info"
     PING = "ping"
 
-    REXEC = "rexec"
+    OPEN = "open"
+    CLOSE = "close"
 
-    LS = "ls"
+    REXEC = "rexec"
+    RSHELL = "rshell"
+
+
+    RPWD = "rpwd"
+    RCD = "rcd"
+    RLS = "rls"
+    RTREE = "rtree"
+    RMKDIR = "rmkdir"
+    RRM = "rrm"
+    RMV = "rmv"
+    RCP = "rcp"
+
+    GET = "get"
+    PUT = "put"
+
+
+class RequestsParams:
+    CONNECT_PASSWORD = "password"
+
+    OPEN_SHARING = "sharing"
+
+    REXEC_CMD = "cmd"
+
+    RCD_PATH = "path"
+
+    RLS_PATH = "path"
+    RLS_SORT_BY = "sort_by"
+    RLS_REVERSE = "reverse"
+    RLS_HIDDEN = "hidden"
+
+    RTREE_PATH = "path"
+    RTREE_SORT_BY = "sort_by"
+    RTREE_REVERSE = "reverse"
+    RTREE_HIDDEN = "hidden"
+    RTREE_DEPTH = "depth"
+
+    RMKDIR_PATH = "path"
+
+    RRM_PATHS = "paths"
+
+    RMV_SOURCES = "src"
+    RMV_DESTINATION = "dest"
+
+    RCP_SOURCES = "src"
+    RCP_DESTINATION = "dest"
+
+    GET_PATHS = "paths"
+    GET_CHECK = "check"
+
+    PUT_CHECK = "check"
 
 
 RequestParams = Dict[str, Any]

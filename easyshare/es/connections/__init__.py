@@ -11,44 +11,6 @@ from easyshare.utils.inspection import stacktrace
 log = get_logger(__name__)
 
 
-def require_connected_connection(api):
-    """
-    Decorator for require the real connection before invoke an API.
-    Raises a NOT_CONNECTED if is_connected() is False.
-    """
-    def require_connected_wrapper(conn: 'Connection', *vargs, **kwargs) -> Response:
-        log.d("require_connected_connection check before invoking '%s'", api.__name__)
-        if not conn.is_connected():
-            log.w("require_connected_connection: FAILED")
-            log.w(stacktrace(color=ansi.FG_YELLOW))
-            return create_error_response(ClientErrors.NOT_CONNECTED)
-        log.d("require_connected_connection: OK - invoking '%s'", api.__name__)
-        return api(conn, *vargs, **kwargs)
-
-    require_connected_wrapper.__name__ = api.__name__
-
-    return require_connected_wrapper
-
-
-def handle_connection_response(api):
-    """
-    Decorator for handle the response and taking some standard actions.
-    e.g. destroy the connection in case of a NOT_CONNECTED response.
-    """
-
-    def handle_server_response_wrapper(conn: 'Connection', *vargs, **kwargs) -> Response:
-        log.d("Invoking '%s' and handling response", api.__name__)
-        resp = api(conn, *vargs, **kwargs)
-        log.d("Handling '%s' response", api.__name__)
-        if is_error_response(resp, ServerErrors.NOT_CONNECTED):
-            log.e("Detected NOT_CONNECTED response, destroying connection")
-            conn.destroy_connection()
-        return resp
-
-    handle_server_response_wrapper.__name__ = __name__
-
-    return handle_server_response_wrapper
-
 
 
 class Connection(ABC):

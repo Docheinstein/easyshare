@@ -342,7 +342,7 @@ def pty_detached(out_hook: Callable[[str], None],
         retcode = 0
         while True:
             try:
-                data = ptyproc.read()
+                data = ptyproc._read()
                 out_hook(data)
             except EOFError:
                 break # CTRL+D => quit the shell

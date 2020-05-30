@@ -110,16 +110,16 @@ class RexecService():
     def _stdout_hook(self, text: str):
         log.d("> %s", text)
         # self._buffer.push((line, STDOUT))
-        self._client.stream.write(stob(text))
+        self._client.stream._write(stob(text))
 
     def _stderr_hook(self, text: str):
         log.w("> %s", text)
         # self._buffer.push((line, STDERR))
-        self._client.stream.write(stob(text))
+        self._client.stream._write(stob(text))
 
 
     def _end_hook(self, retcode):
         log.d("END %d", retcode)
-        self._client.stream.write(b"")
+        self._client.stream._write(b"")
         # self._buffer.push(retcode)
 

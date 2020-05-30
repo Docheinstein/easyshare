@@ -24,7 +24,7 @@ from easyshare.consts import ansi
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
 from easyshare.es.common import ServerLocation, SharingLocation
-from easyshare.es.connections.server import ServerConnection, ServerConnectionMinimal
+from easyshare.es.connections.connection import Connection, ConnectionMinimal
 from easyshare.es.connections.sharing import SharingConnection
 from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str
@@ -110,7 +110,7 @@ def ensure_data_response(resp: Response, *data_fields):
 
 
 def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
-    def wrapper(client: 'Client', args: Args, _1: ServerConnection, _2: SharingConnection, **kwargs):
+    def wrapper(client: 'Client', args: Args, _1: Connection, _2: SharingConnection, **kwargs):
         # Wraps api providing the connection parameters.
         # The provided connection is the client current connection,
         # if it is established, or a temporary one that will be closed
@@ -155,7 +155,7 @@ def provide_sharing_connection(api):
 
 
 def make_server_connection_api_wrapper(api, connect: bool):
-    def wrapper(client: 'Client', args: Args, _1: ServerConnection, _2: SharingConnection):
+    def wrapper(client: 'Client', args: Args, _1: Connection, _2: SharingConnection):
         # Wraps api providing the connection parameters.
         # The provided connection is the client current connection,
         # if it is established, or a temporary one that will be closed
@@ -211,7 +211,7 @@ class Client:
         # self.connection: Optional[Connection] = None
         # self.server_connection: Optional[ServerConnection] = None
         # self.sharing_connection: Optional[SharingConnection] = None
-        self.server_connection: Optional[ServerConnection] = None
+        self.server_connection: Optional[Connection] = None
 
         self._discover_port = discover_port
         self._discover_timeout = discover_timeout
@@ -247,7 +247,7 @@ class Client:
             str, Tuple[
                 Callable[..., ArgsSpec],
                 List[ArgsSpec],
-                Callable[[Args, Optional[ServerConnection], Optional[SharingConnection]], None]
+                Callable[[Args, Optional[Connection], Optional[SharingConnection]], None]
             ]
         ] = {
 
@@ -470,7 +470,7 @@ class Client:
     def is_connected_to_server(self) -> bool:
         # return True if self._connection else False
         return True if self.server_connection and \
-                       self.server_connection.is_established() else False
+                       self.server_connection.is_connected_to_server() else False
 
     def is_connected_to_sharing(self) -> bool:
         return True if self._connection and self._sharing else False
@@ -732,9 +732,8 @@ class Client:
         # Just in case check whether we already connected to the right one
         if self.is_connected_to_server():
             if Client.server_info_satisfy_server_location(
-                    self.server_connection.server_info(),
-                    server_location
-            ):
+                    self.server_connection.server_info,
+                    server_location):
                 log.w("Current connection already satisfy server location constraints")
                 return
 
@@ -744,20 +743,21 @@ class Client:
             connect=True
         )
 
-        if not new_server_conn or not new_server_conn.is_established():
+        if not new_server_conn or not new_server_conn.is_connected_to_server():
             raise CommandExecutionError(ClientErrors.SERVER_NOT_FOUND)
 
         log.i("Server connection established")
 
         if self.is_connected_to_server():
             log.i("Disconnecting current server connection before set the new one")
+            self.server_connection.destroy_connection()
             # self.server_connection.disconnect()
 
         self.server_connection = new_server_conn
 
 
     @provide_server_connection_connected
-    def disconnect(self, args: Args, server_conn: ServerConnection, _):
+    def disconnect(self, args: Args, server_conn: Connection, _):
         if not server_conn or not server_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -770,7 +770,7 @@ class Client:
     def open(self, args: Args, _1, _2):
         log.i(">> OPEN")
 
-        new_server_conn: Optional[ServerConnection] = None
+        new_server_conn: Optional[Connection] = None
         new_sharing_conn: Optional[SharingConnection] = None
 
         # Check whether we are connected to a server which owns the
@@ -853,7 +853,7 @@ class Client:
 
 
     @provide_server_connection_connected
-    def rexec(self, args: Args, server_conn: ServerConnection, _):
+    def rexec(self, args: Args, server_conn: Connection, _):
         if not server_conn or not server_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -966,7 +966,7 @@ class Client:
 
 
     @provide_server_connection_connected
-    def rshell(self, args: Args, server_conn: ServerConnection, _):
+    def rshell(self, args: Args, server_conn: Connection, _):
         if not server_conn or not server_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1076,7 +1076,7 @@ class Client:
             rshell_stdout_receiver_th.join()
 
     @provide_server_connection
-    def ping(self, args: Args, server_conn: ServerConnection, _):
+    def ping(self, args: Args, server_conn: Connection, _):
         if not server_conn:
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1164,7 +1164,7 @@ class Client:
         log.i("======================")
 
     @provide_server_connection
-    def info(self, args: Args, server_conn: ServerConnection, _):
+    def info(self, args: Args, server_conn: Connection, _):
         if not server_conn:
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1175,7 +1175,7 @@ class Client:
                                         separators=True))
 
     @provide_server_connection
-    def list(self, args: Args, server_conn: ServerConnection, _):
+    def list(self, args: Args, server_conn: Connection, _):
         if not server_conn:
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1200,7 +1200,7 @@ class Client:
     # =================================================
 
     @provide_d_sharing_connection
-    def close(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def close(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1216,7 +1216,7 @@ class Client:
 
 
     @provide_d_sharing_connection
-    def rpwd(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def rpwd(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1229,7 +1229,7 @@ class Client:
         print(Path("/").joinpath(rcwd))
 
     @provide_d_sharing_connection
-    def rcd(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def rcd(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1243,7 +1243,7 @@ class Client:
         log.d("Current rcwd: %s", sharing_conn.rcwd())
 
     @provide_d_sharing_connection
-    def rls(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def rls(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1254,7 +1254,7 @@ class Client:
 
         Client._xls(args, data_provider=rls_provider, data_provider_name="RLS")
 
-    def rl(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def rl(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         # Just call rls -la
         # Reuse the parsed args for keep the (optional) path
         args._parsed[Ls.SHOW_ALL[0]] = True
@@ -1262,7 +1262,7 @@ class Client:
         self.rls(args, server_conn, sharing_conn)
 
     @provide_d_sharing_connection
-    def rtree(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def rtree(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1274,7 +1274,7 @@ class Client:
         Client._xtree(args, data_provider=rtree_provider, data_provider_name="RTREE")
 
     @provide_d_sharing_connection
-    def rmkdir(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def rmkdir(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1289,7 +1289,7 @@ class Client:
         ensure_success_response(resp)
 
     @provide_d_sharing_connection
-    def rrm(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def rrm(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1304,21 +1304,21 @@ class Client:
         ensure_success_response(resp)
 
     @provide_d_sharing_connection
-    def rmv(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def rmv(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         Client._rmvcp(args, api=sharing_conn.rmv, api_name="RMV")
 
     @provide_d_sharing_connection
-    def rcp(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def rcp(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         Client._rmvcp(args, api=sharing_conn.rcp, api_name="RCP")
 
     @provide_sharing_connection
-    def get(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def get(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
@@ -1623,7 +1623,7 @@ class Client:
                     print(f"{idx + 1}. {err_str}")
 
     @provide_d_sharing_connection
-    def put(self, args: Args, server_conn: ServerConnection, sharing_conn: SharingConnection):
+    def put(self, args: Args, server_conn: Connection, sharing_conn: SharingConnection):
 
         if not sharing_conn or not sharing_conn.is_connected():
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
@@ -2156,7 +2156,7 @@ class Client:
 
     def _get_current_sharing_connection_or_create_from_sharing_location_args(
             self, args: Args, sharing_ftype: FileType) \
-            -> Tuple[Optional[SharingConnection], ServerConnection]:
+            -> Tuple[Optional[SharingConnection], Connection]:
         """
         Returns the current sharing, server connection if already established.
         Otherwise tries to create a new one considering the first arg of 'args'
@@ -2182,7 +2182,7 @@ class Client:
 
 
     def _get_current_server_connection_or_create_from_server_location_args(
-            self, args: Args, connect: bool) -> ServerConnection:
+            self, args: Args, connect: bool) -> Connection:
         """
         Returns the current server connection if already established.
         Otherwise tries to create a new one considering the first arg of 'args'
@@ -2210,7 +2210,7 @@ class Client:
             self,
             sharing_location: SharingLocation,
             sharing_ftype: FileType = None,
-    ) -> Tuple[Optional[SharingConnection], ServerConnection]:
+    ) -> Tuple[Optional[SharingConnection], Connection]:
         """
         Creates a new SharingConnection (and thus a ServerConnection)
         for the given sharing location.
@@ -2240,7 +2240,7 @@ class Client:
 
 
     def _create_server_connection_from_server_location(
-            self, server_location: ServerLocation, connect: bool) -> ServerConnection:
+            self, server_location: ServerLocation, connect: bool) -> Connection:
         """
         Creates a new ServerConnection for the given server location.
         """
@@ -2255,7 +2255,7 @@ class Client:
     def _create_server_connection(
             self, connect: bool,
             server_name: str = None, server_ip: str = None, server_port: int = None,
-            sharing_name: str = None, sharing_ftype: FileType = None) -> ServerConnection:
+            sharing_name: str = None, sharing_ftype: FileType = None) -> Connection:
         """
         Real method that creates a server connection based on the params.
         The connection is created as smartly as possible.
@@ -2300,7 +2300,7 @@ class Client:
 
                 try:
                     # Create a connection
-                    server_conn = ServerConnectionMinimal(
+                    server_conn = ConnectionMinimal(
                         server_ip=server_ip,
                         server_port=attempt_port,
                         server_ssl=server_ssl
@@ -2311,7 +2311,7 @@ class Client:
                     # want to perform a scan instead of connect to the default port,
                     # by checking if the connection is up we are able to figure out that)
 
-                    resp = server_conn.call(create_request(Requests.INFO))
+                    resp = server_conn.info()
                     ensure_data_response(resp)
 
                     real_server_info = resp.get("data")
@@ -2324,7 +2324,7 @@ class Client:
                     log.w("Connection cannot be established directly %s SSL",
                           "with" if server_ssl else "without")
                     # Invalidate connection
-                    server_conn.destroy()
+                    server_conn.destroy_connection()
                     server_conn = None
 
                 if not server_ssl:
@@ -2349,7 +2349,7 @@ class Client:
                         sharing_name=sharing_name, sharing_ftype=sharing_ftype):
 
                     log.d("Server info satisfy the constraints: FOUND directly")
-                    server_conn = ServerConnection(
+                    server_conn = Connection(
                         server_ip=server_ip,
                         server_port=attempt_port,
                         server_info=real_server_info,
@@ -2357,7 +2357,7 @@ class Client:
                     )
             elif server_conn:
                 # Invalidate connection
-                server_conn.destroy()
+                server_conn.destroy_connection()
                 server_conn = None
 
         # Eventually performs the scan
@@ -2381,7 +2381,7 @@ class Client:
                     # IP and port can be provided from real_server_info
                     # since came from the discover and thus are real
                     try:
-                        server_conn = ServerConnection(
+                        server_conn = Connection(
                             server_ip=real_server_info.get("ip"),
                             server_port=real_server_info.get("port"),
                             server_info=real_server_info
@@ -2393,12 +2393,12 @@ class Client:
             log.e("Connection can't be established")
             raise CommandExecutionError(ErrorsStrings.CONNECTION_CANT_BE_ESTABLISHED)
 
-        # We have a valid TCP connection with the esd
+        # We have a valid TCP connection with the server
         log.i("Connection established with %s:%d",
               server_conn.server_ip(),
               server_conn.server_port())
 
-        # We have a valid TCP connection with the esd
+        # We have a valid TCP connection with the server
         log.d("-> same as %s:%d",
               server_conn.server_info.get("ip"),
               server_conn.server_info.get("port"))
@@ -2419,7 +2419,7 @@ class Client:
             log.i("Server '%s' is not protected", real_server_info.get("name"))
 
         # Performs connect() (and authentication)
-        resp = server_conn.call(create_request(Requests.CONNECT, {"password:":passwd}))
+        resp = server_conn.connect(passwd)
         ensure_success_response(resp)
 
         return server_conn
@@ -2468,7 +2468,7 @@ class Client:
 
     @classmethod
     def create_sharing_connection_from_server_connection(cls,
-            server_conn: ServerConnection, sharing_name: str) -> SharingConnection:
+                                                         server_conn: Connection, sharing_name: str) -> SharingConnection:
         """
         Given an already valid server connection, tries to establish a sharing
         connection to the sharing with the given name (=> does open())

@@ -1,4 +1,4 @@
-from typing import Union, List
+    from typing import Union, List
 
 from easyshare.es.connections import require_connected_connection, handle_connection_response
 from easyshare.es.errors import ClientErrors
