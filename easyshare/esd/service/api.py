@@ -152,7 +152,7 @@ class ClientHandler:
 
     def _recv(self):
         log.d("Waiting for messages from %s...", self._client)
-        req_payload_data = self._client.stream._read()
+        req_payload_data = self._client.stream.read()
 
         # Parse the request to JSON
         req_payload = None
@@ -206,7 +206,7 @@ class ClientHandler:
                      port=self._client.endpoint[1])
 
         # Really send it back
-        self._client.stream._write(jtob(response))
+        self._client.stream.write(jtob(response))
 
     def _sleep(self, params: RequestParams) -> Response:
         log.d("Sleeping...")

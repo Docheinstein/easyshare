@@ -101,15 +101,15 @@ class Shell:
                 log.d("Connected to server : %s%s",
                       self._client.is_connected_to_server(),
                       " ({}:{} {})".format(
-                          self._client.server_connection.server_info.get("ip"),
-                          self._client.server_connection.server_info.get("port"),
-                          self._client.server_connection.server_info.get("name") or ""
+                          self._client.connection.server_info.get("ip"),
+                          self._client.connection.server_info.get("port"),
+                          self._client.connection.server_info.get("name") or ""
                       ) if self._client.is_connected_to_server() else "")
 
                 log.d("Connected to sharing: %s%s",
                       self._client.is_connected_to_sharing(),
                       " ({})".format(
-                          self._client.sharing_connection.sharing_info.get("name")
+                          self._client.connection.current_sharing_name()
                       ) if self._client.is_connected_to_sharing() else "")
 
                 self._prompt = self._build_prompt_string()
@@ -194,10 +194,10 @@ class Shell:
                 outcome = self._client.execute_command(command, command_args)
 
             print_errors(outcome)
-        # except PyroError as pyroerr:
-        #     log.exception("Pyro error occurred %s", pyroerr)
-        #     print_errors(ClientErrors.CONNECTION_ERROR)
-        #     self._client.destroy_connection()
+        except ConnectionError:
+            log.exception("Connection error occurred %s")
+            print_errors(ClientErrors.CONNECTION_ERROR)
+            self._client.destroy_connection()
         except EOFError:
             log.i("\nCTRL+D: exiting")
             self._client.destroy_connection()
@@ -324,12 +324,12 @@ class Shell:
         remote = ""
 
         if self._client.is_connected_to_server():
-            remote = self._client.server_connection.server_info.get("name")
+            remote = self._client.connection.server_info.get("name")
 
             if self._client.is_connected_to_sharing():
                 remote += ".{}:/{}".format(
-                self._client.sharing_connection.sharing_info.get("name"),
-                self._client.sharing_connection.rcwd()
+                self._client.connection.current_sharing_name(),
+                self._client.connection.rcwd()
             )
 
             # remote = styled(remote, fg=ansi.FG_MAGENTA, attrs=ansi.ATTR_BOLD)

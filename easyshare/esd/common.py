@@ -1,6 +1,6 @@
 import string
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
 from easyshare.protocol.stream import Stream
@@ -85,13 +85,22 @@ class Sharing:
             read_only=True if read_only else False,
         )
 
-        log.i("Created sharing: %s", j(sh.info()))
+        log.i("Created sharing: %s", j(sh._info_internal()))
 
         return sh
 
     def info(self) -> SharingInfo:
         """ Returns information ('SharingInfo') for this sharing """
         return {
+            "name": self.name,
+            "ftype": self.ftype,
+            "read_only": self.read_only,
+        }
+
+    def _info_internal(self) -> SharingInfo:
+        """ Returns information ('SharingInfo') for this sharing + the internal path """
+        return {
+            "path": str(self.path),
             "name": self.name,
             "ftype": self.ftype,
             "read_only": self.read_only,

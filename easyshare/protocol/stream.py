@@ -21,7 +21,7 @@ class Stream:
         # recv() the HEADER (2 bytes)
 
         header_data = self._socket.recv(4)
-        self._ensure(header_data)
+        self._ensure_data(header_data)
 
         header = btoi(header_data)
 
@@ -35,7 +35,7 @@ class Stream:
 
         # recv() the PAYLOAD (<header> bytes)
         payload_data = self._socket.recv(payload_size)
-        self._ensure(header_data)
+        self._ensure_data(header_data)
 
         log.d("stream.recv() - received payload of %d", len(payload_data))
 
@@ -56,7 +56,7 @@ class Stream:
     def close(self):
         self._socket.close()
 
-    def _ensure(self, data):
+    def _ensure_data(self, data):
         if data is None:
             log.d("Connection closed")
             self._is_open = False

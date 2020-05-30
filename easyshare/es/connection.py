@@ -10,6 +10,7 @@ from easyshare.protocol.stream import Stream
 from easyshare.protocol.types import ServerInfoFull, ServerInfo
 from easyshare.sockets import SocketTcp, SocketTcpOut
 from easyshare.ssl import get_ssl_context, set_ssl_context
+from easyshare.tracing import is_tracing_enabled, trace_in, trace_out
 from easyshare.utils.inspection import stacktrace
 from easyshare.utils.json import j, jtob, btoj
 from easyshare.utils.ssl import create_client_ssl_context
@@ -341,9 +342,23 @@ class ConnectionMinimal:
     # === INTERNALS ===
 
 
-    def _call(self, request: Request) -> Response:
-        self._write(jtob(request))
-        return btoj(self._read())
+    def _call(self, req: Request) -> Response:
+        # Trace OUT
+        if is_tracing_enabled():  # check for avoid json_pretty_str call
+            trace_out(f"{j(req)}",
+                     ip=self._server_ip,
+                     port=self._server_port)
+
+        self._write(jtob(req))
+        resp = btoj(self._read())
+
+        # Trace IN
+        if is_tracing_enabled():  # check for avoid json_pretty_str call
+            trace_in(f"{j(resp)}",
+                     ip=self.server_ip(),
+                     port=self.server_port())
+
+        return resp
 
     def _write(self, data: Union[bytes, bytearray]):
         if not self.is_established():

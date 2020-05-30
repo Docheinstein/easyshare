@@ -490,7 +490,7 @@ class Client:
     # === LOCAL Commands ===
 
     @staticmethod
-    def cd(args: Args, _, _2):
+    def cd(args: Args, _):
         directory = LocalPath(args.get_positional(), default="~")
         log.i(">> CD %s", directory)
 
@@ -512,13 +512,13 @@ class Client:
 
 
     @staticmethod
-    def pwd(_: Args, _2, _3):
+    def pwd(_: Args, _2):
         log.i(">> PWD")
 
         print(Path.cwd())
 
     @staticmethod
-    def ls(args: Args, _, _2):
+    def ls(args: Args, _):
 
         def ls_provider(path: str, **kwargs):
             p = LocalPath(path)
@@ -542,15 +542,15 @@ class Client:
         Client._xls(args, ls_provider, "LS")
 
     @staticmethod
-    def l(args: Args, _, _2):
+    def l(args: Args, _):
         # Just call ls -la
         # Reuse the parsed args for keep the (optional) path
         args._parsed[Ls.SHOW_ALL[0]] = True
         args._parsed[Ls.SHOW_DETAILS[0]] = True
-        Client.ls(args, _, _2)
+        Client.ls(args, _)
 
     @staticmethod
-    def tree(args: Args, _, _2):
+    def tree(args: Args, _):
 
         def tree_provider(path, **kwargs):
             p = LocalPath(path)
@@ -574,7 +574,7 @@ class Client:
         Client._xtree(args, tree_provider, "TREE")
 
     @staticmethod
-    def mkdir(args: Args, _, _2):
+    def mkdir(args: Args, _):
         directory = args.get_positional()
 
         if not directory:
@@ -598,7 +598,7 @@ class Client:
                                                   q(directory)))
 
     @staticmethod
-    def rm(args: Args, _, _2):
+    def rm(args: Args, _):
         paths = [LocalPath(p) for p in args.get_positionals()]
 
         if not paths:
@@ -634,7 +634,7 @@ class Client:
 
 
     @staticmethod
-    def mv(args: Args, _, _2):
+    def mv(args: Args, _):
         errors = []
 
         def handle_mv_error(exc: Exception, src: Path, dst: Path):
@@ -659,7 +659,7 @@ class Client:
             raise CommandExecutionError(errors)
 
     @staticmethod
-    def cp(args: Args, _, _2):
+    def cp(args: Args, _):
 
         errors = []
 
@@ -683,7 +683,7 @@ class Client:
             raise CommandExecutionError(errors)
 
     @staticmethod
-    def exec(args: Args, _, _2):
+    def exec(args: Args, _):
         if not is_unix():
             log.w("exec not supported on this platform")
             raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
@@ -698,7 +698,7 @@ class Client:
             log.w("Command failed with return code: %d", retcode)
 
     @staticmethod
-    def shell(args: Args, _, _2):
+    def shell(args: Args, _):
         if not is_unix():
             log.w("shell not supported on this platform")
             raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
@@ -752,12 +752,12 @@ class Client:
 
 
     @provide_server_connection
-    def disconnect(self, args: Args, server_conn: Connection):
+    def disconnect(self, args: Args, conn: Connection):
         log.i(">> DISCONNECT")
-        server_conn.disconnect()
+        conn.disconnect()
 
 
-    def open(self, args: Args, _1, _2):
+    def open(self, args: Args, _):
         log.i(">> OPEN")
 
         new_conn: Optional[Connection] = None
@@ -844,20 +844,21 @@ class Client:
 
 
     @provide_server_connection
-    def rexec(self, args: Args, server_conn: Connection):
+    def rexec(self, args: Args, conn: Connection):
+        raise ValueError("NOT IMPL")
         popen_args = args.get_unparsed_args(default=[])
         popen_cmd = " ".join(popen_args)
 
         log.i(">> REXEC %s", popen_cmd)
 
-        rexec_resp = server_conn.rexec(popen_cmd)
+        rexec_resp = conn.rexec(popen_cmd)
         ensure_data_response(rexec_resp)
 
         rexec_uid = rexec_resp.get("data")
 
         rexec_service_uri = pyro_uri(rexec_uid,
-                                   server_conn.server_ip(),
-                                   server_conn.server_port())
+                                   conn.server_ip(),
+                                   conn.server_port())
 
         log.d("Rexec handler URI: %s", rexec_uid)
 
@@ -954,7 +955,9 @@ class Client:
 
 
     @provide_server_connection
-    def rshell(self, args: Args, server_conn: Connection, _):
+    def rshell(self, args: Args, conn: Connection):
+        raise ValueError("NOT IMPL")
+
         log.i(">> RSHELL %s")
 
         rshell_resp = server_conn.rshell()
@@ -1061,19 +1064,19 @@ class Client:
             rshell_stdout_receiver_th.join()
 
     @provide_connection
-    def ping(self, args: Args, server_conn: Connection):
+    def ping(self, args: Args, conn: Connection):
         count = args.get_option_param(Ping.COUNT, default=None)
 
         i = 1
         while not count or i <= count:
             timer = Timer(start=True)
-            resp = server_conn.ping()
+            resp = conn.ping()
             timer.stop()
 
             if is_data_response(resp) and resp.get("data") == "pong":
                 print("[{}] PONG from {}  |  time={:.1f}ms".format(
                     i,
-                    server_info_to_short_str(server_conn.server_info),
+                    server_info_to_short_str(conn.server_info),
                     timer.elapsed_ms())
                 )
             else:
@@ -1086,7 +1089,7 @@ class Client:
     # =============== PROBING Commands ================
     # =================================================
 
-    def scan(self, args: Args, _,):
+    def scan(self, args: Args, _):
         show_sharings_details = Scan.SHOW_SHARINGS_DETAILS in args
         show_all_details = Scan.SHOW_ALL_DETAILS in args
 
@@ -1145,20 +1148,20 @@ class Client:
         log.i("======================")
 
     @provide_connection
-    def info(self, args: Args, server_conn: Connection):
+    def info(self, args: Args, conn: Connection):
         show_sharings_details = Info.SHOW_SHARINGS_DETAILS in args
 
-        print(server_info_to_pretty_str(server_conn.server_info,
+        print(server_info_to_pretty_str(conn.server_info,
                                         sharing_details=show_sharings_details,
                                         separators=True))
 
     @provide_connection
-    def list(self, args: Args, server_conn: Connection):
+    def list(self, args: Args, conn: Connection):
         show_details = ListSharings.SHOW_DETAILS in args
 
         log.i(">> LIST")
 
-        resp = server_conn.list()
+        resp = conn.list()
         ensure_data_response(resp)
 
         sharings_str = sharings_to_pretty_str(resp.get("data"),
@@ -1221,7 +1224,7 @@ class Client:
         # Reuse the parsed args for keep the (optional) path
         args._parsed[Ls.SHOW_ALL[0]] = True
         args._parsed[Ls.SHOW_DETAILS[0]] = True
-        self.rls(args, server_conn, conn)
+        self.rls(args, conn, conn)
 
     @provide_d_sharing_connection
     def rtree(self, args: Args, conn: Connection):

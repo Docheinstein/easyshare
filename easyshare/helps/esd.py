@@ -1,7 +1,7 @@
 from typing import List, Optional, Callable
 
 from easyshare.args import Option, ArgType, Args, PRESENCE_PARAM, INT_PARAM_OPT, INT_PARAM, \
-    ArgsSpec, STR_PARAM
+    ArgsSpec, STR_PARAM, VARIADIC_PARAMS
 from easyshare.helps import CommandHelp, CommandOptionInfo
 
 
@@ -26,6 +26,8 @@ class Esd(CommandHelp, ArgsSpec):
     TRACE = ["-t", "--trace"]
     NO_COLOR = ["--no-color"]
 
+    SHARING = ["-s", "--sharing"]
+
     def options_spec(self) -> Optional[List[Option]]:
         return [
             (self.HELP, PRESENCE_PARAM),
@@ -45,7 +47,14 @@ class Esd(CommandHelp, ArgsSpec):
         ]
 
     def continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, Args, List[str]], bool]]:
-        return lambda argname, argtype, idx, args, positionals: argtype != ArgType.POSITIONAL
+        def continue_parsing_func(argname, argtype, idx, args, positionals):
+            if argtype == ArgType.POSITIONAL:
+                return False # begin of a sharing params
+            if argtype == ArgType.OPTION and argname in Esd.SHARING:
+                return False # begin of sharings params chain (multiple -s)
+            return True
+
+        return continue_parsing_func
 
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
@@ -62,6 +71,7 @@ class Esd(CommandHelp, ArgsSpec):
             CommandOptionInfo(cls.SSL_CERT, "path to an SSL certificate", params=["cert_path"]),
             CommandOptionInfo(cls.SSL_PRIVKEY, "path to an SSL private key", params=["privkey_path"]),
             CommandOptionInfo(cls.REXEC, "enable rexec (remote execution)"),
+            CommandOptionInfo(cls.SHARING, "sharing to serve", params=["sh_path", "sh_name", "sh_options"]),
             CommandOptionInfo(cls.VERBOSE, "set verbosity level", params=["level"]),
             CommandOptionInfo(cls.TRACE, "enable/disable tracing", params=["0_or_1"]),
             CommandOptionInfo(cls.NO_COLOR, "don't print ANSI escape characters")
@@ -99,7 +109,8 @@ Files and directories can be shared in one of the following manners:
 
 The option 1. should be preferred for an easy one-shot sharing of a file or directory, \
 since doesn't need the creation a configuration file, but has the limit that \
-only a file or folder can be shared.
+only a file or folder can be shared (unless the option -s is used before each \
+sharing path (and eventually name or options).
 
 If given, <u>SHARING</u> must be a valid path to a local file or directory.
 <u>SHARING_NAME</u> is an optional name to assign to the sharing, as it will be seen \
@@ -163,11 +174,13 @@ Usage example:
 <b>esd</b> <u>/tmp/file</u>
    <a>
 2. Share a directory, assigning it a name</a>
-<b>esd</b>  <u>/tmp/shared_directory</u> <u>shared</u>
+<b>esd</b> <u>/tmp/shared_directory</u> <u>shared</u>
    <a>
-3. Share multiples directories, and other settings</a>
-<b>esd</b> <b>-c</b> <u>/home/user/.easyshare/esd.conf</u>
+3. Share multiples directories, one as read only</a>
+<b>esd</b> <b>-s</b> <u>/home/user</u> <u>-r</u> <b>-s</b> <u>/tmp</u> <u>temp</u>
 
+3. Share multiples directories, with a configuration file</a>
+<b>esd</b> <b>-c</b> <u>/home/user/.easyshare/esd.conf</u>
 
 Configuration file example (esd.conf):
 

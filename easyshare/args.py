@@ -112,7 +112,7 @@ class Args:
         """ Returns whether an option for the given 'aliases' has been found """
         return True if self.get_option_params(aliases) is not None else None
 
-    def get_option_param(self, aliases: Union[str, List[str]]) -> bool:
+    def option_has_param(self, aliases: Union[str, List[str]]) -> bool:
         """
         Returns whether a parameter for the given 'aliases' has been found
         (apart from the option itself)

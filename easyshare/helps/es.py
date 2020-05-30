@@ -62,7 +62,6 @@ Type <b>help <u>command</u> for the full documentation of a <u>command</u>.
 
 Available commands are:     
                     <a>
-<b>General commands</b>
 {_AVAILABLE_COMMANDS_STR}"""
 
 
