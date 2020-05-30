@@ -8,7 +8,6 @@ import subprocess
 import threading
 import tty
 from pathlib import Path
-from pwd import getpwuid, struct_passwd
 from typing import Optional, List, Union, Tuple, Any, Callable
 
 from ptyprocess import PtyProcess, PtyProcessUnicode
@@ -28,9 +27,15 @@ def is_unix():
 def is_windows():
     return os.name == "nt"
 
-def get_passwd() -> struct_passwd:
-    """ Get the /etc/passwd entry for the current effective user id """
-    return getpwuid(os.geteuid())
+if is_unix():
+    from pwd import getpwuid, struct_passwd
+
+    def get_passwd() -> struct_passwd:
+        """ Get the /etc/passwd entry for the current effective user id """
+        return getpwuid(os.geteuid())
+else:
+    def get_passwd():
+        pass
 
 def ls(path: Path,
        sort_by: Union[str, List[str]] = "name",
@@ -307,19 +312,21 @@ def pty_attached(cmd: str = "/bin/sh") -> int:
     pid, master_fd = pty.fork()
     if pid == pty.CHILD:
         os.execlp(argv[0], *argv)
+
+    tty_mode = None
     try:
-        mode = tty.tcgetattr(pty.STDIN_FILENO)
+        tty_mode = tty.tcgetattr(pty.STDIN_FILENO)
         tty.setraw(pty.STDIN_FILENO)
-        restore = 1
-    except tty.error:  # This is the same as termios.error
-        restore = 0
+    except tty.error:
+        pass
+
     try:
         pty._copy(master_fd, master_read, stdin_read)
-    except OSError:#
+    except OSError:
         pass
     finally:
-        if restore:
-            tty.tcsetattr(pty.STDIN_FILENO, tty.TCSAFLUSH, mode)
+        if tty_mode:
+            tty.tcsetattr(pty.STDIN_FILENO, tty.TCSAFLUSH, tty_mode)
 
     os.close(master_fd)
 

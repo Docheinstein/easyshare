@@ -256,9 +256,10 @@ class ConnectionMinimal:
 
     @handle_connection_response
     @require_server_connection
-    def rshell(self) -> Response:
-        return self.call(create_request(Requests.RSHELL))
-
+    def rshell(self, cmd: str) -> Response:
+        return self.call(create_request(Requests.RSHELL, {
+            RequestsParams.RSHELL_CMD: cmd
+        }))
 
     # === REAL SHARING FUNCS ===
 

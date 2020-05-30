@@ -22,6 +22,7 @@ from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, SUCCESS_COLOR, 
     ERROR_COLOR
 from easyshare.consts import ansi
 from easyshare.consts.net import ADDR_BROADCAST
+from easyshare.consts.os import STDIN
 from easyshare.endpoint import Endpoint
 from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connection import Connection, ConnectionMinimal
@@ -689,12 +690,12 @@ class Client:
             log.w("exec not supported on this platform")
             raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
 
-        popen_args = args.get_unparsed_args(default=[])
-        popen_cmd = " ".join(popen_args)
+        exec_args = args.get_unparsed_args(default=[])
+        exec_cmd = " ".join(exec_args)
 
-        log.i(">> >> EXEC %s", popen_cmd)
+        log.i(">> >> EXEC %s", exec_cmd)
 
-        retcode = run_attached(popen_cmd)
+        retcode = run_attached(exec_cmd)
         if retcode != 0:
             log.w("Command failed with return code: %d", retcode)
 
@@ -704,14 +705,18 @@ class Client:
             log.w("shell not supported on this platform")
             raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
 
-        passwd: struct_passwd = get_passwd()
+        shell_args = args.get_unparsed_args(default=[])
+        if shell_args:
+            shell_cmd = " ".join(shell_args)
+        else:
+            passwd: struct_passwd = get_passwd()
+            log.i(f"{passwd.pw_uid} {passwd.pw_name} - shell: {passwd.pw_shell}")
+            shell_cmd = passwd.pw_shell
 
-        log.i(f"{passwd.pw_uid} {passwd.pw_name} - shell: {passwd.pw_shell}")
-
-        log.i(">> SH %s")
-        retcode = pty_attached(passwd.pw_shell)
+        log.i(">> SHELL %s", shell_cmd)
+        retcode = pty_attached(shell_cmd)
         if retcode != 0:
-            log.w("Command failed with return code: %d", retcode)
+            log.w("Command return code = %d", retcode)
 
 
     # =================================================
@@ -856,9 +861,9 @@ class Client:
 
         retcode = None
 
-        # --- STDOUT RECEIVER ---
+        # --- STDOUT/STDERR RECEIVER ---
 
-        def rexec_stdout_receiver():
+        def rexec_out_receiver():
             nonlocal retcode
 
             try:
@@ -893,9 +898,9 @@ class Client:
                 retcode = -1
 
 
-        rexec_stdout_receiver_th = threading.Thread(
-            target=rexec_stdout_receiver, daemon=True)
-        rexec_stdout_receiver_th.start()
+        rexec_out_receiver_th = threading.Thread(
+            target=rexec_out_receiver, daemon=True)
+        rexec_out_receiver_th.start()
 
         # --- STDIN SENDER ---
 
@@ -934,7 +939,7 @@ class Client:
         fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags)
 
         # Wait everybody
-        rexec_stdout_receiver_th.join()
+        rexec_out_receiver_th.join()
 
         # Stop the remote stdin receiver by sending a ENDACK
         log.d("Sending ENDACK to remote")
@@ -942,112 +947,107 @@ class Client:
 
     @provide_server_connection
     def rshell(self, args: Args, conn: Connection):
-        raise ValueError("NOT IMPL")
+        rshell_args = args.get_unparsed_args(default=[])
+        if rshell_args:
+            rshell_cmd = " ".join(rshell_args)
+        else:
+            rshell_cmd = None
 
-        log.i(">> RSHELL %s")
+        log.i(">> RSHELL %s", rshell_cmd)
 
-        rshell_resp = server_conn.rshell()
-        ensure_data_response(rshell_resp)
+        rshell_resp = conn.rshell(rshell_cmd)
+        ensure_success_response(rshell_resp)
+        retcode = None
 
-        rshell_uid = rshell_resp.get("data")
+        # --- STDOUT/STDERR RECEIVER ---
 
-        rshell_service_uri = pyro_uri(rshell_uid,
-                                   server_conn.server_ip(),
-                                   server_conn.server_port())
+        def rshell_out_receiver():
+            nonlocal retcode
 
-        log.d("Rshell handler URI: %s", rshell_uid)
-
-        rshell_service: Union[TracedPyroProxy, IRshellService]
-
-        with TracedPyroProxy(rshell_service_uri) as rshell_service:
-
-            retcode = None
-
-            # --- STDOUT RECEIVER ---
-
-            def rshell_stdout_receiver():
-                try:
-                    rshell_polling_proxy: Union[TracedPyroProxy, IRshellService]
-
-                    with TracedPyroProxy(rshell_service_uri) as rshell_polling_proxy:
-                        nonlocal retcode
-
-                        while retcode is None:
-                            resp = rshell_polling_proxy.recv()
-                            ensure_data_response(resp)
-
-                            recv_data = resp.get("data")
-
-                            log.d("REXEC recv: %s", str(recv_data))
-                            out = recv_data.get("out")
-                            retcode = recv_data.get("retcode")
-
-                            try:
-                                for content in out:
-                                    if content:
-                                        print(content, end="", flush=True)
-                            except OSError as oserr:
-                                # EWOULDBLOCK may arise something...
-                                log.w("Ignoring OSerror: %s", str(oserr))
-
-                        log.i("RSHELL done (%d)", retcode)
-                        print()
-                except KeyboardInterrupt:
-                    log.d("rshell CTRL+C detected on stdout thread, ignoring")
-                    retcode = -1
-                except PyroError:
-                    log.exception("Pyro error occurred on rhsell out receiver thread")
-                    retcode = -1
-                except Exception:
-                    log.exception("Unexpected error occurred on rshell out receiver thread")
-                    retcode = -1
-
-
-            rshell_stdout_receiver_th = threading.Thread(
-                target=rshell_stdout_receiver, daemon=True)
-            rshell_stdout_receiver_th.start()
-
-            # --- STDIN SENDER ---
-
-            # Put stdin in raw mode (read char by char)
-
-            try:
-                mode = tty.tcgetattr(pty.STDIN_FILENO)
-                tty.setraw(pty.STDIN_FILENO)
-                restore = 1
-            except tty.error:  # This is the same as termios.error
-                restore = 0
             try:
                 while retcode is None:
-                    try:
-                        # Do not block so that we can exit when the process
-                        # finishes
-                        rlist, wlist, xlist = select.select([pty.STDIN_FILENO], [], [], 0.04)
+                    in_b = conn.read(trace=True)
 
-                        if pty.STDIN_FILENO in rlist:
-                            data_b = os.read(pty.STDIN_FILENO, 1024)
-                            if data_b:
-                                data_s = btos(data_b)
-                                log.d("Sending data: %s", repr(data_b))
-                                rshell_service.send_data(data_s)
-                            else:
-                                log.d("rshell CTRL+D")
-                                rshell_service.send_event(IRshellService.Event.EOF)
-                    except KeyboardInterrupt:
-                        log.d("rexec CTRL+C")
-                        rshell_service.send_event(IRshellService.Event.TERMINATE)
-                        # Design choice: do not break here but wait that the remote
-                        # notify us about the command completion
+                    event_type: int = in_b[0]
+                    log.d("Event type = %d", event_type)
 
-            except OSError:
-                log.exception("OSError")
-            finally:
-                # Restore stdin in blocking mode
-                if restore:
-                    tty.tcsetattr(pty.STDIN_FILENO, tty.TCSAFLUSH, mode)
+                    if event_type == RexecEventType.TEXT:
+                        text_b = in_b[1:]
+                        log.d("RSHELL recv: %s", repr(text_b))
+                        text = btos(text_b)
 
-            # Wait everybody
-            rshell_stdout_receiver_th.join()
+                        try:
+                            # print(text, end="", flush=True)
+                            sys.stdout.write(text)
+                            sys.stdout.flush()
+                        except OSError as oserr:
+                            # EWOULDBLOCK may arise something...
+                            log.w("Ignoring OSerror: %s", str(oserr))
+                    elif event_type == RexecEventType.EOF:
+                        log.d("EOF from remote")
+                    elif event_type == RexecEventType.RETCODE:
+                        log.d("Remote process finished")
+                        retcode = btoi(in_b[1:])
+                    else:
+                        log.w("Can't handle event of type %d", event_type)
+
+                log.i("RSHELL done (%d)", retcode)
+                print()
+            except Exception:
+                log.exception("Unexpected error occurred on rshell out receiver thread")
+                retcode = -1
+
+
+        rshell_out_receiver_th = threading.Thread(
+            target=rshell_out_receiver, daemon=True)
+        rshell_out_receiver_th.start()
+
+        # --- STDIN SENDER ---
+
+        # Put stdin in raw mode (read char by char) [taken from pty.spawn]
+        tty_mode = None
+        try:
+            tty_mode = tty.tcgetattr(STDIN)
+            tty.setraw(STDIN)
+        except tty.error:
+            pass
+
+        try:
+            while retcode is None:
+                try:
+                    # Do not block so that we can exit when the process finishes
+                    # Sleep for a little between each select call
+                    rlist, wlist, xlist = select.select([pty.STDIN_FILENO], [], [], 0.04)
+
+                    if pty.STDIN_FILENO in rlist:
+                        data_b = os.read(STDIN, 1024)
+
+                        if not data_b:
+                            log.d("Sending EOF")
+                            out_b = RexecEventType.EOF_B
+                        else:
+                            log.d("Sending data: %s", repr(data_b))
+                            out_b = RexecEventType.TEXT_B + data_b
+
+                        conn.write(out_b, trace=True)
+
+                except KeyboardInterrupt:
+                    log.d("rexec CTRL+C")
+                    conn.write(RexecEventType.KILL_B, trace=True)
+
+        except OSError:
+            log.exception("OSError")
+        finally:
+            # Restore stdin in blocking mode [taken from pty.spawn]
+            if tty_mode:
+                tty.tcsetattr(STDIN, tty.TCSAFLUSH, tty_mode)
+
+        # Wait everybody
+        rshell_out_receiver_th.join()
+
+        # Stop the remote stdin receiver by sending a ENDACK
+        log.d("Sending ENDACK to remote")
+        conn.write(RexecEventType.ENDACK_B, trace=True)
 
     @provide_connection
     def ping(self, args: Args, conn: Connection):

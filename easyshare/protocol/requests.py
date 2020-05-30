@@ -40,6 +40,8 @@ class RequestsParams:
 
     REXEC_CMD = "cmd"
 
+    RSHELL_CMD = "cmd"
+
     RCD_PATH = "path"
 
     RLS_PATH = "path"

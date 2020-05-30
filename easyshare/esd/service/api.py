@@ -1,27 +1,29 @@
+import subprocess
 import threading
 import time
 from pathlib import Path
 from typing import List, Dict, Callable, Optional, Union
 
+from ptyprocess import PtyProcess
+
 from easyshare.auth import Auth
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import Sharing, ClientContext
 from easyshare.esd.daemons.api import get_api_daemon
-from easyshare.esd.service.execution.rexec import RexecService
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams, RequestsParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response, \
     create_error_of_response
 from easyshare.protocol.stream import StreamClosedError
-from easyshare.protocol.types import ServerInfo, FTYPE_DIR
+from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType
 from easyshare.sockets import SocketTcp
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import green, red
 from easyshare.tracing import trace_in, trace_out, is_tracing_enabled
 from easyshare.utils.json import btoj, jtob, j
-from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm
+from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, get_passwd, pty_detached
 from easyshare.utils.str import q
-from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list
+from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, stob, itob, btos
 
 log = get_logger(__name__)
 
@@ -179,7 +181,7 @@ class ClientHandler:
             Requests.OPEN: self._open,
             Requests.CLOSE: self._close,
             Requests.REXEC: self._rexec,
-            # Requests.RSHELL: self._rexec,
+            Requests.RSHELL: self._rshell,
             Requests.RCD: self._rcd,
             Requests.RPWD: self._rpwd,
             Requests.RLS: self._rls,
@@ -350,21 +352,132 @@ class ClientHandler:
     @require_unix
     @require_rexec_enabled
     def _rexec(self, params: RequestParams):
-        cmd = params.get("cmd")
+        cmd = params.get(RequestsParams.REXEC_CMD)
         if not cmd:
             self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i("<< REXEC %s |  %s", cmd, self._client)
-
+        log.i("<< REXEC %s  |  %s", cmd, self._client)
 
         self._send_response(create_success_response())
 
-        rexec_service = RexecService(self._client, cmd)
-        retcode = rexec_service.run()
 
-        log.d("Rexec finished")
+        def out_hook(text: str):
+            log.d("> %s", text)
+            self._client.stream.write(
+                RexecEventType.TEXT_B + stob(text), trace=True
+            )
 
-    # rshell
+        def end_hook(retcode: int):
+            log.d("END %d", retcode)
+            self._client.stream.write(
+                RexecEventType.RETCODE_B + itob(retcode % 255, length=1),
+                trace=True
+            )
+
+        def stdin_receiver(process: subprocess.Popen):
+            while True:
+                in_b = self._client.stream.read(trace=True)
+                event_type: int = in_b[0]
+                log.d("Event type = %d", event_type)
+
+                if event_type == RexecEventType.TEXT:
+                    text = btos(in_b[1:])
+                    log.d("< %s", text)
+                    process.stdin.write(text)
+                    process.stdin.flush()
+                elif event_type == RexecEventType.EOF:
+                    log.d("< EOF")
+                    process.stdin.close()
+                elif event_type == RexecEventType.KILL:
+                    log.d("< KILL")
+                    process.terminate()
+                elif event_type == RexecEventType.ENDACK:
+                    log.d("< ENDACK")
+                    break
+                else:
+                    log.w("Can't handle event of type %d", event_type)
+
+        # Bind server stdout/stderr and send those to client
+        proc, out_th = run_detached(
+            cmd,
+            stdout_hook=out_hook,
+            stderr_hook=out_hook,
+            end_hook=end_hook
+        )
+
+        # Receive stdin from client
+        stdin_th = threading.Thread(target=stdin_receiver, args=(proc, ))
+        stdin_th.start()
+
+        # Wait everybody
+        stdin_th.join()
+        out_th.join()
+
+        log.d("REXEC finished with return code = %d", proc.returncode)
+
+
+    @require_server_connection
+    @require_unix
+    @require_rexec_enabled
+    def _rshell(self, params: RequestParams):
+        cmd = params.get(RequestsParams.RSHELL_CMD)
+        if not cmd:
+            cmd = get_passwd().pw_shell
+
+        log.i("<< RSHELL %s  |  %s", cmd, self._client)
+
+        self._send_response(create_success_response())
+
+        def out_hook(text: str):
+            log.d("> %s", text)
+            self._client.stream.write(
+                RexecEventType.TEXT_B + stob(text), trace=True
+            )
+
+        def end_hook(retcode: int):
+            log.d("END %d", retcode)
+            self._client.stream.write(
+                RexecEventType.RETCODE_B + itob(retcode % 255, length=1),
+                trace=True
+            )
+
+        def stdin_receiver(ptyprocess: PtyProcess):
+            while True:
+                in_b = self._client.stream.read(trace=True)
+                event_type: int = in_b[0]
+                log.d("Event type = %d", event_type)
+
+                if event_type == RexecEventType.TEXT:
+                    text = btos(in_b[1:])
+                    log.d("< %s", text)
+                    ptyprocess.write(text)
+                elif event_type == RexecEventType.EOF:
+                    log.d("< EOF")
+                    ptyprocess.close()
+                elif event_type == RexecEventType.KILL:
+                    log.d("< KILL")
+                    ptyprocess.terminate()
+                elif event_type == RexecEventType.ENDACK:
+                    log.d("< ENDACK")
+                    break
+                else:
+                    log.w("Can't handle event of type %d", event_type)
+
+        ptyproc = pty_detached(
+            out_hook=out_hook,
+            end_hook=end_hook,
+            cmd=cmd
+        )
+
+        # Receive stdin from client
+        stdin_th = threading.Thread(target=stdin_receiver, args=(ptyproc, ))
+        stdin_th.start()
+
+        # Wait everybody
+        stdin_th.join()
+        ptyproc.wait()
+
+        log.d("RSHELL finished")
 
     @require_server_connection
     def _open(self, params: RequestParams):
