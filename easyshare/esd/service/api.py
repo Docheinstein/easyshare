@@ -1,14 +1,15 @@
 import threading
 import time
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Optional
 
 from easyshare.auth import Auth
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import Sharing, ClientContext
 from easyshare.esd.daemons.api import get_api_daemon
 from easyshare.esd.service.execution.rexec import RexecService
+from easyshare.esd.services import FPath
 from easyshare.logging import get_logger
-from easyshare.protocol.requests import Request, is_request, Requests, RequestParams
+from easyshare.protocol.requests import Request, is_request, Requests, RequestParams, RequestsParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response
 from easyshare.protocol.stream import StreamClosedError
 from easyshare.protocol.types import ServerInfo
@@ -18,6 +19,7 @@ from easyshare.styling import green, red
 from easyshare.tracing import trace_in, trace_out, is_tracing_enabled
 from easyshare.utils.json import btoj, jtob, j
 from easyshare.utils.os import is_unix
+from easyshare.utils.str import q
 
 log = get_logger(__name__)
 
@@ -39,8 +41,8 @@ class ApiService:
 
         get_api_daemon().add_callback(self._handle_new_connection)
 
-    def sharings(self) -> List[Sharing]:
-        return list(self._sharings.values())
+    def sharings(self) -> Dict[str, Sharing]:
+        return self._sharings
 
     def name(self) -> str:
         return self._name
@@ -86,30 +88,38 @@ class ApiService:
 
 
 # decorator
-def ensure_connected(api):
-    def ensure_connected_wrapper(handler: 'ClientHandler', params: RequestParams):
-        if not handler._connected:
+def require_server_connection(api):
+    def require_server_connection_wrapper(handler: 'ClientHandler', params: RequestParams):
+        if not handler._connected_to_server:
             return create_error_response(ServerErrors.NOT_CONNECTED)
         return api(handler, params)
-    return ensure_connected_wrapper
+    return require_server_connection_wrapper
+
+# decorator
+def require_sharing_connection(api):
+    def require_sharing_connection_wrapper(handler: 'ClientHandler', params: RequestParams):
+        if not handler._connected_to_sharing:
+            return create_error_response(ServerErrors.NOT_CONNECTED)
+        return api(handler, params)
+    return require_sharing_connection_wrapper
 
 
 # decorator
-def ensure_unix(api):
-    def ensure_unix_wrapper(handler: 'ClientHandler', params: RequestParams):
+def require_unix(api):
+    def require_unix_wrapper(handler: 'ClientHandler', params: RequestParams):
         if not is_unix():
             return create_error_response(ServerErrors.SUPPORTED_ONLY_FOR_UNIX)
         return api(handler, params)
-    return ensure_unix_wrapper
+    return require_unix_wrapper
 
 
 # decorator
-def ensure_rexec_enabled(api):
-    def ensure_rexec_enabled_wrapper(handler: 'ClientHandler', params: RequestParams):
+def require_rexec_enabled(api):
+    def require_rexec_enabled_wrapper(handler: 'ClientHandler', params: RequestParams):
         if not handler._api_service.is_rexec_enabled():
             return create_error_response(ServerErrors.REXEC_DISABLED)
         return api(handler, params)
-    return ensure_rexec_enabled_wrapper
+    return require_rexec_enabled_wrapper
 
 
 class ClientHandler:
@@ -119,7 +129,12 @@ class ClientHandler:
 
         self._client = client
 
-        self._connected = None # neither "connected" nor "disconnected"
+        self._connected_to_server: Optional[bool] = None
+            # initial limbo state
+            # True is after connect() - False is after disconnect()
+        self._connected_to_sharing: bool = False
+        self._current_sharing: Optional[Sharing] = None
+        self._current_rcwd: Optional[FPath] = None
 
         self._request_dispatcher: Dict[str, Callable[[RequestParams], Response]] = {
             Requests.CONNECT: self._connect,
@@ -127,6 +142,8 @@ class ClientHandler:
             Requests.LIST: self._list,
             Requests.INFO: self._info,
             Requests.PING: self._ping,
+            Requests.OPEN: self._open,
+            Requests.CLOSE: self._close,
             Requests.REXEC: self._rexec,
             "sleep": self._sleep
         }
@@ -134,7 +151,10 @@ class ClientHandler:
     def handle(self):
         log.i("Handling client %s", self._client)
 
-        while self._client.stream.is_open() and self._connected is not False:
+        while self._client.stream.is_open() and \
+                self._connected_to_server is not False:
+                    # check _connected_to_server against False,
+                    # since None is the limbo state which is allowed (before connect)
             try:
                 self._recv()
             except StreamClosedError:
@@ -144,6 +164,14 @@ class ClientHandler:
                 # Maybe we could recover from this point, but
                 # break is probably safer for avoid zombie connections
                 break
+
+        if self._client.stream.is_open():   # the socket could be still open
+                                            # if disconnect() has been called
+            try:
+                log.d("Trying to close underlying socket")
+                self._client.stream.close()
+            except:
+                log.w("Underlying socket not closed gracefully")
 
         log.i("Connection closed with client %s", self._client)
 
@@ -220,7 +248,7 @@ class ClientHandler:
 
         password = params.get("password")
 
-        if self._connected:
+        if self._connected_to_server:
             log.w("Client already connected")
             return create_success_response()
 
@@ -235,47 +263,77 @@ class ClientHandler:
         else:
             log.i("Authentication OK")
 
-        self._connected = True
+        self._connected_to_server = True
 
         print(green(f"[{self._client.tag}] connected "
                     f"({self._client.endpoint[0]}:{self._client.endpoint[1]})"))
 
         return create_success_response()
 
-
+    @require_server_connection
     def _disconnect(self, _: RequestParams):
         log.i("<< DISCONNECT  |  %s", self._client)
 
-        if not self._connected:
+        if not self._connected_to_server:
             log.w("Already disconnected")
 
-        self._connected = False
+        self._connected_to_server = False
+
+        return create_success_response()
+
+    def _list(self, _: RequestParams):
+        log.i("<< LIST  |  %s", self._client)
+        return create_success_response(
+            [sh.info() for sh in self._api_service.sharings().values()])
+
+    def _info(self, _: RequestParams):
+        log.i("<< INFO  |  %s", self._client)
+        return create_success_response(self._api_service.server_info())
+
+    def _ping(self, _: RequestParams):
+        log.i("<< PING  |  %s", self._client)
+        return create_success_response("pong")
+
+    @require_server_connection
+    def _open(self, params: RequestParams):
+        sharing_name = params.get(RequestsParams.OPEN_SHARING)
+
+        if not sharing_name:
+            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        sharing: Sharing = self._api_service.sharings().get(sharing_name)
+
+        if not sharing:
+            return create_error_response(ServerErrors.SHARING_NOT_FOUND, q(sharing_name))
+
+        log.i("<< OPEN %s |  %s", sharing_name, self._client)
+
+        self._connected_to_sharing = True
+        self._current_sharing = sharing
+        self._current_rcwd = sharing.path
+
+        print(f"[{self._client.tag}] open '{sharing.name}'"
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
         return create_success_response()
 
 
-    def _list(self, _: RequestParams):
-        log.i("<< LIST  |  %s", self._client)
+    @require_sharing_connection
+    def _close(self, _: RequestParams):
+        log.i("<< CLOSE  |  %s", self._client)
 
-        return create_success_response([sh.info() for sh in self._api_service.sharings()])
+        print(f"[{self._client.tag}] close "
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
+        self._connected_to_sharing = False
+        self._current_sharing = None
+        self._current_rcwd = None
 
-    def _info(self, _: RequestParams):
-        log.i("<< INFO  |  %s", self._client)
+        return create_success_response()
 
-        return create_success_response(
-            self._api_service.server_info()
-        )
-
-
-    def _ping(self, _: RequestParams):
-        log.i("<< PING  |  %s", self._client)
-
-        return create_success_response("pong")
-
-    @ensure_connected
-    @ensure_unix
-    @ensure_rexec_enabled
+    @require_server_connection
+    @require_unix
+    @require_rexec_enabled
     def _rexec(self, params: RequestParams):
         cmd = params.get("cmd")
         if not cmd:

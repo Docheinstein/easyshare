@@ -153,22 +153,41 @@ class ConnectionMinimal:
         self.destroy_server_connection()
         if self._stream:
             try:
+                log.d("Really sending close()")
                 self._stream.close()
             except:
                 log.w("Socket close failed")
             self._stream = None
 
-    def destroy_server_connection(self):
+    def destroy_server_connection(self) -> Optional[Response]:
         log.d("Destroying server connection")
+        resp = None
+        if self._connected_to_server:
+            try:
+                log.d("Really sending disconnect()")
+                resp = self._call(create_request(Requests.DISCONNECT))
+            except:
+                log.w("Failed to close sharing connection gracefully, "
+                      "invaliding it anyway")
+
         self._connected_to_server = False
+        return resp
 
 
-    def destroy_sharing_connection(self):
+    def destroy_sharing_connection(self) -> Optional[Response]:
         log.d("Destroying sharing connection")
+        resp = None
+        if self._connected_to_sharing:
+            try:
+                resp = self._call(create_request(Requests.CLOSE))
+            except:
+                log.w("Failed to close sharing connection gracefully, "
+                      "invaliding it anyway")
+
         self._connected_to_sharing = False
         self._sharing_name = None
         self._rcwd = None
-
+        return resp
 
     # === CONNECTION ESTABLISHMENT ===
 
@@ -184,12 +203,9 @@ class ConnectionMinimal:
 
     @require_server_connection
     def disconnect(self) -> Response:
-        resp = self._call(create_request(Requests.DISCONNECT))
-
-        self.destroy_connection() # close the socket too
-
+        resp = self.destroy_server_connection()
+        self.destroy_connection() # close the underlying socket too
         return resp
-
 
     # === SERVER INFO RETRIEVAL ===
 
@@ -250,9 +266,8 @@ class ConnectionMinimal:
 
     @require_sharing_connection
     def close(self):
-        resp = self._call(create_request(Requests.CLOSE))
-        self.destroy_sharing_connection() # leave the socket open (for server connection)
-        return resp
+        return self.destroy_sharing_connection()    # leave the socket open
+                                                    # (for server connection)
 
     @require_sharing_connection
     def rpwd(self) -> Response:

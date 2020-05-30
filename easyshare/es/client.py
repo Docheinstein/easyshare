@@ -1184,7 +1184,7 @@ class Client:
 
         # noinspection PyUnresolvedReferences
         if conn and conn.is_connected_to_server() and \
-                getattr(server_conn, "created_with_open", False):
+                getattr(conn, "created_with_open", False):
             log.d("Closing server connection too since opened due open")
             conn.disconnect()
 
