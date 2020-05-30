@@ -88,9 +88,10 @@ class ConnectionMinimal:
         self._server_port = server_port
         self._server_ssl = server_ssl
 
-        self._connected_to_server = False
-        self._connected_to_sharing = False
-        self._rcwd = None
+        self._connected_to_server: bool = False
+        self._connected_to_sharing: bool = False
+        self._sharing_name: Optional[str] = None
+        self._rcwd: Optional[str] = None
 
         # SSL setting
 
@@ -142,6 +143,9 @@ class ConnectionMinimal:
     def is_connected_to_sharing(self) -> bool:
         return True if self.is_connected_to_server() and self._connected_to_sharing else False
 
+    def current_sharing_name(self) -> Optional[str]:
+        return self._sharing_name if self.is_connected_to_sharing() else None
+
     def destroy_connection(self):
         log.d("Destroying connection")
         self.destroy_sharing_connection()
@@ -161,6 +165,7 @@ class ConnectionMinimal:
     def destroy_sharing_connection(self):
         log.d("Destroying sharing connection")
         self._connected_to_sharing = False
+        self._sharing_name = None
         self._rcwd = None
 
 
@@ -207,9 +212,17 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_server_connection
     def open(self, sharing_name) -> Response:
-        return self._call(create_request(Requests.OPEN, {
+        resp = self._call(create_request(Requests.OPEN, {
             RequestsParams.OPEN_SHARING: sharing_name
         }))
+
+        if is_success_response(resp):
+            self._connected_to_sharing = True
+            self._sharing_name = sharing_name
+            self._rcwd = ""
+        # else?
+
+        return resp
 
     @handle_connection_response
     @require_server_connection
