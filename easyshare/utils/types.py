@@ -145,15 +145,15 @@ def str_to_bytes(s: str) -> bytes:
     return bytes(s, encoding="UTF-8")
 
 
-def bytes_to_str(b: bytes) -> str:
+def bytes_to_str(b: Union[bytes, bytearray]) -> str:
     return str(b, encoding="UTF-8")
 
 
-def bytes_to_int(b: bytes, byteorder="big"):
+def bytes_to_int(b: Union[bytes, bytearray], byteorder="big") -> int:
     return int.from_bytes(b, byteorder)
 
 
-def int_to_bytes(i: int, length,  byteorder="big"):
+def int_to_bytes(i: int, length,  byteorder="big") -> bytes:
     return i.to_bytes(length, byteorder)
 
 

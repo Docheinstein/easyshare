@@ -1,7 +1,8 @@
-from typing import Optional, Union
+from typing import Union
 
 from easyshare.logging import get_logger
 from easyshare.sockets import SocketTcp
+from easyshare.tracing import is_tracing_enabled, trace_in, trace_out
 from easyshare.utils.types import btoi, itob
 
 log = get_logger(__name__)
@@ -12,12 +13,14 @@ class StreamClosedError(ValueError):
 class Stream:
     def __init__(self, socket: SocketTcp):
         self._socket = socket
+        self._remote_addr = socket.remote_address()
+        self._remote_port = socket.remote_port()
         self._is_open = True
 
     def is_open(self):
         return self._is_open
 
-    def read(self) -> bytearray:
+    def read(self, *, trace: bool = False) -> bytearray:
         # recv() the HEADER (2 bytes)
 
         header_data = self._socket.recv(4)
@@ -39,9 +42,12 @@ class Stream:
 
         log.d("stream.recv() - received payload of %d", len(payload_data))
 
+        if trace and is_tracing_enabled():
+            trace_in(repr(bytes(payload_data)), ip=self._remote_addr, port=self._remote_port)
+
         return payload_data
 
-    def write(self, /, payload_data: Union[bytearray, bytes]):
+    def write(self, /, payload_data: Union[bytearray, bytes], *, trace: bool = False):
         payload_size = len(payload_data)
         header = itob(payload_size, 4)
 
@@ -50,6 +56,9 @@ class Stream:
         data += payload_data
 
         log.d("stream.send() - sending %s", repr(data))
+
+        if trace and is_tracing_enabled():
+            trace_out(repr(bytes(payload_data)), ip=self._remote_addr, port=self._remote_port)
 
         self._socket.send(data)
 

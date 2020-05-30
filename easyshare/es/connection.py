@@ -160,7 +160,7 @@ class ConnectionMinimal:
         if self._connected_to_server:
             try:
                 log.d("Really sending disconnect()")
-                resp = self._call(create_request(Requests.DISCONNECT))
+                resp = self.call(create_request(Requests.DISCONNECT))
             except:
                 log.w("Failed to close sharing connection gracefully, "
                       "invaliding it anyway")
@@ -175,7 +175,7 @@ class ConnectionMinimal:
         if self._connected_to_sharing:
             try:
                 log.d("Really sending close()")
-                resp = self._call(create_request(Requests.CLOSE))
+                resp = self.call(create_request(Requests.CLOSE))
             except:
                 log.w("Failed to close sharing connection gracefully, "
                       "invaliding it anyway")
@@ -199,7 +199,7 @@ class ConnectionMinimal:
 
 
     def connect(self, passwd) -> Response:
-        resp = self._call(create_request(Requests.CONNECT, {
+        resp = self.call(create_request(Requests.CONNECT, {
             RequestsParams.CONNECT_PASSWORD: passwd
         }))
 
@@ -218,15 +218,15 @@ class ConnectionMinimal:
 
     @handle_connection_response
     def info(self) -> Response:
-        return self._call(create_request(Requests.INFO))
+        return self.call(create_request(Requests.INFO))
 
     @handle_connection_response
     def list(self) -> Response:
-        return self._call(create_request(Requests.LIST))
+        return self.call(create_request(Requests.LIST))
 
     @handle_connection_response
     def ping(self) -> Response:
-        return self._call(create_request(Requests.PING))
+        return self.call(create_request(Requests.PING))
 
 
     # === REAL SERVER FUNCS ===
@@ -235,7 +235,7 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_server_connection
     def open(self, sharing_name) -> Response:
-        resp = self._call(create_request(Requests.OPEN, {
+        resp = self.call(create_request(Requests.OPEN, {
             RequestsParams.OPEN_SHARING: sharing_name
         }))
 
@@ -250,14 +250,14 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_server_connection
     def rexec(self, cmd: str) -> Response:
-        return self._call(create_request(Requests.OPEN, {
+        return self.call(create_request(Requests.REXEC, {
             RequestsParams.REXEC_CMD: cmd
         }))
 
     @handle_connection_response
     @require_server_connection
     def rshell(self) -> Response:
-        return self._call(create_request(Requests.RSHELL))
+        return self.call(create_request(Requests.RSHELL))
 
 
     # === REAL SHARING FUNCS ===
@@ -282,7 +282,7 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_sharing_connection
     def rcd(self, path) -> Response:
-        resp = self._call(create_request(Requests.RCD, {
+        resp = self.call(create_request(Requests.RCD, {
             RequestsParams.RCD_PATH: path
         }))
 
@@ -295,7 +295,7 @@ class ConnectionMinimal:
     @require_sharing_connection
     def rls(self, sort_by: List[str], reverse: bool = False,
             hidden: bool = False,  path: str = None) -> Response:
-        return self._call(create_request(Requests.RLS, {
+        return self.call(create_request(Requests.RLS, {
             RequestsParams.RLS_PATH: path,
             RequestsParams.RLS_SORT_BY: sort_by,
             RequestsParams.RLS_REVERSE: reverse,
@@ -306,7 +306,7 @@ class ConnectionMinimal:
     @require_sharing_connection
     def rtree(self, sort_by: List[str], reverse=False, hidden: bool = False,
               max_depth: int = int, path: str = None) -> Response:
-        return self._call(create_request(Requests.RTREE, {
+        return self.call(create_request(Requests.RTREE, {
             RequestsParams.RTREE_PATH: path,
             RequestsParams.RTREE_SORT_BY: sort_by,
             RequestsParams.RTREE_REVERSE: reverse,
@@ -317,21 +317,21 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_sharing_connection
     def rmkdir(self, directory) -> Response:
-        return self._call(create_request(Requests.RMKDIR, {
+        return self.call(create_request(Requests.RMKDIR, {
             RequestsParams.RMKDIR_PATH: directory
         }))
 
     @handle_connection_response
     @require_sharing_connection
     def rrm(self, paths: List[str]) -> Response:
-        return self._call(create_request(Requests.RRM, {
+        return self.call(create_request(Requests.RRM, {
             RequestsParams.RRM_PATHS: paths
         }))
 
     @handle_connection_response
     @require_sharing_connection
     def rmv(self, sources: List[str], destination: str) -> Response:
-        return self._call(create_request(Requests.RRM, {
+        return self.call(create_request(Requests.RRM, {
             RequestsParams.RMV_SOURCES: sources,
             RequestsParams.RMV_DESTINATION: destination
         }))
@@ -339,7 +339,7 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_sharing_connection
     def rcp(self, sources: List[str], destination: str) -> Response:
-        return self._call(create_request(Requests.RCP, {
+        return self.call(create_request(Requests.RCP, {
             RequestsParams.RCP_SOURCES: sources,
             RequestsParams.RCP_DESTINATION: destination
         }))
@@ -347,7 +347,7 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_sharing_connection
     def get(self, paths: List[str], check: bool) -> Response:
-        return self._call(create_request(Requests.GET, {
+        return self.call(create_request(Requests.GET, {
             RequestsParams.GET_PATHS: paths,
             RequestsParams.GET_CHECK: check
         }))
@@ -355,7 +355,7 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_sharing_connection
     def put(self, check: bool) -> Response:
-        return self._call(create_request(Requests.PUT, {
+        return self.call(create_request(Requests.PUT, {
             RequestsParams.PUT_CHECK: check
         }))
 
@@ -363,15 +363,15 @@ class ConnectionMinimal:
     # === INTERNALS ===
 
 
-    def _call(self, req: Request) -> Response:
+    def call(self, req: Request) -> Response:
         # Trace OUT
         if is_tracing_enabled():  # check for avoid json_pretty_str call
             trace_out(f"{j(req)}",
                      ip=self._server_ip,
                      port=self._server_port)
 
-        self._write(jtob(req))
-        resp = btoj(self._read())
+        self.write(jtob(req))
+        resp = btoj(self.read())
 
         # Trace IN
         if is_tracing_enabled():  # check for avoid json_pretty_str call
@@ -381,23 +381,23 @@ class ConnectionMinimal:
 
         return resp
 
-    def _write(self, data: Union[bytes, bytearray]):
+    def write(self, data: Union[bytes, bytearray], trace: bool = False):
         if not self.is_established():
             raise ConnectionError("Connection closed")
 
         try:
-            self._stream.write(data)
+            self._stream.write(data, trace=trace)
         except:
             self._destroy_stream()
             raise ConnectionError("Write failed")
 
 
-    def _read(self) -> bytearray:
+    def read(self, trace: bool = False) -> bytearray:
         if not self.is_established():
             raise ConnectionError("Connection closed")
 
         try:
-            return self._stream.read()
+            return self._stream.read(trace=trace)
         except:
             self._destroy_stream()
             raise ConnectionError("Write failed")

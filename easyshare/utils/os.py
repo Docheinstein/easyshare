@@ -258,7 +258,7 @@ def run_detached(cmd: str,
     The stdin can be provided writing on proc.stdin of this subprocess
     """
 
-    def proc_handler(proc: subprocess.Popen):
+    def out_handler(proc: subprocess.Popen):
         flags = fcntl.fcntl(proc.stdout, fcntl.F_GETFL)
         fcntl.fcntl(proc.stdout, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
@@ -289,10 +289,11 @@ def run_detached(cmd: str,
                                   stderr=subprocess.PIPE,
                                   stdin=subprocess.PIPE)
 
-    proc_handler_th = threading.Thread(target=proc_handler, daemon=True, args=(popen_proc, ))
-    proc_handler_th.start()
+    proc_out_handler_th = threading.Thread(
+        target=out_handler, daemon=True, args=(popen_proc, ))
+    proc_out_handler_th.start()
 
-    return popen_proc, proc_handler_th
+    return popen_proc, proc_out_handler_th
 
 def pty_attached(cmd: str = "/bin/sh") -> int:
     """
@@ -342,7 +343,7 @@ def pty_detached(out_hook: Callable[[str], None],
         retcode = 0
         while True:
             try:
-                data = ptyproc._read()
+                data = ptyproc.read()
                 out_hook(data)
             except EOFError:
                 break # CTRL+D => quit the shell

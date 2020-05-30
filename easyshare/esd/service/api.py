@@ -10,7 +10,8 @@ from easyshare.esd.daemons.api import get_api_daemon
 from easyshare.esd.service.execution.rexec import RexecService
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams, RequestsParams
-from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response
+from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response, \
+    create_error_of_response
 from easyshare.protocol.stream import StreamClosedError
 from easyshare.protocol.types import ServerInfo, FTYPE_DIR
 from easyshare.sockets import SocketTcp
@@ -18,9 +19,9 @@ from easyshare.ssl import get_ssl_context
 from easyshare.styling import green, red
 from easyshare.tracing import trace_in, trace_out, is_tracing_enabled
 from easyshare.utils.json import btoj, jtob, j
-from easyshare.utils.os import is_unix, ls, os_error_str, tree
+from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm
 from easyshare.utils.str import q
-from easyshare.utils.types import is_str, is_list, is_bool
+from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list
 
 log = get_logger(__name__)
 
@@ -183,7 +184,10 @@ class ClientHandler:
             Requests.RPWD: self._rpwd,
             Requests.RLS: self._rls,
             Requests.RTREE: self._rtree,
-            # Requests.RTREE: self._rls,
+            Requests.RMKDIR: self._rmkdir,
+            Requests.RRM: self._rrm,
+            Requests.RMV: self._rmv,
+            Requests.RCP: self._rcp,
             "sleep": self._sleep
         }
 
@@ -359,8 +363,6 @@ class ClientHandler:
         retcode = rexec_service.run()
 
         log.d("Rexec finished")
-
-        return create_success_response(retcode)
 
     # rshell
 
@@ -566,6 +568,268 @@ class ClientHandler:
         log.i("RTREE response %s", j(tree_root))
 
         return create_success_response(tree_root)
+
+    @require_sharing_connection
+    @require_d_sharing
+    @require_write_permission
+    def _rmkdir(self, params: RequestParams):
+        directory = params.get(RequestsParams.RMKDIR_PATH)
+
+        if not is_str(directory):
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+
+        log.i("<< RMKDIR %s  |  %s", directory, self._client)
+
+        directory_fpath = self._fpath_joining_rcwd_and_spath(directory)
+        log.d("Would create directory: %s", directory_fpath)
+
+        # Check if it's inside the sharing domain
+        if not self._is_fpath_allowed(directory_fpath):
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(directory))
+
+        log.i("Going to mkdir on valid path %s", directory_fpath)
+
+        try:
+            directory_fpath.mkdir(parents=True)
+            # OK - report it
+            print(f"[{self._client.tag}] rmkdir '{directory_fpath}' "
+                  f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+        except PermissionError:
+            log.exception("rmkdir exception occurred")
+            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
+                                               directory_fpath)
+        except FileExistsError:
+            log.exception("rmkdir exception occurred")
+            return self._create_error_response(ServerErrors.DIRECTORY_ALREADY_EXISTS,
+                                               directory_fpath)
+        except OSError as oserr:
+            log.exception("rmkdir exception occurred")
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               os_error_str(oserr),
+                                               directory_fpath)
+        except Exception as exc:
+            log.exception("rmkdir exception occurred")
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               exc,
+                                               directory_fpath)
+
+        return create_success_response()
+
+    @require_sharing_connection
+    @require_d_sharing
+    @require_write_permission
+    def _rrm(self, params: RequestParams):
+
+        paths = params.get(RequestsParams.RRM_PATHS)
+
+        if not is_valid_list(paths, str):
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        log.i("<< RRM %s  |  %s", paths, self._client)
+
+        errors = []
+        def handle_rm_error(exc: Exception, path: Path):
+            if isinstance(exc, PermissionError):
+                log.exception("rrm exception occurred")
+                errors.append(create_error_of_response(ServerErrors.RM_PERMISSION_DENIED,
+                                                       *self._qspathify(path)))
+            elif isinstance(exc, FileNotFoundError):
+                log.exception("rrm exception occurred")
+                errors.append(create_error_of_response(ServerErrors.RM_NOT_EXISTS,
+                                                       *self._qspathify(path)))
+            elif isinstance(exc, OSError):
+                log.exception("rrm exception occurred")
+                errors.append(create_error_of_response(ServerErrors.RM_OTHER_ERROR,
+                                                       os_error_str(exc),
+                                                       *self._qspathify(path)))
+            else:
+                log.exception("rrm exception occurred")
+                errors.append(create_error_of_response(ServerErrors.RM_OTHER_ERROR,
+                                                       exc,
+                                                       *self._qspathify(path)))
+
+        for p in paths:
+            fpath = self._fpath_joining_rcwd_and_spath(p)
+
+            if self._is_fpath_allowed(fpath):
+                errcnt = len(errors)
+                rm(fpath, error_callback=handle_rm_error)
+                new_errcnt = len(errors)
+                # OK - report it (even if failures might happen within it)
+                #    - at least notify the number of failures, if any
+                failures_str = f"- {new_errcnt - errcnt} failures " if new_errcnt > errcnt else ""
+                report = (f"[{self._client.tag}] rrm '{fpath}' {failures_str}"
+                          f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+                print(report)
+            else:
+                log.e("Path is invalid (out of sharing domain)")
+                errors.append(create_error_of_response(ServerErrors.INVALID_PATH, q(p)))
+
+        if errors:
+            return create_error_response(errors)
+
+        return create_success_response()
+
+
+    @require_sharing_connection
+    @require_d_sharing
+    @require_write_permission
+    def _rcp(self, params: RequestParams):
+        sources = params.get(RequestsParams.RCP_SOURCES)
+        dest = params.get(RequestsParams.RCP_DESTINATION)
+
+        errors = []
+
+        def handle_errno(errno: int, *subjects):
+            errors.append(create_error_of_response(errno, *subjects))
+
+        def handle_cp_exception(exc: Exception, src: FPath, dst: FPath):
+            if isinstance(exc, PermissionError):
+                log.exception("rcp exception occurred")
+                errors.append(create_error_of_response(ServerErrors.CP_PERMISSION_DENIED,
+                                                       *self._qspathify(src, dst)))
+            elif isinstance(exc, FileNotFoundError):
+                log.exception("rcp exception occurred")
+                errors.append(create_error_of_response(ServerErrors.CP_NOT_EXISTS,
+                                                       *self._qspathify(src, dst)))
+            elif isinstance(exc, OSError):
+                log.exception("rcp exception occurred")
+                errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
+                                                       os_error_str(exc), *self._qspathify(src, dst)))
+            else:
+                log.exception("rcp exception occurred")
+                errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
+                                                       exc, *self._qspathify(src, dst)))
+
+        resp = self._rmvcp(sources, dest, cp, "rcp",
+                           errno_callback=handle_errno,
+                           exception_callback=handle_cp_exception)
+        if resp:
+            return resp  # e.g. invalid path
+
+        if errors:
+            return create_error_response(errors)  # e.g. permission denied
+
+        return create_success_response()
+
+
+    @require_sharing_connection
+    @require_d_sharing
+    @require_write_permission
+    def _rmv(self, params: RequestParams):
+        sources = params.get(RequestsParams.RMV_SOURCES)
+        dest = params.get(RequestsParams.RMV_DESTINATION)
+
+        errors = []
+
+        def handle_errno(errno: int, *subjects):
+            errors.append(create_error_of_response(errno, *subjects))
+
+        def handle_mv_exception(exc: Exception, src: FPath, dst: FPath):
+            if isinstance(exc, PermissionError):
+                log.exception("rmv exception occurred")
+                errors.append(create_error_of_response(ServerErrors.MV_PERMISSION_DENIED,
+                                                       *self._qspathify(src, dst)))
+            elif isinstance(exc, FileNotFoundError):
+                log.exception("rmv exception occurred")
+                errors.append(create_error_of_response(ServerErrors.MV_NOT_EXISTS,
+                                                       *self._qspathify(src, dst)))
+            elif isinstance(exc, OSError):
+                log.exception("rmv exception occurred")
+                errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
+                                                       os_error_str(exc), *self._qspathify(src, dst)))
+            else:
+                log.exception("rmv exception occurred")
+                errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
+                                                       exc, *self._qspathify(src, dst)))
+
+        resp = self._rmvcp(sources, dest, mv, "rmv",
+                           errno_callback=handle_errno,
+                           exception_callback=handle_mv_exception)
+
+        if resp:
+            return resp  # e.g. invalid path
+
+        if errors:
+            return create_error_response(errors)  # e.g. permission denied
+
+        return create_success_response()
+
+
+
+    def _rmvcp(self,
+               sources: List[str], destination: str,
+               primitive: Callable[[Path, Path], bool],
+               primitive_name: str = "mv/cp",
+               errno_callback: Callable[..., None] = None,
+               exception_callback: Callable[[Exception, FPath, FPath], None] = None) -> Optional[Response]:
+
+        # mv <src>... <dest>
+        #
+        # A1  At least two parameters
+        # A2  If a <src> doesn't exist => IGNORES it
+        #
+        # 2 args:
+        # B1  If <dest> exists
+        #     B1.1    If type of <dest> is DIR => put <src> into <dest> anyway
+        #
+        #     B1.2    If type of <dest> is FILE
+        #         B1.2.1  If type of <src> is DIR => ERROR
+        #         B1.2.2  If type of <src> is FILE => OVERWRITE
+        # B2  If <dest> doesn't exist => preserve type of <src>
+        #
+        # 3 args:
+        # C1  if <dest> exists => must be a dir
+        # C2  If <dest> doesn't exist => ERROR
+
+        if not is_valid_list(sources, str) or not is_str(destination):
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        destination_fpath = self._fpath_joining_rcwd_and_spath(destination)
+
+        if not self._is_fpath_allowed(destination_fpath):
+            log.e("Path is invalid (out of sharing domain)")
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(destination))
+
+        # sources_paths will be checked after, since if we are copy more than
+        # a file and only one is invalid we won't throw a global exception
+
+        # C1/C2 check: with 3+ arguments
+        if len(sources) >= 2:
+            # C1  if <dest> exists => must be a dir
+            # C2  If <dest> doesn't exist => ERROR
+            # => must be a valid dir
+            if not destination_fpath.is_dir():
+                log.e("'%s' must be an existing directory", destination_fpath)
+                return self._create_error_response(ServerErrors.NOT_A_DIRECTORY, destination_fpath)
+
+
+        log.i("<< %s %s %s  |  %s",
+              primitive_name.upper(), sources, destination, self._client)
+
+        for source_path in sources:
+            source_fpath = self._fpath_joining_rcwd_and_spath(source_path)
+
+            # Path validity check
+            if self._is_fpath_allowed(source_fpath):
+                try:
+                    log.i("%s %s -> %s", primitive_name, source_fpath, destination_fpath)
+                    primitive(source_fpath, destination_fpath)
+                    # OK - report it
+                    print(f"[{self._client.tag}] {primitive_name} '{source_fpath}' '{destination_fpath}' "
+                          f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+                except Exception as ex:
+                    if exception_callback:
+                        exception_callback(ex, source_fpath, destination_fpath)
+            else:
+                log.e("Path is invalid (out of sharing domain)")
+
+                if errno_callback:
+                    errno_callback(ServerErrors.INVALID_PATH, q(source_path))
+
+        return None
+
 
 
     def _create_error_response(self,

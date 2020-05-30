@@ -1,10 +1,13 @@
-from easyshare.consts.os import STDOUT, STDERR
+import subprocess
+import threading
+from typing import Optional
 
 from easyshare.esd.common import ClientContext
 from easyshare.esd.services.execution import BlockingBuffer
 from easyshare.logging import get_logger
+from easyshare.protocol.types import RexecEventType
 from easyshare.utils.os import run_detached
-from easyshare.utils.types import stob
+from easyshare.utils.types import stob, btos, itob
 
 log = get_logger(__name__)
 
@@ -12,114 +15,69 @@ log = get_logger(__name__)
 # ============== REXEC SERVICE ==============
 # =============================================
 
-class RexecService():
+class RexecService:
 
     def __init__(self, client: ClientContext, cmd: str):
         self._client = client
         self._cmd = cmd
         self._buffer = BlockingBuffer()
-        # self.proc: Optional[subprocess.Popen] = None
-        # self.proc_handler: Optional[threading.Thread] = None
-
-    # @expose
-    # @trace_api
-    # @check_sharing_service_owner_address
-    # @try_or_command_failed_response
-    # def recv(self) -> Response:
-    #     client_endpoint = pyro_client_endpoint()
-    #
-    #     log.i(">> REXEC RECV [%s]", client_endpoint)
-    #
-    #     buf = None
-    #     while not buf:  # avoid spurious wake ups
-    #         buf = self._buffer.pull()
-    #
-    #     stdout = []
-    #     stderr = []
-    #     retcode = None
-    #
-    #     for v in buf:
-    #         if is_int(v):
-    #             retcode = v
-    #         elif len(v) == 2:
-    #             if v[1] == STDOUT:
-    #                 stdout.append(v[0])
-    #             elif v[1] == STDERR:
-    #                 stderr.append(v[0])
-    #
-    #     data = {
-    #         "stdout": stdout,
-    #         "stderr": stderr,
-    #     }
-    #
-    #     if retcode is not None:
-    #         # Command finished, notify the remote and close the service
-    #         data["retcode"] = retcode
-    #
-    #         self.unpublish()  # job finished
-    #
-    #     return create_success_response(data)
-    #
-    # @expose
-    # @trace_api
-    # @check_sharing_service_owner_address
-    # @try_or_command_failed_response
-    # def send_data(self, data: str) -> Response:
-    #     client_endpoint = pyro_client_endpoint()
-    #
-    #     log.i(">> REXEC SEND (%s) [%s]", data, client_endpoint)
-    #
-    #     if not data:
-    #         return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-    #
-    #     self.proc.stdin.write(data)
-    #     self.proc.stdin.flush()
-    #
-    #     return create_success_response()
-
-    # @expose
-    # @trace_api
-    # @check_sharing_service_owner_address
-    # @try_or_command_failed_response
-    # def send_event(self, ev: int) -> Response:
-    #     client_endpoint = pyro_client_endpoint()
-    #
-    #     log.i(">> REXEC SEND EVENT (%d) [%s]", ev, client_endpoint)
-    #
-    #     if ev == IRexecService.Event.TERMINATE:
-    #         log.d("Sending SIGTERM")
-    #         self.proc.terminate()
-    #     elif ev == IRexecService.Event.EOF:
-    #         log.d("Sending EOF")
-    #         self.proc.stdin.close()
-    #     else:
-    #         return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-    #
-    #     return create_success_response()
+        self._proc: Optional[subprocess.Popen] = None
+        self._proc_out_handler: Optional[threading.Thread] = None
 
     def run(self) -> int:
-        proc, proc_handler = run_detached(
+        # Bind server stdout/stderr and send those to client
+        self._proc, self._proc_out_handler = run_detached(
             self._cmd,
             stdout_hook=self._stdout_hook,
             stderr_hook=self._stderr_hook,
             end_hook=self._end_hook
         )
-        proc_handler.join()
-        return proc.returncode
+
+        # Receive stdin from client
+        stdin_th = threading.Thread(target=self._stdin_receiver)
+        stdin_th.start()
+
+        stdin_th.join()
+        self._proc_out_handler.join()
+
+        return self._proc.returncode
+
+    def _stdin_receiver(self):
+        while True:
+            in_b = self._client.stream.read(trace=True)
+            event_type: int = in_b[0]
+            log.d("Event type = %d", event_type)
+
+            if event_type == RexecEventType.TEXT:
+                text = btos(in_b[1:])
+                log.d("< %s", text)
+                self._proc.stdin.write(text)
+                self._proc.stdin.flush()
+            elif event_type == RexecEventType.EOF:
+                log.d("< EOF")
+                self._proc.stdin.close()
+            elif event_type == RexecEventType.KILL:
+                log.d("< KILL")
+                self._proc.terminate()
+            elif event_type == RexecEventType.ENDACK:
+                log.d("< ENDACK")
+                break
+            else:
+                log.w("Can't handle event of type %d", event_type)
 
     def _stdout_hook(self, text: str):
         log.d("> %s", text)
-        # self._buffer.push((line, STDOUT))
-        self._client.stream._write(stob(text))
+        self._client.stream.write(RexecEventType.TEXT_B + stob(text), trace=True)
 
     def _stderr_hook(self, text: str):
         log.w("> %s", text)
-        # self._buffer.push((line, STDERR))
-        self._client.stream._write(stob(text))
+        self._client.stream.write(RexecEventType.TEXT_B + stob(text), trace=True)
 
 
     def _end_hook(self, retcode):
         log.d("END %d", retcode)
-        self._client.stream._write(b"")
-        # self._buffer.push(retcode)
+        self._client.stream.write(
+            RexecEventType.RETCODE_B + itob(retcode % 255, length=1),
+            trace=True
+        )
 
