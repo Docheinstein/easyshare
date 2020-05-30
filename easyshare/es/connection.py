@@ -151,13 +151,8 @@ class ConnectionMinimal:
         log.d("Destroying connection")
         self.destroy_sharing_connection()
         self.destroy_server_connection()
-        if self._stream:
-            try:
-                log.d("Really sending close()")
-                self._stream.close()
-            except:
-                log.w("Socket close failed")
-            self._stream = None
+        self._destroy_stream()
+
 
     def destroy_server_connection(self) -> Optional[Response]:
         log.d("Destroying server connection")
@@ -179,6 +174,7 @@ class ConnectionMinimal:
         resp = None
         if self._connected_to_sharing:
             try:
+                log.d("Really sending close()")
                 resp = self._call(create_request(Requests.CLOSE))
             except:
                 log.w("Failed to close sharing connection gracefully, "
@@ -188,6 +184,16 @@ class ConnectionMinimal:
         self._sharing_name = None
         self._rcwd = None
         return resp
+
+    def _destroy_stream(self):
+        if self._stream:
+            try:
+                log.d("Closing underlying socket")
+                self._stream.close()
+            except:
+                log.w("Failed to close socket gracefully")
+            self._stream = None
+
 
     # === CONNECTION ESTABLISHMENT ===
 
@@ -382,8 +388,7 @@ class ConnectionMinimal:
         try:
             self._stream.write(data)
         except:
-            log.e("Write failed - destroying connection")
-            self.destroy_connection()
+            self._destroy_stream()
             raise ConnectionError("Write failed")
 
 
@@ -394,8 +399,7 @@ class ConnectionMinimal:
         try:
             return self._stream.read()
         except:
-            log.e("Read failed - destroying connection")
-            self.destroy_connection()
+            self._destroy_stream()
             raise ConnectionError("Write failed")
 
 

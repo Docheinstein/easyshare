@@ -262,7 +262,7 @@ class RemoteFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
         path_dir, path_trail = os.path.split(pattern)
 
         log.i("rls-ing on %s", pattern)
-        resp = client.sharing_connection.rls(sort_by=["name"], path=path_dir)
+        resp = client.connection.rls(sort_by=["name"], path=path_dir)
 
         if not is_data_response(resp):
             log.w("Unable to retrieve a valid response for rls")

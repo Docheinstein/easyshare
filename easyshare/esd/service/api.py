@@ -1,28 +1,33 @@
 import threading
 import time
-from typing import List, Dict, Callable, Optional
+from pathlib import Path
+from typing import List, Dict, Callable, Optional, Union
 
 from easyshare.auth import Auth
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import Sharing, ClientContext
 from easyshare.esd.daemons.api import get_api_daemon
 from easyshare.esd.service.execution.rexec import RexecService
-from easyshare.esd.services import FPath
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams, RequestsParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response
 from easyshare.protocol.stream import StreamClosedError
-from easyshare.protocol.types import ServerInfo
+from easyshare.protocol.types import ServerInfo, FTYPE_DIR
 from easyshare.sockets import SocketTcp
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import green, red
 from easyshare.tracing import trace_in, trace_out, is_tracing_enabled
 from easyshare.utils.json import btoj, jtob, j
-from easyshare.utils.os import is_unix
+from easyshare.utils.os import is_unix, ls, os_error_str, tree
 from easyshare.utils.str import q
+from easyshare.utils.types import is_str, is_list, is_bool
 
 log = get_logger(__name__)
 
+
+# SPath and FPath are Path with a different semantic:
+SPath = Path # sharing path, is relative and bounded to the sharing domain
+FPath = Path # file system path, absolute, starts from the server's file system root
 
 class ApiService:
     def __init__(self, *,
@@ -91,7 +96,7 @@ class ApiService:
 def require_server_connection(api):
     def require_server_connection_wrapper(handler: 'ClientHandler', params: RequestParams):
         if not handler._connected_to_server:
-            return create_error_response(ServerErrors.NOT_CONNECTED)
+            return handler._create_error_response(ServerErrors.NOT_CONNECTED)
         return api(handler, params)
     return require_server_connection_wrapper
 
@@ -99,7 +104,7 @@ def require_server_connection(api):
 def require_sharing_connection(api):
     def require_sharing_connection_wrapper(handler: 'ClientHandler', params: RequestParams):
         if not handler._connected_to_sharing:
-            return create_error_response(ServerErrors.NOT_CONNECTED)
+            return handler._create_error_response(ServerErrors.NOT_CONNECTED)
         return api(handler, params)
     return require_sharing_connection_wrapper
 
@@ -108,7 +113,7 @@ def require_sharing_connection(api):
 def require_unix(api):
     def require_unix_wrapper(handler: 'ClientHandler', params: RequestParams):
         if not is_unix():
-            return create_error_response(ServerErrors.SUPPORTED_ONLY_FOR_UNIX)
+            return handler._create_error_response(ServerErrors.SUPPORTED_ONLY_FOR_UNIX)
         return api(handler, params)
     return require_unix_wrapper
 
@@ -117,9 +122,37 @@ def require_unix(api):
 def require_rexec_enabled(api):
     def require_rexec_enabled_wrapper(handler: 'ClientHandler', params: RequestParams):
         if not handler._api_service.is_rexec_enabled():
-            return create_error_response(ServerErrors.REXEC_DISABLED)
+            return handler._create_error_response(ServerErrors.REXEC_DISABLED)
         return api(handler, params)
     return require_rexec_enabled_wrapper
+
+
+# decorator
+def require_d_sharing(api):
+    """
+    Decorator that aborts the requests if the sharing is not a "directory sharing"
+    """
+    def require_d_sharing_wrapper(handler: 'ClientHandler', params: RequestParams):
+        if handler._current_sharing.ftype != FTYPE_DIR:
+            log.e("Forbidden: command allowed only for DIR sharing by [%s]", handler._client)
+            return handler._create_error_response(ServerErrors.NOT_ALLOWED_FOR_F_SHARING)
+        return api(handler, params)
+
+    return require_d_sharing_wrapper
+
+# decorator
+def require_write_permission(api):
+    """
+    Decorator that aborts the request if a write operation
+    is performed on a readonly sharing.
+    """
+    def require_write_permission_wraper(handler: 'ClientHandler', params: RequestParams):
+        if handler._current_sharing.read_only:
+            log.e("Forbidden: write action on read only sharing by [%s]", handler._client)
+            return handler._create_error_response(ServerErrors.NOT_WRITABLE)
+        return api(handler, params)
+
+    return require_write_permission_wraper
 
 
 class ClientHandler:
@@ -134,7 +167,7 @@ class ClientHandler:
             # True is after connect() - False is after disconnect()
         self._connected_to_sharing: bool = False
         self._current_sharing: Optional[Sharing] = None
-        self._current_rcwd: Optional[FPath] = None
+        self._current_rcwd_fpath: Optional[FPath] = None
 
         self._request_dispatcher: Dict[str, Callable[[RequestParams], Response]] = {
             Requests.CONNECT: self._connect,
@@ -145,8 +178,20 @@ class ClientHandler:
             Requests.OPEN: self._open,
             Requests.CLOSE: self._close,
             Requests.REXEC: self._rexec,
+            # Requests.RSHELL: self._rexec,
+            Requests.RCD: self._rcd,
+            Requests.RPWD: self._rpwd,
+            Requests.RLS: self._rls,
+            Requests.RTREE: self._rtree,
+            # Requests.RTREE: self._rls,
             "sleep": self._sleep
         }
+
+
+    @property
+    def _current_rcwd_spath(self) -> SPath:
+        return self._spath_rel_to_root_of_fpath(self._current_rcwd_fpath)
+
 
     def handle(self):
         log.i("Handling client %s", self._client)
@@ -203,10 +248,10 @@ class ClientHandler:
                 resp_payload = self._handle_request(req_payload)
             except:
                 log.exception("Exception occurred while handling request")
-                resp_payload = create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+                resp_payload = self._create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
         else:
             log.e("Invalid request - discarding it: %s", req_payload)
-            resp_payload = create_error_response(ServerErrors.INVALID_REQUEST)
+            resp_payload = self._create_error_response(ServerErrors.INVALID_REQUEST)
 
         # Send the response
         self._send_response(resp_payload)
@@ -215,10 +260,10 @@ class ClientHandler:
     def _handle_request(self, request: Request) -> Response:
         api = request.get("api")
         if not api:
-            return create_error_response(ServerErrors.INVALID_REQUEST)
+            return self._create_error_response(ServerErrors.INVALID_REQUEST)
 
         if api not in self._request_dispatcher:
-            return create_error_response(ServerErrors.UNKNOWN_API)
+            return self._create_error_response(ServerErrors.UNKNOWN_API)
 
         return self._request_dispatcher[api](request.get("params", {}))
 
@@ -243,6 +288,8 @@ class ClientHandler:
         return create_success_response()
 
 
+    # == SERVER COMMANDS ==
+
     def _connect(self, params: RequestParams) -> Response:
         log.i("<< CONNECT  |  %s", self._client)
 
@@ -259,7 +306,7 @@ class ClientHandler:
         # (The password can either be none/plain/hash, the auth handles them all)
         if not self._api_service.auth().authenticate(password):
             log.e("Authentication FAILED")
-            return create_error_response(ServerErrors.AUTHENTICATION_FAILED)
+            return self._create_error_response(ServerErrors.AUTHENTICATION_FAILED)
         else:
             log.i("Authentication OK")
 
@@ -294,42 +341,6 @@ class ClientHandler:
         log.i("<< PING  |  %s", self._client)
         return create_success_response("pong")
 
-    @require_server_connection
-    def _open(self, params: RequestParams):
-        sharing_name = params.get(RequestsParams.OPEN_SHARING)
-
-        if not sharing_name:
-            return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        sharing: Sharing = self._api_service.sharings().get(sharing_name)
-
-        if not sharing:
-            return create_error_response(ServerErrors.SHARING_NOT_FOUND, q(sharing_name))
-
-        log.i("<< OPEN %s |  %s", sharing_name, self._client)
-
-        self._connected_to_sharing = True
-        self._current_sharing = sharing
-        self._current_rcwd = sharing.path
-
-        print(f"[{self._client.tag}] open '{sharing.name}'"
-              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
-
-        return create_success_response()
-
-
-    @require_sharing_connection
-    def _close(self, _: RequestParams):
-        log.i("<< CLOSE  |  %s", self._client)
-
-        print(f"[{self._client.tag}] close "
-              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
-
-        self._connected_to_sharing = False
-        self._current_sharing = None
-        self._current_rcwd = None
-
-        return create_success_response()
 
     @require_server_connection
     @require_unix
@@ -337,7 +348,7 @@ class ClientHandler:
     def _rexec(self, params: RequestParams):
         cmd = params.get("cmd")
         if not cmd:
-            create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+            self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         log.i("<< REXEC %s |  %s", cmd, self._client)
 
@@ -351,100 +362,319 @@ class ClientHandler:
 
         return create_success_response(retcode)
 
-    # @expose
-    # @trace_api
-    # @require_connected_client
-    # @try_or_command_failed_response
-    # def open(self, sharing_name: str) -> Response:
-    #     if not sharing_name:
-    #         return create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-    #
-    #     sharing: Sharing = self._sharings.get(sharing_name)
-    #
-    #     if not sharing:
-    #         return create_error_response(ServerErrors.SHARING_NOT_FOUND, q(sharing_name))
-    #
-    #     client = self._current_request_client()
-    #
-    #     log.i("<< OPEN %s [%s]", sharing_name, client)
-    #
-    #     serving = SharingService(
-    #         server_port=self._port,
-    #         sharing=sharing,
-    #         sharing_rcwd=sharing.path,
-    #         client=client
-    #     )
-    #
-    #     uid = serving.publish()
-    #
-    #     log.i("Opened sharing UID: %s", uid)
-    #
-    #     print(f"[{client.tag}] open '{sharing_name}'")
-    #
-    #     return create_success_response(uid)
-    #
-    #
+    # rshell
 
-    # @expose
-    # @trace_api
-    # @try_or_command_failed_response
-    # def rexec(self, cmd: str) -> Response:
-    #     if not self._rexec_enabled:
-    #         log.w("Client attempted remote command execution; denying since rexec is disabled")
-    #         return create_error_response(ServerErrors.NOT_ALLOWED)
-    #
-    #     # Check that we are on Unix
-    #
-    #     if not is_unix():
-    #         log.w("rexec not supported on this platform")
-    #         return create_error_response(ServerErrors.SUPPORTED_ONLY_FOR_UNIX)
-    #
-    #
-    #     client = self._current_request_client()
-    #     if not client:
-    #         return create_error_response(ServerErrors.NOT_CONNECTED)
-    #
-    #     log.i(">> REXEC %s [%s]", cmd, client)
-    #
-    #     rx = RexecService(
-    #         cmd,
-    #         client=client
-    #     )
-    #     rx.run()
-    #
-    #     uri = rx.publish()
-    #
-    #     log.d("Rexec handler initialized; uri: %s", uri)
-    #
-    #     print(f"[{client.tag}] rexec '{cmd}'")
-    #
-    #     return create_success_response(uri)
-    #
-    # @expose
-    # @trace_api
-    # @try_or_command_failed_response
-    # def rshell(self) -> Response:
-    #     if not self._rexec_enabled:
-    #         log.w("Client attempted remote command execution; denying since rexec is disabled")
-    #         return create_error_response(ServerErrors.NOT_ALLOWED)
-    #
-    #     if not is_unix():
-    #         log.w("rshell not supported on this platform")
-    #         return create_error_response(ServerErrors.SUPPORTED_ONLY_FOR_UNIX)
-    #
-    #     client = self._current_request_client()
-    #     if not client:
-    #         return create_error_response(ServerErrors.NOT_CONNECTED)
-    #
-    #     log.i(">> RSHELL [%s]", client)
-    #
-    #     rsh = RshellService(client=client)
-    #     rsh.run()
-    #
-    #     uri = rsh.publish()
-    #
-    #     log.d("Rexec handler initialized; uri: %s", uri)
-    #
-    #     print(f"[{client.tag}] rshell")
-    #
-    #     return create_success_response(uri)
+    @require_server_connection
+    def _open(self, params: RequestParams):
+        sharing_name = params.get(RequestsParams.OPEN_SHARING)
+
+        if not sharing_name:
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        sharing: Sharing = self._api_service.sharings().get(sharing_name)
+
+        if not sharing:
+            return self._create_error_response(ServerErrors.SHARING_NOT_FOUND, q(sharing_name))
+
+        log.i("<< OPEN %s |  %s", sharing_name, self._client)
+
+        self._connected_to_sharing = True
+        self._current_sharing = sharing
+        self._current_rcwd_fpath = sharing.path
+
+        print(f"[{self._client.tag}] open '{sharing.name}'"
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
+        return create_success_response()
+
+    # == SHARING COMMANDS ==
+
+    @require_sharing_connection
+    def _close(self, _: RequestParams):
+        log.i("<< CLOSE  |  %s", self._client)
+
+        print(f"[{self._client.tag}] close "
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
+        self._connected_to_sharing = False
+        self._current_sharing = None
+        self._current_rcwd_fpath = None
+
+        return create_success_response()
+
+
+    @require_sharing_connection
+    @require_d_sharing
+    def _rcd(self, params: RequestParams) -> Response:
+        spath = params.get(RequestsParams.RCD_PATH) or "/"
+
+        if not is_str(spath):
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        log.i("<< RCD %s  |  %s", spath, self._client)
+
+        new_rcwd_fpath = self._fpath_joining_rcwd_and_spath(spath)
+
+        log.d("Would cd into: %s", new_rcwd_fpath)
+
+        # Check if it's inside the sharing domain
+        if not self._is_fpath_allowed(new_rcwd_fpath):
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(spath))
+
+        # Check if it actually exists
+        if not new_rcwd_fpath.is_dir():
+            return self._create_error_response(ServerErrors.NOT_A_DIRECTORY, new_rcwd_fpath)
+
+        # The path is allowed and exists, setting it as new rcwd
+        self._current_rcwd_fpath = new_rcwd_fpath
+
+        log.i("New valid rcwd: %s", self._current_rcwd_fpath)
+
+        # Tell the client the new rcwd
+        rcwd_spath_str = str(self._current_rcwd_spath)
+        rcwd_spath_str = "" if rcwd_spath_str == "." else rcwd_spath_str
+
+        log.d("RCWD for the client: %s", rcwd_spath_str)
+
+        print(f"[{self._client.tag}] rcd '{self._current_rcwd_fpath}' "
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
+        return create_success_response(rcwd_spath_str)
+
+    @require_sharing_connection
+    @require_d_sharing
+    def _rpwd(self, _: RequestParams) -> Response:
+        log.i("<< RPWD  |  %s", self._client)
+
+        rcwd_spath_str = str(self._current_rcwd_spath)
+        rcwd_spath_str = "" if rcwd_spath_str == "." else rcwd_spath_str
+
+        print(f"[{self._client.tag}] rpwd "
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
+        return create_success_response(rcwd_spath_str)
+
+
+    @require_sharing_connection
+    @require_d_sharing
+    def _rls(self, params: RequestParams):
+
+        path = params.get(RequestsParams.RLS_PATH) or "."
+        sort_by = params.get(RequestsParams.RLS_SORT_BY) or ["name"]
+        reverse = params.get(RequestsParams.RLS_REVERSE) or False
+        hidden = params.get(RequestsParams.RLS_HIDDEN) or False
+
+        if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse):
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        log.i("<< RLS %s %s%s  |  %s",
+              path, sort_by,
+              " reverse " if reverse else "",
+              self._client)
+
+        ls_fpath = self._fpath_joining_rcwd_and_spath(path)
+        log.d("Would ls into: %s", ls_fpath)
+
+        # Check if it's inside the sharing domain
+        if not self._is_fpath_allowed(ls_fpath):
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
+
+        log.i("Going to ls on valid path %s", ls_fpath)
+
+        try:
+            ls_result = ls(ls_fpath, sort_by=sort_by, reverse=reverse, hidden=hidden)
+            # OK - report it
+            print(f"[{self._client.tag}] rls '{ls_fpath}' "
+                  f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+        except FileNotFoundError:
+            log.exception("rls exception occurred")
+            return self._create_error_response(ServerErrors.NOT_EXISTS,
+                                               ls_fpath)
+        except PermissionError:
+            log.exception("rls exception occurred")
+            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
+                                               ls_fpath)
+        except OSError as oserr:
+            log.exception("rls exception occurred")
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               os_error_str(oserr),
+                                               ls_fpath)
+        except Exception as exc:
+            log.exception("rls exception occurred")
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               exc,
+                                               ls_fpath)
+
+        log.i("RLS response %s", str(ls_result))
+
+        return create_success_response(ls_result)
+
+    @require_sharing_connection
+    @require_d_sharing
+    def _rtree(self, params: RequestParams):
+
+        path = params.get(RequestsParams.RTREE_PATH) or "."
+        sort_by = params.get(RequestsParams.RTREE_SORT_BY) or ["name"]
+        reverse = params.get(RequestsParams.RTREE_REVERSE) or False
+        hidden = params.get(RequestsParams.RTREE_HIDDEN) or False
+        max_depth = params.get(RequestsParams.RTREE_DEPTH)
+
+        if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse):
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+
+        log.i("<< RTREE %s %s%s  |  %s",
+              path, sort_by,
+              " reverse " if reverse else "",
+              self._client)
+
+        tree_fpath = self._fpath_joining_rcwd_and_spath(path)
+        log.d("Would tree into: %s", tree_fpath)
+
+        # Check if it's inside the sharing domain
+        if not self._is_fpath_allowed(tree_fpath):
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
+
+        log.i("Going to tree on valid path %s", tree_fpath)
+
+        try:
+            tree_root = tree(tree_fpath,
+                             sort_by=sort_by, reverse=reverse,
+                             hidden=hidden, max_depth=max_depth)
+            # OK - report it
+            print(f"[{self._client.tag}] rtree '{tree_fpath}' "
+                  f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+        except FileNotFoundError:
+            log.exception("rtree exception occurred")
+            return self._create_error_response(ServerErrors.NOT_EXISTS,
+                                               tree_fpath)
+        except PermissionError:
+            log.exception("rtree exception occurred")
+            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
+                                               tree_fpath)
+        except OSError as oserr:
+            log.exception("rtree exception occurred")
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               os_error_str(oserr),
+                                               tree_fpath)
+        except Exception as exc:
+            log.exception("rtree exception occurred")
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               exc,
+                                               tree_fpath)
+
+        log.i("RTREE response %s", j(tree_root))
+
+        return create_success_response(tree_root)
+
+
+    def _create_error_response(self,
+                               err: Union[str, int, Dict, List[Dict]] = None,
+                               *subjects  # if a suject is a Path, must be a FPath (relative to the file system)
+                               ):
+        """
+        Create an error response sanitizing  subjects so that they are
+        Path  relative to the sharing root (spath).
+        """
+
+        log.d("_create_error_response of subjects %s", subjects)
+
+        if self._connected_to_sharing:
+            # Sanitize paths - relative to the sharing root (don't expose internal path)
+            return create_error_response(err, *self._qspathify(*subjects))
+
+        # Subjects (if any) should not contain sharing paths, classical error response
+        return create_error_response(err, *subjects)
+
+
+    def _qspathify(self, *fpaths_or_strs) -> List[str]:
+        """
+        Adds quootes (") the string representation of every parameter, making
+        those Path relative to the sharing root (spath) if are instance of Path.
+        """
+        # quote the spaths of fpaths
+        if not fpaths_or_strs:
+            return []
+
+        log.d("_qspathify of %s", fpaths_or_strs)
+
+        qspathified = [
+            # leave str as str
+            q(self._spath_rel_to_root_of_fpath(o)) if isinstance(o, Path) else str(o)
+            for o in fpaths_or_strs
+        ]
+
+        log.d("qspathified -> %s", qspathified)
+
+        return qspathified
+
+
+    def _spath_rel_to_rcwd_of_fpath(self, p: Union[str, FPath]) -> SPath:
+        """
+        Returns the path 'p' relative to the current rcwd.
+        The result should be within the sharing domain (if rcwd is valid).
+        Raise an exception if 'p' doesn't belong to this sharing, so use
+        this only after _is_fpath_allowed.
+        """
+        log.d("spath_of_fpath_rel_to_rcwd for p: %s", p)
+        fp = self._as_path(p)
+        log.d("-> fp: %s", fp)
+
+        return fp.relative_to(self._current_rcwd_fpath)
+
+    def _spath_rel_to_root_of_fpath(self, p: Union[str, FPath]) -> SPath:
+        """
+        Returns the path 'p' relative to the sharing root.
+        The result should be within the sharing domain (if rcwd is valid).
+        Raise an exception if 'p' doesn't belong to this sharing, so use
+        this only after _is_fpath_allowed.
+        """
+        log.d("spath_of_fpath_rel_to_root for p: %s", p)
+        fp = self._as_path(p)
+        log.d("-> fp: %s", fp)
+
+        return fp.relative_to(self._current_sharing.path)
+
+
+    def _is_fpath_allowed(self, p: Union[str, FPath]) -> bool:
+        """
+        Checks whether p belongs to (is a subdirectory/file of) this sharing.
+        """
+        try:
+            spath_from_root = self._spath_rel_to_root_of_fpath(p)
+            log.d("Path is allowed for this sharing. spath is: %s", spath_from_root)
+            return True
+        except:
+            log.d("Path is not allowed for this sharing: %s", p)
+            return False
+
+
+    def _fpath_joining_rcwd_and_spath(self, p: Union[str, SPath]) -> FPath:
+        """
+        Joins p to the current rcwd and returns an fpath
+        (absolute Path from the file system root).
+        If p is relative, than rcwd / p is the result.
+        If p is absolute, than sharing root / p  is the result
+        """
+        p = self._as_path(p)
+
+        if p.is_absolute():
+            # Absolute is considered relative to the sharing root
+            # Join all the path apart from the leading "/"
+            fp = self._current_sharing.path.joinpath(*p.parts[1:])
+        else:
+            # Relative is considered relative to the current working directory
+            # Join all the path
+            fp = self._current_rcwd_fpath / p
+
+        return fp.resolve()
+
+    @classmethod
+    def _as_path(cls, p: Union[str, Path]):
+        if is_str(p):
+            p = Path(p)
+
+        if not isinstance(p, Path):
+            raise TypeError(f"expected str or Path, found {type(p)}")
+
+        return p
