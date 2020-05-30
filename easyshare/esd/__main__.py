@@ -5,7 +5,7 @@ from typing import List, Optional, cast, Callable, Dict
 
 from easyshare import logging
 from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, PosArgsSpec, ArgType, Args, StrParams, ArgsSpec, \
-    OptionParams
+    OptionParams, VarArgsSpec
 from easyshare.auth import AuthFactory
 from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO, \
     transfer_port, DEFAULT_SERVER_PORT, DEFAULT_DISCOVER_PORT
@@ -38,20 +38,22 @@ from easyshare.utils.str import satisfychars, tf
 # SYNOPSIS
 # esd [OPTION]... [SHARING [SHARING_NAME] [SHARING_OPTION]...]
 #
-# -a, --address  address        server address (default is primary interface)
-# -c, --config  config_path     load settings from a esd configuration file
-# -d, --discover-port  port     port used to listen to discovery messages (default is 12021)
-# -e, --rexec                   enable rexec (remote execution)
-# -h, --help                    show this help
-# -n, --name  name              server name
-# --no-color                    don't print ANSI escape characters
-# -P, --password  password      server password, plain or hashed with es-tools
-# -p, --port  port              server port (default is 12020)
-# --ssl-cert  cert_path         path to an SSL certificate
-# --ssl-privkey  privkey_path   path to an SSL private key
-# -t, --trace  0_or_1           enable/disable tracing
-# -v, --verbose  level          set verbosity level
-# -V, --version                 show the easyshare version
+# -a, --address  address                          server address (default is primary interface)
+# -c, --config  config_path                       load settings from a server configuration file
+# -d, --discover-port  port                       port used to listen to discovery messages;
+#                                                 -1 disables discovery (default is 12021)
+# -e, --rexec                                     enable rexec (remote execution)
+# -h, --help                                      show this help
+# -n, --name  name                                server name (default is server hostname)
+# --no-color                                      don't print ANSI escape characters
+# -P, --password  password                        server password, plain or hashed with es-tools
+# -p, --port  port                                server port (default is 12020)
+# -s, --sharing  sh_path [sh_name] [sh_options]   sharing to serve
+# --ssl-cert  cert_path                           path to an SSL certificate
+# --ssl-privkey  privkey_path                     path to an SSL private key
+# -t, --trace  0_or_1                             enable/disable tracing
+# -v, --verbose  level                            set verbosity level
+# -V, --version                                   show the easyshare version
 
 
 log = get_logger(__name__)
@@ -59,20 +61,20 @@ log = get_logger(__name__)
 
 # === ARGUMENTS ===
 
-class SharingArgs(ArgsSpec):
+class SharingArgs(VarArgsSpec):
     """ Command line arguments provided after the sharing path/name"""
     READ_ONLY = ["-r", "--read-only"]
     SHARING = ["-s", "--sharing"]
 
 
-    def positionals_spec(self) -> Optional[OptionParams]:
-        # The no -s case should be StrParams(1, 1)
-        # but for allow the -s case we should not restrict positionals
-        # parameters (since the name/path of the sharing could be provided
-        # by the -s option)
-        # BTW we have to be careful after the parse, since the name/path
-        # could either be in positionals or in -s params (or in none of these)
-        return StrParams(0, 0)
+    # def positionals_spec(self) -> Optional[OptionParams]:
+    #     # The no -s case should be StrParams(1, 1)
+    #     # but for allow the -s case we should not restrict positionals
+    #     # parameters (since the name/path of the sharing could be provided
+    #     # by the -s option)
+    #     # BTW we have to be careful after the parse, since the name/path
+    #     # could either be in positionals or in -s params (or in none of these)
+    #     return StrParams(0, 0)
 
     def options_spec(self) -> Optional[List[Option]]:
         return [
@@ -105,14 +107,14 @@ class SharingArgs(ArgsSpec):
             log.w("Can't provide sharings params, args not parsed yet?")
             return None # not parsed yet
 
+        sharings_params = args.get_option_params(SharingArgs.SHARING) # -s params
+        if sharings_params:
+            log.d("Providing sharing params from -s option")
+            return sharings_params
+
         sharings_params = args.get_positionals() # positionals, without -s
         if sharings_params:
             log.d("Providing sharing params from positionals")
-            return sharings_params
-
-        sharings_params = args.get_option_params(SharingArgs.SHARING)
-        if sharings_params:
-            log.d("Providing sharing params from -s option")
             return sharings_params
 
         return None
@@ -440,13 +442,19 @@ def main():
         # in positionals or in the params of "-s"
         sharing_params = SharingArgs.get_sharing_params(s_args)
 
-        add_sharing(
-            path=sharing_params[0],
-            name=sharing_params[1] if len(sharing_params) >= 2 else None,
-            readonly=s_args.get_option_param(SharingArgs.READ_ONLY)
-        )
+        if sharing_params:
 
-        s_unparsed = s_args.get_unparsed_args() # eventually other -s definitions
+            add_sharing(
+                path=sharing_params[0],
+                name=sharing_params[1] if len(sharing_params) >= 2 else None,
+                readonly=s_args.get_option_param(SharingArgs.READ_ONLY)
+            )
+
+            s_unparsed = s_args.get_unparsed_args() # eventually other -s definitions
+        else:
+            # else - break the chain (discard eventual junk in unparsed args)
+            log.w("No sharing params, discarding trailing junk: %s", s_args.get_unparsed_args())
+
 
 
     g_args.get_option_params(Esd.SHARING)

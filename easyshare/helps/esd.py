@@ -71,7 +71,7 @@ class Esd(CommandHelp, ArgsSpec):
             CommandOptionInfo(cls.SSL_CERT, "path to an SSL certificate", params=["cert_path"]),
             CommandOptionInfo(cls.SSL_PRIVKEY, "path to an SSL private key", params=["privkey_path"]),
             CommandOptionInfo(cls.REXEC, "enable rexec (remote execution)"),
-            CommandOptionInfo(cls.SHARING, "sharing to serve", params=["sh_path", "sh_name", "sh_options"]),
+            CommandOptionInfo(cls.SHARING, "sharing to serve", params=["sh_path", "[sh_name]", "[sh_options]"]),
             CommandOptionInfo(cls.VERBOSE, "set verbosity level", params=["level"]),
             CommandOptionInfo(cls.TRACE, "enable/disable tracing", params=["0_or_1"]),
             CommandOptionInfo(cls.NO_COLOR, "don't print ANSI escape characters")
