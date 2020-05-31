@@ -61,8 +61,8 @@ class Socket(ABC):
 
 
 class SocketUdp(Socket):
-    def recv(self, bufsize=DEFAULT_SOCKET_BUFSIZE) -> Tuple[bytes, Endpoint]:
-        return self.sock.recvfrom(bufsize)
+    def recv(self, length=DEFAULT_SOCKET_BUFSIZE) -> Tuple[bytes, Endpoint]:
+        return self.sock.recvfrom(length)
 
     def send(self, data: bytes, address: str, port: int) -> int:
         return self.sock.sendto(data, (address, port))

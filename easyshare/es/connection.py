@@ -1,4 +1,4 @@
-from typing import Union, Optional, cast, List
+from typing import Union, Optional, cast, List, Dict
 
 from easyshare.consts import ansi
 from easyshare.es.errors import ClientErrors
@@ -347,40 +347,47 @@ class ConnectionMinimal:
 
     @handle_connection_response
     @require_sharing_connection
-    def get(self, paths: List[str], check: bool) -> Response:
+    def get(self, paths: List[str], cksum: bool) -> Response:
         return self.call(create_request(Requests.GET, {
             RequestsParams.GET_PATHS: paths,
-            RequestsParams.GET_CHECK: check
+            RequestsParams.GET_CHECKSUM: cksum
         }))
 
     @handle_connection_response
     @require_sharing_connection
-    def put(self, check: bool) -> Response:
+    def put(self, cksum: bool) -> Response:
         return self.call(create_request(Requests.PUT, {
-            RequestsParams.PUT_CHECK: check
+            RequestsParams.PUT_CHECKSUM: cksum
         }))
 
 
     # === INTERNALS ===
 
 
-    def call(self, req: Request) -> Response:
+    def call(self, req: Dict) -> Response:
+        self.write_json(req, trace=True)
+        return self.read_json(trace=True)
+
+    def write_json(self, req: Dict, trace: bool = False):
         # Trace OUT
-        if is_tracing_enabled():  # check for avoid json_pretty_str call
+        if trace and is_tracing_enabled():  # check for avoid json_pretty_str call
             trace_out(f"{j(req)}",
                      ip=self._server_ip,
                      port=self._server_port)
 
-        self.write(jtob(req))
-        resp = btoj(self.read())
+        self.write(jtob(req)) # don't trace at byte level
+
+    def read_json(self, trace: bool = False) -> Dict:
+        resp = btoj(self.read()) # don't trace at byte level
 
         # Trace IN
-        if is_tracing_enabled():  # check for avoid json_pretty_str call
+        if trace and is_tracing_enabled():  # check for avoid json_pretty_str call
             trace_in(f"{j(resp)}",
                      ip=self.server_ip(),
                      port=self.server_port())
 
         return resp
+
 
     def write(self, data: Union[bytes, bytearray], trace: bool = False):
         if not self.is_established():

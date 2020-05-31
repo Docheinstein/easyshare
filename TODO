@@ -15,5 +15,6 @@
 - use low socket for rsh? (or annotations)
 - custom serializer?
 - implement everything with lowe level socket instead of pyro?
-- if TAB while name start with ., perform a xLS -a instead of xLS
-- multiple sharings esd cli?
+- expose rexec_enabled in info?
+- trace at socket level? t1 for text t2 for bin
+- tree consistent with rtree (show or not show directory name)

@@ -1,8 +1,11 @@
+import os
 import subprocess
 import threading
 import time
+import zlib
 from pathlib import Path
-from typing import List, Dict, Callable, Optional, Union
+from queue import Queue
+from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO
 
 from ptyprocess import PtyProcess
 
@@ -13,9 +16,9 @@ from easyshare.esd.daemons.api import get_api_daemon
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams, RequestsParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response, \
-    create_error_of_response
+    create_error_of_response, TransferOutcomes
 from easyshare.protocol.stream import StreamClosedError
-from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType
+from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType, create_file_info
 from easyshare.sockets import SocketTcp
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import green, red
@@ -190,6 +193,7 @@ class ClientHandler:
             Requests.RRM: self._rrm,
             Requests.RMV: self._rmv,
             Requests.RCP: self._rcp,
+            Requests.GET: self._get,
             "sleep": self._sleep
         }
 
@@ -207,9 +211,21 @@ class ClientHandler:
                     # check _connected_to_server against False,
                     # since None is the limbo state which is allowed (before connect)
             try:
-                self._recv()
+                req = self._recv_json()
+                if is_request(req):
+                    try:
+                        resp_payload = self._handle_request(req)
+                    except:
+                        log.exception("Exception occurred while handling request")
+                        resp_payload = self._create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
+
+                else:
+                    log.e("Invalid request - discarding it")
+                    resp_payload = self._create_error_response(ServerErrors.INVALID_REQUEST)
+
+                self._send_response(resp_payload)
             except StreamClosedError:
-                pass
+                pass # self._client.stream.is_open() will fail next iter
             except:
                 log.exception("Unexpected exception occurred")
                 # Maybe we could recover from this point, but
@@ -229,11 +245,9 @@ class ClientHandler:
         print(red(f"[{self._client.tag}] disconnected "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})"))
 
-    def _recv(self):
-        log.d("Waiting for messages from %s...", self._client)
-        req_payload_data = self._client.stream.read()
 
-        # Parse the request to JSON
+    def _recv_json(self) -> Dict:
+        req_payload_data = self._client.stream.read()
         req_payload = None
 
         try:
@@ -241,27 +255,13 @@ class ClientHandler:
         except:
             log.exception("Failed to parse payload - discarding it")
 
-        # Handle the request (if it's valid) and take out the response
+        # Trace IN
+        if is_tracing_enabled():  # check for avoid json_pretty_str call
+            trace_in(f"{j(req_payload)}",
+                     ip=self._client.endpoint[0],
+                     port=self._client.endpoint[1])
 
-        if is_request(req_payload):
-            # Trace IN
-            if is_tracing_enabled():  # check for avoid json_pretty_str call
-                trace_in(f"{j(req_payload)}",
-                         ip=self._client.endpoint[0],
-                         port=self._client.endpoint[1])
-
-            try:
-                resp_payload = self._handle_request(req_payload)
-            except:
-                log.exception("Exception occurred while handling request")
-                resp_payload = self._create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
-        else:
-            log.e("Invalid request - discarding it: %s", req_payload)
-            resp_payload = self._create_error_response(ServerErrors.INVALID_REQUEST)
-
-        # Send the response
-        self._send_response(resp_payload)
-
+        return req_payload
 
     def _handle_request(self, request: Request) -> Response:
         api = request.get("api")
@@ -358,8 +358,11 @@ class ClientHandler:
 
         log.i("<< REXEC %s  |  %s", cmd, self._client)
 
-        self._send_response(create_success_response())
+        # OK - report it
+        print(f"[{self._client.tag}] rexec '{cmd}' "
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
+        self._send_response(create_success_response())
 
         def out_hook(text: str):
             log.d("> %s", text)
@@ -425,6 +428,10 @@ class ClientHandler:
             cmd = get_passwd().pw_shell
 
         log.i("<< RSHELL %s  |  %s", cmd, self._client)
+
+        # OK - report it
+        print(f"[{self._client.tag}] rshell '{cmd}' "
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
         self._send_response(create_success_response())
 
@@ -493,12 +500,12 @@ class ClientHandler:
 
         log.i("<< OPEN %s |  %s", sharing_name, self._client)
 
+        print(f"[{self._client.tag}] open '{sharing.name}'"
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
         self._connected_to_sharing = True
         self._current_sharing = sharing
         self._current_rcwd_fpath = sharing.path
-
-        print(f"[{self._client.tag}] open '{sharing.name}'"
-              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
         return create_success_response()
 
@@ -942,6 +949,363 @@ class ClientHandler:
                     errno_callback(ServerErrors.INVALID_PATH, q(source_path))
 
         return None
+
+
+
+    @require_sharing_connection
+    @require_d_sharing
+    @require_write_permission
+    def _get(self, params: RequestParams):
+        paths = params.get(RequestsParams.GET_PATHS)
+        cksum = params.get(RequestsParams.GET_CHECKSUM)
+
+        log.i("<< GET %s  |  %s", paths, self._client)
+
+        self._send_response(create_success_response())
+
+        # TODO: master/slave secondary socket logic
+        transfer_socket = self._client.socket
+
+        # Next file/directory to serve
+        next_servings: List[Tuple[FPath, FPath, str]] = [] # fpath, basedir, prefix
+
+        errors = []
+        outcome = TransferOutcomes.SUCCESS
+
+        # 1. For each path of paths calculate the real version of the path
+        # based on our file system, eventually discarding illegal paths (e.g. ../something)
+        # We calculate the tuple (fpath, basedir, prefix) where
+        # - fpath: the path based on our file system
+        # - basedir: the path based on our file system from which the download
+        #            occurs for the client (e.g. if == fpath the downled file is not
+        #            wrapped, if == fpath.parent is wrapped in folder called as
+        #            ther parent
+        # - prefix: eventual prefix to prepend to the name of the download for
+        #           the client (is useful if basedir can't be safely used because
+        #           will be outside sharing domain, i.e. when the root of the sharing
+        #           is about to be downloaded)
+
+        for f in paths:
+
+            # "." is equal to "" and means get the rcwd wrapped into a folder
+            # "*" means get everything inside the rcwd without wrapping it into a folder
+            log.d("f = %s", f)
+
+            p = Path(f)
+
+            take_all_unwrapped = True if (p.parts and p.parts[len(p.parts) - 1]) == "*" else False
+
+            log.d("is * = %s", take_all_unwrapped)
+
+            if take_all_unwrapped:
+                # Consider the path without the last *
+                p = p.parent
+
+            log.d("p(f) = %s", p)
+
+            # Compute the absolute path depending on the user request (p)
+            # and our current rcwd
+            fpath = self._fpath_joining_rcwd_and_spath(p)
+
+            is_root = fpath == self._current_sharing.path
+            log.d("is root = %s", is_root)
+
+            # Compute the basedir: the directory from which the user takes
+            # the files (this will have effect on the location of the files on
+            # the client)
+            # If the last component is a *, consider the entire content of the folder (unwrapped)
+            # Otherwise the basedir is the parent (so that the folder will be wrapped)
+
+            prefix = ""
+
+            if take_all_unwrapped:
+                basedir = fpath
+            else:
+                if is_root: # don't go outside "."
+                    basedir = fpath
+                    prefix = self._current_sharing.name
+                else:
+                    basedir = fpath.parent
+
+            log.d("fpath(f)         = %s", fpath)
+            log.d("basedir(f)  = %s", basedir)
+            log.d("prefix = %s", self._current_sharing.name)
+
+            # Do domain check now, after this check it should not be
+            # necessary to check it since we can only go deeper
+
+            if self._is_fpath_allowed(fpath) and self._is_fpath_allowed(basedir):
+                next_servings.append((fpath, basedir, prefix))
+            else:
+                log.e("Path %s is invalid (out of sharing domain)", f)
+                errors.append(create_error_of_response(ServerErrors.INVALID_PATH,
+                                                       q(f)))
+
+        # --------------
+
+        # 2. Cyclically wait for "next" requests and send the respective file
+
+        def recv_get_next() -> Union[Tuple[FPath, BinaryIO], None]: # fpath, fd
+            log.d("Waiting for next() request from client...")
+
+            # 1. Receive the request from the client
+
+            # e.g. {skip: False, transfer: True} // client doesn't provide the path
+            req = self._recv_json()
+
+            if not req:
+                self._send_response(self._create_error_response(ServerErrors.INVALID_REQUEST))
+                return None
+
+            skip = req.get(RequestsParams.GET_NEXT_SKIP, False)
+            transfer = req.get(RequestsParams.GET_NEXT_TRANSFER, False)
+
+            log.i("<< GET_NEXT mode = %s",
+                  "transfer" if transfer else ("skip" if skip else "seek"))
+
+            next_transfer = None
+
+            while len(next_servings) > 0:
+
+                # 2. Serve the file
+                # -> send response to the client anyway
+                # -> return only if there is a file to transfer
+
+                # Get next file (or dir)
+                # Do not pop it now: either transfer os skip must be specified
+                # for a regular file before being popped out
+                # (In this way we can handle cases in which the client don't
+                # want to receive the file (because of overwrite, or anything else)
+                next_fpath, next_basedir, next_prefix = next_servings[len(next_servings) - 1]
+
+                log.d("Next file fpath: %s", next_fpath)
+                log.d("Next file basedir: %s", next_basedir)
+
+                # Check domain validity
+                # Should never fail since we have already checked in __init__
+                if not self._is_fpath_allowed(next_fpath) or \
+                        not self._is_fpath_allowed(next_basedir):
+                    log.e("Path is invalid (out of sharing domain)")
+                    next_servings.pop()
+                    # can't even provide a name for the error since
+                    # we only have fpath at this point
+                    errors.append(create_error_of_response(ServerErrors.INVALID_PATH,
+                                                           q(f)))
+                    continue
+
+                log.d("Sharing domain check OK")
+
+                # Compute the path relative to the basedir (depends on the user request)
+                # e.g. can be public/f1 or ../public or /path/to/dir ...
+                next_spath_str = os.path.join(next_prefix, next_fpath.relative_to(next_basedir))
+
+                log.d("Next file spath: %s", next_spath_str)
+
+                finfo = create_file_info(
+                    next_fpath,
+                    name=next_spath_str
+                )
+
+                # Case: FILE
+                if finfo and next_fpath.is_file():
+                    log.i("NEXT FILE: %s", next_fpath)
+
+                    # Pop only if transfer or skip is specified
+                    if transfer or skip:
+                        log.d("Popping file out (transfer OR skip specified for FTYPE_FILE)")
+                        next_servings.pop()
+                        if transfer:
+                            # Actually put the file on the queue of the files
+                            # to be send through the transfer socket
+
+                            # Before doing so, try to open the file for real.
+                            # At least we are able to detect any error (e.g. perm denied)
+                            # before say the client that the transfer is began
+                            # We have to report the error now (create_error_response)
+                            # not later (_add_error()) because the user have to
+                            # take a decision based on this (skip the file)
+                            log.d("Trying to open file before initializing transfer")
+
+                            try:
+                                fd = next_fpath.open("rb")
+                                log.d("Able to open file: %s", next_fpath)
+
+                                log.d("Actually adding file to the transfer queue")
+                                next_transfer = (next_fpath, fd)
+                            except FileNotFoundError:
+                                log.w("Can't open file - not transferring file (file not found error)")
+                                self._send_response(
+                                    create_error_response(ServerErrors.NOT_EXISTS,
+                                                          q(next_spath_str))
+                                )
+                                return None
+                            except PermissionError:
+                                log.w("Can't open file - not transferring file (permission error)")
+                                self._send_response(
+                                    create_error_response(ServerErrors.PERMISSION_DENIED,
+                                                          q(next_spath_str))
+                                )
+                                return None
+                            except OSError as oserr:
+                                log.w("Can't open file - not transferring file (oserror)")
+                                self._send_response(
+                                    create_error_response(ServerErrors.ERR_2,
+                                                          os_error_str(oserr),
+                                                          q(next_spath_str))
+                                )
+                                return None
+                            except Exception as exc:
+                                log.w("Can't open file - not transferring file")
+                                self._send_response(
+                                    create_error_response(ServerErrors.ERR_2,
+                                                          exc,
+                                                          q(next_spath_str))
+                                )
+                                return None
+
+                    self._send_response(
+                        create_success_response(finfo)
+                    )
+
+                    return next_transfer
+
+                # Case: DIR
+                elif finfo and next_fpath.is_dir():
+                    # Pop it now; it doesn't make sense ask the user whether
+                    # skip or overwrite as for files
+                    next_servings.pop()
+
+                    # Directory found
+                    try:
+                        dir_files: List[FPath] = list(next_fpath.iterdir())
+                    except FileNotFoundError:
+                        errors.append(create_error_of_response(ServerErrors.NOT_EXISTS,
+                                                               q(next_spath_str)))
+                        continue
+                    except PermissionError:
+                        errors.append(create_error_of_response(ServerErrors.PERMISSION_DENIED,
+                                                               q(next_spath_str)))
+                        continue
+                    except OSError as oserr:
+                        errors.append(create_error_of_response(ServerErrors.ERR_2,
+                                                                 os_error_str(oserr),
+                                                                 q(next_spath_str)))
+                        continue
+                    except Exception as exc:
+                        errors.append(create_error_of_response(ServerErrors.ERR_2,
+                                                                 exc,
+                                                                 q(next_spath_str)))
+                        continue
+
+                    if dir_files:
+                        log.i("Found a filled directory: adding all inner files to remaining_files")
+                        for file_in_dir in dir_files:
+                            log.i("Adding %s", file_in_dir)
+                            next_servings.append((file_in_dir, next_basedir, prefix))
+                    else:
+                        log.i("Found an empty directory")
+                        log.d("Sending an info for the empty directory")
+
+                        self._send_response(
+                            create_success_response(finfo)
+                        )
+                        return None
+                # Case: UNKNOWN (non-existing/link/special files/...)
+                else:
+                    # Pop it now
+                    next_servings.pop()
+                    log.w("Not file nor dir? skipping %s", next_fpath)
+                    errors.append(create_error_of_response(ServerErrors.TRANSFER_SKIPPED,
+                                                           q(next_spath_str)))
+                    continue
+
+            log.i("No remaining files")
+
+            self._send_response(create_success_response())
+
+            return None
+
+
+        while True:
+            log.d("Blocking and waiting for a file to handle...")
+
+            next_transf = None
+
+            while True:
+                next_transf = recv_get_next()
+
+                if next_transf or len(next_servings) == 0:
+                    break
+
+            if not next_transf:
+                log.i("No more files: transfer completed")
+                break
+
+            next_transf_fpath: FPath
+            next_transf_f: BinaryIO
+
+            next_transf_fpath, next_transf_f = next_transf
+
+            log.i("Next outgoing file to handle: %s", next_transf_fpath)
+
+            # OK - report it
+            print(f"[{self._client.tag}] get '{next_transf_fpath}'"
+                  f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
+            file_len = next_transf_fpath.stat().st_size
+
+            # File is already opened
+
+            # TODO:
+            #  if something about IO goes wrong all the transfer is compromised
+            #  since we can't tell the user about it.
+            #  BTW open is already done so there should be no permissions problems.
+
+            cur_pos = 0
+            crc = 0
+
+            # Send file
+            while cur_pos < file_len:
+                readlen = min(file_len - cur_pos, 4096)
+
+                # Read from file
+                chunk = next_transf_f.read(readlen)
+
+                if not chunk:
+                    # EOF
+                    log.i("Finished to handle: %s", next_transf_fpath)
+                    break
+
+                log.i("Read chunk of %dB", len(chunk))
+                cur_pos += len(chunk)
+
+                if cksum:
+                    # Eventually update the CRC
+                    crc = zlib.crc32(chunk, crc)
+
+                log.d("%d/%d (%.2f%%)", cur_pos, file_len, cur_pos / file_len * 100)
+
+                transfer_socket.send(chunk)
+
+            log.i("Closing file %s", next_transf_fpath)
+            next_transf_f.close()
+
+            # Eventually send the CRC in-band
+            if cksum:
+                log.d("Sending CRC: %d", crc)
+                transfer_socket.send(itob(crc, 4))
+
+        log.i("GET finished")
+
+        resp = create_success_response({
+            "outcome": outcome
+        })
+
+        if errors:
+            resp["errors"] = errors
+
+        return resp
+
 
 
 

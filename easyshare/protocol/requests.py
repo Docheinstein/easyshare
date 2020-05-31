@@ -66,9 +66,12 @@ class RequestsParams:
     RCP_DESTINATION = "dest"
 
     GET_PATHS = "paths"
-    GET_CHECK = "check"
+    GET_CHECKSUM = "cksum"
 
-    PUT_CHECK = "check"
+    GET_NEXT_SKIP = "skip"
+    GET_NEXT_TRANSFER = "transfer"
+
+    PUT_CHECKSUM = "check"
 
 
 RequestParams = Dict[str, Any]

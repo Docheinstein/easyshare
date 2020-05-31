@@ -33,6 +33,7 @@ from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
 from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
     ListSharings, Ping
 from easyshare.logging import get_logger
+from easyshare.protocol.requests import RequestsParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
     create_error_of_response
 from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService, IRshellService
@@ -43,7 +44,7 @@ from easyshare.ssl import get_ssl_context
 from easyshare.styling import red, bold
 from easyshare.timer import Timer
 from easyshare.tracing import trace_in, is_tracing_enabled, trace_out
-from easyshare.utils.json import j, btoj
+from easyshare.utils.json import j, btoj, jtob
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str
 from easyshare.utils.path import LocalPath
@@ -173,7 +174,10 @@ def make_server_connection_api_wrapper(api, connect: bool):
             connect=connect
         )
 
-        if not conn or not conn.is_connected_to_server():
+        if not conn or not conn.is_established(): # always check socket level connection
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
+
+        if connect and not conn.is_connected_to_server(): # check application level connection
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         # Method call
@@ -1254,21 +1258,14 @@ class Client:
         self._rmvcp(args, api=conn.rcp, api_name="RCP")
 
     @provide_sharing_connection
-    def get(self, args: Args, server_conn: Connection):
-        raise ValueError("NOT IMPL")
+    def get(self, args: Args, conn: Connection):
         files = args.get_positionals()
 
         do_check = Put.CHECK in args
         quiet = Put.QUIET in args
 
-        resp = conn.get(files, check=do_check)
-        ensure_data_response(resp, "uid")
-
-        # Compute the remote daemon URI from the uid of the get() response
-        get_service_uri = pyro_uri(resp.get("data").get("uid"),
-                                   server_conn.server_ip(),
-                                   server_conn.server_port())
-        log.d("Remote GetService URI: %s", get_service_uri)
+        resp = conn.get(files, cksum=do_check)
+        ensure_success_response(resp)
 
         transfer_socket = None
 
@@ -1278,14 +1275,15 @@ class Client:
             # Raw transfer socket
             try:
                 log.d("Initializing transfer socket")
-                transfer_socket = SocketTcpOut(
-                    address=sharing_conn.server_info.get("ip"),
-                    port=transfer_port(sharing_conn.server_info.get("port")),
-                    ssl_context=get_ssl_context(),
-                    # timeout=self._discover_timeout  # well it's not a discovery,
-                                                    # but at least should be a
-                                                    # timeout that make sense
-                )
+                # transfer_socket = SocketTcpOut(
+                #     address=conn.server_info.get("ip"),
+                #     port=transfer_port(conn.server_info.get("port")),
+                #     ssl_context=get_ssl_context(),
+                #     timeout=self._discover_timeout  # well it's not a discovery,
+                #                                     # but at least should be a
+                #                                     # timeout that make sense
+                # )
+                transfer_socket = conn._stream._socket
             except ConnectionRefusedError:
                 log.exception("Transfer socket creation failed (closed)")
                 raise CommandExecutionError("Transfer connection can't be established: refused")
@@ -1329,232 +1327,233 @@ class Client:
 
         errors = []
 
-        # Proxy
 
-        get_service: Union[TracedPyroProxy, IGetService]
+        while True:
+            log.i("Fetching another file info")
+            # The first next() fetch never implies a new file to be put
+            # on the transfer socket.
+            # We have to check whether we want to eventually overwrite
+            # the file, and then tell the server next() if
+            # 1. Really transfer the file
+            # 2. Skip the file
 
-        with TracedPyroProxy(get_service_uri) as get_service:
-            while True:
-                log.i("Fetching another file info")
-                # The first next() fetch never implies a new file to be put
-                # on the transfer socket.
-                # We have to check whether we want to eventually overwrite
-                # the file, and then tell the server next() if
-                # 1. Really transfer the file
-                # 2. Skip the file
+            will_transfer = overwrite_policy == OverwritePolicy.NO
+            will_seek = not will_transfer
 
-                will_transfer = overwrite_policy == OverwritePolicy.NO
-                will_seek = not will_transfer
+            log.i("Action: %s", "transfer" if will_transfer else "seek")
 
-                log.i("Action: %s", "transfer" if will_transfer else "seek")
-                get_next_resp = get_service.next(
-                    # Transfer immediately since we won't ask to the user
-                    # whether overwrite or not
-                    transfer=will_transfer
-                )
+            # Transfer immediately since we won't ask to the user
+            # whether overwrite or not
+            get_next_resp = conn.call({
+                RequestsParams.GET_NEXT_TRANSFER: will_transfer
+            })
 
-                ensure_success_response(get_next_resp)  # it might be without data
+            ensure_success_response(get_next_resp)  # it might be without data
 
-                next_file: FileInfo = get_next_resp.get("data")
+            next_file: FileInfo = get_next_resp.get("data")
 
-                if not next_file:
-                    log.i("Nothing more to GET")
-                    break
+            if not next_file:
+                log.i("Nothing more to GET")
+                break
 
-                fname = next_file.get("name")
-                fsize = next_file.get("size")
-                ftype = next_file.get("ftype")
-                fmtime = next_file.get("mtime")
+            fname = next_file.get("name")
+            fsize = next_file.get("size")
+            ftype = next_file.get("ftype")
+            fmtime = next_file.get("mtime")
 
-                local_path = Path(fname)
+            local_path = Path(fname)
 
-                log.i("NEXT: %s of type %s", fname, ftype)
+            log.i("NEXT: %s of type %s", fname, ftype)
 
-                # Case: DIR
-                if ftype == FTYPE_DIR:
-                    log.i("Creating dirs %s", fname)
-                    local_path.mkdir(parents=True, exist_ok=True)
-                    continue  # No FTYPE_FILE => neither skip nor transfer for next()
+            # Case: DIR
+            if ftype == FTYPE_DIR:
+                log.i("Creating dirs %s", fname)
+                local_path.mkdir(parents=True, exist_ok=True)
+                continue  # No FTYPE_FILE => neither skip nor transfer for next()
 
-                if ftype != FTYPE_FILE:
-                    log.w("Cannot handle this ftype")
-                    continue  # No FTYPE_FILE => neither skip nor transfer for next()
+            if ftype != FTYPE_FILE:
+                log.w("Cannot handle this ftype")
+                continue  # No FTYPE_FILE => neither skip nor transfer for next()
 
-                # Case: FILE
-                local_path_parent = local_path.parent
-                if local_path_parent:
-                    log.i("Creating parent dirs %s", local_path_parent)
-                    local_path_parent.mkdir(parents=True, exist_ok=True)
+            # Case: FILE
+            local_path_parent = local_path.parent
+            if local_path_parent:
+                log.i("Creating parent dirs %s", local_path_parent)
+                local_path_parent.mkdir(parents=True, exist_ok=True)
 
-                # Check whether it already exists
-                if local_path.is_file():
-                    log.w("File already exists, asking whether overwrite it (if needed)")
+            # Check whether it already exists
+            if local_path.is_file():
+                log.w("File already exists, asking whether overwrite it (if needed)")
 
-                    # Overwrite handling
+                # Overwrite handling
 
-                    timer.stop() # Don't take the user time into account
-                    current_overwrite_decision, overwrite_policy = \
-                        self._ask_overwrite(fname, current_policy=overwrite_policy)
-                    timer.start()
+                timer.stop() # Don't take the user time into account
+                current_overwrite_decision, overwrite_policy = \
+                    self._ask_overwrite(fname, current_policy=overwrite_policy)
+                timer.start()
 
-                    log.d("Overwrite decision: %s", str(current_overwrite_decision))
+                log.d("Overwrite decision: %s", str(current_overwrite_decision))
 
-                    if will_seek:
-                        do_skip = False
-
-                        if current_overwrite_decision == OverwritePolicy.NO:
-                            # Skip
-                            do_skip = True
-                        elif current_overwrite_decision == OverwritePolicy.NEWER:
-                            # Check whether skip or not based on the last modified time
-                            log.d("Checking whether skip based on mtime")
-                            stat = local_path.stat()
-                            do_skip = stat.st_mtime_ns >= fmtime
-                            log.d("Local mtime: %d | Remote mtime: %d => skip: %s",
-                                  stat.st_mtime_ns, fmtime, do_skip)
-
-                        if do_skip:
-                            log.d("Would have seek, have to tell server to skip %s", fname)
-                            get_next_resp = get_service.next(skip=True)
-                            ensure_success_response(get_next_resp)
-                            continue
-                        else:
-                            log.d("Not skipping")
-
-
-                # Eventually tell the server to begin the transfer
-                # We have to call it now because the server can't know
-                # in advance if we want or not overwrite the file
                 if will_seek:
-                    log.d("Would have seek, have to tell server to transfer %s", fname)
-                    get_next_resp = get_service.next(transfer=True)
+                    do_skip = False
 
-                    # The server may say the transfer can't be done actually (e.g. EPERM)
-                    if is_success_response(get_next_resp):
-                        log.d("Transfer can actually began")
-                    elif is_error_response(get_next_resp):
-                        log.w("Transfer cannot be initialized due to remote error")
+                    if current_overwrite_decision == OverwritePolicy.NO:
+                        # Skip
+                        do_skip = True
+                    elif current_overwrite_decision == OverwritePolicy.NEWER:
+                        # Check whether skip or not based on the last modified time
+                        log.d("Checking whether skip based on mtime")
+                        stat = local_path.stat()
+                        do_skip = stat.st_mtime_ns >= fmtime
+                        log.d("Local mtime: %d | Remote mtime: %d => skip: %s",
+                              stat.st_mtime_ns, fmtime, do_skip)
 
-                        errors += get_next_resp.get("errors")
-
-                        # All the errors will be reported at the end
+                    if do_skip:
+                        log.d("Would have seek, have to tell server to skip %s", fname)
+                        get_next_resp = conn.call({
+                            RequestsParams.GET_NEXT_SKIP: True
+                        })
+                        ensure_success_response(get_next_resp)
                         continue
                     else:
-                        raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-
-                # else: file already put into the transfer socket
-
-                # Initialize the transfer socket, if not already done
-                if not transfer_socket:
-                    init_transfer_socket()
-
-                if not quiet:
-                    progressor = FileProgressor(
-                        fsize,
-                        description="GET " + fname,
-                        color_progress=PROGRESS_COLOR,
-                        color_success=SUCCESS_COLOR,
-                        color_error=ERROR_COLOR
-                    )
-
-                log.i("Opening %s locally", fname)
-                f = local_path.open("wb")
-
-                cur_pos = 0
-                expected_crc = 0
-
-                while cur_pos < fsize:
-                    recv_size = min(BEST_BUFFER_SIZE, fsize - cur_pos)
-                    log.i("Waiting chunk... (expected size: %dB)", recv_size)
-
-                    chunk = transfer_socket.recv(recv_size)
-
-                    if not chunk:
-                        log.i("END")
-                        raise CommandExecutionError()
-
-                    chunk_len = len(chunk)
-
-                    log.i("Received chunk of %dB", chunk_len)
-
-                    written_chunk_len = f.write(chunk)
-
-                    if chunk_len != written_chunk_len:
-                        log.e("Written less bytes than expected; file will probably be corrupted")
-                        return # Really don't know how to recover from this disaster
-
-                    cur_pos += chunk_len
-                    tot_bytes += chunk_len
-
-                    if do_check:
-                        # Eventually update the CRC
-                        expected_crc = zlib.crc32(chunk, expected_crc)
-
-                    if not quiet:
-                        progressor.update(cur_pos)
+                        log.d("Not skipping")
 
 
-                log.i("DONE %s", fname)
-                log.d("- crc = %d", expected_crc)
+            # Eventually tell the server to begin the transfer
+            # We have to call it now because the server can't know
+            # in advance if we want or not overwrite the file
+            if will_seek:
+                log.d("Would have seek, have to tell server to transfer %s", fname)
+                get_next_resp = conn.call({
+                    RequestsParams.GET_NEXT_TRANSFER: True
+                })
 
-                f.close()
+                # The server may say the transfer can't be done actually (e.g. EPERM)
+                if is_success_response(get_next_resp):
+                    log.d("Transfer can actually began")
+                elif is_error_response(get_next_resp):
+                    log.w("Transfer cannot be initialized due to remote error")
 
-                # Eventually do CRC check
+                    errors += get_next_resp.get("errors")
+
+                    # All the errors will be reported at the end
+                    continue
+                else:
+                    raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+            # else: file already put into the transfer socket
+
+            # Initialize the transfer socket, if not already done
+            if not transfer_socket:
+                init_transfer_socket()
+
+            if not quiet:
+                progressor = FileProgressor(
+                    fsize,
+                    description="GET " + fname,
+                    color_progress=PROGRESS_COLOR,
+                    color_success=SUCCESS_COLOR,
+                    color_error=ERROR_COLOR
+                )
+
+            log.i("Opening %s locally", fname)
+            f = local_path.open("wb")
+
+            cur_pos = 0
+            expected_crc = 0
+
+            while cur_pos < fsize:
+                recv_size = min(BEST_BUFFER_SIZE, fsize - cur_pos)
+                log.i("Waiting chunk... (expected size: %dB)", recv_size)
+
+                chunk = transfer_socket.recv(recv_size)
+
+                if not chunk:
+                    log.i("END")
+                    raise CommandExecutionError()
+
+                chunk_len = len(chunk)
+
+                log.i("Received chunk of %dB", chunk_len)
+
+                written_chunk_len = f.write(chunk)
+
+                if chunk_len != written_chunk_len:
+                    log.e("Written less bytes than expected; file will probably be corrupted")
+                    return # Really don't know how to recover from this disaster
+
+                cur_pos += chunk_len
+                tot_bytes += chunk_len
+
                 if do_check:
-                    # CRC check on the received bytes
-                    crc = btoi(transfer_socket.recv(4))
-                    if expected_crc != crc:
-                        log.e("Wrong CRC; transfer failed. expected=%d | written=%d",
-                              expected_crc, crc)
-                        return # Really don't know how to recover from this disaster
-                    else:
-                        log.d("CRC check: OK")
+                    # Eventually update the CRC
+                    expected_crc = zlib.crc32(chunk, expected_crc)
 
-                    # Length check on the written file
-                    written_size = local_path.stat().st_size
-                    if written_size != fsize:
-                        log.e("File length mismatch; transfer failed. expected=%s ; written=%d",
-                              fsize, written_size)
-                        return # Really don't know how to recover from this disaster
-                    else:
-                        log.d("File length check: OK")
-
-                n_files += 1
                 if not quiet:
-                    progressor.success()
+                    progressor.update(cur_pos)
 
-            # Wait for completion
-            outcome_resp = get_service.outcome()
-            ensure_data_response(outcome_resp, "outcome")
 
-            timer.stop()
-            elapsed_s = timer.elapsed_s()
+            log.i("DONE %s", fname)
+            log.d("- crc = %d", expected_crc)
 
-            transfer_socket.close()
+            f.close()
 
-            # Take outcome and (eventually) errors out of the resp
-            outcome = outcome_resp.get("data").get("outcome")
-            outcome_errors = outcome_resp.get("data").get("errors")
-            if outcome_errors:
-                log.w("Response has errors")
-                errors += outcome_errors
+            # Eventually do CRC check
+            if do_check:
+                # CRC check on the received bytes
+                crc = btoi(transfer_socket.recv(4))
+                if expected_crc != crc:
+                    log.e("Wrong CRC; transfer failed. expected=%d | written=%d",
+                          expected_crc, crc)
+                    return # Really don't know how to recover from this disaster
+                else:
+                    log.d("CRC check: OK")
 
-            log.i("GET outcome: %d", outcome)
+                # Length check on the written file
+                written_size = local_path.stat().st_size
+                if written_size != fsize:
+                    log.e("File length mismatch; transfer failed. expected=%s ; written=%d",
+                          fsize, written_size)
+                    return # Really don't know how to recover from this disaster
+                else:
+                    log.d("File length check: OK")
 
-            print("")
-            print("GET outcome:  {}".format(outcome_str(outcome)))
+            n_files += 1
+            if not quiet:
+                progressor.success()
+
+        # Wait for completion
+        outcome_resp = conn.read_json(trace=True)
+        ensure_data_response(outcome_resp, "outcome")
+
+        timer.stop()
+        elapsed_s = timer.elapsed_s()
+
+        # transfer_socket.close() # inband
+
+        # Take outcome and (eventually) errors out of the resp
+        outcome = outcome_resp.get("data").get("outcome")
+        outcome_errors = outcome_resp.get("data").get("errors")
+        if outcome_errors:
+            log.w("Response has errors")
+            errors += outcome_errors
+
+        log.i("GET outcome: %d", outcome)
+
+        print("")
+        print("GET outcome:  {}".format(outcome_str(outcome)))
+        print("-----------------------")
+        print("Files:        {} ({})".format(n_files, size_str(tot_bytes)))
+        print("Time:         {}".format(duration_str_human(round(elapsed_s))))
+        print("Avg. speed:   {}".format(speed_str(tot_bytes / elapsed_s)))
+
+        # Any error? (e.g. permission denied)
+        if errors:
             print("-----------------------")
-            print("Files:        {} ({})".format(n_files, size_str(tot_bytes)))
-            print("Time:         {}".format(duration_str_human(round(elapsed_s))))
-            print("Avg. speed:   {}".format(speed_str(tot_bytes / elapsed_s)))
-
-            # Any error? (e.g. permission denied)
-            if errors:
-                print("-----------------------")
-                print("Errors:       {}".format(len(errors)))
-                for idx, err in enumerate(errors):
-                    err_str = formatted_error_from_error_of_response(err)
-                    print(f"{idx + 1}. {err_str}")
+            print("Errors:       {}".format(len(errors)))
+            for idx, err in enumerate(errors):
+                err_str = formatted_error_from_error_of_response(err)
+                print(f"{idx + 1}. {err_str}")
 
     @provide_d_sharing_connection
     def put(self, args: Args, conn: Connection):
