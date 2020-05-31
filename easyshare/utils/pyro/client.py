@@ -2,7 +2,6 @@ from typing import Any
 
 from Pyro5 import api as pyro
 
-from easyshare.tracing import trace_out, is_tracing_enabled, trace_in
 from easyshare.utils.inspection import func_args_to_str
 from easyshare.utils.json import j
 
@@ -29,11 +28,11 @@ class TracedPyroProxy(pyro.Proxy):
         remote = self._pyroConnection.sock.getpeername()
 
         # TRACE OUT
-        if is_tracing_enabled():
-            trace_out("{} ({})".format(methodname, func_args_to_str(vargs, kwargs)),
-                      ip=remote[0],
-                      port=remote[1],
-                      alias=self._easyshare_remote_alias)
+        # if is_tracing_enabled():
+        #     trace_out("{} ({})".format(methodname, func_args_to_str(vargs, kwargs)),
+        #               ip=remote[0],
+        #               port=remote[1],
+        #               alias=self._easyshare_remote_alias)
 
         resp = super()._pyroInvoke(methodname, vargs, kwargs, flags, objectId)
 

@@ -1,3 +1,4 @@
+import enum
 import os
 import string
 
@@ -58,6 +59,16 @@ DEFAULT_DISCOVER_TIMEOUT = 2    # sec
 
 # TODO: tests for figure out what's the best buffer size
 BEST_BUFFER_SIZE = 4096
+
+
+class TransferProtocol(enum.Enum):
+    TCP = "TCP"
+    UDP = "UDP"
+
+
+class TransferDirection(enum.Enum):
+    IN = "IN"
+    OUT = "OUT"
 
 
 def transfer_port(api_port: int):

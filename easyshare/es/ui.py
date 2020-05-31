@@ -234,6 +234,9 @@ def sharings_to_pretty_str(sharings: List[SharingInfo],
                            indent: int = 0) -> str:
     """ Returns a string representation of a list of 'Sharing' """
 
+    if sharings is None:
+        return "NONE"
+
     s = ""
     bullet = "\u2022" if is_unicode_supported() else "-"
 

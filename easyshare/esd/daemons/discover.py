@@ -1,10 +1,10 @@
-from typing import Optional, Callable
+from typing import Optional
 
+from easyshare.common import TransferDirection, TransferProtocol
 from easyshare.endpoint import Endpoint
-from easyshare.esd.daemons import Daemon, UdpDaemon
+from easyshare.esd.daemons import UdpDaemon
 from easyshare.logging import get_logger
-from easyshare.sockets import SocketUdpIn
-from easyshare.tracing import trace_in
+from easyshare.tracing import get_tracing_level, TRACING_TEXT, trace_text
 from easyshare.utils.types import btoi
 
 log = get_logger(__name__)
@@ -24,18 +24,19 @@ class DiscoverDaemon(UdpDaemon):
     and notifies the listeners about it.
     """
 
-    def _trace_hook(self, data: bytes, client_endpoint: Endpoint):
-        trace_in(
-            "DISCOVER {} ({})".format(str(data), btoi(data)),
-            ip=client_endpoint[0],
-            port=client_endpoint[1]
-        )
+    def _trace_hook(self, data: bytes, endpoint: Endpoint):
+        if get_tracing_level() == TRACING_TEXT: # check for avoid json_pretty_str call
+            trace_text(
+                str(btoi(data)),
+                sender=endpoint, receiver=self._sock.endpoint(),
+                direction=TransferDirection.IN, protocol=TransferProtocol.UDP
+            )
 
 
 def init_discover_daemon(port: int) -> DiscoverDaemon:
     """ Initializes the global discover daemon on the given port """
     global _discover_daemon
-    _discover_daemon = DiscoverDaemon(port)
+    _discover_daemon = DiscoverDaemon(port, trace=get_tracing_level() > TRACING_TEXT)
     return _discover_daemon
 
 

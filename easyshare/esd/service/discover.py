@@ -1,9 +1,10 @@
+from easyshare.common import TransferDirection, TransferProtocol
 from easyshare.endpoint import Endpoint
 from easyshare.esd.daemons.discover import get_discover_daemon
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.sockets import SocketUdpOut
-from easyshare.tracing import trace_out, is_tracing_enabled
+from easyshare.tracing import TRACING_TEXT, get_tracing_level, trace_text
 from easyshare.utils.json import jtob, j
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.types import btoi
@@ -23,6 +24,8 @@ class DiscoverService:
 
         response = self._server_info_full
 
+        log.d("Will send response %s", response)
+
         client_discover_response_port = btoi(data)
 
         if not is_valid_port(client_discover_response_port):
@@ -38,11 +41,11 @@ class DiscoverService:
         log.d("Sending DISCOVER response back to %s:%d",
               client_endpoint[0], client_discover_response_port)
 
-        if is_tracing_enabled():  # check for avoid json_pretty_str call
-            trace_out(
-                f"DISCOVER {j(response)}",
-                ip=client_endpoint[0],
-                port=client_discover_response_port
+        if get_tracing_level() == TRACING_TEXT: # check for avoid json_pretty_str call
+            trace_text(
+                j(response),
+                sender=sock.endpoint(), receiver=(client_endpoint[0], client_discover_response_port),
+                direction=TransferDirection.OUT, protocol=TransferProtocol.UDP
             )
 
         sock.send(jtob(response), client_endpoint[0], client_discover_response_port)

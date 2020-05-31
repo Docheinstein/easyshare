@@ -6,6 +6,7 @@ from typing import Optional
 
 from Pyro5 import socketutil
 
+from easyshare.common import TransferProtocol, TransferDirection
 from easyshare.consts.net import ADDR_ANY, PORT_ANY
 from easyshare.logging import get_logger
 from easyshare.utils.types import is_int
@@ -16,15 +17,6 @@ log = get_logger(__name__)
 
 IP_REGEX = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 
-
-class SocketMode(enum.Enum):
-    TCP = 0
-    UDP = 1
-
-
-class SocketDirection(enum.Enum):
-    IN = 0
-    OUT = 1
 
 
 def get_primary_ip():
@@ -55,31 +47,31 @@ def is_valid_port(p: int) -> bool:
 
 def socket_udp_in(address: str = ADDR_ANY, port: int = PORT_ANY, *,
                   timeout: float = None) -> socket.socket:
-    return _socket(SocketMode.UDP, SocketDirection.IN,
+    return _socket(TransferProtocol.UDP, TransferDirection.IN,
                    address=address, port=port,  timeout=timeout)
 
 
 def socket_udp_out(*,
                    timeout: float = None, broadcast: bool = False) -> socket.socket:
-    return _socket(SocketMode.UDP, SocketDirection.OUT,
+    return _socket(TransferProtocol.UDP, TransferDirection.OUT,
                    timeout=timeout, broadcast=broadcast)
 
 
 def socket_tcp_in(address: str, port: int, *,
                   timeout: float = None,
                   pending_connections: int = 100):
-    return _socket(SocketMode.TCP, SocketDirection.IN,
+    return _socket(TransferProtocol.TCP, TransferDirection.IN,
                    address=address, port=port, timeout=timeout,
                    pending_connections=pending_connections)
 
 
 def socket_tcp_out(address: str, port: int, *,
                    timeout: float = None):
-    return _socket(SocketMode.TCP, SocketDirection.OUT,
+    return _socket(TransferProtocol.TCP, TransferDirection.OUT,
                    address=address, port=port, timeout=timeout)
 
 
-def _socket(mode: SocketMode, direction: SocketDirection,
+def _socket(mode: TransferProtocol, direction: TransferDirection,
             address: str = None, port: int = None,
             timeout: float = None, broadcast: bool = False,
             pending_connections: int = 0, reuse_addr: bool = True,
@@ -107,9 +99,9 @@ def _socket(mode: SocketMode, direction: SocketDirection,
           broadcast,
     )
 
-    if mode == SocketMode.TCP:
+    if mode == TransferProtocol.TCP:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)    # TCP
-    elif mode == SocketMode.UDP:
+    elif mode == TransferProtocol.UDP:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)     # UDP
     else:
         return None
@@ -117,7 +109,7 @@ def _socket(mode: SocketMode, direction: SocketDirection,
     if timeout:
         sock.settimeout(timeout)
 
-    if mode == SocketMode.TCP and no_delay:
+    if mode == TransferProtocol.TCP and no_delay:
         try:
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         except:
@@ -126,14 +118,14 @@ def _socket(mode: SocketMode, direction: SocketDirection,
     if reuse_addr:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    if direction == SocketDirection.IN:
+    if direction == TransferDirection.IN:
         sock.bind((address, port))
-        if mode == SocketMode.TCP:
+        if mode == TransferProtocol.TCP:
             sock.listen(pending_connections)
-    elif direction == SocketDirection.OUT:
+    elif direction == TransferDirection.OUT:
         if broadcast:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        if mode == SocketMode.TCP:
+        if mode == TransferProtocol.TCP:
             sock.connect((address, port))
     else:
         return None

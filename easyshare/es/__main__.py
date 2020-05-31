@@ -11,13 +11,11 @@ from easyshare.helps.es import Es
 from easyshare.logging import get_logger
 from easyshare.res.helps import get_command_usage
 from easyshare.styling import enable_colors
-from easyshare.tracing import enable_tracing
+from easyshare.tracing import TRACING_NONE, TRACING_TEXT, set_tracing_level
 from easyshare.utils import abort, terminate
 from easyshare.utils.env import is_stdout_terminal, are_colors_supported
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
-from easyshare.utils.pyro import enable_pyro_logging
-
 
 log = get_logger(__name__)
 
@@ -86,8 +84,8 @@ def main():
     if Es.VERSION in args:
         terminate(APP_INFO)
 
-    verbosity = 0
-    tracing = 0
+    verbosity = logging.VERBOSITY_NONE
+    tracing = TRACING_NONE
     no_colors = False
     discover_port = DEFAULT_DISCOVER_PORT
     discover_timeout = DEFAULT_DISCOVER_TIMEOUT
@@ -98,11 +96,11 @@ def main():
 
     # Packet tracing
     if Es.TRACE in args:
-        # The param of -v is optional:
-        # if not specified the default is DEBUG
+        # The param of -t is optional:
+        # if not specified the default is TEXT
         tracing = args.get_option_param(
             Es.TRACE,
-            default=1
+            default=TRACING_TEXT
         )
 
     # Verbosity
@@ -145,10 +143,11 @@ def main():
 
     enable_colors(are_colors_supported() and not no_colors)
 
-    enable_tracing(tracing)
+    set_tracing_level(tracing)
+
     if verbosity:
         log.set_verbosity(verbosity)
-        enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
+        # enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
 
     # Initialize the client

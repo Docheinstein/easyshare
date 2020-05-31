@@ -2,13 +2,13 @@ import select
 from datetime import datetime
 from typing import Callable, cast
 
+from easyshare.common import TransferDirection, TransferProtocol
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.protocol.responses import is_data_response, Response
 from easyshare.protocol.types import ServerInfoFull
-from easyshare.tracing import trace_out, trace_in
 from easyshare.sockets import SocketUdpIn, SocketUdpOut
+from easyshare.tracing import trace_text, get_tracing_level, TRACING_TEXT
 from easyshare.utils.json import btoj, j
 from easyshare.utils.types import itob
 
@@ -47,21 +47,23 @@ class Discoverer:
         log.i("Client discover port: %d", in_sock.port())
 
         # Send discover
-        discover_message_raw = in_sock.port()
-        discover_message = itob(discover_message_raw, 2)
+        discover_message = in_sock.port()
+        discover_message_b = itob(discover_message, 2)
         out_sock = SocketUdpOut(broadcast=self._discover_addr == ADDR_BROADCAST)
 
         log.i("Sending DISCOVER to %s:%d",
               self._discover_addr,
               self._discover_port)
 
-        trace_out(
-            "DISCOVER {} ({})".format(str(discover_message), discover_message_raw),
-            ip=self._discover_addr,
-            port=self._discover_port
-        )
+        if get_tracing_level() == TRACING_TEXT: # check for avoid json_pretty_str call
+            trace_text(
+                str(discover_message),
+                sender=out_sock.endpoint(), receiver=(self._discover_addr, self._discover_port),
+                direction=TransferDirection.OUT, protocol=TransferProtocol.UDP
+            )
 
-        out_sock.send(discover_message, self._discover_addr, self._discover_port)
+        out_sock.send(discover_message_b, self._discover_addr, self._discover_port,
+                      trace=get_tracing_level() > TRACING_TEXT)
 
         # Listen
         discover_start_time = datetime.now()
@@ -86,16 +88,17 @@ class Discoverer:
 
             # Ready for recv
             log.d("DISCOVER socket ready for recv")
-            raw_resp, endpoint = in_sock.recv()
+            raw_resp, endpoint = in_sock.recv(trace=get_tracing_level() > TRACING_TEXT)
 
             log.i("Received DISCOVER response from: %s", endpoint)
             resp: ServerInfoFull = cast(ServerInfoFull, btoj(raw_resp))
 
-            trace_in(
-                "DISCOVER\n{}".format(j(resp)),
-                ip=endpoint[0],
-                port=endpoint[1]
-            )
+            if get_tracing_level() == TRACING_TEXT:  # check for avoid json_pretty_str call
+                trace_text(
+                    j(resp),
+                    sender=in_sock.endpoint(), receiver=endpoint,
+                    direction=TransferDirection.IN, protocol=TransferProtocol.UDP
+                )
 
             # Dispatch the response and check whether go on on listening
             go_ahead = self._response_handler(endpoint, resp)

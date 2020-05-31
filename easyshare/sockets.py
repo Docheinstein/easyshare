@@ -4,9 +4,11 @@ import ssl
 from abc import ABC
 from typing import Optional, Union, Tuple
 
+from easyshare.common import TransferDirection, TransferProtocol
 from easyshare.consts.net import ADDR_BROADCAST, ADDR_ANY, PORT_ANY
 from easyshare.logging import get_logger
 from easyshare.endpoint import Endpoint
+from easyshare.tracing import trace_bin_all, trace_bin_payload
 from easyshare.utils.net import socket_udp_in, socket_udp_out, socket_tcp_out, socket_tcp_in
 from easyshare.utils.ssl import sslify_socket
 
@@ -61,10 +63,22 @@ class Socket(ABC):
 
 
 class SocketUdp(Socket):
-    def recv(self, length=DEFAULT_SOCKET_BUFSIZE) -> Tuple[bytes, Endpoint]:
-        return self.sock.recvfrom(length)
+    def recv(self, length=DEFAULT_SOCKET_BUFSIZE, trace: bool = True) -> Tuple[bytes, Endpoint]:
+        data, sender = self.sock.recvfrom(length)
 
-    def send(self, data: bytes, address: str, port: int) -> int:
+        if trace:
+            trace_bin_payload(data,
+                          sender=sender, receiver=self.endpoint(),
+                          direction=TransferDirection.IN, protocol=TransferProtocol.UDP)
+
+        return data, sender
+
+    def send(self, data: bytes, address: str, port: int, trace: bool = True) -> int:
+        if trace:
+            trace_bin_payload(data,
+                          sender=self.endpoint(), receiver=(address, port),
+                          direction=TransferDirection.OUT, protocol=TransferProtocol.UDP)
+
         return self.sock.sendto(data, (address, port))
 
     def broadcast(self, data: bytes, port: int) -> int:
@@ -93,32 +107,37 @@ class SocketTcp(Socket):
         super().__init__(sock)
         self._recv_buffer = bytearray()
 
-    def send(self, data: bytes):
+    def send(self, data: bytes, trace: bool = True):
+        if trace:
+            trace_bin_all(data,
+                          sender=self.endpoint(), receiver=self.remote_endpoint(),
+                          direction=TransferDirection.OUT, protocol=TransferProtocol.TCP)
+
         self.sock.sendall(data)
 
-    def recv(self, length: int) -> Optional[bytearray]:
+    def recv(self, length: int, trace: bool = True) -> Optional[bytearray]:
         while True:
             remaining_length = length - len(self._recv_buffer)
             if remaining_length <= 0:
                 break
 
-            log.d("recv() - waiting for %d bytes", remaining_length)
             recvlen = min(remaining_length, DEFAULT_SOCKET_BUFSIZE)
             data = self.sock.recv(recvlen)
-            log.d("recv(): %s", repr(data))
 
             if len(data) == 0:
-                log.d("EOF")
                 return None
 
             self._recv_buffer += data
 
-        read = self._recv_buffer[0:length]
-        self._recv_buffer = self._recv_buffer[length:]
-        return read
+        data = self._recv_buffer[0:length]
+        self._recv_buffer = self._recv_buffer[length:]  # might have read more
+                                                        # than the required length
+        if trace:
+            trace_bin_all(data,
+                          sender=self.remote_endpoint(), receiver=self.endpoint(),
+                          direction=TransferDirection.IN, protocol=TransferProtocol.TCP)
 
-    # def recv_into(self, bufsize, buffer: bytearray = None) -> int:
-    #     return self.sock.recv_into(buffer, bufsize)
+        return data
 
     def remote_endpoint(self) -> Optional[Endpoint]:
         try:
@@ -133,10 +152,12 @@ class SocketTcp(Socket):
     def remote_port(self) -> int:
         return self.remote_endpoint()[1]
 
+
 class SocketTcpIn(SocketTcp):
     def __init__(self,
                  sock: socket.socket):
         super().__init__(sock) # already sslified by the acceptor, eventually
+
 
 class SocketTcpOut(SocketTcp):
     def __init__(self,
@@ -151,6 +172,7 @@ class SocketTcpOut(SocketTcp):
                 server_hostname=address
             )
         )
+
 
 class SocketTcpAcceptor(Socket):
 

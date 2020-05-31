@@ -1,16 +1,17 @@
 from typing import Union, Optional, cast, List, Dict
 
+from easyshare.common import TransferProtocol, TransferDirection
 from easyshare.consts import ansi
 from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
-from easyshare.protocol.requests import Request, Requests, create_request, RequestsParams
+from easyshare.protocol.requests import Requests, create_request, RequestsParams
 from easyshare.protocol.responses import Response, is_success_response, create_error_response, is_error_response, \
     ServerErrors, create_success_response
-from easyshare.protocol.stream import Stream
 from easyshare.protocol.types import ServerInfoFull, ServerInfo
 from easyshare.sockets import SocketTcp, SocketTcpOut
 from easyshare.ssl import get_ssl_context, set_ssl_context
-from easyshare.tracing import is_tracing_enabled, trace_in, trace_out
+from easyshare.streams import TcpStream
+from easyshare.tracing import trace_text, get_tracing_level, TRACING_BIN_PAYLOADS
 from easyshare.utils.inspection import stacktrace
 from easyshare.utils.json import j, jtob, btoj
 from easyshare.utils.ssl import create_client_ssl_context
@@ -106,9 +107,9 @@ class ConnectionMinimal:
         # Connect to the remote
         if socket:
             log.d("Not creating connection since an established one as been provided")
-            self._stream = Stream(socket)
+            self._stream = TcpStream(socket)
         else:
-            self._stream = Stream(SocketTcpOut(
+            self._stream = TcpStream(SocketTcpOut(
                 address=server_ip,
                 port=server_port,
                 ssl_context=get_ssl_context()
@@ -365,31 +366,39 @@ class ConnectionMinimal:
 
 
     def call(self, req: Dict) -> Response:
-        self.write_json(req, trace=True)
-        return self.read_json(trace=True)
+        self.write_json(req)
+        return self.read_json()
 
-    def write_json(self, req: Dict, trace: bool = False):
+    def write_json(self, req: Dict, trace: bool = True):
         # Trace OUT
-        if trace and is_tracing_enabled():  # check for avoid json_pretty_str call
-            trace_out(f"{j(req)}",
-                     ip=self._server_ip,
-                     port=self._server_port)
+        trace_bin = get_tracing_level() >= TRACING_BIN_PAYLOADS
 
-        self.write(jtob(req)) # don't trace at byte level
+        if trace and not trace_bin:
+            trace_text(
+                j(req),
+                sender=self._stream.endpoint(), receiver=self._stream.remote_endpoint(),
+                direction=TransferDirection.OUT, protocol=TransferProtocol.TCP
+            )
 
-    def read_json(self, trace: bool = False) -> Dict:
-        resp = btoj(self.read()) # don't trace at byte level
+        self.write(jtob(req), trace=trace and trace_bin)
+
+    def read_json(self, trace: bool = True) -> Dict:
+        trace_bin = get_tracing_level() >= TRACING_BIN_PAYLOADS
+
+        resp = btoj(self.read(trace=trace and trace_bin))
 
         # Trace IN
-        if trace and is_tracing_enabled():  # check for avoid json_pretty_str call
-            trace_in(f"{j(resp)}",
-                     ip=self.server_ip(),
-                     port=self.server_port())
+        if trace and not trace_bin:
+            trace_text(
+                j(resp),
+                sender=self._stream.remote_endpoint(), receiver=self._stream.endpoint(),
+                direction=TransferDirection.IN, protocol=TransferProtocol.TCP
+            )
 
         return resp
 
 
-    def write(self, data: Union[bytes, bytearray], trace: bool = False):
+    def write(self, data: Union[bytes, bytearray], trace: bool = True):
         if not self.is_established():
             raise ConnectionError("Connection closed")
 
@@ -400,7 +409,7 @@ class ConnectionMinimal:
             raise ConnectionError("Write failed")
 
 
-    def read(self, trace: bool = False) -> bytearray:
+    def read(self, trace: bool = True) -> bytearray:
         if not self.is_established():
             raise ConnectionError("Connection closed")
 

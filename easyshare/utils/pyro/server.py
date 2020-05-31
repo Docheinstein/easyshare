@@ -5,7 +5,6 @@ from Pyro5 import api as pyro
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
 from easyshare.protocol.responses import ServerErrors, create_error_response, Response
-from easyshare.tracing import trace_in, trace_out
 from easyshare.utils.inspection import func_args_to_str
 from easyshare.utils.json import j
 
@@ -38,10 +37,10 @@ def trace_api(api):
 
         resp = api(pyro_obj, *vargs, **kwargs)
 
-        if resp:
-            trace_out("{}\n{}".format(api_name, j(resp)),
-                      ip=requester[0],
-                      port=requester[1])
+        # if resp:
+        #     trace_out("{}\n{}".format(api_name, j(resp)),
+        #               ip=requester[0],
+        #               port=requester[1])
         # else: should be a one-way call without response
         return resp
 

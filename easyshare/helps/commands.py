@@ -426,8 +426,10 @@ Open connections are automatically closed."""
 # ============ TRACE ================
 
 class Trace(CommandInfo):
-    T0 = (["0"], "enable packet tracing")
-    T1 = (["1"], "disable packet tracing")
+    T0 = (["0"], "disabled")
+    T1 = (["1"], "text")
+    T2 = (["2"], "binary payloads")
+    T3 = (["3"], "binary all")
 
     @classmethod
     def name(cls):
@@ -441,69 +443,79 @@ class Trace(CommandInfo):
     def synopsis(cls):
         return """\
 trace <A> # just for alignment
-<b>trace</b> [<u>0</u> | <u>1</u>]
-<b>t</b>     <a>[<u>0</u> | <u>1</u>]</a>"""
+<b>trace</b> <a>[<u>LEVEL</u>]</a>
+<b>t</b>     <a>[<u>LEVEL</u>]</a>"""
 
     @classmethod
     def long_description(cls):
         return """\
-Show (1) or hide (0) the packets sent and received to and from the server for any operation.
+Change the tracing level to <u>LEVEL</u> (default is <u>0</u>, which is disabled).
+When tracing is enabled, packets sent and received to and from the server for any operation are shown.
 
-If no argument is given, toggle the packet tracing mode."""
+The allowed values of <u>LEVEL</u> are:
+<u>0</u>        disabled (default)
+<u>1</u>        text
+<u>2</u>        binary payloads
+<u>3</u>        binary all (payload + header)
+
+If no argument is given, increase the tracing level or resets \
+it to <u>0</u> if it exceeds the maximum."""
+
 
     @classmethod
     def examples(cls):
-        return """\
-Usage example:
-
-<b>/tmp</b> <b>t</b>
-Tracing = 1 (enabled)
-<b>/tmp</b> o temp
->> <broadcast>:12019
->>   DISCOVER (58140)
-
-<< 192.168.1.105:57300
-<<   DISCOVER
-{
-<i+2>"success": true,</i>
-<i+2>"data": {</i>
-<i+4>"name": "alice-arch",</i>
-<i+4>"sharings": [</i>
-<i+6>{</i>
-<i+8>"name": "temp",</i>
-<i+8>"ftype": "dir",</i>
-<i+8>"read_only": false</i>
-<i+6>}</i>
-<i+4>],</i>
-<i+4>"ssl": false,</i>
-<i+4>"auth": false,</i>
-<i+4>"ip": "192.168.1.105",</i>
-<i+4>"port": 12020,</i>
-<i+4>"discoverable": true,</i>
-<i+4>"discover_port": 12019</i>
-<i+2>}</i>
-}
-
->> 192.168.1.105:12020 (stefano-arch)
->>   connect (password=None)
-
-<< 192.168.1.105:12020 (stefano-arch)
-<<   connect
-{
-<i+2>"success": true</i>
-}
-
->> 192.168.1.105:12020 (stefano-arch)
->>   open ("temp")
-
-<< 192.168.1.105:12020 (stefano-arch)
-<<   open
-{
-<i+2>"success": true,</i>
-<i+2>"data": "ebc40f8680d448dcad5c98291b720e37"</i>
-}
-
-<b>alice-arch.temp:/</b> - <b>/tmp></b>"""
+        return "TO DO"
+#         return """\
+# Usage example:
+#
+# <b>/tmp</b> <b>t</b>
+# Tracing = 1 (enabled)
+# <b>/tmp</b> o temp
+# >> <broadcast>:12019
+# >>   DISCOVER (58140)
+#
+# << 192.168.1.105:57300
+# <<   DISCOVER
+# {
+# <i+2>"success": true,</i>
+# <i+2>"data": {</i>
+# <i+4>"name": "alice-arch",</i>
+# <i+4>"sharings": [</i>
+# <i+6>{</i>
+# <i+8>"name": "temp",</i>
+# <i+8>"ftype": "dir",</i>
+# <i+8>"read_only": false</i>
+# <i+6>}</i>
+# <i+4>],</i>
+# <i+4>"ssl": false,</i>
+# <i+4>"auth": false,</i>
+# <i+4>"ip": "192.168.1.105",</i>
+# <i+4>"port": 12020,</i>
+# <i+4>"discoverable": true,</i>
+# <i+4>"discover_port": 12019</i>
+# <i+2>}</i>
+# }
+#
+# >> 192.168.1.105:12020 (stefano-arch)
+# >>   connect (password=None)
+#
+# << 192.168.1.105:12020 (stefano-arch)
+# <<   connect
+# {
+# <i+2>"success": true</i>
+# }
+#
+# >> 192.168.1.105:12020 (stefano-arch)
+# >>   open ("temp")
+#
+# << 192.168.1.105:12020 (stefano-arch)
+# <<   open
+# {
+# <i+2>"success": true,</i>
+# <i+2>"data": "ebc40f8680d448dcad5c98291b720e37"</i>
+# }
+#
+# <b>alice-arch.temp:/</b> - <b>/tmp></b>"""
 
     @classmethod
     def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
@@ -552,7 +564,7 @@ Change the verbosity level to <u>LEVEL</u> (default is <u>0</u>, which is disabl
 
 The messages are written to stdout.
 
-The allowed value of <u>LEVEL</u> are:
+The allowed values of <u>LEVEL</u> are:
 <u>0</u>        disabled (default)
 <u>1</u>        errors
 <u>2</u>        warnings

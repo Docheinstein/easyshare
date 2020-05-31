@@ -4,8 +4,7 @@ import threading
 from typing import List, Optional, cast, Callable, Dict
 
 from easyshare import logging
-from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, PosArgsSpec, ArgType, Args, StrParams, ArgsSpec, \
-    OptionParams, VarArgsSpec
+from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, ArgType, Args, StrParams, VarArgsSpec
 from easyshare.auth import AuthFactory
 from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO, \
     transfer_port, DEFAULT_SERVER_PORT, DEFAULT_DISCOVER_PORT
@@ -14,15 +13,15 @@ from easyshare.esd.common import Sharing
 from easyshare.esd.daemons.api import init_api_daemon, get_api_daemon
 from easyshare.esd.daemons.discover import get_discover_daemon, init_discover_daemon
 from easyshare.esd.daemons.transfer import get_transfer_daemon, init_transfer_daemon
-from easyshare.esd.service.discover import DiscoverService
 from easyshare.esd.service.api import ApiService
+from easyshare.esd.service.discover import DiscoverService
 from easyshare.helps.esd import Esd
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.res.helps import get_command_usage
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.styling import enable_colors, bold
-from easyshare.tracing import enable_tracing
+from easyshare.tracing import set_tracing_level, TRACING_NONE, TRACING_TEXT
 from easyshare.utils import terminate, abort
 from easyshare.utils.env import are_colors_supported
 from easyshare.utils.json import j
@@ -202,8 +201,8 @@ def main():
         terminate(APP_INFO)
 
     # Default values
-    verbosity = 0
-    tracing = 0
+    verbosity = logging.VERBOSITY_NONE
+    tracing = TRACING_NONE
     no_colors = False
 
     server_name = socket.gethostname()
@@ -392,11 +391,11 @@ def main():
 
     # Packet tracing
     if g_args.has_option(Esd.TRACE):
-        # The param of -v is optional:
-        # if not specified the default is DEBUG
+        # The param of -t is optional:
+        # if not specified the default is TEXT
         tracing = g_args.get_option_param(
             Esd.TRACE,
-            default=1
+            default=TRACING_TEXT
         )
 
     # Verbosity
@@ -414,7 +413,9 @@ def main():
     log.d("Verbosity: %s", verbosity)
 
     enable_colors(are_colors_supported() and not no_colors)
-    enable_tracing(tracing)
+
+    set_tracing_level(tracing)
+
     if verbosity:
         log.set_verbosity(verbosity)
         enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)

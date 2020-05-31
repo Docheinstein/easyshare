@@ -43,7 +43,6 @@ from easyshare.sockets import SocketTcpOut
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import red, bold
 from easyshare.timer import Timer
-from easyshare.tracing import trace_in, is_tracing_enabled, trace_out
 from easyshare.utils.json import j, btoj, jtob
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str
@@ -1267,7 +1266,7 @@ class Client:
         resp = conn.get(files, cksum=do_check)
         ensure_success_response(resp)
 
-        transfer_socket = None
+        transfer_socket: Optional[SocketTcpOut] = None
 
         def init_transfer_socket():
             nonlocal transfer_socket
@@ -1523,7 +1522,7 @@ class Client:
                 progressor.success()
 
         # Wait for completion
-        outcome_resp = conn.read_json(trace=True)
+        outcome_resp = conn.read_json()
         ensure_data_response(outcome_resp, "outcome")
 
         timer.stop()

@@ -10,6 +10,7 @@ from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO
 from ptyprocess import PtyProcess
 
 from easyshare.auth import Auth
+from easyshare.common import TransferDirection, TransferProtocol
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import Sharing, ClientContext
 from easyshare.esd.daemons.api import get_api_daemon
@@ -17,12 +18,12 @@ from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams, RequestsParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response, \
     create_error_of_response, TransferOutcomes
-from easyshare.protocol.stream import StreamClosedError
 from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType, create_file_info
 from easyshare.sockets import SocketTcp
 from easyshare.ssl import get_ssl_context
+from easyshare.streams import StreamClosedError
 from easyshare.styling import green, red
-from easyshare.tracing import trace_in, trace_out, is_tracing_enabled
+from easyshare.tracing import get_tracing_level, TRACING_TEXT, trace_text
 from easyshare.utils.json import btoj, jtob, j
 from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, get_passwd, pty_detached
 from easyshare.utils.str import q
@@ -194,7 +195,6 @@ class ClientHandler:
             Requests.RMV: self._rmv,
             Requests.RCP: self._rcp,
             Requests.GET: self._get,
-            "sleep": self._sleep
         }
 
 
@@ -247,7 +247,7 @@ class ClientHandler:
 
 
     def _recv_json(self) -> Dict:
-        req_payload_data = self._client.stream.read()
+        req_payload_data = self._client.stream.read(trace=False)
         req_payload = None
 
         try:
@@ -256,10 +256,12 @@ class ClientHandler:
             log.exception("Failed to parse payload - discarding it")
 
         # Trace IN
-        if is_tracing_enabled():  # check for avoid json_pretty_str call
-            trace_in(f"{j(req_payload)}",
-                     ip=self._client.endpoint[0],
-                     port=self._client.endpoint[1])
+        if get_tracing_level() == TRACING_TEXT: # check for avoid json_pretty_str call
+            trace_text(
+                j(req_payload),
+                sender=self._client.socket.remote_endpoint(), receiver=self._client.socket.endpoint(),
+                direction=TransferDirection.IN, protocol=TransferProtocol.TCP
+            )
 
         return req_payload
 
@@ -279,19 +281,15 @@ class ClientHandler:
             return
 
         # Trace OUT
-        if is_tracing_enabled(): # check for avoid json_pretty_str call
-            trace_out(f"{j(response)}",
-                     ip=self._client.endpoint[0],
-                     port=self._client.endpoint[1])
+        if get_tracing_level() == TRACING_TEXT: # check for avoid json_pretty_str call
+            trace_text(
+                j(response),
+                sender=self._client.socket.endpoint(), receiver=self._client.socket.remote_endpoint(),
+                direction=TransferDirection.OUT, protocol=TransferProtocol.TCP
+            )
 
         # Really send it back
-        self._client.stream.write(jtob(response))
-
-    def _sleep(self, params: RequestParams) -> Response:
-        log.d("Sleeping...")
-        time.sleep(int(params.get("time", 1)))
-        log.d("Slept")
-        return create_success_response()
+        self._client.stream.write(jtob(response), trace=False) # don't trace at byte level
 
 
     # == SERVER COMMANDS ==
@@ -416,8 +414,10 @@ class ClientHandler:
         stdin_th.join()
         out_th.join()
 
-        log.d("REXEC finished with return code = %d", proc.returncode)
-
+        if proc.returncode is not None:
+            log.d("REXEC finished with return code = %d", proc.returncode)
+        else:
+            log.w("REXEC invalid return code")
 
     @require_server_connection
     @require_unix

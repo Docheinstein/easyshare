@@ -42,11 +42,12 @@ class Daemon(ABC):
 
 
 class UdpDaemon(Daemon):
-    def __init__(self, port: int):
+    def __init__(self, port: int, trace: bool):
         super().__init__()
         self._sock = SocketUdpIn(
             port=port
         )
+        self._traced = trace
 
     def add_callback(self, callback: Callable[[Endpoint, bytes], bool], once: bool = False):
         self._callbacks[callback] = once
@@ -63,7 +64,7 @@ class UdpDaemon(Daemon):
     def run(self):
         while True:
             log.d("Waiting for UDP request to on port %d...", self.port())
-            data, client_endpoint = self._sock.recv()
+            data, client_endpoint = self._sock.recv(trace=self._traced)
 
             self._trace_hook(data, client_endpoint)
 

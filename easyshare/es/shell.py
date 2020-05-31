@@ -1,31 +1,26 @@
 import os
-import shlex
-import readline as rl
-import traceback
 import pydoc
-
+import readline as rl
+import shlex
+import traceback
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
-from Pyro5.errors import PyroError
-
-from easyshare import logging
+from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
 from easyshare.consts import ansi
-
-from easyshare.es.client import Client, HandledKeyboardInterrupt
-from easyshare.helps.commands import Commands, matches_special_command, Verbose
-from easyshare.es.ui import print_tabulated, StyledString
+from easyshare.es.client import Client
 from easyshare.es.errors import ClientErrors, print_errors
+from easyshare.es.ui import print_tabulated, StyledString
+from easyshare.helps.commands import Commands, matches_special_command, Verbose, Trace
 from easyshare.helps.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import get_command_help
-from easyshare.tracing import is_tracing_enabled, enable_tracing
+from easyshare.tracing import get_tracing_level, set_tracing_level
 from easyshare.utils import eprint
 from easyshare.utils.env import is_unicode_supported
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
-from easyshare.utils.pyro import enable_pyro_logging, is_pyro_logging_enabled
-from easyshare.utils.types import is_bool, bool_to_str
+from easyshare.utils.types import is_bool
 
 log = get_logger(__name__)
 
@@ -39,6 +34,13 @@ _VERBOSITY_EXPLANATION_MAP = {
     logging.VERBOSITY_WARNING: Verbose.V2[1],
     logging.VERBOSITY_INFO: Verbose.V3[1],
     logging.VERBOSITY_DEBUG: Verbose.V4[1],
+}
+
+_TRACING_EXPLANATION_MAP = {
+    tracing.TRACING_NONE: Trace.T0[1],
+    tracing.TRACING_TEXT: Trace.T1[1],
+    tracing.TRACING_BIN_PAYLOADS: Trace.T2[1],
+    tracing.TRACING_BIN_ALL: Trace.T3[1],
 }
 
 
@@ -385,18 +387,19 @@ class Shell:
     def _trace(args: Args) -> Union[int, str]:
         """ trace - changes the tracing level """
 
-        # Toggle tracing if no parameter is provided
-        enable = args.get_positional(default=not is_tracing_enabled())
+        # Increase tracing level (or disable if is already max)
 
-        log.i(">> TRACE (%d)", enable)
+        level = args.get_positional(
+            default=(get_tracing_level() + 1) % (tracing.TRACING_MAX + 1)
+        )
 
-        enable_tracing(enable)
+        level = rangify(level, tracing.TRACING_MIN, tracing.TRACING_MAX)
 
-        print("Tracing = {:d} ({})".format(
-            enable,
-            bool_to_str(enable, "enabled", "disabled")
-        ))
+        log.i(">> TRACING (%d)", level)
 
+        set_tracing_level(level)
+
+        print(f"Tracing = {level} ({_TRACING_EXPLANATION_MAP.get(level, '<unknown>')})")
         return 0
 
     @staticmethod
@@ -419,9 +422,6 @@ class Shell:
         root_log.set_verbosity(verbosity)
         # enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
-        print("Verbosity = {:d} ({})".format(
-            verbosity,
-            _VERBOSITY_EXPLANATION_MAP.get(verbosity, "<unknown>")
-        ))
+        print(f"Verbosity = {verbosity} ({_VERBOSITY_EXPLANATION_MAP.get(verbosity, '<unknown>')})")
 
         return 0
