@@ -58,7 +58,13 @@ class TransferOutcomes:
     TRANSFER_CLOSED = 303
     CHECK_FAILED = 304
 
+class ResponsesParams:
+    GET_NEXT_FILE = "file"
+    GET_OUTCOME = "outcome"
+    GET_ERRORS = "errors"
 
+
+    PUT_NEXT_ACCEPTED = "accepted"
 
 
 # ================================================

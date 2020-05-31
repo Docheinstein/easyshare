@@ -1,9 +1,11 @@
+import time
 from typing import Union
 
 from easyshare.common import TransferDirection, TransferProtocol
 from easyshare.consts import ansi
 from easyshare.endpoint import Endpoint
 from easyshare.styling import fg
+from easyshare.utils import eprint
 from easyshare.utils.mathematics import rangify
 
 TRACING_NONE = 0
@@ -66,7 +68,7 @@ def trace_bin_payload(what: Union[bytes, bytearray], sender: Endpoint, receiver:
     if _tracing < TRACING_BIN_PAYLOADS:
         return
 
-    _trace(_hexdump(what), sender, receiver, direction, protocol)
+    _trace(_hexdump(what), sender, receiver, direction, protocol, size=len(what))
 
 
 def trace_bin_all(what: Union[bytes, bytearray], sender: Endpoint, receiver: Endpoint,
@@ -74,10 +76,12 @@ def trace_bin_all(what: Union[bytes, bytearray], sender: Endpoint, receiver: End
     if _tracing < TRACING_BIN_ALL:
         return
 
-    _trace(_hexdump(what), sender, receiver, direction, protocol)
+    _trace(_hexdump(what), sender, receiver, direction, protocol, size=len(what))
 
-def _trace(what: str, sender: Endpoint, receiver: Endpoint,
-               direction: TransferDirection, protocol: TransferProtocol):
+def _trace(what: str,
+           sender: Endpoint, receiver: Endpoint,
+           direction: TransferDirection, protocol: TransferProtocol,
+           size: int = -1):
 
     if direction == TransferDirection.OUT:
         _1 = ">>"
@@ -87,14 +91,24 @@ def _trace(what: str, sender: Endpoint, receiver: Endpoint,
         _1 = "<<"
         _2 = "="
         color = ansi.FG_CYAN
-    try:
-        print(fg(f"""\
+
+    s = f"""\
 {_1} ============================== {direction.value} ==============================={_2}
 {_1} From:      {sender[0]}:{sender[1]}
 {_1} To:        {receiver[0]}:{receiver[1]}
 {_1} Protocol:  {protocol.value}
+{_1} Timestamp: {int(time.time_ns() * 1e-6)}"""
+
+    if size >= 0:
+        s += f"""
+{_1} Size:      {size}"""
+
+    s += f"""
 {_1} ------------------------------------------------------------------
-{what}""", color=color))
+{what}"""
+
+    try:
+        eprint(fg(s, color=color))
     except OSError:
         # EWOULDBLOCK may arise for large messages (subprocess.Popen with streams)
         # In the worst case the tracing will fail, but do not arise

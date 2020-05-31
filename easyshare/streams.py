@@ -3,7 +3,7 @@ from typing import Union
 from easyshare.common import TransferDirection, TransferProtocol
 from easyshare.logging import get_logger
 from easyshare.sockets import SocketTcp
-from easyshare.tracing import trace_bin_payload, get_tracing_level, TRACING_BIN_ALL
+from easyshare.tracing import trace_bin_payload, get_tracing_level, TRACING_BIN_ALL, trace_bin_all
 from easyshare.utils.types import btoi, itob
 
 log = get_logger(__name__)
@@ -26,11 +26,11 @@ class TcpStream:
         return self._is_open
 
     def read(self, *, trace: bool = True) -> bytearray:
-        trace_bin_all = get_tracing_level() == TRACING_BIN_ALL
+        do_trace_bin_all = get_tracing_level() == TRACING_BIN_ALL
 
         # recv() the HEADER (2 bytes)
 
-        header_data = self._socket.recv(4, trace=trace and trace_bin_all)
+        header_data = self._socket.recv(4, tracer=trace_bin_all if trace and do_trace_bin_all else False)
         self._ensure_data(header_data)
 
         header = btoi(header_data)
@@ -50,7 +50,7 @@ class TcpStream:
         log.d("stream.recv() - received payload of %d", len(payload_data))
 
 
-        if trace and not trace_bin_all:
+        if trace and not do_trace_bin_all:
             trace_bin_payload(payload_data,
                           sender=self._socket.remote_endpoint(), receiver=self._socket.endpoint(),
                           direction=TransferDirection.IN, protocol=TransferProtocol.TCP)
@@ -58,7 +58,7 @@ class TcpStream:
         return payload_data
 
     def write(self, /, payload_data: Union[bytearray, bytes], *, trace: bool = True):
-        trace_bin_all = get_tracing_level() == TRACING_BIN_ALL
+        do_trace_bin_all = get_tracing_level() == TRACING_BIN_ALL
 
         payload_size = len(payload_data)
         header = itob(payload_size, 4)
@@ -69,12 +69,12 @@ class TcpStream:
 
         log.d("stream.send() - sending %s", repr(data))
 
-        if trace and not trace_bin_all:
+        if trace and not do_trace_bin_all:
             trace_bin_payload(payload_data,
                               sender=self._socket.endpoint(), receiver=self._socket.remote_endpoint(),
                               direction=TransferDirection.OUT, protocol=TransferProtocol.TCP)
 
-        self._socket.send(data, trace=trace and trace_bin_all)
+        self._socket.send(data, tracer=trace_bin_all if trace and do_trace_bin_all else False)
 
     def close(self):
         self._socket.close()

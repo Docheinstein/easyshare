@@ -35,14 +35,14 @@ from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMA
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import RequestsParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
-    create_error_of_response
+    create_error_of_response, ResponsesParams
 from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService, IRshellService
-from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, \
-    OverwritePolicy, FTYPE_FILE, ServerInfo, create_file_info, PutNextResponse, RexecEventType
+from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, FTYPE_FILE, ServerInfo, create_file_info, PutNextResponse, RexecEventType
 from easyshare.sockets import SocketTcpOut
 from easyshare.ssl import get_ssl_context
 from easyshare.styling import red, bold
 from easyshare.timer import Timer
+from easyshare.tracing import trace_bin_payload
 from easyshare.utils.json import j, btoj, jtob
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str
@@ -213,6 +213,14 @@ class CommandExecutionError(Exception):
 
 class HandledKeyboardInterrupt(KeyboardInterrupt):
     pass
+
+
+class OverwritePolicy:
+    PROMPT = 0
+    YES = 1
+    NO = 2
+    NEWER = 3
+
 
 # ==================================================================
 
@@ -1213,7 +1221,7 @@ class Client:
         # Reuse the parsed args for keep the (optional) path
         args._parsed[Ls.SHOW_ALL[0]] = True
         args._parsed[Ls.SHOW_DETAILS[0]] = True
-        self.rls(args, conn, conn)
+        self.rls(args, conn)
 
     @provide_d_sharing_connection
     def rtree(self, args: Args, conn: Connection):
@@ -1266,35 +1274,7 @@ class Client:
         resp = conn.get(files, cksum=do_check)
         ensure_success_response(resp)
 
-        transfer_socket: Optional[SocketTcpOut] = None
-
-        def init_transfer_socket():
-            nonlocal transfer_socket
-
-            # Raw transfer socket
-            try:
-                log.d("Initializing transfer socket")
-                # transfer_socket = SocketTcpOut(
-                #     address=conn.server_info.get("ip"),
-                #     port=transfer_port(conn.server_info.get("port")),
-                #     ssl_context=get_ssl_context(),
-                #     timeout=self._discover_timeout  # well it's not a discovery,
-                #                                     # but at least should be a
-                #                                     # timeout that make sense
-                # )
-                transfer_socket = conn._stream._socket
-            except ConnectionRefusedError:
-                log.exception("Transfer socket creation failed (closed)")
-                raise CommandExecutionError("Transfer connection can't be established: refused")
-            except socket.timeout:
-                log.exception("Transfer socket creation failed (timeout)")
-                raise CommandExecutionError("Transfer connection can't be established: timed out")
-            except OSError as oserr:
-                log.exception("Transfer socket creation failed")
-                raise CommandExecutionError(os_error_str(oserr))
-            except Exception as exc:
-                log.exception("Transfer socket creation failed")
-                raise CommandExecutionError(str(exc))
+        transfer_socket = conn._stream._socket
 
         # Overwrite preference
 
@@ -1326,6 +1306,7 @@ class Client:
 
         errors = []
 
+        outcome_resp = None
 
         while True:
             log.i("Fetching another file info")
@@ -1336,29 +1317,38 @@ class Client:
             # 1. Really transfer the file
             # 2. Skip the file
 
-            will_transfer = overwrite_policy == OverwritePolicy.NO
-            will_seek = not will_transfer
+            # If OverwritePolicy.YES transfer immediately since we won't
+            # ask to the user whether overwrite or not
 
-            log.i("Action: %s", "transfer" if will_transfer else "seek")
+            if overwrite_policy == OverwritePolicy.YES:
+                action = RequestsParams.GET_NEXT_ACTION_TRANSFER
+            else:
+                action = RequestsParams.GET_NEXT_ACTION_SEEK
 
-            # Transfer immediately since we won't ask to the user
-            # whether overwrite or not
+            log.i("Action: %s", action)
+
             get_next_resp = conn.call({
-                RequestsParams.GET_NEXT_TRANSFER: will_transfer
+                RequestsParams.GET_NEXT_ACTION: action
             })
 
-            ensure_success_response(get_next_resp)  # it might be without data
+            ensure_success_response(get_next_resp)
+            data = get_next_resp.get("data")
 
-            next_file: FileInfo = get_next_resp.get("data")
+            finfo: Optional[FileInfo] = None
 
-            if not next_file:
+            if data:
+                finfo = data.get(ResponsesParams.GET_NEXT_FILE)
+
+            if not finfo:
                 log.i("Nothing more to GET")
+                if data and data.get(ResponsesParams.GET_OUTCOME) is not None:
+                    outcome_resp = get_next_resp
                 break
 
-            fname = next_file.get("name")
-            fsize = next_file.get("size")
-            ftype = next_file.get("ftype")
-            fmtime = next_file.get("mtime")
+            fname = finfo.get("name")
+            fsize = finfo.get("size")
+            ftype = finfo.get("ftype")
+            fmtime = finfo.get("mtime")
 
             local_path = Path(fname)
 
@@ -1393,7 +1383,7 @@ class Client:
 
                 log.d("Overwrite decision: %s", str(current_overwrite_decision))
 
-                if will_seek:
+                if action == RequestsParams.GET_NEXT_ACTION_SEEK:
                     do_skip = False
 
                     if current_overwrite_decision == OverwritePolicy.NO:
@@ -1410,7 +1400,7 @@ class Client:
                     if do_skip:
                         log.d("Would have seek, have to tell server to skip %s", fname)
                         get_next_resp = conn.call({
-                            RequestsParams.GET_NEXT_SKIP: True
+                            RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_SKIP
                         })
                         ensure_success_response(get_next_resp)
                         continue
@@ -1421,10 +1411,10 @@ class Client:
             # Eventually tell the server to begin the transfer
             # We have to call it now because the server can't know
             # in advance if we want or not overwrite the file
-            if will_seek:
+            if action == RequestsParams.GET_NEXT_ACTION_SEEK:
                 log.d("Would have seek, have to tell server to transfer %s", fname)
                 get_next_resp = conn.call({
-                    RequestsParams.GET_NEXT_TRANSFER: True
+                    RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_TRANSFER
                 })
 
                 # The server may say the transfer can't be done actually (e.g. EPERM)
@@ -1441,10 +1431,6 @@ class Client:
                     raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
             # else: file already put into the transfer socket
-
-            # Initialize the transfer socket, if not already done
-            if not transfer_socket:
-                init_transfer_socket()
 
             if not quiet:
                 progressor = FileProgressor(
@@ -1465,7 +1451,8 @@ class Client:
                 recv_size = min(BEST_BUFFER_SIZE, fsize - cur_pos)
                 log.i("Waiting chunk... (expected size: %dB)", recv_size)
 
-                chunk = transfer_socket.recv(recv_size)
+                chunk = transfer_socket.recv(recv_size,
+                                             tracer=trace_bin_payload)
 
                 if not chunk:
                     log.i("END")
@@ -1522,17 +1509,19 @@ class Client:
                 progressor.success()
 
         # Wait for completion
-        outcome_resp = conn.read_json()
-        ensure_data_response(outcome_resp, "outcome")
+        if not outcome_resp:
+            outcome_resp = conn.read_json()
+            ensure_data_response(outcome_resp, ResponsesParams.GET_OUTCOME)
 
         timer.stop()
         elapsed_s = timer.elapsed_s()
 
-        # transfer_socket.close() # inband
+        # transfer_socket.close() # no since in-band
 
         # Take outcome and (eventually) errors out of the resp
-        outcome = outcome_resp.get("data").get("outcome")
-        outcome_errors = outcome_resp.get("data").get("errors")
+        outcome = outcome_resp.get("data").get(ResponsesParams.GET_OUTCOME)
+        outcome_errors = outcome_resp.get("data").get(ResponsesParams.GET_ERRORS)
+
         if outcome_errors:
             log.w("Response has errors")
             errors += outcome_errors

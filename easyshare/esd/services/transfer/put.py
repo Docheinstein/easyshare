@@ -5,12 +5,13 @@ from queue import Queue
 from Pyro5.server import expose
 
 from easyshare.common import BEST_BUFFER_SIZE
+from easyshare.es.client import OverwritePolicy
 from easyshare.esd.services import BaseClientService, check_sharing_service_owner_endpoint, FPath
 
 from easyshare.esd.common import ClientContext, Sharing
 from easyshare.esd.services.transfer import TransferService
 from easyshare.logging import get_logger
-from easyshare.protocol.services import OverwritePolicy, IPutService
+from easyshare.protocol.services import IPutService
 from easyshare.protocol.responses import TransferOutcomes, create_success_response, ServerErrors, create_error_response, \
     Response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfo, PutNextResponse

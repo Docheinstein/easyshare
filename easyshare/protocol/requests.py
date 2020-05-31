@@ -67,12 +67,24 @@ class RequestsParams:
 
     GET_PATHS = "paths"
     GET_CHECKSUM = "cksum"
+    GET_CHUNK_SIZE = "chunk_size"
+    GET_MMAP = "mmap"
 
-    GET_NEXT_SKIP = "skip"
-    GET_NEXT_TRANSFER = "transfer"
+    GET_NEXT_ACTION = "action"
+    GET_NEXT_ACTION_SEEK = "seek"
+    GET_NEXT_ACTION_TRANSFER = "transfer"
+    GET_NEXT_ACTION_SKIP = "skip"
+    GET_NEXT_ACTIONS = [GET_NEXT_ACTION_SEEK, GET_NEXT_ACTION_TRANSFER, GET_NEXT_ACTION_SKIP]
 
-    PUT_CHECKSUM = "check"
+    PUT_CHECKSUM = "cksum"
+    PUT_CHUNK_SIZE = "chunk_size"
+    PUT_MMAP = "mmap"
 
+    PUT_NEXT_OVERWRITE = "overwrite"
+    PUT_NEXT_OVERWRITE_PROMPT = "prompt"
+    PUT_NEXT_OVERWRITE_YES = "yes"
+    PUT_NEXT_OVERWRITE_NO = "no"
+    PUT_NEXT_OVERWRITE_NEWER = "newer"
 
 RequestParams = Dict[str, Any]
 

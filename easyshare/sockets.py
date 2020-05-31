@@ -2,7 +2,7 @@ import socket
 import ssl
 
 from abc import ABC
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, Callable
 
 from easyshare.common import TransferDirection, TransferProtocol
 from easyshare.consts.net import ADDR_BROADCAST, ADDR_ANY, PORT_ANY
@@ -107,15 +107,15 @@ class SocketTcp(Socket):
         super().__init__(sock)
         self._recv_buffer = bytearray()
 
-    def send(self, data: bytes, trace: bool = True):
-        if trace:
-            trace_bin_all(data,
-                          sender=self.endpoint(), receiver=self.remote_endpoint(),
-                          direction=TransferDirection.OUT, protocol=TransferProtocol.TCP)
+    def send(self, data: bytes, tracer: Callable = trace_bin_all):
+        if tracer:
+            tracer(data,
+                   sender=self.endpoint(), receiver=self.remote_endpoint(),
+                   direction=TransferDirection.OUT, protocol=TransferProtocol.TCP)
 
         self.sock.sendall(data)
 
-    def recv(self, length: int, trace: bool = True) -> Optional[bytearray]:
+    def recv(self, length: int, tracer: Callable = trace_bin_all) -> Optional[bytearray]:
         while True:
             remaining_length = length - len(self._recv_buffer)
             if remaining_length <= 0:
@@ -132,10 +132,10 @@ class SocketTcp(Socket):
         data = self._recv_buffer[0:length]
         self._recv_buffer = self._recv_buffer[length:]  # might have read more
                                                         # than the required length
-        if trace:
-            trace_bin_all(data,
-                          sender=self.remote_endpoint(), receiver=self.endpoint(),
-                          direction=TransferDirection.IN, protocol=TransferProtocol.TCP)
+        if tracer:
+            tracer(data,
+                   sender=self.remote_endpoint(), receiver=self.endpoint(),
+                   direction=TransferDirection.IN, protocol=TransferProtocol.TCP)
 
         return data
 

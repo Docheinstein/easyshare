@@ -1,4 +1,4 @@
-from easyshare.protocol.types import OverwritePolicy, FileInfo
+from easyshare.protocol.types import FileInfo
 from typing import List, Union
 from easyshare.protocol.responses import Response
 
@@ -96,8 +96,7 @@ class IPutService(ITransferService):
     """ Interface of the put command service bound to a client """
 
     @abstractmethod
-    def next(self, finfo: Union[FileInfo, None],
-             overwrite_policy: OverwritePolicy = OverwritePolicy.PROMPT) -> Response:
+    def next(self, finfo: Union[FileInfo, None]) -> Response:
         """ Send the info of the next file to push """
         pass
 
