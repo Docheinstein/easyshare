@@ -1,19 +1,21 @@
 import fcntl
 import os
 import pty
+import re
 import select
 import shlex
 import shutil
 import subprocess
 import threading
 import tty
+from os import PathLike
 from pathlib import Path
 from typing import Optional, List, Union, Tuple, Any, Callable
 
 from ptyprocess import PtyProcess, PtyProcessUnicode
 
 from easyshare.logging import get_logger
-from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info
+from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info, FileType
 from easyshare.utils.env import terminal_size
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import isorted
@@ -71,7 +73,7 @@ def ls(path: Path,
        sort_by: Union[str, List[str]] = "name",
        reverse: bool = False,
        hidden: bool = False,
-       details: bool = False) -> Optional[List[FileInfo]]:
+       details: bool = False) -> List[FileInfo]:
     """ Wrapper of Path.iterdir() that provides a list of FileInfo """
 
     if not path:
@@ -218,6 +220,97 @@ def tree(path: Path,
 
     return root
 
+
+def find(path: Union[Path, PathLike],
+         name: str = None,
+         regex: str = None,
+         case_sensitive: bool = True,
+         ftype: FileType = None,
+         details: bool = False) -> Optional[List[FileInfo]]:
+
+    if not path:
+        raise TypeError("found invalid path")
+
+    log.i("FIND searching\n"
+          f"\tname={name}\n"
+          f"\tregex={regex}\n"
+          f"\tcase_sensitive={case_sensitive}\n"
+          f"\tftype={ftype}\n"
+          f"\tdetails={details}")
+
+    name_filter = None
+    regex_filter = None
+    ftype_filter = ftype
+
+    if name:
+        name_filter = name
+        if not case_sensitive:
+            name_filter = name_filter.lower()
+
+    if regex:
+        flags = 0
+        if not case_sensitive:
+            flags = re.IGNORECASE
+        try:
+            regex_filter = re.compile(regex, flags)
+            log.d("Regex compiled successfully")
+        except:
+            log.w("Invalid regex pattern: %s", regex)
+            return None
+
+    ret: List[FileInfo] = []
+
+    # path:  = path.resolve()
+
+    for root, dirs, files in os.walk(path, topdown=True):
+        root = Path(root)
+        rel_root = root.relative_to(path)
+
+        log.d("root = %s", root)
+        log.d("rel_root = %s", root)
+
+        for f in files + dirs:
+            log.d("f = %s", f)
+
+            full_path = root / f
+            rel_path = rel_root / f
+
+            log.d("Filtering\n"
+                  f"full_path: {full_path}\n"
+                  f"rel_path:  {rel_path}")
+
+            path_filter_subject = str(rel_path)
+
+            if case_sensitive is False:
+                path_filter_subject = path_filter_subject.lower()
+
+            # Check if satisfy the filter
+            if name_filter:
+                if name_filter not in path_filter_subject:
+                    log.d("-> name filter failed")
+                    continue
+            if regex_filter:
+                if not re.search(regex_filter, path_filter_subject):
+                    log.d("-> regex filter failed")
+                    continue
+
+            # Filename filters passed
+
+            finfo: FileInfo = create_file_info(full_path,
+                                               name=str(rel_path),
+                                               details=details)
+
+            # Type filters
+            ftype = finfo.get("ftype")
+            if ftype_filter and ftype_filter != ftype:
+                log.d("-> ftype filter failed")
+                continue
+
+            log.i("Find filters passed: %s", f)
+            if finfo:
+                ret.append(finfo)
+
+    return ret
 
 def rm(path: Path, error_callback: Callable[[Exception, Path], None] = None) -> bool:
     """

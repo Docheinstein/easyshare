@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Union, Optional, cast, List, Dict
 
 from easyshare.common import TransferProtocol, TransferDirection
@@ -7,7 +8,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.requests import Requests, create_request, RequestsParams
 from easyshare.protocol.responses import Response, is_success_response, create_error_response, is_error_response, \
     ServerErrors, create_success_response
-from easyshare.protocol.types import ServerInfoFull, ServerInfo
+from easyshare.protocol.types import ServerInfoFull, ServerInfo, FileType
 from easyshare.sockets import SocketTcp, SocketTcpOut
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.streams import TcpStream
@@ -296,8 +297,7 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_sharing_connection
     def rls(self, sort_by: List[str], reverse: bool = False,
-            hidden: bool = False,  path: str = None,
-            details: bool = False) -> Response:
+            hidden: bool = False, details: bool = False, path: str = None) -> Response:
         return self.call(create_request(Requests.RLS, {
             RequestsParams.RLS_PATH: path,
             RequestsParams.RLS_SORT_BY: sort_by,
@@ -309,7 +309,7 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_sharing_connection
     def rtree(self, sort_by: List[str], reverse=False, hidden: bool = False,
-              max_depth: int = int, path: str = None, details: bool = False) -> Response:
+              max_depth: int = int, details: bool = False, path: str = None) -> Response:
         return self.call(create_request(Requests.RTREE, {
             RequestsParams.RTREE_PATH: path,
             RequestsParams.RTREE_SORT_BY: sort_by,
@@ -317,6 +317,20 @@ class ConnectionMinimal:
             RequestsParams.RTREE_HIDDEN: hidden,
             RequestsParams.RTREE_DEPTH: max_depth,
             RequestsParams.RTREE_DETAILS: details
+        }))
+
+    @handle_connection_response
+    @require_sharing_connection
+    def rfind(self, name: str = None, regex: str = None, case_sensitive: bool = True,
+              ftype: FileType = None, details: bool = False, path: str = None) -> Response:
+
+        return self.call(create_request(Requests.RFIND, {
+            RequestsParams.RFIND_PATH: path,
+            RequestsParams.RFIND_NAME: name,
+            RequestsParams.RFIND_REGEX: regex,
+            RequestsParams.RFIND_CASE_SENSITIVE: case_sensitive,
+            RequestsParams.RFIND_FTYPE: ftype,
+            RequestsParams.RFIND_DETAILS: details,
         }))
 
     @handle_connection_response

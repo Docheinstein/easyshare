@@ -13,7 +13,7 @@ import zlib
 from getpass import getpass
 from pathlib import Path
 from pwd import struct_passwd
-from typing import Optional, Callable, List, Dict, Union, Tuple, cast
+from typing import Optional, Callable, List, Dict, Union, Tuple, cast, Any
 
 from Pyro5.errors import PyroError
 
@@ -32,7 +32,7 @@ from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_er
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_to_pretty_str, server_info_to_pretty_str, server_info_to_short_str
 from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
-    ListSharings, Ping
+    ListSharings, Ping, Find, Rfind
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import RequestsParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
@@ -46,7 +46,7 @@ from easyshare.timer import Timer
 from easyshare.tracing import trace_bin_payload
 from easyshare.utils.json import j, btoj, jtob
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
-from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str
+from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str, find
 from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress import ProgressBarRendererFactory
 from easyshare.utils.progress.file import FileProgressor
@@ -96,7 +96,7 @@ def ensure_success_response(resp: Response):
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
 
-def ensure_data_response(resp: Response, *data_fields) -> Dict:
+def ensure_data_response(resp: Response, *data_fields) -> Any:
     if not resp:
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
@@ -269,51 +269,51 @@ class Client:
             Commands.LOCAL_CHANGE_DIRECTORY: (
                 LOCAL,
                 [PosArgsSpec(0, 1)],
-                Client.cd),
+                self.cd),
             Commands.LOCAL_LIST_DIRECTORY: (
                 LOCAL,
                 [Ls(0)],
-                Client.ls),
+                self.ls),
             Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (
                 LOCAL,
                 [PosArgsSpec(0, 1)],
-                Client.l),
+                self.l),
             Commands.LOCAL_TREE_DIRECTORY: (
                 LOCAL,
                 [Tree(0)],
-                Client.tree),
+                self.tree),
+            Commands.LOCAL_FIND: (
+                LOCAL,
+                [Find(0)],
+                self.find),
             Commands.LOCAL_CREATE_DIRECTORY: (
                 LOCAL,
                 [PosArgsSpec(1)],
-                Client.mkdir),
+                self.mkdir),
             Commands.LOCAL_CURRENT_DIRECTORY: (
                 LOCAL,
                 [PosArgsSpec(0)],
-                Client.pwd),
+                self.pwd),
             Commands.LOCAL_REMOVE: (
                 LOCAL,
                 [VarArgsSpec(1)],
-                Client.rm),
+                self.rm),
             Commands.LOCAL_MOVE: (
                 LOCAL,
                 [VarArgsSpec(2)],
-                Client.mv),
+                self.mv),
             Commands.LOCAL_COPY: (
                 LOCAL,
                 [VarArgsSpec(2)],
-                Client.cp),
+                self.cp),
             Commands.LOCAL_EXEC: (
                 LOCAL,
                 [StopParseArgsSpec(0)],
-                Client.exec),
+                self.exec),
             Commands.LOCAL_SHELL: (
                 LOCAL,
                 [PosArgsSpec(0)],
-                Client.shell),
-            Commands.LOCAL_SHELL_SHORT: (
-                LOCAL,
-                [PosArgsSpec(0)],
-                Client.shell),
+                self.shell),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (
                 SHARING,
@@ -331,6 +331,10 @@ class Client:
                 SHARING,
                 [Tree(0), Tree(1)],
                 self.rtree),
+            Commands.REMOTE_FIND: (
+                SHARING,
+                [Rfind(0), Rfind(1)],
+                self.rfind),
             Commands.REMOTE_CREATE_DIRECTORY: (
                 SHARING,
                 [PosArgsSpec(1), PosArgsSpec(2)],
@@ -356,10 +360,6 @@ class Client:
                 [StopParseArgsSpec(0), StopParseArgsSpec(1)],
                 self.rexec),
             Commands.REMOTE_SHELL: (
-                SERVER,
-                [PosArgsSpec(0), PosArgsSpec(1)],
-                self.rshell),
-            Commands.REMOTE_SHELL_SHORT: (
                 SERVER,
                 [PosArgsSpec(0), PosArgsSpec(1)],
                 self.rshell),
@@ -414,6 +414,8 @@ class Client:
                 self.ping),
         }
 
+        self._command_dispatcher[Commands.LOCAL_FIND_SHORT] = self._command_dispatcher[Commands.LOCAL_FIND]
+        self._command_dispatcher[Commands.REMOTE_FIND_SHORT] = self._command_dispatcher[Commands.REMOTE_FIND]
         self._command_dispatcher[Commands.GET_SHORT] = self._command_dispatcher[Commands.GET]
         self._command_dispatcher[Commands.PUT_SHORT] = self._command_dispatcher[Commands.PUT]
         self._command_dispatcher[Commands.CONNECT_SHORT] = self._command_dispatcher[Commands.CONNECT]
@@ -505,8 +507,8 @@ class Client:
 
     # === LOCAL Commands ===
 
-    @staticmethod
-    def cd(args: Args, _):
+    @classmethod
+    def cd(cls, args: Args, _):
         directory = LocalPath(args.get_positional(), default="~")
         log.i(">> CD %s", directory)
 
@@ -527,14 +529,14 @@ class Client:
                                                   q(directory)))
 
 
-    @staticmethod
-    def pwd(_: Args, _2):
+    @classmethod
+    def pwd(cls, _: Args, _2):
         log.i(">> PWD")
 
         print(Path.cwd())
 
-    @staticmethod
-    def ls(args: Args, _):
+    @classmethod
+    def ls(cls, args: Args, _):
 
         def ls_provider(path: str, **kwargs):
             p = LocalPath(path)
@@ -555,18 +557,18 @@ class Client:
 
             return ls_res
 
-        Client._xls(args, ls_provider, "LS")
+        cls._xls(args, ls_provider, "LS")
 
-    @staticmethod
-    def l(args: Args, _):
+    @classmethod
+    def l(cls, args: Args, _):
         # Just call ls -la
         # Reuse the parsed args for keep the (optional) path
         args._parsed[Ls.SHOW_ALL[0]] = True
         args._parsed[Ls.SHOW_DETAILS[0]] = True
-        Client.ls(args, _)
+        cls.ls(args, _)
 
-    @staticmethod
-    def tree(args: Args, _):
+    @classmethod
+    def tree(cls, args: Args, _):
 
         def tree_provider(path, **kwargs):
             p = LocalPath(path)
@@ -587,10 +589,33 @@ class Client:
 
             return tree_res
 
-        Client._xtree(args, tree_provider, "TREE")
+        cls._xtree(args, tree_provider, "TREE")
 
-    @staticmethod
-    def mkdir(args: Args, _):
+    @classmethod
+    def find(cls, args: Args, _):
+        def find_provider(path: str, **kwargs):
+            p = LocalPath(path)
+            kws = {k: v for k, v in kwargs.items() if k in
+                   ["name", "regex", "ftype", "case_sensitive", "details"]}
+            try:
+                find_res = find(p, **kws)
+            except FileNotFoundError:
+                raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS,
+                                                      q(p)))
+            except PermissionError:
+                raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
+                                                      q(p)))
+            except OSError as oserr:
+                raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
+                                                      os_error_str(oserr),
+                                                      q(p)))
+
+            return find_res
+
+        cls._xfind(args, find_provider, "FIND")
+
+    @classmethod
+    def mkdir(cls, args: Args, _):
         directory = args.get_positional()
 
         if not directory:
@@ -613,8 +638,8 @@ class Client:
                                                   os_error_str(oserr),
                                                   q(directory)))
 
-    @staticmethod
-    def rm(args: Args, _):
+    @classmethod
+    def rm(cls, args: Args, _):
         paths = [LocalPath(p) for p in args.get_positionals()]
 
         if not paths:
@@ -649,8 +674,8 @@ class Client:
 
 
 
-    @staticmethod
-    def mv(args: Args, _):
+    @classmethod
+    def mv(cls, args: Args, _):
         errors = []
 
         def handle_mv_error(exc: Exception, src: Path, dst: Path):
@@ -669,13 +694,13 @@ class Client:
                                     exc, q(src),
                                     q(dst)))
 
-        Client._mvcp(args, mv, "MV", error_callback=handle_mv_error)
+        cls._mvcp(args, mv, "MV", error_callback=handle_mv_error)
 
         if errors:
             raise CommandExecutionError(errors)
 
-    @staticmethod
-    def cp(args: Args, _):
+    @classmethod
+    def cp(cls, args: Args, _):
 
         errors = []
 
@@ -693,13 +718,13 @@ class Client:
                 errors.append(errno_str(ClientErrors.CP_OTHER_ERROR,
                                         exc, q(src), q(dst)))
 
-        Client._mvcp(args, cp, "CP", error_callback=handle_cp_error)
+        cls._mvcp(args, cp, "CP", error_callback=handle_cp_error)
 
         if errors:
             raise CommandExecutionError(errors)
 
-    @staticmethod
-    def exec(args: Args, _):
+    @classmethod
+    def exec(cls, args: Args, _):
         if not is_unix():
             log.w("exec not supported on this platform")
             raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
@@ -713,8 +738,8 @@ class Client:
         if retcode != 0:
             log.w("Command failed with return code: %d", retcode)
 
-    @staticmethod
-    def shell(args: Args, _):
+    @classmethod
+    def shell(cls, args: Args, _):
         if not is_unix():
             log.w("shell not supported on this platform")
             raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
@@ -745,7 +770,7 @@ class Client:
 
         # Just in case check whether we already connected to the right one
         if self.is_connected_to_server():
-            if Client.server_info_satisfy_server_location(
+            if self.server_info_satisfy_server_location(
                     self.connection.server_info,
                     server_location):
                 log.w("Current connection already satisfy server location constraints")
@@ -1214,8 +1239,7 @@ class Client:
     def rls(self, args: Args, conn: Connection):
         def rls_provider(f, **kwargs):
             resp = conn.rls(**kwargs, path=f)
-            ensure_data_response(resp)
-            return resp.get("data")
+            return ensure_data_response(resp)
 
         self._xls(args, data_provider=rls_provider, data_provider_name="RLS")
 
@@ -1230,10 +1254,17 @@ class Client:
     def rtree(self, args: Args, conn: Connection):
         def rtree_provider(f, **kwargs):
             resp = conn.rtree(**kwargs, path=f)
-            ensure_data_response(resp)
-            return resp.get("data")
+            return ensure_data_response(resp)
 
         self._xtree(args, data_provider=rtree_provider, data_provider_name="RTREE")
+
+    @provide_d_sharing_connection
+    def rfind(self, args: Args, conn: Connection):
+        def rfind_provider(f, **kwargs):
+            resp = conn.rfind(**kwargs, path=f)
+            return ensure_data_response(resp)
+
+        self._xfind(args, data_provider=rfind_provider, data_provider_name="RFIND")
 
     @provide_d_sharing_connection
     def rmkdir(self, args: Args, conn: Connection):
@@ -1935,8 +1966,9 @@ class Client:
                 err_str = formatted_error_from_error_of_response(err)
                 print(f"{idx + 1}. {err_str}")
 
-    @staticmethod
-    def _xls(args: Args,
+    @classmethod
+    def _xls(cls,
+             args: Args,
              data_provider: Callable[..., Optional[List[FileInfo]]],
              data_provider_name: str = "LS"):
 
@@ -1973,8 +2005,9 @@ class Client:
             compact=Ls.SHOW_DETAILS not in args
         )
 
-    @staticmethod
-    def _xtree(args: Args,
+    @classmethod
+    def _xtree(cls,
+               args: Args,
                data_provider: Callable[..., Optional[FileInfoTreeNode]],
                data_provider_name: str = "TREE"):
 
@@ -2009,8 +2042,49 @@ class Client:
                               show_hidden=show_hidden,
                               show_size=details)
 
-    @staticmethod
-    def _mvcp(args: Args,
+
+    @classmethod
+    def _xfind(cls,
+             args: Args,
+             data_provider: Callable[..., Optional[List[FileInfo]]],
+             data_provider_name: str = "FIND"):
+
+        # Do not wrap here in a Path here, since the provider could be remote
+        path = args.get_positional()
+        name = args.get_option_param(Find.NAME)
+        regex = args.get_option_param(Find.REGEX)
+        insensitive = Find.CASE_INSENSITIVE in args
+        ftype = args.get_option_param(Find.TYPE)
+        details = Find.SHOW_DETAILS in args
+
+        if ftype in ["f", FTYPE_FILE]:
+            ftype = FTYPE_FILE
+        elif ftype in ["d", FTYPE_DIR]:
+            ftype = FTYPE_DIR
+
+        log.i(">> %s %s",
+              data_provider_name, path)
+
+        find_result = data_provider(path,
+                                    name=name, regex=regex,
+                                    case_sensitive=not insensitive,
+                                    ftype=ftype, details=details)
+
+        if find_result is None:
+            raise CommandExecutionError()
+
+        print_files_info_list(
+            find_result,
+            show_hidden=True,
+            compact=False,
+            show_perm=details,
+            show_file_type=details,
+            show_size=details
+        )
+
+    @classmethod
+    def _mvcp(cls,
+              args: Args,
               primitive: Callable[[Path, Path], bool],
               primitive_name: str = "mv/cp",
               error_callback: Callable[[Exception, Path, Path], None] = None):
@@ -2066,8 +2140,9 @@ class Client:
                     raise ex
 
 
-    @staticmethod
-    def _rmvcp(args: Args,
+    @classmethod
+    def _rmvcp(cls,
+               args: Args,
                api: Callable[[List[str], str], Response],
                api_name: str = "RMV/RCP"):
         paths = args.get_positionals()
@@ -2159,7 +2234,7 @@ class Client:
         if not conn or not conn.is_connected_to_server():
             raise CommandExecutionError(ClientErrors.SERVER_NOT_FOUND)
 
-        Client.create_sharing_connection_from_server_connection(
+        self.create_sharing_connection_from_server_connection(
             connection=conn,
             sharing_name=sharing_location.name,
         )
@@ -2373,7 +2448,7 @@ class Client:
 
             log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
 
-            if Client.server_info_satisfy_constraints_full(
+            if self.server_info_satisfy_constraints_full(
                 a_server_info,
                 server_ip=server_ip,
                 server_port=server_port,

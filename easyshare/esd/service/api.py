@@ -25,7 +25,7 @@ from easyshare.streams import StreamClosedError
 from easyshare.styling import green, red
 from easyshare.tracing import get_tracing_level, TRACING_TEXT, trace_text
 from easyshare.utils.json import btoj, jtob, j
-from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, get_passwd, pty_detached
+from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, get_passwd, pty_detached, find
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import q
 from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, stob, itob, btos, btoi, is_int
@@ -192,6 +192,7 @@ class ClientHandler:
             Requests.RPWD: self._rpwd,
             Requests.RLS: self._rls,
             Requests.RTREE: self._rtree,
+            Requests.RFIND: self._rfind,
             Requests.RMKDIR: self._rmkdir,
             Requests.RRM: self._rrm,
             Requests.RMV: self._rmv,
@@ -718,6 +719,69 @@ class ClientHandler:
         log.i("RTREE response %s", j(tree_root))
 
         return create_success_response(tree_root)
+
+
+    @require_sharing_connection
+    @require_d_sharing
+    def _rfind(self, params: RequestParams):
+        path = params.get(RequestsParams.RFIND_PATH) or "."
+        name = params.get(RequestsParams.RFIND_NAME)
+        regex = params.get(RequestsParams.RFIND_REGEX)
+        case_sensitive = params.get(RequestsParams.RFIND_CASE_SENSITIVE)
+        ftype = params.get(RequestsParams.RFIND_FTYPE)
+        details = params.get(RequestsParams.RFIND_DETAILS) or False
+
+
+        if not is_str(path) or \
+                (name and not is_str(name)) or \
+                (regex and not is_str(regex)) or \
+                (case_sensitive is not None and not is_bool(case_sensitive)) or \
+                ftype not in [None, FTYPE_DIR, FTYPE_FILE]:
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        log.i("<< RFIND %s  |  %s", path, self._client)
+
+        find_fpath = self._fpath_joining_rcwd_and_spath(path)
+        log.d("Would find into: %s", find_fpath)
+
+        # Check if it's inside the sharing domain
+        if not self._is_fpath_allowed(find_fpath):
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
+
+        log.i("Going to find on valid path %s", find_fpath)
+
+        try:
+            find_result = find(find_fpath,
+                               name=name, regex=regex,
+                               case_sensitive=case_sensitive,
+                               ftype=ftype, details=details)
+
+            # OK - report it
+            print(f"[{self._client.tag}] rfind '{find_result}' "
+                  f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+        except FileNotFoundError:
+            log.exception("rls exception occurred")
+            return self._create_error_response(ServerErrors.NOT_EXISTS,
+                                               find_fpath)
+        except PermissionError:
+            log.exception("rls exception occurred")
+            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
+                                               find_fpath)
+        except OSError as oserr:
+            log.exception("rls exception occurred")
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               os_error_str(oserr),
+                                               find_fpath)
+        except Exception as exc:
+            log.exception("rls exception occurred")
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               exc,
+                                               find_fpath)
+
+        log.i("RFIND response %s", str(find_result))
+
+        return create_success_response(find_result)
+
 
     @require_sharing_connection
     @require_d_sharing

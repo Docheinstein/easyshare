@@ -2,7 +2,7 @@ import os
 from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
-from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec
+from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec, STR_PARAM
 from easyshare.es.ui import StyledString
 from easyshare.helps import CommandHelp, CommandOptionInfo
 from easyshare.logging import get_logger
@@ -45,6 +45,8 @@ class Commands:
     LOCAL_LIST_DIRECTORY = "ls"
     LOCAL_LIST_DIRECTORY_ENHANCED = "l"
     LOCAL_TREE_DIRECTORY = "tree"
+    LOCAL_FIND = "find"
+    LOCAL_FIND_SHORT = "f"
     LOCAL_CHANGE_DIRECTORY = "cd"
     LOCAL_CREATE_DIRECTORY = "mkdir"
     LOCAL_COPY = "cp"
@@ -59,6 +61,8 @@ class Commands:
     REMOTE_LIST_DIRECTORY = "rls"
     REMOTE_LIST_DIRECTORY_ENHANCED = "rl"
     REMOTE_TREE_DIRECTORY = "rtree"
+    REMOTE_FIND = "rfind"
+    REMOTE_FIND_SHORT = "rf"
     REMOTE_CHANGE_DIRECTORY = "rcd"
     REMOTE_CREATE_DIRECTORY = "rmkdir"
     REMOTE_COPY = "rcp"
@@ -870,6 +874,103 @@ remote directory if no <u>DIR</u> is specified"""
     @classmethod
     def see_also(cls):
         return """Type "<b>help tree</b>" for the local analogous."""
+
+
+# ============ XFIND ==============
+
+
+class BaseFindCommandInfo(CommandInfo, ABC, PosArgsSpec):
+    NAME = ["-n", "--name"]
+    REGEX = ["-r", "--regex"]
+    CASE_INSENSITIVE = ["-i", "--insensitive"]
+    TYPE = ["-t", "--type"]
+    SHOW_DETAILS = ["-l"]
+
+    def options_spec(self) -> Optional[List[Option]]:
+        return [
+            (self.NAME, STR_PARAM),
+            (self.REGEX, STR_PARAM),
+            (self.CASE_INSENSITIVE, PRESENCE_PARAM),
+            (self.TYPE, STR_PARAM),
+            (self.SHOW_DETAILS, PRESENCE_PARAM),
+        ]
+
+    @classmethod
+    def options(cls) -> List[CommandOptionInfo]:
+        return [
+            CommandOptionInfo(cls.NAME, "filter by filename",
+                              params=["pattern"]),
+            CommandOptionInfo(cls.REGEX, "filter by filename using regular expression",
+                              params=["pattern"]),
+            CommandOptionInfo(cls.CASE_INSENSITIVE, "make filename filtering case insensitive"),
+            CommandOptionInfo(cls.TYPE, "filter by file type",
+                              params=["ftype"]),
+            CommandOptionInfo(cls.SHOW_DETAILS, "show more details"),
+        ]
+
+class Find(LocalAllFilesSuggestionsCommandInfo, BaseFindCommandInfo):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 1)
+
+    @classmethod
+    def name(cls):
+        return "find"
+
+    @classmethod
+    def short_description(cls):
+        return "search for local files"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+find <A> # just for alignment
+<b>find</b> [<u>OPTION</u>]... [<u>DIR</u>]</a>
+<b>f</b> [<u>OPTION</u>]... [<u>DIR</u>]</a>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Search local <u>DIR</u>, or the current local directory if no <u>DIR</u> is \
+specified, for files and directories based on the given filters."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rfind</b>" for the remote analogous."""
+
+    # TODO examples
+
+
+class Rfind(LocalAllFilesSuggestionsCommandInfo, BaseFindCommandInfo):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 1)
+
+    @classmethod
+    def name(cls):
+        return "rfind"
+
+    @classmethod
+    def short_description(cls):
+        return "search for remote files"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+rfind <A> # just for alignment
+<b>rfind</b> [<u>OPTION</u>]... [<u>DIR</u>]</a>
+<b>rf</b> [<u>OPTION</u>]... [<u>DIR</u>]</a>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Search remote <u>DIR</u>, or the current remote directory if no <u>DIR</u> is \
+specified, for files and directories based on the given filters."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help find</b>" for the local analogous."""
+
+    # TODO examples
+
 
 # ============ xCD ================
 
@@ -2472,6 +2573,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_LIST_DIRECTORY: Ls,
     Commands.LOCAL_LIST_DIRECTORY_ENHANCED: L,
     Commands.LOCAL_TREE_DIRECTORY: Tree,
+    Commands.LOCAL_FIND: Find,
+    Commands.LOCAL_FIND_SHORT: Find,
     Commands.LOCAL_CHANGE_DIRECTORY: Cd,
     Commands.LOCAL_CREATE_DIRECTORY: Mkdir,
     Commands.LOCAL_COPY: Cp,
@@ -2486,6 +2589,8 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_LIST_DIRECTORY: Rls,
     Commands.REMOTE_LIST_DIRECTORY_ENHANCED: Rl,
     Commands.REMOTE_TREE_DIRECTORY: Rtree,
+    Commands.REMOTE_FIND: Rfind,
+    Commands.REMOTE_FIND_SHORT: Rfind,
     Commands.REMOTE_CHANGE_DIRECTORY: Rcd,
     Commands.REMOTE_CREATE_DIRECTORY: Rmkdir,
     Commands.REMOTE_COPY: Rcp,
