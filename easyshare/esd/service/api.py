@@ -2,6 +2,7 @@ import mmap
 import os
 import subprocess
 import threading
+import time
 import zlib
 from pathlib import Path
 from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO
@@ -208,6 +209,9 @@ class ClientHandler:
     def handle(self):
         log.i("Handling client %s", self._client)
 
+        print(green(f"[{self._client.tag}] connected "
+                    f"({self._client.endpoint[0]}:{self._client.endpoint[1]})"))
+
         while self._client.stream.is_open() and \
                 self._connected_to_server is not False:
                     # check _connected_to_server against False,
@@ -318,8 +322,8 @@ class ClientHandler:
 
         self._connected_to_server = True
 
-        print(green(f"[{self._client.tag}] connected "
-                    f"({self._client.endpoint[0]}:{self._client.endpoint[1]})"))
+        print(f"[{self._client.tag}] connect {'*' * len(password) if password else ''}"
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
         return create_success_response()
 
@@ -332,19 +336,36 @@ class ClientHandler:
 
         self._connected_to_server = False
 
+        print((f"[{self._client.tag}] disconnect "
+               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})"))
+
         return create_success_response()
 
     def _list(self, _: RequestParams):
         log.i("<< LIST  |  %s", self._client)
+
+        print(f"[{self._client.tag}] list "
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
         return create_success_response(
             [sh.info() for sh in self._api_service.sharings().values()])
 
     def _info(self, _: RequestParams):
         log.i("<< INFO  |  %s", self._client)
+
+        print(f"[{self._client.tag}] info "
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
         return create_success_response(self._api_service.server_info())
 
     def _ping(self, _: RequestParams):
         log.i("<< PING  |  %s", self._client)
+
+        print(f"[{self._client.tag}] ping "
+              f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
+        time.sleep(4)
+
         return create_success_response("pong")
 
 

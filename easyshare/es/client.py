@@ -190,16 +190,15 @@ def make_server_connection_api_wrapper(api, connect: bool):
 
         # Cleanup
 
-        if connect:
-            if conn == client.connection:
-                # we have used our current server connection; don't disconnect it
-                pass
-            else:
-                log.d("Disconnecting temporary server connection")
-                conn.disconnect()
-        else:
-            log.d("Server connection doesn't need to be disconnect()ed since connect=False")
+        if conn != client.connection:
+            log.d("Destroying temporary server connection")
 
+            if connect:
+                conn.disconnect()
+            else:
+                log.d("Server connection doesn't need to be disconnect()ed since connect=False")
+                conn.destroy_connection()
+        # else: # we have used our current server connection; don't disconnect it
 
     return wrapper
 
