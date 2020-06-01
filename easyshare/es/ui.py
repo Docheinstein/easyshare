@@ -195,6 +195,7 @@ Discoverable:    {yn(info.get("discoverable", False))}
 {discover_port_str}\
 Auth:            {yn(info.get("auth"))}
 SSL:             {tf(info.get("ssl"), "enabled", "disabled")}
+Version:         {info.get("version")}
 
 ================================"""
 

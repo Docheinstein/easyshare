@@ -9,7 +9,7 @@ from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO
 from ptyprocess import PtyProcess
 
 from easyshare.auth import Auth
-from easyshare.common import TransferDirection, TransferProtocol, BEST_BUFFER_SIZE
+from easyshare.common import TransferDirection, TransferProtocol, BEST_BUFFER_SIZE, APP_VERSION
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import Sharing, ClientContext
 from easyshare.esd.daemons.api import get_api_daemon
@@ -74,7 +74,8 @@ class ApiService:
             "name": self._name,
             "sharings": [sh.info() for sh in self._sharings.values()],
             "ssl": True if get_ssl_context() is not None else False,
-            "auth": True if (self._auth and self._auth.algo_security() > 0) else False
+            "auth": True if (self._auth and self._auth.algo_security() > 0) else False,
+            "version": APP_VERSION
         }
 
         return si
