@@ -262,7 +262,10 @@ class RemoteFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
         path_dir, path_trail = os.path.split(pattern)
 
         log.i("rls-ing on %s", pattern)
-        resp = client.connection.rls(sort_by=["name"], path=path_dir)
+        # rls the remote, use -a if we the user is submitting a dot
+
+        resp = client.connection.rls(sort_by=["name"], hidden=token.startswith("."),
+                                     path=path_dir)
 
         if not is_data_response(resp):
             log.w("Unable to retrieve a valid response for rls")
@@ -1867,6 +1870,7 @@ class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
     OVERWRITE_NEWER = ["-N", "--newer"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
+    NO_HIDDEN = ["-h", "--no-hidden"]
 
     # Secret params
     MMAP = ["--mmap"]
@@ -1879,6 +1883,8 @@ class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.OVERWRITE_NEWER, PRESENCE_PARAM),
             (self.CHECK, PRESENCE_PARAM),
             (self.QUIET, PRESENCE_PARAM),
+            (self.NO_HIDDEN, PRESENCE_PARAM),
+
             (self.MMAP, INT_PARAM),
             (self.CHUNK_SIZE, INT_PARAM),
         ]
@@ -1956,6 +1962,7 @@ with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
             CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
             CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
             CommandOptionInfo(cls.QUIET, "doesn't show progress"),
+            CommandOptionInfo(cls.NO_HIDDEN, "doesn't copy hidden files"),
         ]
 
     @classmethod
@@ -2068,6 +2075,8 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
     OVERWRITE_NEWER = ["-N", "--newer"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
+    NO_HIDDEN = ["-h", "--no-hidden"]
+
 
     # Secret params
     MMAP = ["--mmap"]
@@ -2080,6 +2089,8 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.OVERWRITE_NEWER, PRESENCE_PARAM),
             (self.CHECK, PRESENCE_PARAM),
             (self.QUIET, PRESENCE_PARAM),
+            (self.NO_HIDDEN, PRESENCE_PARAM),
+
             (self.MMAP, INT_PARAM),
             (self.CHUNK_SIZE, INT_PARAM),
         ]
@@ -2146,6 +2157,7 @@ with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
             CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
             CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
             CommandOptionInfo(cls.QUIET, "doesn't show progress"),
+            CommandOptionInfo(cls.NO_HIDDEN, "doesn't copy hidden files"),
         ]
 
     @classmethod

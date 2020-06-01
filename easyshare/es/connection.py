@@ -333,7 +333,7 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_sharing_connection
     def rmv(self, sources: List[str], destination: str) -> Response:
-        return self.call(create_request(Requests.RRM, {
+        return self.call(create_request(Requests.RMV, {
             RequestsParams.RMV_SOURCES: sources,
             RequestsParams.RMV_DESTINATION: destination
         }))
@@ -351,13 +351,16 @@ class ConnectionMinimal:
     def get(self,
             paths: List[str],
             check: bool,
+            no_hidden: bool = False,
             mmap: Optional[bool] = None,
             chunk_size: Optional[int] = None) -> Response:
 
         req_params = {
             RequestsParams.GET_PATHS: paths,
             RequestsParams.GET_CHECK: check,
+            RequestsParams.GET_NO_HIDDEN: no_hidden,
         }
+
 
         # Secret params
         if mmap is not None:
@@ -369,17 +372,10 @@ class ConnectionMinimal:
 
     @handle_connection_response
     @require_sharing_connection
-    def put(self,
-            check: bool,
-            chunk_size: Optional[int] = None) -> Response:
-        req_params = {
-            RequestsParams.GET_CHECK: check
-        }
-
-        if chunk_size is not None:
-            req_params[RequestsParams.PUT_CHUNK_SIZE] = chunk_size
-
-        return self.call(create_request(Requests.PUT, req_params))
+    def put(self, check: bool) -> Response:
+        return self.call(create_request(Requests.PUT, {
+            RequestsParams.PUT_CHECK: check,
+        }))
 
 
     # === INTERNALS ===

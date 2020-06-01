@@ -2,10 +2,8 @@ import mmap
 import os
 import subprocess
 import threading
-import time
 import zlib
 from pathlib import Path
-from queue import Queue
 from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO
 
 from ptyprocess import PtyProcess
@@ -13,7 +11,6 @@ from ptyprocess import PtyProcess
 from easyshare.auth import Auth
 from easyshare.common import TransferDirection, TransferProtocol, BEST_BUFFER_SIZE
 from easyshare.endpoint import Endpoint
-from easyshare.es.client import OverwritePolicy
 from easyshare.esd.common import Sharing, ClientContext
 from easyshare.esd.daemons.api import get_api_daemon
 from easyshare.logging import get_logger
@@ -28,6 +25,7 @@ from easyshare.styling import green, red
 from easyshare.tracing import get_tracing_level, TRACING_TEXT, trace_text
 from easyshare.utils.json import btoj, jtob, j
 from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, get_passwd, pty_detached
+from easyshare.utils.path import is_hidden
 from easyshare.utils.str import q
 from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, stob, itob, btos, btoi
 
@@ -960,6 +958,7 @@ class ClientHandler:
     def _get(self, params: RequestParams):
         paths = params.get(RequestsParams.GET_PATHS)
         check = params.get(RequestsParams.GET_CHECK)
+        no_hidden = params.get(RequestsParams.GET_NO_HIDDEN, False)
 
         if not paths:
             paths = ["."]
@@ -1124,6 +1123,12 @@ class ClientHandler:
                 next_spath_str = os.path.join(next_prefix, next_fpath.relative_to(next_basedir))
 
                 log.d("Next file spath: %s", next_spath_str)
+
+                # Check if it's hidden
+
+                if no_hidden and is_hidden(next_fpath):
+                    log.d("Not sending %s since no_hidden is True %s", next_fpath)
+                    continue
 
                 finfo = create_file_info(
                     next_fpath,
@@ -1320,7 +1325,7 @@ class ClientHandler:
             log.i("Closing file %s", next_transf_fpath)
             next_transf_f.close()
             if source != next_transf_f:
-                source.close()
+                source.close() # mmap
 
             # Eventually send the CRC in-band
             if check:
@@ -1584,7 +1589,7 @@ class ClientHandler:
         log.i("PUT finished")
 
         resp_data = {
-            ResponsesParams.PUT_OUTCOME: 0
+            ResponsesParams.PUT_OUTCOME: outcome
         }
 
         if errors:

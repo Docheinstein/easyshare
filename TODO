@@ -20,3 +20,4 @@
 - tree consistent with rtree (show or not show directory name)
 - fuse service with daemons
 - c for connect instead of close?
+- ctr+c while transferring

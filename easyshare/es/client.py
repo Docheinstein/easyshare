@@ -1,4 +1,5 @@
 import fcntl
+import mmap
 import os
 import pty
 import select
@@ -46,7 +47,7 @@ from easyshare.tracing import trace_bin_payload
 from easyshare.utils.json import j, btoj, jtob
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str
-from easyshare.utils.path import LocalPath
+from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress import ProgressBarRendererFactory
 from easyshare.utils.progress.file import FileProgressor
 from easyshare.utils.progress.simple import SimpleProgressor
@@ -1273,11 +1274,14 @@ class Client:
 
         do_check = Get.CHECK in args
         quiet = Get.QUIET in args
+        no_hidden = Get.NO_HIDDEN in args
 
         chunk_size = args.get_option_param(Get.CHUNK_SIZE)
         mmap = args.get_option_param(Get.MMAP)
 
-        resp = conn.get(files, check=do_check, mmap=mmap, chunk_size=chunk_size)
+        resp = conn.get(files,
+                        check=do_check, no_hidden=no_hidden,
+                        mmap=mmap, chunk_size=chunk_size)
         ensure_success_response(resp)
 
         # TODO: use a secondary socket?
@@ -1536,7 +1540,8 @@ class Client:
 
         log.i("GET outcome: %d", outcome)
 
-        print("")
+        if n_files > 0:
+            print("")
         print("GET outcome:  {}".format(outcome_str(outcome)))
         print("-----------------------")
         print("Files:        {} ({})".format(n_files, size_str(tot_bytes)))
@@ -1559,20 +1564,18 @@ class Client:
         if len(files) == 0:
             files = ["."]
 
-
         do_check = Put.CHECK in args
         quiet = Put.QUIET in args
+        no_hidden = Put.NO_HIDDEN in args
 
+        chunk_size = args.get_option_param(Put.CHUNK_SIZE, BEST_BUFFER_SIZE)
+        use_mmap = args.get_option_param(Put.MMAP)
 
-        chunk_size = args.get_option_param(Get.CHUNK_SIZE)
-        mmap = args.get_option_param(Get.MMAP)
-
-        resp = conn.put(check=do_check, chunk_size=chunk_size)
+        resp = conn.put(check=do_check)
         ensure_success_response(resp)
 
         # TODO: use a secondary socket?
         transfer_socket = conn._stream._socket
-
 
         for f in files:
             # STANDARD CASE
@@ -1644,8 +1647,6 @@ class Client:
         # Errors
 
         errors = []
-
-        # Proxy
 
         def send_file(local_path: Path, remote_path: Path):
             nonlocal overwrite_policy
@@ -1784,13 +1785,23 @@ class Client:
                 )
 
             # File is already opened
+            source = local_fd
+
+            if use_mmap:
+                try:
+                    # try to mmap the file to memory
+                    source = mmap.mmap(local_fd.fileno(), 0,
+                                       prot=mmap.PROT_READ)
+                except:
+                    log.w("mmap failed, will read directly from file")
 
             cur_pos = 0
             crc = 0
 
             while cur_pos < fsize:
+                readlen = min(fsize - cur_pos, chunk_size)
 
-                chunk = local_fd.read(BEST_BUFFER_SIZE)
+                chunk = source.read(readlen)
                 chunk_len = len(chunk)
 
                 log.i("Read chunk of %dB", chunk_len)
@@ -1801,7 +1812,6 @@ class Client:
 
                 if not chunk:
                     log.i("Finished %s", local_path)
-                    # FIXME: sending something?
                     break
 
                 transfer_socket.send(chunk)
@@ -1818,6 +1828,8 @@ class Client:
                 transfer_socket.send(itob(crc, 4))
 
             local_fd.close()
+            if source != local_fd:
+                source.close() # mmap
 
             n_files += 1
             if not quiet:
@@ -1830,11 +1842,14 @@ class Client:
 
             # Check what is this
             # 1. Non existing: skip
+            # 2. Hidden: skip if is_hidden = True
             # 2. A file: send it directly (parent dirs won't be replicated)
             # 3. A dir: send it recursively
             next_file_local, next_file_remote = next_file
 
-            if next_file_local.is_file():
+            if no_hidden and is_hidden(next_file_local):
+                log.d("Not sending %s since no_hidden is True %s", next_file_local)
+            elif next_file_local.is_file():
                 # Send it directly
                 log.d("-> is a FILE")
                 send_file(next_file_local, next_file_remote)
@@ -1905,7 +1920,8 @@ class Client:
 
         log.i("PUT outcome: %d", outcome)
 
-        print("")
+        if n_files > 0:
+            print("")
         print("PUT outcome:  {}".format(outcome_str(outcome)))
         print("-----------------------")
         print("Files:        {} ({})".format(n_files, size_str(tot_bytes)))

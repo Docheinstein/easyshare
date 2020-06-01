@@ -67,6 +67,7 @@ class RequestsParams:
 
     GET_PATHS = "paths"
     GET_CHECK = "check"
+    GET_NO_HIDDEN = "no_hidden"
     GET_CHUNK_SIZE = "chunk_size"
     GET_MMAP = "mmap"
 
@@ -77,6 +78,7 @@ class RequestsParams:
     GET_NEXT_ACTIONS = [GET_NEXT_ACTION_SEEK, GET_NEXT_ACTION_TRANSFER, GET_NEXT_ACTION_SKIP]
 
     PUT_CHECK = "check"
+    PUT_NO_HIDDEN = "no_hidden"
     PUT_CHUNK_SIZE = "chunk_size"
 
     PUT_NEXT_FILE = "file"
