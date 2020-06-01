@@ -28,7 +28,7 @@ from easyshare.utils.json import btoj, jtob, j
 from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, get_passwd, pty_detached
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import q
-from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, stob, itob, btos, btoi
+from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, stob, itob, btos, btoi, is_int
 
 log = get_logger(__name__)
 
@@ -608,8 +608,10 @@ class ClientHandler:
         sort_by = params.get(RequestsParams.RLS_SORT_BY) or ["name"]
         reverse = params.get(RequestsParams.RLS_REVERSE) or False
         hidden = params.get(RequestsParams.RLS_HIDDEN) or False
+        details = params.get(RequestsParams.RLS_DETAILS) or False
 
-        if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse):
+        if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse) \
+            or not is_bool(hidden) or not is_bool(details):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
         log.i("<< RLS %s %s%s  |  %s",
@@ -627,7 +629,9 @@ class ClientHandler:
         log.i("Going to ls on valid path %s", ls_fpath)
 
         try:
-            ls_result = ls(ls_fpath, sort_by=sort_by, reverse=reverse, hidden=hidden)
+            ls_result = ls(ls_fpath,
+                           sort_by=sort_by, reverse=reverse,
+                           hidden=hidden, details=details)
             # OK - report it
             print(f"[{self._client.tag}] rls '{ls_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
@@ -663,8 +667,10 @@ class ClientHandler:
         reverse = params.get(RequestsParams.RTREE_REVERSE) or False
         hidden = params.get(RequestsParams.RTREE_HIDDEN) or False
         max_depth = params.get(RequestsParams.RTREE_DEPTH)
+        details = params.get(RequestsParams.RTREE_DETAILS) or False
 
-        if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse):
+        if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse) \
+            or not is_bool(details):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
 
@@ -685,7 +691,8 @@ class ClientHandler:
         try:
             tree_root = tree(tree_fpath,
                              sort_by=sort_by, reverse=reverse,
-                             hidden=hidden, max_depth=max_depth)
+                             hidden=hidden, max_depth=max_depth,
+                             details=details)
             # OK - report it
             print(f"[{self._client.tag}] rtree '{tree_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")

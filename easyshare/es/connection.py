@@ -296,24 +296,27 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_sharing_connection
     def rls(self, sort_by: List[str], reverse: bool = False,
-            hidden: bool = False,  path: str = None) -> Response:
+            hidden: bool = False,  path: str = None,
+            details: bool = False) -> Response:
         return self.call(create_request(Requests.RLS, {
             RequestsParams.RLS_PATH: path,
             RequestsParams.RLS_SORT_BY: sort_by,
             RequestsParams.RLS_REVERSE: reverse,
-            RequestsParams.RLS_HIDDEN: hidden
+            RequestsParams.RLS_HIDDEN: hidden,
+            RequestsParams.RLS_DETAILS: details
         }))
 
     @handle_connection_response
     @require_sharing_connection
     def rtree(self, sort_by: List[str], reverse=False, hidden: bool = False,
-              max_depth: int = int, path: str = None) -> Response:
+              max_depth: int = int, path: str = None, details: bool = False) -> Response:
         return self.call(create_request(Requests.RTREE, {
             RequestsParams.RTREE_PATH: path,
             RequestsParams.RTREE_SORT_BY: sort_by,
             RequestsParams.RTREE_REVERSE: reverse,
             RequestsParams.RTREE_HIDDEN: hidden,
-            RequestsParams.RTREE_DEPTH: max_depth
+            RequestsParams.RTREE_DEPTH: max_depth,
+            RequestsParams.RTREE_DETAILS: details
         }))
 
     @handle_connection_response

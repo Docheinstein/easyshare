@@ -246,7 +246,7 @@ class LocalFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
             path = path.parent
 
         log.i("ls-ing for suggestions on '%s'", path)
-        return ls(path)
+        return ls(path, details=False)
 
 
 class RemoteFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):

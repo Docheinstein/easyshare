@@ -539,7 +539,7 @@ class Client:
         def ls_provider(path: str, **kwargs):
             p = LocalPath(path)
             kws = {k: v for k, v in kwargs.items() if k in
-                   ["sort_by", "name", "reverse", "hidden"]}
+                   ["sort_by", "name", "reverse", "hidden", "details"]}
             try:
                 ls_res = ls(p, **kws)
             except FileNotFoundError:
@@ -571,7 +571,7 @@ class Client:
         def tree_provider(path, **kwargs):
             p = LocalPath(path)
             kws = {k: v for k, v in kwargs.items() if k in
-                   ["sort_by", "name", "reverse", "max_depth", "hidden"]}
+                   ["sort_by", "name", "reverse", "max_depth", "hidden", "details"]}
             try:
                 tree_res = tree(p, **kws)
             except FileNotFoundError:
@@ -1944,6 +1944,7 @@ class Client:
         path = args.get_positional()
         reverse = Ls.REVERSE in args
         show_hidden = Ls.SHOW_ALL in args
+        fetch_details = Ls.SHOW_SIZE in args or Ls.SHOW_DETAILS in args
 
         # Sorting
         sort_by = ["name"]
@@ -1956,7 +1957,9 @@ class Client:
         log.i(">> %s %s (sort by %s%s)",
               data_provider_name, path or "*", sort_by, " | reverse" if reverse else "")
 
-        ls_result = data_provider(path, sort_by=sort_by, reverse=reverse, hidden=show_hidden)
+        ls_result = data_provider(path,
+                                  sort_by=sort_by, reverse=reverse,
+                                  hidden=show_hidden, details=fetch_details)
 
         if ls_result is None:
             raise CommandExecutionError()
@@ -1966,6 +1969,7 @@ class Client:
             show_file_type=Ls.SHOW_DETAILS in args,
             show_hidden=show_hidden,
             show_size=Ls.SHOW_SIZE in args or Ls.SHOW_DETAILS in args,
+            show_perm=Ls.SHOW_DETAILS in args,
             compact=Ls.SHOW_DETAILS not in args
         )
 
@@ -1978,6 +1982,7 @@ class Client:
         reverse = Tree.REVERSE in args
         show_hidden = Tree.SHOW_ALL in args
         max_depth = args.get_option_param(Tree.MAX_DEPTH, default=None)
+        details = Tree.SHOW_SIZE in args or Tree.SHOW_DETAILS in args
 
         sort_by = ["name"]
 
@@ -1992,7 +1997,8 @@ class Client:
         tree_result: FileInfoTreeNode = data_provider(
             path,
             sort_by=sort_by, reverse=reverse,
-            hidden=show_hidden, max_depth=max_depth
+            hidden=show_hidden, max_depth=max_depth,
+            details=details
         )
 
         if tree_result is None:
@@ -2001,7 +2007,7 @@ class Client:
         print_files_info_tree(tree_result,
                               max_depth=max_depth,
                               show_hidden=show_hidden,
-                              show_size=Tree.SHOW_SIZE in args or Tree.SHOW_DETAILS in args)
+                              show_size=details)
 
     @staticmethod
     def _mvcp(args: Args,

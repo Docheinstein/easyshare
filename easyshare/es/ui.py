@@ -8,7 +8,9 @@ from easyshare.ssl import get_cached_or_fetch_ssl_certificate_for_endpoint
 from easyshare.styling import fg, bold
 from easyshare.tree import TreeNodeDict, TreeRenderPostOrder
 from easyshare.utils.env import terminal_size, is_unicode_supported
+from easyshare.utils.json import j
 from easyshare.utils.measures import size_str
+from easyshare.utils.os import perm_str
 from easyshare.utils.path import is_hidden
 from easyshare.utils.ssl import SSLCertificate
 from easyshare.utils.str import tf, yn
@@ -75,10 +77,11 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None):
 
 
 def print_files_info_list(infos: List[FileInfo],
-                          show_file_type: bool = False,
-                          show_size: bool = False,
-                          show_hidden: bool = False,
-                          compact: bool = True):
+                          show_file_type: bool = False, # -l
+                          show_size: bool = False,      # -S
+                          show_hidden: bool = False,    # -a
+                          show_perm: bool = False,      # -l
+                          compact: bool = True):        # -l
     """ Prints a list of 'FileInfo' (ls -l like). """
     if not infos:
         return
@@ -94,26 +97,24 @@ def print_files_info_list(infos: List[FileInfo],
             log.d("Not showing hidden files: %s", fname)
             continue
 
-        size = info.get("size")
-
         if info.get("ftype") == FTYPE_DIR:
-            ftype_short = "D"
+            ftype_short = "d"
             fname_styled = fg(fname, DIR_COLOR)
         else:
-            ftype_short = "F"
+            ftype_short = "f"
             fname_styled = fg(fname, FILE_COLOR)
 
         file_str = ""
 
         if show_file_type:
-            s = ftype_short + "  "
-            # if not compact:
-            #     s = s.ljust(3)
-            file_str += s
+            file_str += ftype_short + " "
+
+        if show_perm:
+            file_str += perm_str(info.get("perm")) + " "
 
         if show_size:
-            s = size_str(size, prefixes=(" ", "K", "M", "G")).rjust(4) + "  "
-            file_str += s
+            file_str += size_str(info.get("size"),
+                                 prefixes=("", "K", "M", "G")).rjust(4) + "  "
 
         file_str_styled = file_str
 
@@ -136,6 +137,8 @@ def print_files_info_tree(root: TreeNodeDict,
     """ Traverse the 'TreeNodeDict' and prints the 'FileInfo' as a tree (tree like). """
 
     for prefix, node, depth in TreeRenderPostOrder(root, depth=max_depth):
+        log.d("TreeRenderPostOrder over %s", j(node))
+
         name = node.get("name")
 
         if not show_hidden and is_hidden(name):

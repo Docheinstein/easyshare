@@ -16,10 +16,21 @@ from easyshare.logging import get_logger
 from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info
 from easyshare.utils.env import terminal_size
 from easyshare.utils.path import is_hidden
+from easyshare.utils.str import isorted
 from easyshare.utils.types import list_wrap
 
 log = get_logger(__name__)
 
+_PERM_BIT_STR = {
+    "0": "---",
+    "1": "--x",
+    "2": "-w-",
+    "3": "-wx",
+    "4": "r--",
+    "5": "r-x",
+    "6": "rw-",
+    "7": "rwx",
+}
 
 def is_unix():
     return os.name == "posix"
@@ -37,10 +48,30 @@ else:
     def get_passwd():
         pass
 
+
+def os_error_str(err: OSError):
+    """ Returns the explanation of the error (e.g. Directory not empty) """
+    if isinstance(err, OSError):
+        if err and err.strerror:
+            return err.strerror
+        log.exception("Unknown OS error")
+        serr = str(err)
+        return serr or "Error" # fallback
+    return "Error" # fallback
+
+
+def perm_str(perm: str):
+    return \
+        _PERM_BIT_STR.get(perm[0], "---") + \
+        _PERM_BIT_STR.get(perm[1], "---") + \
+        _PERM_BIT_STR.get(perm[2], "---")
+
+
 def ls(path: Path,
        sort_by: Union[str, List[str]] = "name",
        reverse: bool = False,
-       hidden: bool = False) -> Optional[List[FileInfo]]:
+       hidden: bool = False,
+       details: bool = False) -> Optional[List[FileInfo]]:
     """ Wrapper of Path.iterdir() that provides a list of FileInfo """
 
     if not path:
@@ -56,7 +87,7 @@ def ls(path: Path,
     # Single file
     if path.is_file():
         # Show it even if it is hidden
-        finfo = create_file_info(path) # might fail (e.g. broken link)
+        finfo = create_file_info(path, details=details) # might fail (e.g. broken link)
         if not finfo:
             return []
         return [finfo]
@@ -73,13 +104,13 @@ def ls(path: Path,
             log.d("Not showing hidden file: %s", p)
             continue
 
-        finfo = create_file_info(p) # might fail (e.g. broken link)
+        finfo = create_file_info(p, details=details) # might fail (e.g. broken link)
         if finfo:
             ret.append(finfo)
 
     # Sort the result for each field of sort_by
     for sort_field in sort_by:
-        ret = sorted(ret, key=lambda fi: fi[sort_field])
+        ret = isorted(ret, key=lambda fi: fi[sort_field])
 
     if reverse:
         ret.reverse()
@@ -91,7 +122,8 @@ def tree(path: Path,
          sort_by: Union[str, List[str]] = "name",
          reverse: bool = False,
          max_depth: int = None,
-         hidden: bool = False) -> Optional[FileInfoTreeNode]:
+         hidden: bool = False,
+         details: bool = False) -> Optional[FileInfoTreeNode]:
     """
     Performs a traversal from the given 'path' and provide a 'FileInfoTreeNode'
     that represent the tree structure.
@@ -99,12 +131,14 @@ def tree(path: Path,
     if not path:
         raise TypeError("found invalid path")
 
+    path = path.resolve()
+
     sort_by = list(filter(lambda field: field in ["name", "size", "ftype"],
                           list_wrap(sort_by)))
 
-    log.i("TREE sorting by {}{}".format(sort_by, " (reverse)" if reverse else ""))
+    log.i("TREE on {}, sorting by {}{}".format(path, sort_by, " (reverse)" if reverse else ""))
 
-    root: Any = create_file_info(path) # might fail (e.g. broken link)
+    root: Any = create_file_info(path, details=details) # might fail (e.g. broken link)
 
     if not root:
         return None
@@ -129,7 +163,8 @@ def tree(path: Path,
                 cursor["children_unseen_info"] = ls(cur_path,
                                                     sort_by=sort_by,
                                                     reverse=reverse,
-                                                    hidden=hidden)
+                                                    hidden=hidden,
+                                                    details=details)
             except OSError:
                 log.w("Cannot descend %s", cur_path)
                 pass
@@ -365,15 +400,6 @@ def pty_detached(out_hook: Callable[[str], None],
     return ptyproc
 
 
-def os_error_str(err: OSError):
-    """ Returns the explanation of the error (e.g. Directory not empty) """
-    if isinstance(err, OSError):
-        if err and err.strerror:
-            return err.strerror
-        log.exception("Unknown OS error")
-        serr = str(err)
-        return serr or "Error" # fallback
-    return "Error" # fallback
 
 if __name__ == "__main__":
     print("OS: ", "windows" if is_windows() else ("unix" if is_unix() else "unknown"))

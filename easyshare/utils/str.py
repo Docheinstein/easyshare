@@ -1,5 +1,8 @@
 import re
-from typing import List, Pattern, Tuple
+from typing import List, Pattern, Tuple, Any
+
+from easyshare.utils.types import is_str
+
 
 def keepchars(s: str, allowed: str) -> str:
     """
@@ -71,19 +74,22 @@ def leftof(s: str, sep: str, from_end=False) -> str:
         return before_or_ori
 
 
-def isorted(l: List[str], in_subset: str = None, not_in_subset: str = None):
+def isorted(iterable, key = None, in_subset: str = None, not_in_subset: str = None):
     """
     Case insensitive sorts a list of string, eventually restricted to
     the given whitelist and blacklist.
     """
-    def s_conv(s: str):
-        if not_in_subset:
-            s = discardchars(s, not_in_subset)
-        if in_subset:
-            s = keepchars(s, in_subset)
-        return s.lower()
+    def conv(o: Any):
+        val = key(o)
+        if is_str(val):
+            if not_in_subset:
+                val = discardchars(val, not_in_subset)
+            if in_subset:
+                val = keepchars(val, in_subset)
+            val = val.lower()
+        return val
 
-    return sorted(l, key=lambda s: s_conv(s))
+    return sorted(iterable, key=lambda o: conv(o))
 
 
 def multireplace(s: str,

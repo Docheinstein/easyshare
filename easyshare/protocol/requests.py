@@ -48,12 +48,14 @@ class RequestsParams:
     RLS_SORT_BY = "sort_by"
     RLS_REVERSE = "reverse"
     RLS_HIDDEN = "hidden"
+    RLS_DETAILS = "details"
 
     RTREE_PATH = "path"
     RTREE_SORT_BY = "sort_by"
     RTREE_REVERSE = "reverse"
     RTREE_HIDDEN = "hidden"
     RTREE_DEPTH = "depth"
+    RTREE_DETAILS = "details"
 
     RMKDIR_PATH = "path"
 

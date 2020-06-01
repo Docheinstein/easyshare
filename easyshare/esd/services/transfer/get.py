@@ -157,8 +157,6 @@ class GetService(IGetService, TransferService):
                 name=next_spath_str
             )
 
-
-
             # Case: FILE
             if finfo and next_fpath.is_file():
                 log.i("NEXT FILE: %s", next_fpath)

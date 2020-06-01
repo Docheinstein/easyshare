@@ -19,5 +19,7 @@
 - trace at socket level? t1 for text t2 for bin
 - tree consistent with rtree (show or not show directory name)
 - fuse service with daemons
-- c for connect instead of close?
 - ctr+c while transferring
+- tree error not exists
+- rw permission FileInfo
+- default fileInfo w/o perm and mtime

@@ -1,3 +1,4 @@
+import stat
 from os import stat_result
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
@@ -48,10 +49,11 @@ try:
 
     class FileInfo(TypedDict, total=False):
         """ Information of a file """
-        name: str
-        ftype: FileType
-        size: int
+        name: str           # usually the filename
+        ftype: FileType     # "file" or "dir"
+        size: int           # size in bytes
         mtime: int          # last modification time
+        perm: str           # permissions
 
     class FileInfoTreeNode(FileInfo, TreeNodeDict, total=False):
         pass
@@ -61,21 +63,28 @@ except:
     FileInfoNode = Dict[str, Union[str, FileType, int, List['FileInfoNode']]]
 
 
-def create_file_info(path: Path, stat: stat_result = None,
-                     name: str = None, raise_exceptions=False) -> Optional[FileInfo]:
+def create_file_info(path: Path, *,
+                     fstat: stat_result = None, details: bool = True,
+                     name: str = None, raise_exceptions: bool = False) -> Optional[FileInfo]:
     """
     Helper that creates a 'FileInfo' for the given path;
     'stat' can be given for avoid a stat() call.
     If 'name' is given, then it will be used instead of path.name.
     """
     try:
-        stat = stat or path.stat()
-        return {
+        fstat = fstat or path.stat()
+        finfo = {
             "name": name or path.name,
-            "ftype": ftype(path, stat),
-            "size": stat.st_size,
-            "mtime": stat.st_mtime_ns
+            "ftype": ftype(path, fstat),
         }
+
+        if details:
+            finfo["size"] = fstat.st_size
+            finfo["mtime"] = fstat.st_mtime_ns
+            finfo["perm"] = oct(fstat.st_mode & 0o777)[-3:]
+
+        return finfo
+
     except Exception as ex:
         log.w("Can't create file info - exception occurred")
         if raise_exceptions:
