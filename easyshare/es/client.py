@@ -95,7 +95,7 @@ def ensure_success_response(resp: Response):
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
 
-def ensure_data_response(resp: Response, *data_fields):
+def ensure_data_response(resp: Response, *data_fields) -> Dict:
     if not resp:
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
@@ -103,10 +103,13 @@ def ensure_data_response(resp: Response, *data_fields):
         raise CommandExecutionError(formatted_errors_from_error_response(resp))
     if not is_data_response(resp):
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-    for data_field in data_fields:
-        if data_field not in resp.get("data"):
-            raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
+    resp_data = resp.get("data")
+
+    for data_field in data_fields:
+        if data_field not in resp_data:
+            raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+    return resp_data
 
 def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
     def wrapper(client: 'Client', args: Args, _1: Connection):
@@ -216,10 +219,10 @@ class HandledKeyboardInterrupt(KeyboardInterrupt):
 
 
 class OverwritePolicy:
-    PROMPT = 0
-    YES = 1
-    NO = 2
-    NEWER = 3
+    PROMPT = RequestsParams.PUT_NEXT_OVERWRITE_PROMPT
+    YES = RequestsParams.PUT_NEXT_OVERWRITE_YES
+    NO = RequestsParams.PUT_NEXT_OVERWRITE_NO
+    NEWER = RequestsParams.PUT_NEXT_OVERWRITE_NEWER
 
 
 # ==================================================================
@@ -1268,12 +1271,16 @@ class Client:
     def get(self, args: Args, conn: Connection):
         files = args.get_positionals()
 
-        do_check = Put.CHECK in args
-        quiet = Put.QUIET in args
+        do_check = Get.CHECK in args
+        quiet = Get.QUIET in args
 
-        resp = conn.get(files, cksum=do_check)
+        chunk_size = args.get_option_param(Get.CHUNK_SIZE)
+        mmap = args.get_option_param(Get.MMAP)
+
+        resp = conn.get(files, check=do_check, mmap=mmap, chunk_size=chunk_size)
         ensure_success_response(resp)
 
+        # TODO: use a secondary socket?
         transfer_socket = conn._stream._socket
 
         # Overwrite preference
@@ -1448,7 +1455,7 @@ class Client:
             expected_crc = 0
 
             while cur_pos < fsize:
-                recv_size = min(BEST_BUFFER_SIZE, fsize - cur_pos)
+                recv_size = min(chunk_size or BEST_BUFFER_SIZE, fsize - cur_pos)
                 log.i("Waiting chunk... (expected size: %dB)", recv_size)
 
                 chunk = transfer_socket.recv(recv_size,
@@ -1508,6 +1515,7 @@ class Client:
             if not quiet:
                 progressor.success()
 
+        # TODO ensure_data_response ret
         # Wait for completion
         if not outcome_resp:
             outcome_resp = conn.read_json()
@@ -1545,47 +1553,26 @@ class Client:
 
     @provide_d_sharing_connection
     def put(self, args: Args, conn: Connection):
-        raise ValueError("NOT IMPL")
         files = args.get_positionals()
         sendfiles: List[Tuple[Path, Path]] = []
 
         if len(files) == 0:
             files = ["."]
 
+
         do_check = Put.CHECK in args
         quiet = Put.QUIET in args
 
-        resp = conn.put(check=do_check)
-        ensure_data_response(resp, "uid")
 
-        # Compute the remote daemon URI from the uid of the get() response
-        put_service_uri = pyro_uri(resp.get("data").get("uid"),
-                                   server_conn.server_ip(),
-                                   server_conn.server_port())
-        log.d("Remote PutService URI: %s", put_service_uri)
+        chunk_size = args.get_option_param(Get.CHUNK_SIZE)
+        mmap = args.get_option_param(Get.MMAP)
 
-        # Raw transfer socket
-        try:
-            transfer_socket = SocketTcpOut(
-                address=sharing_conn.server_info.get("ip"),
-                port=transfer_port(sharing_conn.server_info.get("port")),
-                ssl_context=get_ssl_context(),
-                timeout=self._discover_timeout  # well it's not a discovery,
-                                                # but at least should be a
-                                                # timeout that make sense
-            )
-        except ConnectionRefusedError:
-            log.exception("Transfer socket creation failed (closed)")
-            raise CommandExecutionError("Transfer connection can't be established: refused")
-        except socket.timeout:
-            log.exception("Transfer socket creation failed (timeout)")
-            raise CommandExecutionError("Transfer connection can't be established: timed out")
-        except OSError as oserr:
-            log.exception("Transfer socket creation failed")
-            raise CommandExecutionError(os_error_str(oserr))
-        except Exception as exc:
-            log.exception("Transfer socket creation failed")
-            raise CommandExecutionError(str(exc))
+        resp = conn.put(check=do_check, chunk_size=chunk_size)
+        ensure_success_response(resp)
+
+        # TODO: use a secondary socket?
+        transfer_socket = conn._stream._socket
+
 
         for f in files:
             # STANDARD CASE
@@ -1637,16 +1624,16 @@ class Client:
             log.e("Only one between -n, -y and -N can be specified")
             raise CommandExecutionError("Only one between -n, -y and -N can be specified")
 
-        overwrite_policy = OverwritePolicy.PROMPT
+        overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_PROMPT
 
         if Put.OVERWRITE_YES in args:
-            overwrite_policy = OverwritePolicy.YES
+            overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_YES
         elif Put.OVERWRITE_NO in args:
-            overwrite_policy = OverwritePolicy.NO
+            overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_NO
         elif Put.OVERWRITE_NEWER in args:
-            overwrite_policy = OverwritePolicy.NEWER
+            overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_NEWER
 
-        log.i("Overwrite policy: %s", str(overwrite_policy))
+        log.i("Overwrite policy: %s", overwrite_policy)
 
         # Stats
 
@@ -1660,271 +1647,278 @@ class Client:
 
         # Proxy
 
-        put_service: Union[TracedPyroProxy, IPutService]
+        def send_file(local_path: Path, remote_path: Path):
+            nonlocal overwrite_policy
+            nonlocal tot_bytes
+            nonlocal n_files
+            nonlocal errors
 
-        with TracedPyroProxy(put_service_uri) as put_service:
+            progressor = None
 
-            def send_file(local_path: Path, remote_path: Path):
-                nonlocal overwrite_policy
-                nonlocal tot_bytes
-                nonlocal n_files
-                nonlocal errors
+            # Create the file info for the local file, but set the
+            # remote path as name
+            finfo = create_file_info(local_path, name=str(remote_path))
 
-                progressor = None
+            if not finfo:
+                return
 
-                # Create the file info for the local file, but set the
-                # remote path as name
-                finfo = create_file_info(local_path, name=str(remote_path))
+            log.i("send_file finfo: %s", j(finfo))
+            fsize = finfo.get("size")
+            ftype = finfo.get("ftype")
 
-                if not finfo:
+            # Case: DIR => no transfer
+            if ftype == FTYPE_DIR:
+                log.d("Sent a DIR, nothing else to do")
+                return
+
+            # Case: FILE => transfer
+
+            # Before invoke next(), try to open the file for real.
+            # At least we are able to detect any error (e.g. perm denied)
+            # before say the server that the transfer is began
+            log.d("Trying to open file before initializing transfer")
+
+            try:
+                local_fd = local_path.open("rb")
+                log.d("Able to open file: %s", local_path)
+            except FileNotFoundError:
+                errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
+                                                         q(next_file_local)))
+                return
+            except PermissionError:
+                errors.append(create_error_of_response(ClientErrors.PERMISSION_DENIED,
+                                                         q(next_file_local)))
+                return
+            except OSError as oserr:
+                errors.append(create_error_of_response(ClientErrors.ERR_2,
+                                                       os_error_str(oserr),
+                                                        q(next_file_local)))
+                return
+            except Exception as exc:
+                errors.append(create_error_of_response(ClientErrors.ERR_2,
+                                                       exc,
+                                                       q(next_file_local)))
+                return
+
+            log.d("doing a put_next")
+
+            put_next_resp = conn.call({
+                RequestsParams.PUT_NEXT_FILE: finfo,
+                RequestsParams.PUT_NEXT_OVERWRITE: overwrite_policy
+            })
+            ensure_data_response(put_next_resp) #, ...
+
+            if is_error_response(put_next_resp):
+                log.w("Received error response for next()")
+                errors += put_next_resp.get("errors")
+                # All the errors will be reported at the end
+                return
+
+            if not is_data_response(put_next_resp, ResponsesParams.PUT_NEXT_STATUS):
+                raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+            # Possible responses:
+            # "accepted" => add the file to the transfer socket
+            # "refused"  => do not add the file to the transfer socket
+            # "ask_overwrite" => ask to the user and tell it to the esd
+            #                    we got this response only if the overwrite
+            #                    policy told to the server is PROMPT
+
+            # First of all handle the ask_overwrite, and contact the esd
+            # again for tell the response
+            status = put_next_resp.get("data").get(ResponsesParams.PUT_NEXT_STATUS)
+            if status == ResponsesParams.PUT_NEXT_STATUS_ALREADY_EXISTS:
+                # Ask the user what to do
+
+                timer.stop() # Don't take the user time into account
+                current_overwrite_decision, overwrite_policy =\
+                    self._ask_overwrite(str(remote_path), current_policy=overwrite_policy)
+                timer.start()
+
+                if current_overwrite_decision == OverwritePolicy.NO:
+                    log.i("Skipping %s", remote_path)
                     return
 
-                log.i("send_file finfo: %s", j(finfo))
-                fsize = finfo.get("size")
-                ftype = finfo.get("ftype")
+                # If overwrite policy is NEWER or YES we have to tell it
+                # to the server so that it will take the right action
+                put_next_resp = conn.call({
+                    RequestsParams.PUT_NEXT_FILE: finfo,
+                    RequestsParams.PUT_NEXT_OVERWRITE: current_overwrite_decision
+                })
 
-                # Case: DIR => no transfer
-                if ftype == FTYPE_DIR:
-                    log.d("Sent a DIR, nothing else to do")
+                if is_success_response(put_next_resp):
+                    log.d("Transfer can actually began")
+                elif is_error_response(put_next_resp):
+                    log.w("Transfer cannot be initialized due to remote error")
+                    errors += put_next_resp.get("errors")
+                    # All the errors will be reported at the end
                     return
+                else:
+                    raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
-                # Case: FILE => transfer
+            # The current put_next_resp is either the original one
+            # or the one got after the ask_overwrite response we sent
+            # to the server.
+            # By the way, it should not contain an ask_overwrite
+            # since we specified a policy among YES/NEWER
 
-                # Before invoke next(), try to open the file for real.
-                # At least we are able to detect any error (e.g. perm denied)
-                # before say the server that the transfer is began
-                log.d("Trying to open file before initializing transfer")
+            resp_data = ensure_data_response(put_next_resp, ResponsesParams.PUT_NEXT_STATUS)
+            status = resp_data.get(ResponsesParams.PUT_NEXT_STATUS)
+
+            if status == ResponsesParams.PUT_NEXT_STATUS_REFUSED:
+                log.i("Skipping %s ", remote_path)
+                return
+
+            if status != ResponsesParams.PUT_NEXT_STATUS_ACCEPTED:
+                raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+            # File has been accepted by the remote, we can begin the transfer
+
+            if not quiet:
+                progressor = FileProgressor(
+                    fsize,
+                    description="PUT " + str(remote_path),
+                    color_progress=PROGRESS_COLOR,
+                    color_success=SUCCESS_COLOR,
+                    color_error=ERROR_COLOR
+                )
+
+            # File is already opened
+
+            cur_pos = 0
+            crc = 0
+
+            while cur_pos < fsize:
+
+                chunk = local_fd.read(BEST_BUFFER_SIZE)
+                chunk_len = len(chunk)
+
+                log.i("Read chunk of %dB", chunk_len)
+
+                # CRC check update
+                if do_check:
+                    crc = zlib.crc32(chunk, crc)
+
+                if not chunk:
+                    log.i("Finished %s", local_path)
+                    # FIXME: sending something?
+                    break
+
+                transfer_socket.send(chunk)
+
+                cur_pos += chunk_len
+                tot_bytes += chunk_len
+                if not quiet:
+                    progressor.update(cur_pos)
+
+            log.i("DONE %s", local_path)
+            log.d("- crc = %d", crc)
+
+            if do_check:
+                transfer_socket.send(itob(crc, 4))
+
+            local_fd.close()
+
+            n_files += 1
+            if not quiet:
+                progressor.success()
+
+
+        while sendfiles:
+            log.i("Putting another file info")
+            next_file = sendfiles.pop()
+
+            # Check what is this
+            # 1. Non existing: skip
+            # 2. A file: send it directly (parent dirs won't be replicated)
+            # 3. A dir: send it recursively
+            next_file_local, next_file_remote = next_file
+
+            if next_file_local.is_file():
+                # Send it directly
+                log.d("-> is a FILE")
+                send_file(next_file_local, next_file_remote)
+            elif next_file_local.is_dir():
+                # Send it recursively
+
+                log.d("-> is a DIR")
 
                 try:
-                    local_fd = local_path.open("rb")
-                    log.d("Able to open file: %s", local_path)
+                    dir_files: List[Path] = list(next_file_local.iterdir())
                 except FileNotFoundError:
                     errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
                                                              q(next_file_local)))
-                    return
+                    continue
                 except PermissionError:
                     errors.append(create_error_of_response(ClientErrors.PERMISSION_DENIED,
                                                              q(next_file_local)))
-                    return
+                    continue
                 except OSError as oserr:
                     errors.append(create_error_of_response(ClientErrors.ERR_2,
                                                            os_error_str(oserr),
                                                             q(next_file_local)))
-                    return
+                    continue
                 except Exception as exc:
                     errors.append(create_error_of_response(ClientErrors.ERR_2,
                                                            exc,
                                                            q(next_file_local)))
-                    return
-
-                log.d("doing a put_next")
-
-                put_next_resp = put_service.next(finfo, overwrite_policy=overwrite_policy)
-                ensure_data_response(put_next_resp)
-
-                if is_error_response(put_next_resp):
-                    log.w("Received error response for next()")
-                    errors += put_next_resp.get("errors")
-                    # All the errors will be reported at the end
-                    return
-
-                if not is_data_response(put_next_resp):
-                    raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-
-                # Possible responses:
-                # "accepted" => add the file to the transfer socket
-                # "refused"  => do not add the file to the transfer socket
-                # "ask_overwrite" => ask to the user and tell it to the esd
-                #                    we got this response only if the overwrite
-                #                    policy told to the server is PROMPT
-
-                # First of all handle the ask_overwrite, and contact the esd
-                # again for tell the response
-                if put_next_resp.get("data") == PutNextResponse.ASK_OVERWRITE:
-                    # Ask the user what to do
-
-                    timer.stop() # Don't take the user time into account
-                    current_overwrite_decision, overwrite_policy =\
-                        self._ask_overwrite(str(remote_path), current_policy=overwrite_policy)
-                    timer.start()
-
-                    if current_overwrite_decision == OverwritePolicy.NO:
-                        log.i("Skipping %s", remote_path)
-                        return
-
-                    # If overwrite policy is NEWER or YES we have to tell it
-                    # to the server so that it will take the right action
-                    put_next_resp = put_service.next(finfo,
-                                                     overwrite_policy=current_overwrite_decision)
-
-                    if is_success_response(put_next_resp):
-                        log.d("Transfer can actually began")
-                    elif is_error_response(put_next_resp):
-                        log.w("Transfer cannot be initialized due to remote error")
-                        errors += put_next_resp.get("errors")
-                        # All the errors will be reported at the end
-                        return
-                    else:
-                        raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-                # The current put_next_resp is either the original one
-                # or the one got after the ask_overwrite response we sent
-                # to the server.
-                # By the way, it should not contain an ask_overwrite
-                # since we specified a policy among YES/NEWER
-                if put_next_resp.get("data") == PutNextResponse.REFUSED:
-                    log.i("Skipping %s ", remote_path)
-                    return
-
-                if put_next_resp.get("data") != PutNextResponse.ACCEPTED:
-                    raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-
-                # File has been accepted by the remote, we can begin the transfer
-
-                if not quiet:
-                    progressor = FileProgressor(
-                        fsize,
-                        description="PUT " + str(remote_path),
-                        color_progress=PROGRESS_COLOR,
-                        color_success=SUCCESS_COLOR,
-                        color_error=ERROR_COLOR
-                    )
-
-                # File is already opened
-
-                cur_pos = 0
-                crc = 0
-
-                while cur_pos < fsize:
-
-                    chunk = local_fd.read(BEST_BUFFER_SIZE)
-                    chunk_len = len(chunk)
-
-                    log.i("Read chunk of %dB", chunk_len)
-
-                    # CRC check update
-                    if do_check:
-                        crc = zlib.crc32(chunk, crc)
-
-                    if not chunk:
-                        log.i("Finished %s", local_path)
-                        # FIXME: sending something?
-                        break
-
-                    transfer_socket.send(chunk)
-
-                    cur_pos += chunk_len
-                    tot_bytes += chunk_len
-                    if not quiet:
-                        progressor.update(cur_pos)
-
-                log.i("DONE %s", local_path)
-                log.d("- crc = %d", crc)
-
-                if do_check:
-                    transfer_socket.send(itob(crc, 4))
-
-                local_fd.close()
-
-                n_files += 1
-                if not quiet:
-                    progressor.success()
+                    continue
 
 
-            while sendfiles:
-                log.i("Putting another file info")
-                next_file = sendfiles.pop()
+                # Directory found
 
-                # Check what is this
-                # 1. Non existing: skip
-                # 2. A file: send it directly (parent dirs won't be replicated)
-                # 3. A dir: send it recursively
-                next_file_local, next_file_remote = next_file
+                if dir_files:
 
-                if next_file_local.is_file():
-                    # Send it directly
-                    log.d("-> is a FILE")
-                    send_file(next_file_local, next_file_remote)
-                elif next_file_local.is_dir():
-                    # Send it recursively
-
-                    log.d("-> is a DIR")
-
-                    try:
-                        dir_files: List[Path] = list(next_file_local.iterdir())
-                    except FileNotFoundError:
-                        errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
-                                                                 q(next_file_local)))
-                        continue
-                    except PermissionError:
-                        errors.append(create_error_of_response(ClientErrors.PERMISSION_DENIED,
-                                                                 q(next_file_local)))
-                        continue
-                    except OSError as oserr:
-                        errors.append(create_error_of_response(ClientErrors.ERR_2,
-                                                               os_error_str(oserr),
-                                                                q(next_file_local)))
-                        continue
-                    except Exception as exc:
-                        errors.append(create_error_of_response(ClientErrors.ERR_2,
-                                                               exc,
-                                                               q(next_file_local)))
-                        continue
-
-
-                    # Directory found
-
-                    if dir_files:
-
-                        log.i("Found a filled directory: adding all inner files to remaining_files")
-                        for file_in_dir in dir_files:
-                            sendfile = (file_in_dir, next_file_remote / file_in_dir.name)
-                            log.i("Adding sendfile %s", sendfile)
-                            sendfiles.append(sendfile)
-                    else:
-                        log.i("Found an empty directory")
-                        log.d("Pushing an info for the empty directory")
-
-                        send_file(next_file_local, next_file_remote)
+                    log.i("Found a filled directory: adding all inner files to remaining_files")
+                    for file_in_dir in dir_files:
+                        sendfile = (file_in_dir, next_file_remote / file_in_dir.name)
+                        log.i("Adding sendfile %s", sendfile)
+                        sendfiles.append(sendfile)
                 else:
-                    log.w(f"Failed to send '{next_file_local}': unknown file type, doing nothing")
+                    log.i("Found an empty directory")
+                    log.d("Pushing an info for the empty directory")
 
-            log.i("Sending DONE")
+                    send_file(next_file_local, next_file_remote)
+            else:
+                log.w(f"Failed to send '{next_file_local}': unknown file type, doing nothing")
 
-            put_next_end_resp = put_service.next(None)
-            ensure_success_response(put_next_end_resp)
+        log.i("Sending DONE")
 
-            # Wait for completion
-            outcome_resp = put_service.outcome()
-            ensure_data_response(outcome_resp, "outcome")
+        put_done_resp = conn.call({})
+        ensure_success_response(put_done_resp)
 
-            timer.stop()
-            elapsed_s = timer.elapsed_s()
+        # Wait for completion
+        outcome_resp = conn.read_json()
+        outcome_resp_data = ensure_data_response(outcome_resp, ResponsesParams.PUT_OUTCOME)
 
-            transfer_socket.close()
+        timer.stop()
+        elapsed_s = timer.elapsed_s()
 
-            # Take outcome and (eventually) errors out of the resp
-            outcome = outcome_resp.get("data").get("outcome")
-            outcome_errors = outcome_resp.get("data").get("errors")
-            if outcome_errors:
-                log.w("Response has errors")
-                errors += outcome_errors
+        # transfer_socket.close()
 
-            log.i("PUT outcome: %d", outcome)
+        # Take outcome and (eventually) errors out of the resp
+        outcome = outcome_resp_data.get("outcome")
+        outcome_errors = outcome_resp_data.get("errors")
+        if outcome_errors:
+            log.w("Response has errors")
+            errors += outcome_errors
 
-            print("")
-            print("PUT outcome:  {}".format(outcome_str(outcome)))
+        log.i("PUT outcome: %d", outcome)
+
+        print("")
+        print("PUT outcome:  {}".format(outcome_str(outcome)))
+        print("-----------------------")
+        print("Files:        {} ({})".format(n_files, size_str(tot_bytes)))
+        print("Time:         {}".format(duration_str_human(round(elapsed_s))))
+        print("Avg. speed:   {}".format(speed_str(tot_bytes / elapsed_s)))
+
+        # Any error? (e.g. permission denied)
+        if errors:
             print("-----------------------")
-            print("Files:        {} ({})".format(n_files, size_str(tot_bytes)))
-            print("Time:         {}".format(duration_str_human(round(elapsed_s))))
-            print("Avg. speed:   {}".format(speed_str(tot_bytes / elapsed_s)))
-
-            # Any error? (e.g. permission denied)
-            if errors:
-                print("-----------------------")
-                print("Errors:       {}".format(len(errors)))
-                for idx, err in enumerate(errors):
-                    err_str = formatted_error_from_error_of_response(err)
-                    print(f"{idx + 1}. {err_str}")
+            print("Errors:       {}".format(len(errors)))
+            for idx, err in enumerate(errors):
+                err_str = formatted_error_from_error_of_response(err)
+                print(f"{idx + 1}. {err_str}")
 
     @staticmethod
     def _xls(args: Args,
@@ -2543,8 +2537,7 @@ class Client:
         return True
 
     @classmethod
-    def _ask_overwrite(cls, fname: str, current_policy: OverwritePolicy) \
-            -> Tuple[OverwritePolicy, OverwritePolicy]:  # cur_decision, new_default
+    def _ask_overwrite(cls, fname: str, current_policy: str) -> Tuple[str, str]:  # cur_decision, new_default
         """
         If the 'current_policy' is PROMPT asks the user whether override
         a file with name 'fname'.

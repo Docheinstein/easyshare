@@ -11,7 +11,7 @@ from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO
 from ptyprocess import PtyProcess
 
 from easyshare.auth import Auth
-from easyshare.common import TransferDirection, TransferProtocol
+from easyshare.common import TransferDirection, TransferProtocol, BEST_BUFFER_SIZE
 from easyshare.endpoint import Endpoint
 from easyshare.es.client import OverwritePolicy
 from easyshare.esd.common import Sharing, ClientContext
@@ -29,7 +29,7 @@ from easyshare.tracing import get_tracing_level, TRACING_TEXT, trace_text
 from easyshare.utils.json import btoj, jtob, j
 from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, get_passwd, pty_detached
 from easyshare.utils.str import q
-from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, stob, itob, btos
+from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, stob, itob, btos, btoi
 
 log = get_logger(__name__)
 
@@ -197,6 +197,7 @@ class ClientHandler:
             Requests.RMV: self._rmv,
             Requests.RCP: self._rcp,
             Requests.GET: self._get,
+            Requests.PUT: self._put,
         }
 
 
@@ -958,13 +959,13 @@ class ClientHandler:
     # @require_d_sharing
     def _get(self, params: RequestParams):
         paths = params.get(RequestsParams.GET_PATHS)
-        cksum = params.get(RequestsParams.GET_CHECKSUM)
+        check = params.get(RequestsParams.GET_CHECK)
 
         if not paths:
             paths = ["."]
 
         # Secret params
-        chunk_size = params.get(RequestsParams.GET_CHUNK_SIZE, 8192)
+        chunk_size = params.get(RequestsParams.GET_CHUNK_SIZE, BEST_BUFFER_SIZE)
         use_mmap = params.get(RequestsParams.GET_MMAP, True)
 
         log.i("<< GET %s  |  %s", paths, self._client)
@@ -1083,7 +1084,6 @@ class ClientHandler:
 
         def handle_get_next_request(req: Dict) -> Union[Tuple[FPath, BinaryIO], None]: # fpath, fd
             while True:
-
                 action = req.get(RequestsParams.GET_NEXT_ACTION)
                 if action not in RequestsParams.GET_NEXT_ACTIONS:
                     log.w("Unknown action: %s", action)
@@ -1282,7 +1282,7 @@ class ClientHandler:
                 try:
                     # try to mmap the file to memory
                     source = mmap.mmap(next_transf_f.fileno(), 0,
-                                              prot=mmap.PROT_READ)
+                                       prot=mmap.PROT_READ)
                 except:
                     log.w("mmap failed, will read directly from file")
 
@@ -1309,7 +1309,7 @@ class ClientHandler:
                 log.i("Read chunk of %dB", len(chunk))
                 cur_pos += len(chunk)
 
-                if cksum:
+                if check:
                     # Eventually update the CRC
                     crc = zlib.crc32(chunk, crc)
 
@@ -1323,7 +1323,7 @@ class ClientHandler:
                 source.close()
 
             # Eventually send the CRC in-band
-            if cksum:
+            if check:
                 log.d("Sending CRC: %d", crc)
                 transfer_socket.send(itob(crc, 4))
 
@@ -1344,11 +1344,9 @@ class ClientHandler:
     @require_d_sharing
     @require_write_permission
     def _put(self, params: RequestParams):
-        cksum = params.get(RequestsParams.PUT_CHECKSUM)
+        check = params.get(RequestsParams.PUT_CHECK)
 
         # Hidden
-        chunk_size = params.get(RequestsParams.PUT_CHUNK_SIZE, 8192)
-        use_mmap = params.get(RequestsParams.PUT_MMAP, True)
 
         log.i("<< PUT  |  %s", self._client)
 
@@ -1357,38 +1355,47 @@ class ClientHandler:
         # TODO: use a secondary socket?
         transfer_socket = self._client.socket
 
-        def recv_put_next():
+        errors = []
+        outcome = TransferOutcomes.SUCCESS
 
-            next_incoming = None
+        def put_next():
 
-            while not next_incoming:
+            while True:
                 log.d("Waiting for next() request from client...")
 
                 # 1. Receive the request from the client
 
-                # e.g. {name: f1, size: 293} // client doesn't provide the path
-                finfo = self._recv_json()
+                # e.g. {file: {name: f1, size: 293}, overwrite: "..."} // client doesn't provide the path
+                req = self._recv_json()
+
+
+                # File info
+                finfo = req.get(RequestsParams.PUT_NEXT_FILE)
 
                 if not finfo:
-                    self._send_response(self._create_error_response(
-                        ServerErrors.INVALID_REQUEST)
-                    )
-                    continue
-
-                if finfo == {}:
                     log.i("<< PUT_NEXT DONE")
                     self._send_response(create_success_response())
-                    continue
+                    break
 
-                log.i("<< PUT_NEXT %s", j(finfo))
-
-                # Check whether is a dir or a file
                 fname = finfo.get("name")
                 ftype = finfo.get("ftype")
                 fsize = finfo.get("size")
                 fmtime = finfo.get("mtime")
 
-                # real_path = self._real_path_from_rcwd(fname)
+                if fname is None or ftype is None or fsize is None or fmtime is None:
+                    self._send_response(self._create_error_response(
+                        ServerErrors.INVALID_REQUEST)
+                    )
+                    continue
+
+                # Overwrite
+                overwrite = req.get(RequestsParams.PUT_NEXT_OVERWRITE)
+                if overwrite not in RequestsParams.PUT_NEXT_OVERWRITES:
+                    log.w("Unspecified overwrite, using PROMPT")
+                    overwrite = RequestsParams.PUT_NEXT_OVERWRITE_PROMPT
+
+                log.i("<< PUT_NEXT %s", j(finfo))
+
                 fpath = self._fpath_joining_rcwd_and_spath(fname)
 
                 if not self._is_fpath_allowed(fpath):
@@ -1400,12 +1407,14 @@ class ClientHandler:
 
                 log.d("Sharing domain check OK")
 
+                # Check whether is a dir or a file
                 if ftype == FTYPE_DIR:
                     # Handle dir now by creating dirs
                     log.i("Creating dirs %s", fpath)
                     fpath.mkdir(parents=True, exist_ok=True)
                     self._send_response(create_success_response({
-                        ResponsesParams.PUT_NEXT_ACCEPTED
+                        ResponsesParams.PUT_NEXT_STATUS:
+                            ResponsesParams.PUT_NEXT_STATUS_ACCEPTED
                     }))
                     continue
 
@@ -1424,23 +1433,31 @@ class ClientHandler:
                 # Check whether it already exists
                 if fpath.is_file():
                     log.w("File already exists; deciding what to do based on overwrite policy: %s",
-                          overwrite_policy)
+                          overwrite)
 
                     # Take a decision based on the overwrite policy
-                    if overwrite_policy == OverwritePolicy.PROMPT:
+                    if overwrite == RequestsParams.PUT_NEXT_OVERWRITE_PROMPT:
                         log.d("Overwrite policy is PROMPT, asking the client whether overwrite")
-                        return create_success_response(PutNextResponse.ASK_OVERWRITE)
+                        self._send_response(create_success_response({
+                            ResponsesParams.PUT_NEXT_STATUS:
+                                ResponsesParams.PUT_NEXT_STATUS_ALREADY_EXISTS
+                        }))
+                        continue
 
-                    if overwrite_policy == OverwritePolicy.NEWER:
+                    if overwrite == RequestsParams.PUT_NEXT_OVERWRITE_NEWER:
                         log.d("Overwrite policy is NEWER, checking mtime")
                         stat = fpath.stat()
                         if stat.st_mtime_ns >= fmtime:
                             # Our version is newer, won't accept the file
-                            return create_success_response(PutNextResponse.REFUSED)
+                            self._send_response(create_success_response({
+                                ResponsesParams.PUT_NEXT_STATUS:
+                                    ResponsesParams.PUT_NEXT_STATUS_REFUSED
+                            }))
+                            continue
                         else:
                             log.d("Our version is older, will accept file")
 
-                    elif overwrite_policy == OverwritePolicy.YES:
+                    elif overwrite == RequestsParams.PUT_NEXT_OVERWRITE_YES:
                         log.d("Overwrite policy is YES, overwriting it unconditionally")
 
                 # Before accept it for real, try to open the file.
@@ -1449,31 +1466,43 @@ class ClientHandler:
                 log.d("Trying to open file before initializing transfer")
 
                 try:
-                    local_fd = fpath.open("wb")
+                    fd = fpath.open("wb")
                     log.d("Able to open file: %s", fpath)
                 except FileNotFoundError:
-                    return create_error_response(ServerErrors.NOT_EXISTS, q(fname))
+                    self._send_response(self._create_error_response(
+                        ServerErrors.NOT_EXISTS, q(fname))
+                    )
+                    continue
                 except PermissionError:
-                    return create_error_response(ServerErrors.PERMISSION_DENIED, q(fname))
+                    self._send_response(self._create_error_response(
+                        ServerErrors.PERMISSION_DENIED, q(fname))
+                    )
+                    continue
                 except OSError as oserr:
-                    return create_error_response(ServerErrors.ERR_2,
-                                                 os_error_str(oserr),
-                                                 q(fname))
+                    self._send_response(self._create_error_response(
+                        ServerErrors.ERR_2, os_error_str(oserr), q(fname))
+                    )
+                    continue
                 except Exception as exc:
-                    return create_error_response(ServerErrors.ERR_2,
-                                                 exc,
-                                                 q(fname))
+                    self._send_response(self._create_error_response(
+                        ServerErrors.ERR_2, exc, q(fname))
+                    )
+                    continue
 
-                self._incomings.put((fpath, fsize, local_fd))
 
-                return create_success_response("accepted")
+                self._send_response(create_success_response({
+                    ResponsesParams.PUT_NEXT_STATUS:
+                        ResponsesParams.PUT_NEXT_STATUS_ACCEPTED
+                }))
+
+                return fpath, fsize, fd
 
         while True:
             log.d("Blocking and waiting for a file to handle...")
 
             # Recv files until the incomings buffer is empty
             # Wait on the blocking queue for the next file to recv
-            next_incoming = self._incomings.get()
+            next_incoming = put_next()
 
             if not next_incoming:
                 log.i("No more files: transfer completed")
@@ -1506,7 +1535,7 @@ class ClientHandler:
 
                 # Read from the remote
                 log.d("Waiting a chunk of %dB", readlen)
-                chunk = self._transfer_sock.recv(readlen)
+                chunk = transfer_socket.recv(readlen)
 
                 if not chunk:
                     # EOF
@@ -1516,7 +1545,7 @@ class ClientHandler:
                 log.d("Received chunk of %dB", len(chunk))
                 cur_pos += len(chunk)
 
-                if self._check:
+                if check:
                     # Eventually update the CRC
                     crc = zlib.crc32(chunk, crc)
 
@@ -1528,13 +1557,14 @@ class ClientHandler:
             local_fd.close()
 
             # Eventually do CRC check
-            if self._check:
+            if check:
                 # CRC check on the received bytes
-                expected_crc = btoi(self._transfer_sock.recv(4))
+                expected_crc = btoi(transfer_socket.recv(4))
                 if expected_crc != crc:
                     log.e("Wrong CRC; transfer failed. expected=%d | written=%d",
                           expected_crc, crc)
-                    self._finish(TransferOutcomes.CHECK_FAILED)
+                    errors.append(create_error_of_response(ServerErrors.PUT_CHECK_FAILED,
+                                                           *self._qspathify(incoming_fpath)))
                     break
                 else:
                     log.d("CRC check: OK")
@@ -1544,12 +1574,23 @@ class ClientHandler:
                 if written_size != incoming_size:
                     log.e("File length mismatch; transfer failed. expected=%s ; written=%d",
                           incoming_size, written_size)
-                    self._finish(TransferOutcomes.CHECK_FAILED)
+                    errors.append(create_error_of_response(ServerErrors.PUT_CHECK_FAILED,
+                                                           *self._qspathify(incoming_fpath)))
+
                     break
                 else:
                     log.d("File length check: OK")
 
         log.i("PUT finished")
+
+        resp_data = {
+            ResponsesParams.PUT_OUTCOME: 0
+        }
+
+        if errors:
+            resp_data[ResponsesParams.GET_ERRORS] = errors
+
+        return create_success_response(resp_data)
 
     def _create_error_response(self,
                                err: Union[str, int, Dict, List[Dict]] = None,

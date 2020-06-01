@@ -49,6 +49,8 @@ class ServerErrors:
     UNKNOWN_API =               231
     REXEC_DISABLED =            232
 
+    PUT_CHECK_FAILED =          233
+
 
 class TransferOutcomes:
     """ Possibles results of outcome() of a 'TransferService' """
@@ -63,8 +65,13 @@ class ResponsesParams:
     GET_OUTCOME = "outcome"
     GET_ERRORS = "errors"
 
+    PUT_OUTCOME = "outcome"
 
-    PUT_NEXT_ACCEPTED = "accepted"
+    PUT_NEXT_STATUS = "status"
+    PUT_NEXT_STATUS_ACCEPTED = "accepted"
+    PUT_NEXT_STATUS_REFUSED = "refused" # e.g. already exists and overwrite == "newer"
+    PUT_NEXT_STATUS_ALREADY_EXISTS = "already_exists"
+
 
 
 # ================================================

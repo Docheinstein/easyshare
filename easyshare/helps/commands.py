@@ -1868,6 +1868,10 @@ class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
 
+    # Secret params
+    MMAP = ["--mmap"]
+    CHUNK_SIZE = ["--chunk-size"]
+
     def options_spec(self) -> Optional[List[Option]]:
         return [
             (self.OVERWRITE_YES, PRESENCE_PARAM),
@@ -1875,6 +1879,8 @@ class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.OVERWRITE_NEWER, PRESENCE_PARAM),
             (self.CHECK, PRESENCE_PARAM),
             (self.QUIET, PRESENCE_PARAM),
+            (self.MMAP, INT_PARAM),
+            (self.CHUNK_SIZE, INT_PARAM),
         ]
 
     @classmethod
@@ -2063,6 +2069,10 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
 
+    # Secret params
+    MMAP = ["--mmap"]
+    CHUNK_SIZE = ["--chunk-size"]
+
     def options_spec(self) -> Optional[List[Option]]:
         return [
             (self.OVERWRITE_YES, PRESENCE_PARAM),
@@ -2070,6 +2080,8 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.OVERWRITE_NEWER, PRESENCE_PARAM),
             (self.CHECK, PRESENCE_PARAM),
             (self.QUIET, PRESENCE_PARAM),
+            (self.MMAP, INT_PARAM),
+            (self.CHUNK_SIZE, INT_PARAM),
         ]
 
     @classmethod

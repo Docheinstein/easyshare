@@ -66,7 +66,7 @@ class RequestsParams:
     RCP_DESTINATION = "dest"
 
     GET_PATHS = "paths"
-    GET_CHECKSUM = "cksum"
+    GET_CHECK = "check"
     GET_CHUNK_SIZE = "chunk_size"
     GET_MMAP = "mmap"
 
@@ -76,15 +76,17 @@ class RequestsParams:
     GET_NEXT_ACTION_SKIP = "skip"
     GET_NEXT_ACTIONS = [GET_NEXT_ACTION_SEEK, GET_NEXT_ACTION_TRANSFER, GET_NEXT_ACTION_SKIP]
 
-    PUT_CHECKSUM = "cksum"
+    PUT_CHECK = "check"
     PUT_CHUNK_SIZE = "chunk_size"
-    PUT_MMAP = "mmap"
 
+    PUT_NEXT_FILE = "file"
     PUT_NEXT_OVERWRITE = "overwrite"
     PUT_NEXT_OVERWRITE_PROMPT = "prompt"
     PUT_NEXT_OVERWRITE_YES = "yes"
     PUT_NEXT_OVERWRITE_NO = "no"
     PUT_NEXT_OVERWRITE_NEWER = "newer"
+    PUT_NEXT_OVERWRITES = [PUT_NEXT_OVERWRITE_PROMPT, PUT_NEXT_OVERWRITE_YES,
+                           PUT_NEXT_OVERWRITE_NO, PUT_NEXT_OVERWRITE_NEWER]
 
 RequestParams = Dict[str, Any]
 

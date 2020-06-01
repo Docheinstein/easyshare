@@ -348,18 +348,38 @@ class ConnectionMinimal:
 
     @handle_connection_response
     @require_sharing_connection
-    def get(self, paths: List[str], cksum: bool) -> Response:
-        return self.call(create_request(Requests.GET, {
+    def get(self,
+            paths: List[str],
+            check: bool,
+            mmap: Optional[bool] = None,
+            chunk_size: Optional[int] = None) -> Response:
+
+        req_params = {
             RequestsParams.GET_PATHS: paths,
-            RequestsParams.GET_CHECKSUM: cksum
-        }))
+            RequestsParams.GET_CHECK: check,
+        }
+
+        # Secret params
+        if mmap is not None:
+            req_params[RequestsParams.GET_MMAP] = mmap
+        if chunk_size is not None:
+            req_params[RequestsParams.GET_CHUNK_SIZE] = chunk_size
+
+        return self.call(create_request(Requests.GET, req_params))
 
     @handle_connection_response
     @require_sharing_connection
-    def put(self, cksum: bool) -> Response:
-        return self.call(create_request(Requests.PUT, {
-            RequestsParams.PUT_CHECKSUM: cksum
-        }))
+    def put(self,
+            check: bool,
+            chunk_size: Optional[int] = None) -> Response:
+        req_params = {
+            RequestsParams.GET_CHECK: check
+        }
+
+        if chunk_size is not None:
+            req_params[RequestsParams.PUT_CHUNK_SIZE] = chunk_size
+
+        return self.call(create_request(Requests.PUT, req_params))
 
 
     # === INTERNALS ===

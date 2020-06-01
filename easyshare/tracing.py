@@ -94,8 +94,8 @@ def _trace(what: str,
 
     s = f"""\
 {_1} ============================== {direction.value} ==============================={_2}
-{_1} From:      {sender[0]}:{sender[1]}
-{_1} To:        {receiver[0]}:{receiver[1]}
+{_1} From:      {f'{sender[0]}:{sender[1]}' if sender else "-----------------"}
+{_1} To:        {f'{receiver[0]}:{receiver[1]}' if receiver else "-----------------"}
 {_1} Protocol:  {protocol.value}
 {_1} Timestamp: {int(time.time_ns() * 1e-6)}"""
 
