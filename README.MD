@@ -219,10 +219,10 @@ The *help* command should really be used since its quite complete.
 ##### Connection establishment commands
 ```text
 scan, s          scan the network for easyshare servers
-connect          connect to a remote server
+connect, c       connect to a remote server
 disconnect       disconnect from a remote server
 open, o          open a remote sharing (eventually discovering it)
-close, c         close the remote sharing
+close            close the remote sharing
 ```
 
 The most straightforward way to establish a connection is *open* since only requires you

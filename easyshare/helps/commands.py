@@ -73,12 +73,13 @@ class Commands:
     SCAN_SHORT = "s"
 
     CONNECT = "connect"
+    CONNECT_SHORT = "c"
+
     DISCONNECT = "disconnect"
 
     OPEN = "open"
     OPEN_SHORT = "o"
     CLOSE = "close"
-    CLOSE_SHORT = "c"
 
     GET = "get"
     GET_SHORT = "g"
@@ -2499,12 +2500,13 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.SCAN_SHORT: Scan,
 
     Commands.CONNECT: Connect,
+    Commands.CONNECT_SHORT: Connect,
+
     Commands.DISCONNECT: Disconnect,
 
     Commands.OPEN: Open,
     Commands.OPEN_SHORT: Open,
     Commands.CLOSE: Close,
-    Commands.CLOSE_SHORT: Close,
 
     Commands.GET: Get,
     Commands.GET_SHORT: Get,

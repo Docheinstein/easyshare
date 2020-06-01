@@ -417,8 +417,8 @@ class Client:
 
         self._command_dispatcher[Commands.GET_SHORT] = self._command_dispatcher[Commands.GET]
         self._command_dispatcher[Commands.PUT_SHORT] = self._command_dispatcher[Commands.PUT]
+        self._command_dispatcher[Commands.CONNECT_SHORT] = self._command_dispatcher[Commands.CONNECT]
         self._command_dispatcher[Commands.OPEN_SHORT] = self._command_dispatcher[Commands.OPEN]
-        self._command_dispatcher[Commands.CLOSE_SHORT] = self._command_dispatcher[Commands.CLOSE]
         self._command_dispatcher[Commands.SCAN_SHORT] = self._command_dispatcher[Commands.SCAN]
         self._command_dispatcher[Commands.INFO_SHORT] = self._command_dispatcher[Commands.INFO]
         self._command_dispatcher[Commands.LOCAL_EXEC_SHORT] = self._command_dispatcher[Commands.LOCAL_EXEC]
@@ -791,7 +791,6 @@ class Client:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
         if self.is_connected_to_server():
-            new_conn = self.connection
 
             # Check whether the sharing is actually among the sharings of
             # this server
@@ -802,6 +801,8 @@ class Client:
                 # The sharing is among the sharings of this connection
                 log.d("The sharing we are looking for is among the sharings"
                       " of the already established server connection")
+
+                new_conn = self.connection
 
                 # Check whether we are already connected to it, just in case
                 if self.is_connected_to_sharing() and \
@@ -831,7 +832,6 @@ class Client:
                         self.connection,
                         sharing_name=sharing_location.name
                     )
-
 
         # Have we found the sharing yet or do we have to perform a scan?
         if not new_conn or not new_conn.is_connected_to_sharing():
@@ -1277,11 +1277,11 @@ class Client:
         no_hidden = Get.NO_HIDDEN in args
 
         chunk_size = args.get_option_param(Get.CHUNK_SIZE)
-        mmap = args.get_option_param(Get.MMAP)
+        use_mmap = args.get_option_param(Get.MMAP)
 
         resp = conn.get(files,
                         check=do_check, no_hidden=no_hidden,
-                        mmap=mmap, chunk_size=chunk_size)
+                        mmap=use_mmap, chunk_size=chunk_size)
         ensure_success_response(resp)
 
         # TODO: use a secondary socket?
@@ -1848,7 +1848,7 @@ class Client:
             next_file_local, next_file_remote = next_file
 
             if no_hidden and is_hidden(next_file_local):
-                log.d("Not sending %s since no_hidden is True %s", next_file_local)
+                log.d("Not sending %s since no_hidden is True", next_file_local)
             elif next_file_local.is_file():
                 # Send it directly
                 log.d("-> is a FILE")

@@ -1127,7 +1127,8 @@ class ClientHandler:
                 # Check if it's hidden
 
                 if no_hidden and is_hidden(next_fpath):
-                    log.d("Not sending %s since no_hidden is True %s", next_fpath)
+                    log.d("Not sending %s since no_hidden is True", next_fpath)
+                    next_servings.pop()
                     continue
 
                 finfo = create_file_info(

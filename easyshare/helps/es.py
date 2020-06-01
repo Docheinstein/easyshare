@@ -16,10 +16,10 @@ verbose, v          change verbosity level
 </i>
 <I+4>
 scan, s             scan the network for easyshare servers
-connect             connect to a remote server
+connect, c          connect to a remote server
 disconnect          disconnect from a remote server
 open, o             open a remote sharing (eventually discovering it)
-close, c            close the remote sharing
+close               close the remote sharing
 </i>
 <I+4>
 get, g              get files and directories from the remote sharing
