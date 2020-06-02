@@ -10,6 +10,7 @@ import threading
 import tty
 from os import PathLike
 from pathlib import Path
+from stat import S_ISREG
 from typing import Optional, List, Union, Tuple, Any, Callable
 
 from ptyprocess import PtyProcess, PtyProcessUnicode
@@ -17,6 +18,7 @@ from ptyprocess import PtyProcess, PtyProcessUnicode
 from easyshare.logging import get_logger, init_logging
 from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info, FileType
 from easyshare.utils.env import terminal_size
+from easyshare.utils.measures import size_str
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import isorted
 from easyshare.utils.types import list_wrap
@@ -262,9 +264,12 @@ def find(path: Union[Path, PathLike],
 
     ret: List[FileInfo] = []
 
-    for f in walk_preorder(path):
+    for f, fstat in walk_preorder(path):
         p = Path(f)
-        finfo = create_file_info(p, name=file_info_name_provider(p), details=details)
+        finfo = create_file_info(p,
+                                 fstat=fstat,
+                                 name=file_info_name_provider(p),
+                                 details=details)
         if not finfo:
             continue
 
@@ -300,6 +305,24 @@ def find(path: Union[Path, PathLike],
 
     return ret
 
+
+def du(path: Path):
+
+    if not path:
+        raise TypeError("found invalid path")
+
+    log.i(f"DU {path}")
+
+    du_sum = 0
+
+    for f, fstat in walk_preorder(path):
+        du_sum += fstat.st_size
+
+    log.i(f"DU total: {du_sum}B")
+
+    return du_sum
+
+
 def walk_preorder(path: Path):
     root = path
     log.d("walk_preorder over '%s'", root)
@@ -309,11 +332,18 @@ def walk_preorder(path: Path):
     while stack:
         cursor = stack.pop(0)
 
-        if cursor.is_file():
-            yield cursor
+        fstat = cursor.stat()
+
+        try:
+            is_file = S_ISREG(fstat.st_mode)
+        except OSError:
+            is_file = False
+
+        if is_file:
+            yield cursor, fstat
         else:
             if cursor != root:
-                yield cursor
+                yield cursor, fstat
 
             try:
                 children: List = isorted(list(cursor.iterdir()))
@@ -507,7 +537,6 @@ def pty_detached(out_hook: Callable[[str], None],
 
 if __name__ == "__main__":
     init_logging(5)
-    findings = find(Path("/home/stefano/Temp/synctest"))
-    print("\n".join(f.get("name") for f in findings))
-    # for f in walk_preorder():
-    #     print(f)
+    while True:
+        path = input("> ")
+        print(size_str(du(Path(path))))

@@ -25,6 +25,7 @@ class Requests:
     RLS = "rls"
     RTREE = "rtree"
     RFIND = "rfind"
+    RDU = "rdu"
     RMKDIR = "rmkdir"
     RRM = "rrm"
     RMV = "rmv"
@@ -64,6 +65,8 @@ class RequestsParams:
     RFIND_CASE_SENSITIVE = "case_sensitive"
     RFIND_FTYPE = "ftype"
     RFIND_DETAILS = "details"
+
+    RDU_PATH = "path"
 
     RMKDIR_PATH = "path"
 

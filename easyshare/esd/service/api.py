@@ -26,7 +26,8 @@ from easyshare.streams import StreamClosedError
 from easyshare.styling import green, red
 from easyshare.tracing import get_tracing_level, TRACING_TEXT, trace_text
 from easyshare.utils.json import btoj, jtob, j
-from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, get_passwd, pty_detached, find
+from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, get_passwd, pty_detached, \
+    find, du
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import q
 from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, stob, itob, btos, btoi, is_int
@@ -195,6 +196,7 @@ class ClientHandler:
             Requests.RLS: self._rls,
             Requests.RTREE: self._rtree,
             Requests.RFIND: self._rfind,
+            Requests.RDU: self._rdu,
             Requests.RMKDIR: self._rmkdir,
             Requests.RRM: self._rrm,
             Requests.RMV: self._rmv,
@@ -604,7 +606,6 @@ class ClientHandler:
 
 
     @require_sharing_connection
-    @require_d_sharing
     def _rls(self, params: RequestParams):
 
         path = params.get(RequestsParams.RLS_PATH) or "."
@@ -635,6 +636,7 @@ class ClientHandler:
             ls_result = ls(ls_fpath,
                            sort_by=sort_by, reverse=reverse,
                            hidden=hidden, details=details)
+
             # OK - report it
             print(f"[{self._client.tag}] rls '{ls_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
@@ -696,6 +698,7 @@ class ClientHandler:
                              sort_by=sort_by, reverse=reverse,
                              hidden=hidden, max_depth=max_depth,
                              details=details)
+
             # OK - report it
             print(f"[{self._client.tag}] rtree '{tree_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
@@ -724,7 +727,6 @@ class ClientHandler:
 
 
     @require_sharing_connection
-    @require_d_sharing
     def _rfind(self, params: RequestParams):
         path = params.get(RequestsParams.RFIND_PATH) or "."
         name = params.get(RequestsParams.RFIND_NAME)
@@ -766,21 +768,22 @@ class ClientHandler:
             # OK - report it
             print(f"[{self._client.tag}] rfind '{find_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
         except FileNotFoundError:
-            log.exception("rls exception occurred")
+            log.exception("rfind exception occurred")
             return self._create_error_response(ServerErrors.NOT_EXISTS,
                                                find_fpath)
         except PermissionError:
-            log.exception("rls exception occurred")
+            log.exception("rfind exception occurred")
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                find_fpath)
         except OSError as oserr:
-            log.exception("rls exception occurred")
+            log.exception("rfind exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                os_error_str(oserr),
                                                find_fpath)
         except Exception as exc:
-            log.exception("rls exception occurred")
+            log.exception("rfind exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                exc,
                                                find_fpath)
@@ -789,6 +792,55 @@ class ClientHandler:
 
         return create_success_response(find_result)
 
+
+    @require_sharing_connection
+    def _rdu(self, params: RequestParams):
+        path = params.get(RequestsParams.RDU_PATH) or "."
+
+        if not is_str(path):
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        log.i("<< RDU %s  |  %s", path, self._client)
+
+        rdu_fpath = self._fpath_joining_rcwd_and_spath(path)
+        log.d("Would rdu into: %s", rdu_fpath)
+
+        # Check if it's inside the sharing domain
+        if not self._is_fpath_allowed(rdu_fpath):
+            return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
+
+        log.i("Going to du on valid path %s", rdu_fpath)
+
+        try:
+            # OK - report it
+            print(f"[{self._client.tag}] du '{rdu_fpath}' "
+                  f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+
+            usage = du(rdu_fpath)
+        except FileNotFoundError:
+            log.exception("rdu exception occurred")
+            return self._create_error_response(ServerErrors.NOT_EXISTS,
+                                               rdu_fpath)
+        except PermissionError:
+            log.exception("rdu exception occurred")
+            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
+                                               rdu_fpath)
+        except OSError as oserr:
+            log.exception("rdu exception occurred")
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               os_error_str(oserr),
+                                               rdu_fpath)
+        except Exception as exc:
+            log.exception("rdu exception occurred")
+            return self._create_error_response(ServerErrors.ERR_2,
+                                               exc,
+                                               rdu_fpath)
+
+        log.i("RDU response %d", usage)
+
+        return create_success_response([
+            [str(self._spath_rel_to_root_of_fpath(rdu_fpath)), usage]
+        ])
 
     @require_sharing_connection
     @require_d_sharing
@@ -1839,9 +1891,18 @@ class ClientHandler:
         this only after _is_fpath_allowed.
         """
         log.d("spath_of_fpath_rel_to_rcwd for p: %s", p)
+
         fp = self._as_path(p)
         log.d("-> fp: %s", fp)
 
+        if self._current_sharing.ftype == FTYPE_FILE:
+            if fp != self._current_sharing.path:
+                raise ValueError("Invalid path for file sharing")
+
+            log.d("Providing sharing name since ftype == FILE")
+            return Path(self._current_sharing.name)
+
+        # DIR (standard case)
         return fp.relative_to(self._current_rcwd_fpath)
 
     def _spath_rel_to_root_of_fpath(self, p: Union[str, FPath]) -> SPath:
@@ -1855,6 +1916,15 @@ class ClientHandler:
         fp = self._as_path(p)
         log.d("-> fp: %s", fp)
 
+        if self._current_sharing.ftype == FTYPE_FILE:
+            if fp != self._current_sharing.path:
+                raise ValueError("Invalid path for file sharing")
+
+            log.d("Providing sharing name since ftype == FILE")
+            return Path(self._current_sharing.name)
+
+
+        # DIR (standard case)
         return Path("/") / fp.relative_to(self._current_sharing.path)
 
 

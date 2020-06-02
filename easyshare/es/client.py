@@ -31,7 +31,8 @@ from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_er
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_pretty_str, server_info_pretty_str, server_info_short_str, file_info_str, StyledString
 from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
-    ListSharings, Ping, Find, Rfind
+    ListSharings, Ping, Find, Rfind, Du, Rdu, Rls, Cd, L, Mkdir, Pwd, Rm, Mv, Cp, Exec, Shell, Rcd, Rl, Rtree, Rmkdir, \
+    Rpwd, Rrm, Rmv, Rcp, Rexec, Rshell, Connect, Disconnect, Open, Close
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import RequestsParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
@@ -44,7 +45,8 @@ from easyshare.timer import Timer
 from easyshare.tracing import trace_bin_payload
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
-from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str, find
+from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str, \
+    find, du
 from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress import ProgressBarRendererFactory
 from easyshare.utils.progress.file import FileProgressor
@@ -272,152 +274,49 @@ class Client:
             ]
         ] = {
 
-            Commands.LOCAL_CHANGE_DIRECTORY: (
-                LOCAL,
-                [PosArgsSpec(0, 1)],
-                self.cd),
-            Commands.LOCAL_LIST_DIRECTORY: (
-                LOCAL,
-                [Ls(0)],
-                self.ls),
-            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (
-                LOCAL,
-                [PosArgsSpec(0, 1)],
-                self.l),
-            Commands.LOCAL_TREE_DIRECTORY: (
-                LOCAL,
-                [Tree(0)],
-                self.tree),
-            Commands.LOCAL_FIND: (
-                LOCAL,
-                [Find(0)],
-                self.find),
-            Commands.LOCAL_CREATE_DIRECTORY: (
-                LOCAL,
-                [PosArgsSpec(1)],
-                self.mkdir),
-            Commands.LOCAL_CURRENT_DIRECTORY: (
-                LOCAL,
-                [PosArgsSpec(0)],
-                self.pwd),
-            Commands.LOCAL_REMOVE: (
-                LOCAL,
-                [VarArgsSpec(1)],
-                self.rm),
-            Commands.LOCAL_MOVE: (
-                LOCAL,
-                [VarArgsSpec(2)],
-                self.mv),
-            Commands.LOCAL_COPY: (
-                LOCAL,
-                [VarArgsSpec(2)],
-                self.cp),
-            Commands.LOCAL_EXEC: (
-                LOCAL,
-                [StopParseArgsSpec(0)],
-                self.exec),
-            Commands.LOCAL_SHELL: (
-                LOCAL,
-                [PosArgsSpec(0)],
-                self.shell),
+            Commands.LOCAL_CHANGE_DIRECTORY: (LOCAL, [Cd()], self.cd),
+            Commands.LOCAL_LIST_DIRECTORY: (LOCAL, [Ls()], self.ls),
+            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (LOCAL, [L()], self.l),
+            Commands.LOCAL_TREE_DIRECTORY: (LOCAL, [Tree()], self.tree),
+            Commands.LOCAL_FIND: (LOCAL, [Find()], self.find),
+            Commands.LOCAL_DISK_USAGE: (LOCAL, [Du()], self.du),
+            Commands.LOCAL_CREATE_DIRECTORY: (LOCAL, [Mkdir()], self.mkdir),
+            Commands.LOCAL_CURRENT_DIRECTORY: (LOCAL, [Pwd()], self.pwd),
+            Commands.LOCAL_REMOVE: (LOCAL, [Rm()], self.rm),
+            Commands.LOCAL_MOVE: (LOCAL, [Mv()], self.mv),
+            Commands.LOCAL_COPY: (LOCAL, [Cp()], self.cp),
+            Commands.LOCAL_EXEC: (LOCAL, [Exec()], self.exec),
+            Commands.LOCAL_SHELL: (LOCAL, [Shell()], self.shell),
 
-            Commands.REMOTE_CHANGE_DIRECTORY: (
-                SHARING,
-                [PosArgsSpec(0, 1), PosArgsSpec(1, 1)],
-                self.rcd),
-            Commands.REMOTE_LIST_DIRECTORY: (
-                SHARING,
-                [Ls(0), Ls(1)],
-                self.rls),
-            Commands.REMOTE_LIST_DIRECTORY_ENHANCED: (
-                SHARING,
-                [PosArgsSpec(0, 1), PosArgsSpec(1, 1)],
-                self.rl),
-            Commands.REMOTE_TREE_DIRECTORY: (
-                SHARING,
-                [Tree(0), Tree(1)],
-                self.rtree),
-            Commands.REMOTE_FIND: (
-                SHARING,
-                [Rfind(0), Rfind(1)],
-                self.rfind),
-            Commands.REMOTE_CREATE_DIRECTORY: (
-                SHARING,
-                [PosArgsSpec(1), PosArgsSpec(2)],
-                self.rmkdir),
-            Commands.REMOTE_CURRENT_DIRECTORY: (
-                SHARING,
-                [PosArgsSpec(0), PosArgsSpec(1)],
-                self.rpwd),
-            Commands.REMOTE_REMOVE: (
-                SHARING,
-                [VarArgsSpec(1), VarArgsSpec(2)],
-                self.rrm),
-            Commands.REMOTE_MOVE: (
-                SHARING,
-                [VarArgsSpec(2), VarArgsSpec(3)],
-                self.rmv),
-            Commands.REMOTE_COPY: (
-                SHARING,
-                [VarArgsSpec(2), VarArgsSpec(3)],
-                self.rcp),
-            Commands.REMOTE_EXEC: (
-                SERVER,
-                [StopParseArgsSpec(0), StopParseArgsSpec(1)],
-                self.rexec),
-            Commands.REMOTE_SHELL: (
-                SERVER,
-                [PosArgsSpec(0), PosArgsSpec(1)],
-                self.rshell),
+            Commands.REMOTE_CHANGE_DIRECTORY: (SHARING, [Rcd(0), Rcd(1)], self.rcd),
+            Commands.REMOTE_LIST_DIRECTORY: (SHARING, [Rls(0), Rls(1)], self.rls),
+            Commands.REMOTE_LIST_DIRECTORY_ENHANCED: (SHARING, [Rl(0), Rl(1)], self.rl),
+            Commands.REMOTE_TREE_DIRECTORY: (SHARING, [Rtree(0), Rtree(1)], self.rtree),
+            Commands.REMOTE_FIND: (SHARING, [Rfind(0), Rfind(1)], self.rfind),
+            Commands.REMOTE_DISK_USAGE: (SHARING, [Rdu(0), Rdu(1)], self.rdu),
+            Commands.REMOTE_CREATE_DIRECTORY: (SHARING, [Rmkdir(1), Rmkdir(2)], self.rmkdir),
+            Commands.REMOTE_CURRENT_DIRECTORY: (SHARING, [Rpwd(0), Rpwd(1)], self.rpwd),
+            Commands.REMOTE_REMOVE: (SHARING, [Rrm(1), Rrm(2)], self.rrm),
+            Commands.REMOTE_MOVE: (SHARING, [Rmv(2), Rmv(3)], self.rmv),
+            Commands.REMOTE_COPY: (SHARING, [Rcp(2), Rcp(3)], self.rcp),
+            Commands.REMOTE_EXEC: (SERVER, [Rexec(0), Rexec(1)], self.rexec),
+            Commands.REMOTE_SHELL: (SERVER, [Rshell(0), Rshell(1)], self.rshell),
 
-            Commands.GET: (
-                SHARING,
-                [Get(0), Get(1)],
-                self.get),
+            Commands.GET: (SHARING, [Get(0), Get(1)], self.get),
+            Commands.PUT: (SHARING, [Put(0), Put(1)], self.put),
 
-            Commands.PUT: (
-                SHARING,
-                [Put(0), Put(1)],
-                self.put),
+            Commands.SCAN: (SERVER, [Scan(), Scan()], self.scan),
+            Commands.INFO: (SERVER, [Info(0, 1), Info(1, 0)], self.info),
 
+            Commands.LIST: (SERVER, [ListSharings(0), ListSharings(1)], self.list),
 
-            Commands.SCAN: (
-                LOCAL,
-                [Scan()],
-                self.scan),
+            Commands.CONNECT: (SERVER, [Connect(), Connect()], self.connect),
+            Commands.DISCONNECT: (SERVER, [Disconnect(0), Disconnect(1)], self.disconnect),
 
-            Commands.INFO: (
-                SERVER,
-                [PosArgsSpec(0, 1), PosArgsSpec(1, 0)],
-                self.info),
+            Commands.OPEN: (SERVER,[Open(), Open()], self.open),
+            Commands.CLOSE: (SHARING, [Close(0), Close(1)], self.close),
 
-            Commands.LIST: (
-                SERVER,
-                [ListSharings(0), ListSharings(1)],
-                self.list),
-
-            Commands.CONNECT: (
-                SERVER,
-                [PosArgsSpec(1), PosArgsSpec(1)],
-                self.connect),
-            Commands.DISCONNECT: (
-                SERVER,
-                [PosArgsSpec(0), PosArgsSpec(1)],
-                self.disconnect),
-
-            Commands.OPEN: (
-                SERVER,
-                [PosArgsSpec(1), PosArgsSpec(1)],
-                self.open),
-            Commands.CLOSE: (
-                SHARING,
-                [PosArgsSpec(0), PosArgsSpec(1)],
-                self.close),
-
-            Commands.PING: (
-                SERVER,
-                [Ping(0), Ping(1)],
-                self.ping),
+            Commands.PING: (SERVER, [Ping(0), Ping(1)], self.ping),
         }
 
         self._command_dispatcher[Commands.LOCAL_FIND_SHORT] = self._command_dispatcher[Commands.LOCAL_FIND]
@@ -615,6 +514,32 @@ class Client:
             return find_res
 
         self._xfind(args, find_provider, "FIND", findings_adder=self._add_local_findings)
+
+    def du(self, args: Args, _):
+        path = self._local_path(args.get_positional())
+        human = Du.HUMAN in args
+
+        if not path.exists():
+            raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS, path))
+
+        log.i(">> DU %s", path)
+
+        try:
+            usage = du(path)
+            usage_size = size_str(usage) if human else usage
+
+            print(f"{usage_size} {str(path.resolve())}")
+        except FileNotFoundError:
+            raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS,
+                                                  q(path)))
+        except PermissionError:
+            raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
+                                                  q(path)))
+        except OSError as oserr:
+            raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
+                                                  os_error_str(oserr),
+                                                  q(path)))
+
 
     def mkdir(self, args: Args, _):
         directory = self._local_path(args.get_positional())
@@ -1227,7 +1152,7 @@ class Client:
 
         log.d("Current rcwd: %s", conn.current_rcwd())
 
-    @provide_d_sharing_connection
+    @provide_sharing_connection
     def rls(self, args: Args, conn: Connection):
         def rls_provider(f, **kwargs):
             resp = conn.rls(**kwargs, path=self._remote_path(f))
@@ -1250,7 +1175,7 @@ class Client:
 
         self._xtree(args, data_provider=rtree_provider, data_provider_name="RTREE")
 
-    @provide_d_sharing_connection
+    @provide_sharing_connection
     def rfind(self, args: Args, conn: Connection):
         def rfind_provider(f, **kwargs):
             resp = conn.rfind(**kwargs, path=self._remote_path(f))
@@ -1259,6 +1184,22 @@ class Client:
         # Add findings only for an established connection (not temporary one)
         findings_adder = self._add_remote_findings if conn == self.connection else None
         self._xfind(args, rfind_provider, "RFIND", findings_adder=findings_adder)
+
+    @provide_sharing_connection
+    def rdu(self, args: Args, conn: Connection):
+        path = self._remote_path(args.get_positional())
+        human = Du.HUMAN in args
+
+        log.i(">> RDU %s", path)
+
+        resp = conn.rdu(path=path)
+        resp_data = ensure_data_response(resp)
+
+        for usage in resp_data:
+            usage_size = size_str(usage[1]) if human else usage[1]
+            usage_file = usage[0]
+            print(f"{usage_size} {usage_file}")
+
 
     @provide_d_sharing_connection
     def rmkdir(self, args: Args, conn: Connection):
@@ -2297,7 +2238,7 @@ class Client:
         if find_result is None:
             raise CommandExecutionError()
 
-
+        finding_letter = None
         if findings_adder:
             log.d("Adding find result to findings")
             finding_letter = findings_adder(find_result)

@@ -2,7 +2,8 @@ import os
 from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
-from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec, STR_PARAM
+from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec, STR_PARAM, \
+    StopParseArgsSpec
 from easyshare.es.ui import StyledString
 from easyshare.helps import CommandHelp, CommandOptionInfo
 from easyshare.logging import get_logger
@@ -46,6 +47,7 @@ class Commands:
     LOCAL_LIST_DIRECTORY_ENHANCED = "l"
     LOCAL_TREE_DIRECTORY = "tree"
     LOCAL_FIND = "find"
+    LOCAL_DISK_USAGE = "du"
     LOCAL_FIND_SHORT = "f"
     LOCAL_CHANGE_DIRECTORY = "cd"
     LOCAL_CREATE_DIRECTORY = "mkdir"
@@ -62,6 +64,7 @@ class Commands:
     REMOTE_LIST_DIRECTORY_ENHANCED = "rl"
     REMOTE_TREE_DIRECTORY = "rtree"
     REMOTE_FIND = "rfind"
+    REMOTE_DISK_USAGE = "rdu"
     REMOTE_FIND_SHORT = "rf"
     REMOTE_CHANGE_DIRECTORY = "rcd"
     REMOTE_CREATE_DIRECTORY = "rmkdir"
@@ -169,6 +172,26 @@ class CommandInfo(CommandHelp, ABC):
         return SuggestionsIntent(suggestions,
                                  completion=False,
                                  max_columns=1)
+
+
+# dummy
+class CommandAlias(CommandInfo):
+    @classmethod
+    def synopsis(cls) -> str:
+        pass
+
+    @classmethod
+    def short_description(cls) -> str:
+        pass
+
+    @classmethod
+    def long_description(cls) -> str:
+        pass
+
+    @classmethod
+    def name(cls) -> str:
+        pass
+
 
 
 class FilesSuggestionsCommandInfo(CommandInfo):
@@ -604,7 +627,9 @@ it to <u>0</u> if it exceeds the maximum."""
 # ============ xPWD ================
 
 
-class Pwd(CommandInfo):
+class Pwd(CommandInfo, PosArgsSpec):
+    def __init__(self):
+        super().__init__(0, 0)
 
     @classmethod
     def name(cls):
@@ -630,7 +655,9 @@ The local working directory can be changed with the command <b>cd</b>."""
         return """Type "<b>help rpwd</b>" for the remote analogous."""
 
 
-class Rpwd(CommandInfo):
+class Rpwd(CommandInfo, PosArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 0)
 
     @classmethod
     def name(cls):
@@ -659,6 +686,7 @@ The remote working directory can be changed with the command <b>rcd</b>."""
 
 
 class BaseLsCommandInfo(CommandInfo, ABC, PosArgsSpec):
+
     SORT_BY_SIZE = ["-s", "--sort-size"]
     REVERSE = ["-r", "--reverse"]
     GROUP = ["-g", "--group"]
@@ -690,8 +718,8 @@ class BaseLsCommandInfo(CommandInfo, ABC, PosArgsSpec):
         ]
 
 class Ls(LocalAllFilesSuggestionsCommandInfo, BaseLsCommandInfo):
-    def __init__(self, mandatory: int):
-        super().__init__(mandatory, 1)
+    def __init__(self):
+        super().__init__(0, 1)
 
     @classmethod
     def name(cls):
@@ -748,13 +776,19 @@ List content of the remote <u>DIR</u> or the current remote directory if no <u>D
 # ============ xL ================
 
 # noinspection PyAbstractClass
-class L(CommandInfo):
+class L(CommandAlias, PosArgsSpec):
+    def __init__(self):
+        super().__init__(0, 1)
+
     @classmethod
     def custom(cls):
         return "alias for ls -la"
 
 # noinspection PyAbstractClass
-class Rl(CommandInfo):
+class Rl(CommandAlias, PosArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 1)
+
     @classmethod
     def custom(cls):
         return "alias for rls -la"
@@ -798,8 +832,8 @@ class BaseTreeCommandInfo(CommandInfo, ABC, PosArgsSpec):
 
 
 class Tree(BaseTreeCommandInfo, LocalAllFilesSuggestionsCommandInfo):
-    def __init__(self, mandatory: int):
-        super().__init__(mandatory, 1)
+    def __init__(self):
+        super().__init__(0, 1)
 
     @classmethod
     def name(cls):
@@ -909,8 +943,8 @@ class BaseFindCommandInfo(CommandInfo, ABC, PosArgsSpec):
         ]
 
 class Find(LocalAllFilesSuggestionsCommandInfo, BaseFindCommandInfo):
-    def __init__(self, mandatory: int):
-        super().__init__(mandatory, 1)
+    def __init__(self):
+        super().__init__(0, 1)
 
     @classmethod
     def name(cls):
@@ -986,7 +1020,7 @@ $g1 dir1/file"""
 
 
 
-class Rfind(LocalAllFilesSuggestionsCommandInfo, BaseFindCommandInfo):
+class Rfind(RemoteAllFilesSuggestionsCommandInfo, BaseFindCommandInfo, FastSharingConnectionCommandInfo):
     def __init__(self, mandatory: int):
         super().__init__(mandatory, 1)
 
@@ -1063,10 +1097,90 @@ $f2 file1
 $g1 dir1/file"""
 
 
+
+# ============ xDU ================
+
+
+class BaseDuCommandInfo(CommandInfo, ABC, PosArgsSpec):
+    HUMAN = ["-h", "--human"]
+
+    def options_spec(self) -> Optional[List[Option]]:
+        return [
+            (self.HUMAN, PRESENCE_PARAM),
+        ]
+
+    @classmethod
+    def options(cls) -> List[CommandOptionInfo]:
+        return [
+            CommandOptionInfo(cls.HUMAN, "print size in human readable format (e.g. 17K)")
+        ]
+
+
+class Du(LocalAllFilesSuggestionsCommandInfo, BaseDuCommandInfo):
+    def __init__(self):
+        super().__init__(0, 1)
+
+    @classmethod
+    def name(cls):
+        return "du"
+
+    @classmethod
+    def short_description(cls):
+        return "estimate disk usage of local files"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+du <A> # just for alignment
+<b>du</b> <u>FILE</u></a>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Estimate the disk usage of <u>FILE</u> (which could be either a file or a directory).
+If <u>FILE</u> is not specified, the disk usage of the current local directory is estimated instead."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help rdu</b>" for the remote analogous."""
+
+
+class Rdu(RemoteAllFilesSuggestionsCommandInfo, BaseDuCommandInfo, FastSharingConnectionCommandInfo):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 1)
+
+    @classmethod
+    def name(cls):
+        return "rdu"
+
+    @classmethod
+    def short_description(cls):
+        return "estimate disk usage of remote files"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+rdu <A> # just for alignment
+<b>rdu</b> [<u>FILE</u>]</a>"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Estimate the disk usage of <u>FILE</u> (which could be either a file or a directory).
+If <u>FILE</u> is not specified, the disk usage of the current remote directory is estimated instead."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "<b>help du</b>" for the remote analogous."""
+
+
+
 # ============ xCD ================
 
 
-class Cd(LocalDirsOnlySuggestionsCommandInfo):
+class Cd(LocalDirsOnlySuggestionsCommandInfo, PosArgsSpec):
+    def __init__(self):
+        super().__init__(0, 1)
 
     @classmethod
     def name(cls):
@@ -1093,7 +1207,9 @@ directory if <u>DIR</u> is not specified."""
         return """Type "<b>help rcd</b>" for the remote analogous."""
 
 
-class Rcd(RemoteDirsOnlySuggestionsCommandInfo):
+class Rcd(RemoteDirsOnlySuggestionsCommandInfo, PosArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 1)
 
     @classmethod
     def name(cls):
@@ -1133,7 +1249,9 @@ Usage example:
 # ============ xMKDIR ================
 
 
-class Mkdir(LocalDirsOnlySuggestionsCommandInfo):
+class Mkdir(LocalDirsOnlySuggestionsCommandInfo, PosArgsSpec):
+    def __init__(self):
+        super().__init__(1, 0)
 
     @classmethod
     def name(cls):
@@ -1163,7 +1281,9 @@ If <u>DIR</u> already exists, it does nothing."""
         return """Type "<b>help rmkdir</b>" for the remote analogous."""
 
 
-class Rmkdir(FastSharingConnectionCommandInfo, RemoteDirsOnlySuggestionsCommandInfo):
+class Rmkdir(FastSharingConnectionCommandInfo, RemoteDirsOnlySuggestionsCommandInfo, PosArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory, 0)
 
     @classmethod
     def name(cls):
@@ -1209,7 +1329,9 @@ Usage example:
 # ============ xCP ================
 
 
-class Cp(LocalAllFilesSuggestionsCommandInfo):
+class Cp(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
+    def __init__(self):
+        super().__init__(2)
 
     @classmethod
     def name(cls):
@@ -1247,7 +1369,9 @@ be an existing directory and <u>SOURCE</u>s will be copied into it."""
         return """Type "<b>help rcp</b>" for the remote analogous."""
 
 
-class Rcp(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo):
+class Rcp(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory)
 
     @classmethod
     def name(cls):
@@ -1318,7 +1442,9 @@ f1      f2
 # ============ xMV ================
 
 
-class Mv(LocalAllFilesSuggestionsCommandInfo):
+class Mv(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
+    def __init__(self):
+        super().__init__(2)
 
     @classmethod
     def name(cls):
@@ -1358,7 +1484,9 @@ be an existing directory and <u>SOURCE</u>s will be moved into it."""
 
 
 
-class Rmv(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo):
+class Rmv(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory)
 
     @classmethod
     def name(cls):
@@ -1425,7 +1553,9 @@ f2
 # ============ xRM ================
 
 
-class Rm(LocalAllFilesSuggestionsCommandInfo):
+class Rm(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
+    def __init__(self):
+        super().__init__(1)
 
     @classmethod
     def name(cls):
@@ -1458,7 +1588,9 @@ This commands never prompts: essentially acts like unix's rm -rf."""
 
 
 
-class Rrm(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo):
+class Rrm(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory)
 
     @classmethod
     def name(cls):
@@ -1517,8 +1649,7 @@ f1
 # ============ xEXEC ================
 
 
-class Exec(LocalAllFilesSuggestionsCommandInfo):
-
+class Exec(LocalAllFilesSuggestionsCommandInfo, StopParseArgsSpec):
     @classmethod
     def name(cls):
         return "exec"
@@ -1568,7 +1699,9 @@ hello"""
         return """Type "<b>help rexec</b>" for the remote analogous."""
 
 
-class Rexec(FastServerConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo):
+class Rexec(FastServerConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo, StopParseArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory)
 
     @classmethod
     def name(cls):
@@ -1631,7 +1764,9 @@ hello"""
 # ============ xSHELL ===============
 
 
-class Shell(CommandInfo):
+class Shell(CommandInfo, PosArgsSpec):
+    def __init__(self):
+        super().__init__(0)
 
     @classmethod
     def name(cls):
@@ -1661,7 +1796,9 @@ Currently supported only for Unix."""
         return """Type "<b>help rshell</b>" for the remote analogous."""
 
 
-class Rshell(CommandInfo):
+class Rshell(CommandInfo, PosArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory)
 
     @classmethod
     def name(cls):
@@ -1762,7 +1899,9 @@ Usage example:
 # ============ CONNECT ================
 
 
-class Connect(CommandInfo):
+class Connect(CommandInfo, PosArgsSpec):
+    def __init__(self):
+        super().__init__(1)
 
     @classmethod
     def name(cls):
@@ -1852,7 +1991,9 @@ DIRECTORIES
 # ============ DISCONNECT ================
 
 
-class Disconnect(CommandInfo):
+class Disconnect(CommandInfo, PosArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory)
 
     @classmethod
     def name(cls):
@@ -1895,7 +2036,9 @@ Usage example:
 # ============ OPEN ================
 
 
-class Open(CommandInfo):
+class Open(CommandInfo, PosArgsSpec):
+    def __init__(self):
+        super().__init__(1)
 
     @classmethod
     def name(cls):
@@ -2009,7 +2152,9 @@ f1      f2
 # ============ CLOSE ================
 
 
-class Close(CommandInfo):
+class Close(CommandInfo, PosArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory)
 
     @classmethod
     def name(cls):
@@ -2673,6 +2818,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_TREE_DIRECTORY: Tree,
     Commands.LOCAL_FIND: Find,
     Commands.LOCAL_FIND_SHORT: Find,
+    Commands.LOCAL_DISK_USAGE: Du,
     Commands.LOCAL_CHANGE_DIRECTORY: Cd,
     Commands.LOCAL_CREATE_DIRECTORY: Mkdir,
     Commands.LOCAL_COPY: Cp,
@@ -2689,6 +2835,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_TREE_DIRECTORY: Rtree,
     Commands.REMOTE_FIND: Rfind,
     Commands.REMOTE_FIND_SHORT: Rfind,
+    Commands.REMOTE_DISK_USAGE: Rdu,
     Commands.REMOTE_CHANGE_DIRECTORY: Rcd,
     Commands.REMOTE_CREATE_DIRECTORY: Rmkdir,
     Commands.REMOTE_COPY: Rcp,

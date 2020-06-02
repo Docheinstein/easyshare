@@ -333,6 +333,14 @@ class ConnectionMinimal:
 
     @handle_connection_response
     @require_sharing_connection
+    def rdu(self, path: str = None) -> Response:
+
+        return self.call(create_request(Requests.RDU, {
+            RequestsParams.RDU_PATH: path,
+        }))
+
+    @handle_connection_response
+    @require_sharing_connection
     def rmkdir(self, directory) -> Response:
         return self.call(create_request(Requests.RMKDIR, {
             RequestsParams.RMKDIR_PATH: directory
