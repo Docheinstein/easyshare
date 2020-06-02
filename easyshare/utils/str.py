@@ -103,6 +103,23 @@ def multireplace(s: str,
 
     return s
 
+def chrnext(c: str, start: str, end: str) -> str:
+    """
+    Returns the char after c in the ASCII alphabet from base_start to base_end.
+    e.g. chrnext('a', start='a', end='z') => b
+         ...
+         chrnext('z', start='a', end='z') => a
+    """
+
+    bs = ord(start)
+    be = ord(end)
+
+    if be < bs:
+        bs, be = be, bs
+
+    return chr((ord(c) - bs + 1) % (be - bs + 1) + bs)
+
+
 def tf(cond, y: str = "true", n: str = "false") -> str:
     """ Returns 'y' if cond evaluates to True, 'n' otherwise """
     return y if cond else n

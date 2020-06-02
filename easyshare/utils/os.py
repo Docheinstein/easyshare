@@ -23,7 +23,7 @@ from easyshare.utils.types import list_wrap
 
 log = get_logger(__name__)
 
-_PERM_BIT_STR = {
+_PERM_DIGIT_STR = {
     "0": "---",
     "1": "--x",
     "2": "-w-",
@@ -64,9 +64,9 @@ def os_error_str(err: OSError):
 
 def perm_str(perm: str):
     return \
-        _PERM_BIT_STR.get(perm[0], "---") + \
-        _PERM_BIT_STR.get(perm[1], "---") + \
-        _PERM_BIT_STR.get(perm[2], "---")
+        _PERM_DIGIT_STR.get(perm[0], "---") + \
+        _PERM_DIGIT_STR.get(perm[1], "---") + \
+        _PERM_DIGIT_STR.get(perm[2], "---")
 
 
 def ls(path: Path,
@@ -209,8 +209,9 @@ def tree(path: Path,
         child = dict(
             unseen_child_info,
             parent=cursor,
-            path=cur_path.joinpath(unseen_child_info.get("name"))
+            path=cur_path / unseen_child_info.get("name")
         )
+
 
         cursor.get("children").append(child)
 
@@ -226,7 +227,8 @@ def find(path: Union[Path, PathLike],
          regex: str = None,
          case_sensitive: bool = True,
          ftype: FileType = None,
-         details: bool = False) -> Optional[List[FileInfo]]:
+         details: bool = False,
+         file_info_name_provider: Callable[[Path], str] = str) -> Optional[List[FileInfo]]:
 
     if not path:
         raise TypeError("found invalid path")
@@ -260,27 +262,15 @@ def find(path: Union[Path, PathLike],
 
     ret: List[FileInfo] = []
 
-    # root = Path(path).resolve()
-    # rel_root = root.relative_to(path)
-    #
-    # log.d("root = '%s'", root)
-    # log.d("rel_root = '%s'", root)
-    #
-    # cursor = root
 
     for f in walk_preorder(path):
         p = Path(f)
-        finfo = create_file_info(p, name=str(p))
+        finfo = create_file_info(p, name=file_info_name_provider(p))
         if not finfo:
             continue
 
         log.d("finfo = %s", finfo)
         f_name = finfo.get("name")
-
-        # full_path = root / f_name
-        # rel_path = rel_root / f_name
-
-        # log.d(f"Filtering rel_path='{rel_path}', full_path='{full_path}'")
 
         path_filter_subject = f_name
 
@@ -320,7 +310,8 @@ def walk_preorder(path: Path):
     while stack:
         cursor = stack.pop(0)
 
-        yield cursor
+        if cursor != root:
+            yield cursor
 
         if cursor.is_dir():
             try:
@@ -386,7 +377,7 @@ def cp(src: Path, dest: Path):
     # we have to use copytree if we detect a DIR to DIR copy
     if src.is_dir() and dest.is_dir():
         log.d("Recursive copy DIR => DIR detected")
-        dest = dest.joinpath(src.name)
+        dest = dest / src.name
         log.d("Definitive src = '%s' | dst = '%s'", src, dest)
         shutil.copytree(str(src), str(dest))
     else:

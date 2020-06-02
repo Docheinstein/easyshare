@@ -114,7 +114,12 @@ class Shell:
                           self._client.connection.current_sharing_name()
                       ) if self._client.is_connected_to_sharing() else "")
 
-                self._prompt = self._build_prompt_string()
+                try:
+                    self._prompt = self._build_prompt_string()
+                except:
+                    # Should never happen...
+                    log.w("Prompt can't be build")
+                    self._prompt = "> " # fallback
 
                 try:
                     command_line = input(self._prompt)
@@ -331,7 +336,7 @@ class Shell:
             if self._client.is_connected_to_sharing():
                 remote += ".{}:/{}".format(
                 self._client.connection.current_sharing_name(),
-                self._client.connection.rcwd()
+                self._client.connection.current_rcwd()
             )
 
             # remote = styled(remote, fg=ansi.FG_MAGENTA, attrs=ansi.ATTR_BOLD)

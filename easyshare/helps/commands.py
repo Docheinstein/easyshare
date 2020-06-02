@@ -930,14 +930,60 @@ find <A> # just for alignment
     @classmethod
     def long_description(cls):
         return """\
-Search local <u>DIR</u>, or the current local directory if no <u>DIR</u> is \
-specified, for files and directories based on the given filters."""
+Search for files and directories based on the given filters the local <u>DIR</u>, \
+or the current local directory if no <u>DIR</u> is specified.
+
+Each result of <b>find</b> is memorized and can be used further with any command \
+that accept local paths by specifying the identifier shown by <b>find</b>.
+For instance, you can search a file by name \
+(i.e. <b>find</b> <b>-n</b> <u>usefulname</u>) and then perform a local action over it \
+(e.g. <b>rm</b> $a1) or even a transfer action (e.g. <b>put</b> $a1)."""
 
     @classmethod
     def see_also(cls):
         return """Type "<b>help rfind</b>" for the remote analogous."""
 
-    # TODO examples
+    @classmethod
+    def examples(cls):
+        return """\
+Usage example:
+   <a>
+1. List current local directory (no filters)</a>
+<b>/tmp></b> <b>find</b>
+$a1 FILE2
+$a2 dir1
+$a3 dir1/file
+$a4 dir2
+$a5 file1
+   <a>
+2. List local directory (no filters)</a>
+<b>/tmp></b> <b>find</b> dir1
+$b3 dir1/file
+   <a>
+3. Finding by name</a>
+<b>/tmp></b> <b>find</b> <b>-n</b> <u>file</u>
+$c1 dir1/file
+$c2 file1
+   <a>
+4. Finding by name, case insensitive</a>
+<b>/tmp></b> <b>find</b> <b>-in</b> <u>file</u>
+$d1 FILE2
+$d2 dir1/file
+$d3 file1
+   <a>
+5. Finding by regex</a>
+<b>/tmp></b> <b>find</b> <b>-r</b> <u>file[0-9]</u>
+$e1 file1
+   <a>
+6. Finding by regex, case insensitive</a>
+<b>/tmp></b> <b>find</b> <b>-ir</b> <u>file[0-9]</u>
+$f1 FILE2
+$f2 file1   
+    <a>
+7. Finding by name, files only</a>
+<b>/tmp></b> <b>find</b> <b>-in</b> <u>dir1</u> <b>-t</b> <u>f</u>
+$g1 dir1/file"""
+
 
 
 class Rfind(LocalAllFilesSuggestionsCommandInfo, BaseFindCommandInfo):
@@ -962,14 +1008,59 @@ rfind <A> # just for alignment
     @classmethod
     def long_description(cls):
         return """\
-Search remote <u>DIR</u>, or the current remote directory if no <u>DIR</u> is \
-specified, for files and directories based on the given filters."""
+Search for files and directories based on the given filters the remote <u>DIR</u>, \
+or the current remote directory if no <u>DIR</u> is specified.
+
+Each result of <b>rfind</b> is memorized and can be used further with any command \
+that accept local paths by specifying the identifier shown by <b>find</b>.
+For instance, you can search a file by name \
+(i.e. <b>find</b> <b>-n</b> <u>usefulname</u>) and then perform a local action over it \
+(e.g. <b>rrm</b> $a1) or even a transfer action (e.g. <b>get</b> $a1)."""
 
     @classmethod
     def see_also(cls):
         return """Type "<b>help find</b>" for the local analogous."""
 
-    # TODO examples
+    @classmethod
+    def examples(cls):
+        return """\
+Usage example:
+   <a>
+1. List current remote directory (no filters)</a>
+<b>bob-debian.shared:/</b> - <b>/tmp></b> <b>find</b>
+$a1 FILE2
+$a2 dir1
+$a3 dir1/file
+$a4 dir2
+$a5 file1
+   <a>
+2. List remote directory (no filters)</a>
+<b>bob-debian.shared:/</b> - <b>/tmp></b> <b>find</b> dir1
+$b3 dir1/file
+   <a>
+3. Finding by name</a>
+<b>bob-debian.shared:/</b> - <b>/tmp></b> <b>find</b> <b>-n</b> <u>file</u>
+$c1 dir1/file
+$c2 file1
+   <a>
+4. Finding by name, case insensitive</a>
+<b>bob-debian.shared:/</b> - <b>/tmp></b> <b>find</b> <b>-in</b> <u>file</u>
+$d1 FILE2
+$d2 dir1/file
+$d3 file1
+   <a>
+5. Finding by regex</a>
+<b>bob-debian.shared:/</b> - <b>/tmp></b> <b>find</b> <b>-r</b> <u>file[0-9]</u>
+$e1 file1
+   <a>
+6. Finding by regex, case insensitive</a>
+<b>bob-debian.shared:/</b> - <b>/tmp></b> <b>find</b> <b>-ir</b> <u>file[0-9]</u>
+$f1 FILE2
+$f2 file1   
+    <a>
+7. Finding by name, files only</a>
+<b>bob-debian.shared:/</b> - <b>/tmp></b> <b>find</b> <b>-in</b> <u>dir1</u> <b>-t</b> <u>f</u>
+$g1 dir1/file"""
 
 
 # ============ xCD ================

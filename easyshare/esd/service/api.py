@@ -754,9 +754,12 @@ class ClientHandler:
 
         try:
             find_result = find(find_fpath,
-                               name=name, regex=regex,
+                               name=name,
+                               regex=regex,
                                case_sensitive=case_sensitive,
-                               ftype=ftype, details=details)
+                               ftype=ftype,
+                               details=details,
+                               file_info_name_provider=lambda p: str(self._spath_rel_to_rcwd_of_fpath(p)))
 
             # OK - report it
             print(f"[{self._client.tag}] rfind '{find_fpath}' "

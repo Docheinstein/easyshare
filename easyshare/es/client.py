@@ -48,7 +48,7 @@ from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress import ProgressBarRendererFactory
 from easyshare.utils.progress.file import FileProgressor
 from easyshare.utils.progress.simple import SimpleProgressor
-from easyshare.utils.str import q
+from easyshare.utils.str import q, chrnext
 from easyshare.utils.types import btos, itob, btoi
 
 log = get_logger(__name__)
@@ -141,7 +141,8 @@ def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
         if conn == client.connection:
             if not was_connected_to_sharing:
                 log.d("Closing temporary sharing connection")
-                conn.close()
+                client.close()
+                # conn.close()
         else:
             log.d("Disconnecting temporary server connection")
             conn.disconnect()
@@ -224,7 +225,7 @@ class OverwritePolicy:
 
 
 class Client:
-    LOCAL_FINDINGS_RE = re.compile(r"\$([a-z])+(\d+)")
+    FINDINGS_RE = re.compile(r"\$([a-zA-Z])(\d+)")
 
     def __init__(self, discover_port: int, discover_timeout: int):
         self.connection: Optional[Connection] = None
@@ -232,9 +233,13 @@ class Client:
         self._discover_port = discover_port
         self._discover_timeout = discover_timeout
 
-        # letter => findings, search path
+        # letter => findings, pwd when find the was performed
         self._local_findings: Dict[str, Tuple[List[FileInfo], Path]] = {}
         self._local_finding_letter: str = "a"
+
+        # letter => findings, rpwd when find the was performed
+        self._remote_findings: Dict[str, Tuple[List[FileInfo], str]] = {}
+        self._remote_finding_letter: str = "A"
 
         def LOCAL(parser: ArgsSpec) -> ArgsSpec:
             return parser
@@ -505,6 +510,8 @@ class Client:
         finally:
             self.connection = None
 
+        self._clear_remote_findings()
+
     # === LOCAL Commands ===
 
     def cd(self, args: Args, _):
@@ -606,7 +613,7 @@ class Client:
 
             return find_res
 
-        self._xfind(args, True, find_provider, "FIND")
+        self._xfind(args, find_provider, "FIND", findings_adder=self._add_local_findings)
 
     def mkdir(self, args: Args, _):
         directory = self._local_path(args.get_positional())
@@ -862,13 +869,18 @@ class Client:
 
         # Close current stuff (if the new connections are actually new and different)
 
-        if self.is_connected_to_server() and new_conn != self.connection:
-            log.i("Closing current server connection before set the new one")
-            self.connection.disconnect()
+        # if self.is_connected_to_server() and new_conn != self.connection:
+        #     log.i("Closing current server connection before set the new one")
+        #     self.connection.disconnect()
+        #
+        # if self.is_connected_to_sharing() and new_conn != self.connection:
+        #     log.d("Closing current sharing connection before set the new one")
+        #     self.connection.close()
+        #     self.close()
 
-        if self.is_connected_to_sharing() and new_conn != self.connection: 
-            log.d("Closing current sharing connection before set the new one")
-            self.connection.close()
+        log.i("Closing current server connection before set the new one")
+        if new_conn != self.connection:
+            self.destroy_connection()
 
 
         # Just mark that the server connection has been created due open()
@@ -1205,6 +1217,8 @@ class Client:
             log.d("Closing server connection too since opened due open")
             conn.disconnect()
 
+        self._clear_remote_findings()
+
 
     @provide_d_sharing_connection
     def rpwd(self, args: Args, conn: Connection):
@@ -1214,23 +1228,23 @@ class Client:
 
         rcwd = resp.get("data")
 
-        print(Path("/").joinpath(rcwd))
+        print(Path("/", rcwd))
 
     @provide_d_sharing_connection
     def rcd(self, args: Args, conn: Connection):
-        directory = args.get_positional(default="/")
+        directory = self._remote_path(args.get_positional(default="/"))
 
         log.i(">> RCD %s", directory)
 
         resp = conn.rcd(directory)
         ensure_data_response(resp)
 
-        log.d("Current rcwd: %s", conn.rcwd())
+        log.d("Current rcwd: %s", conn.current_rcwd())
 
     @provide_d_sharing_connection
     def rls(self, args: Args, conn: Connection):
         def rls_provider(f, **kwargs):
-            resp = conn.rls(**kwargs, path=f)
+            resp = conn.rls(**kwargs, path=self._remote_path(f))
             return ensure_data_response(resp)
 
         self._xls(args, data_provider=rls_provider, data_provider_name="RLS")
@@ -1245,7 +1259,7 @@ class Client:
     @provide_d_sharing_connection
     def rtree(self, args: Args, conn: Connection):
         def rtree_provider(f, **kwargs):
-            resp = conn.rtree(**kwargs, path=f)
+            resp = conn.rtree(**kwargs, path=self._remote_path(f))
             return ensure_data_response(resp)
 
         self._xtree(args, data_provider=rtree_provider, data_provider_name="RTREE")
@@ -1253,14 +1267,16 @@ class Client:
     @provide_d_sharing_connection
     def rfind(self, args: Args, conn: Connection):
         def rfind_provider(f, **kwargs):
-            resp = conn.rfind(**kwargs, path=f)
+            resp = conn.rfind(**kwargs, path=self._remote_path(f))
             return ensure_data_response(resp)
 
-        self._xfind(args, False, data_provider=rfind_provider, data_provider_name="RFIND")
+        # Add findings only for an established connection (not temporary one)
+        findings_adder = self._add_remote_findings if conn == self.connection else None
+        self._xfind(args, rfind_provider, "RFIND", findings_adder=findings_adder)
 
     @provide_d_sharing_connection
     def rmkdir(self, args: Args, conn: Connection):
-        directory = args.get_positional()
+        directory = self._remote_path(args.get_positional())
 
         if not directory:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -1272,7 +1288,7 @@ class Client:
 
     @provide_d_sharing_connection
     def rrm(self, args: Args, conn: Connection):
-        paths = args.get_positionals()
+        paths = [self._remote_path(p) for p in args.get_positionals()]
 
         if not paths:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -1292,7 +1308,7 @@ class Client:
 
     @provide_sharing_connection
     def get(self, args: Args, conn: Connection):
-        files = args.get_positionals()
+        files = [self._remote_path(p) for p in args.get_positionals()]
 
         do_check = Get.CHECK in args
         quiet = Get.QUIET in args
@@ -1580,7 +1596,7 @@ class Client:
 
     @provide_d_sharing_connection
     def put(self, args: Args, conn: Connection):
-        files = args.get_positionals()
+        files = [self._local_path(p) for p in args.get_positionals()]
         sendfiles: List[Tuple[Path, Path]] = []
 
         if len(files) == 0:
@@ -2016,12 +2032,11 @@ class Client:
                     raise ex
 
 
-    @classmethod
-    def _rmvcp(cls,
+    def _rmvcp(self,
                args: Args,
                api: Callable[[List[str], str], Response],
                api_name: str = "RMV/RCP"):
-        paths = args.get_positionals()
+        paths = [self._remote_path(p) for p in args.get_positionals()]
 
         if not paths:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -2116,9 +2131,9 @@ class Client:
 
     def _xfind(self,
                args: Args,
-               is_local: bool,
                data_provider: Callable[..., Optional[List[FileInfo]]],
-               data_provider_name: str = "FIND"):
+               data_provider_name: str = "FIND",
+               findings_adder: Callable[[List[FileInfo]], str] = None):
 
         # Do not wrap here in a Path here, since the provider could be remote
         path = args.get_positional()
@@ -2145,14 +2160,10 @@ class Client:
             raise CommandExecutionError()
 
 
-        justify = len(str(len(find_result)))
-
-        if is_local:
-            finding_letter = self._local_finding_letter
-            self._add_local_findings(find_result)
-        else:
-            finding_letter = ""
-            # self._add_local_findings(LocalPath(path), find_result)
+        if findings_adder:
+            log.d("Adding find result to findings")
+            finding_letter = findings_adder(find_result)
+            findings_justify = len(str(len(find_result)))
 
         def file_info_str_find(
                 info: FileInfo,
@@ -2171,9 +2182,10 @@ class Client:
             )
 
             if finfo_str:
-                prefix = ("$" + finding_letter + str(index)).rjust(justify + 2) + " "
-                finfo_str.string = prefix + finfo_str.string
-                finfo_str.styled_string = prefix + finfo_str.styled_string
+                if finding_letter:
+                    prefix = ("$" + finding_letter + str(index + 1)).rjust(findings_justify + 2) + " "
+                    finfo_str.string = prefix + finfo_str.string
+                    finfo_str.styled_string = prefix + finfo_str.styled_string
                 return finfo_str
 
 
@@ -2187,50 +2199,98 @@ class Client:
             file_info_renderer=file_info_str_find
         )
 
-    def _add_local_findings(self, find_result: List[FileInfo]):
+    def _add_local_findings(self, find_result: List[FileInfo]) -> Optional[str]:
         curpwd = Path.cwd()
 
-        log.i("Adding %d local findings for search from path = %s (letter %s)",
-              len(find_result), str(curpwd), self._local_finding_letter)
+        letter = self._local_finding_letter
 
-        self._local_findings[self._local_finding_letter] = (find_result, curpwd)
-        self._local_finding_letter = \
-            chr((ord(self._local_finding_letter) - ord("a") + 1) % 26 + ord("a"))
+        log.i("Adding %d local findings from pwd = %s (letter %s)",
+              len(find_result), str(curpwd), letter)
+
+        self._local_findings[letter] = (find_result, curpwd)
+        self._local_finding_letter = chrnext(letter, start="a", end="z")
+
+        return letter
 
 
-    def _local_path(self, path: str, default: str = ""):
+    def _add_remote_findings(self, find_result: List[FileInfo]) -> Optional[str]:
+        if not self.is_connected_to_sharing():
+            log.w("Can't add remote findings, not connected to a sharing")
+            return None
+
+        letter = self._remote_finding_letter
+
+        currpwd = self.connection.current_rcwd()
+        log.i("Adding %d remote findings from rcwd = %s (letter %s)",
+              len(find_result), currpwd, letter)
+
+        self._remote_findings[letter] = (find_result, currpwd)
+        self._remote_finding_letter = chrnext(letter, start="A", end="Z")
+
+        return letter
+
+    def _clear_remote_findings(self):
+        self._remote_findings.clear()
+        self._remote_finding_letter = "A"
+
+    def _local_path(self, path: str, default: str = "") -> Path:
         # TODO if the filename has the form of the finding we can't treat it...
         #  found a way such as escape $ or use double $$
         log.i("Computing local path of '%s'", path)
 
-
         if path:
-            # Eventually make substitutions of findings (e.g. $a2, %b12)
-            match = re.fullmatch(Client.LOCAL_FINDINGS_RE, path)
-            if match:
-                # The path contains a finding pattern
-                letter = match.groups()[0]
-                idx = int(match.groups()[1])
-                log.d("Found finding match in path (letter=%s | idx=%d)", letter, idx)
-
-                # Check whether we actually have the finding
-                findings: List[FileInfo]
-                searchpath: Path
-
-                findings, searchpath = self._local_findings.get(letter)
-                if findings and idx <= len(findings):
-                    log.d("Findings for letter %s found - search path was '%s'",
-                          letter, searchpath)
-
-                    finfo: FileInfo = findings[idx]
-                    path = searchpath / finfo.get("name")
-
-                    log.d("Finding for '%s' found: '%s'", match.group(), path)
-                else:
-                    log.w("Finding not found: '%s'", match.group())
+            found = self._get_finding(path, self._local_findings)
+            if found:
+                finding, searchpath = found
+                path = searchpath / finding.get("name")
 
         return LocalPath(path, default)
 
+    def _remote_path(self, path: str) -> str:
+        # TODO if the filename has the form of the finding we can't treat it...
+        #  found a way such as escape $ or use double $$
+
+        log.i("Computing remote path of '%s'", path)
+
+        if path:
+            found = self._get_finding(path, self._remote_findings)
+            if found:
+                finding, searchpath = found
+                path = os.path.join("/", searchpath, finding.get("name"))
+
+        return path
+
+    @classmethod
+    def _get_finding(cls, path: str, findings: Dict[str, Tuple[List[FileInfo], Union[str, Path]]])\
+            -> Optional[Tuple[FileInfo, Union[str, Path]]]:
+        log.d("Looking for findings in pattern '%s'", path)
+
+        match = re.fullmatch(Client.FINDINGS_RE, path)
+        if match:
+            # The path contains a finding pattern
+            letter = match.groups()[0]
+            idx = int(match.groups()[1])
+            log.d("Found finding match in path (letter=%s | idx=%d)", letter, idx)
+            idx = idx - 1 # start from 1
+
+            # Check whether we actually have the finding
+            findings_of_letter: List[FileInfo]
+            searchpath: Union[str, Path]
+
+            x = findings.get(letter)
+            if x:
+                findings_of_letter, searchpath = x
+                if findings_of_letter and idx < len(findings_of_letter):
+                    log.d("Findings for letter %s found - search path was '%s'",
+                          letter, searchpath)
+
+                    log.d("Finding for '%s' found: '%s'", match.group(), findings_of_letter[idx])
+
+                    return findings_of_letter[idx], searchpath
+
+            log.w("Finding not found: '%s'", match.group())
+
+        return None
 
     def _get_current_sharing_connection_or_create_from_sharing_location_args(
             self, args: Args, sharing_ftype: FileType) -> Connection:

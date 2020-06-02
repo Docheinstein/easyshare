@@ -147,7 +147,12 @@ class ConnectionMinimal:
         return True if self.is_connected_to_server() and self._connected_to_sharing else False
 
     def current_sharing_name(self) -> Optional[str]:
+        """ Current remote sharing name """
         return self._sharing_name if self.is_connected_to_sharing() else None
+
+    def current_rcwd(self) -> Optional[str]:
+        """ Current remote working directory (cached) """
+        return self._rcwd if self.is_connected_to_sharing() else None
 
     def destroy_connection(self):
         log.d("Destroying connection")
@@ -265,13 +270,6 @@ class ConnectionMinimal:
 
     # === REAL SHARING FUNCS ===
 
-
-    def rcwd(self) -> str:
-        """
-        Current remote working directory.
-        It should be consisted with the one provided by rpwd().
-        """
-        return self._rcwd
 
     @require_sharing_connection
     def close(self):
