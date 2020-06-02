@@ -10,6 +10,7 @@ import threading
 import time
 import tty
 import zlib
+from collections import OrderedDict
 from getpass import getpass
 from pathlib import Path
 from pwd import struct_passwd
@@ -1375,9 +1376,10 @@ class Client:
             log.d("SYNC Down path: '%s'", down_path)
 
             findings = find(down_path)
-            sync_table = set(f.get("name") for f in findings)
+            # Preserve order for perform RM in optimal order (parents first)
+            sync_table = OrderedDict({f.get("name"): None for f in findings})
             log.d("SYNC computed old_files table\n%s",
-                  "\n".join(sync_table))
+                  "\n".join(sync_table.keys()))
 
         while True:
             log.i("Fetching another file info")
@@ -1435,7 +1437,7 @@ class Client:
                     incremental_path = incremental_path / part
                     incremental_path_str = str(incremental_path)
                     log.d("Removing from SYNC table: '%s'", incremental_path_str)
-                    sync_table.discard(incremental_path_str)
+                    sync_table.pop(incremental_path_str, None)
 
             # Case: DIR
             if ftype == FTYPE_DIR:
@@ -1623,7 +1625,7 @@ class Client:
             # consecutive entries if they have the same prefix as the one before
 
             cur_del_path_str = None
-            for path_str in sync_table:
+            for path_str in sync_table.keys():
                 if cur_del_path_str and path_str.startswith(cur_del_path_str):
                     log.d("Should remove '%s' but skipping, already deleting parent", path_str)
                     continue

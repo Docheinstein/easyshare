@@ -14,7 +14,7 @@ from typing import Optional, List, Union, Tuple, Any, Callable
 
 from ptyprocess import PtyProcess, PtyProcessUnicode
 
-from easyshare.logging import get_logger
+from easyshare.logging import get_logger, init_logging
 from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info, FileType
 from easyshare.utils.env import terminal_size
 from easyshare.utils.path import is_hidden
@@ -506,4 +506,8 @@ def pty_detached(out_hook: Callable[[str], None],
 
 
 if __name__ == "__main__":
-    print("OS: ", "windows" if is_windows() else ("unix" if is_unix() else "unknown"))
+    init_logging(5)
+    findings = find(Path("/home/stefano/Temp/synctest"))
+    print("\n".join(f.get("name") for f in findings))
+    # for f in walk_preorder():
+    #     print(f)

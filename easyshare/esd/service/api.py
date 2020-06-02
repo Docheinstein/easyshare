@@ -4,6 +4,7 @@ import subprocess
 import threading
 import time
 import zlib
+from collections import OrderedDict
 from pathlib import Path
 from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO, Set
 
@@ -1477,7 +1478,7 @@ class ClientHandler:
         errors = []
         outcome = TransferOutcomes.SUCCESS
 
-        sync_table: Optional[Set[FPath]] = None
+        sync_table: Optional[Dict[str, None]] = None
 
         def compute_sync_table(fpath: FPath, ftype: FileType):
             nonlocal sync_table
@@ -1492,9 +1493,10 @@ class ClientHandler:
             log.d("SYNC Up path: '%s'", up_path)
 
             findings = find(up_path)
-            sync_table = set(f.get("name") for f in findings)
+            # Preserve order for perform RM in optimal order (parents first)
+            sync_table = OrderedDict({f.get("name"): None for f in findings})
             log.d("SYNC computed old_files table\n%s",
-                  "\n".join(sync_table))
+                  "\n".join(sync_table.keys()))
 
 
         def put_next():
@@ -1563,7 +1565,7 @@ class ClientHandler:
                         incremental_path = incremental_path / part
                         incremental_path_str = str(incremental_path)
                         log.d("Removing from SYNC table: '%s'", incremental_path_str)
-                        sync_table.discard(incremental_path_str)
+                        sync_table.pop(incremental_path_str, None)
 
                 # Check whether is a dir or a file
                 if ftype == FTYPE_DIR:
@@ -1754,7 +1756,7 @@ class ClientHandler:
             # consecutive entries if they have the same prefix as the one before
 
             cur_del_path_str = None
-            for path_str in sync_table:
+            for path_str in sync_table.keys():
                 if cur_del_path_str and path_str.startswith(cur_del_path_str):
                     log.d("Should remove '%s' but skipping, already deleting parent", path_str)
                     continue
