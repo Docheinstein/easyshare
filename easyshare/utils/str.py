@@ -80,7 +80,10 @@ def isorted(iterable, key = None, in_subset: str = None, not_in_subset: str = No
     the given whitelist and blacklist.
     """
     def conv(o: Any):
-        val = key(o)
+        if key:
+            val = key(o)
+        else:
+            val = o
         if is_str(val):
             if not_in_subset:
                 val = discardchars(val, not_in_subset)

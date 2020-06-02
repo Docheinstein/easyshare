@@ -2,9 +2,9 @@ import fcntl
 import mmap
 import os
 import pty
+import re
 import select
 import signal
-import socket
 import sys
 import threading
 import time
@@ -15,11 +15,9 @@ from pathlib import Path
 from pwd import struct_passwd
 from typing import Optional, Callable, List, Dict, Union, Tuple, cast, Any
 
-from Pyro5.errors import PyroError
-
 from easyshare.args import Args as Args, ArgsParseError, PosArgsSpec, \
     VarArgsSpec, ArgsSpec, StopParseArgsSpec
-from easyshare.common import transfer_port, DEFAULT_SERVER_PORT, SUCCESS_COLOR, PROGRESS_COLOR, BEST_BUFFER_SIZE, \
+from easyshare.common import DEFAULT_SERVER_PORT, SUCCESS_COLOR, PROGRESS_COLOR, BEST_BUFFER_SIZE, \
     ERROR_COLOR
 from easyshare.consts import ansi
 from easyshare.consts.net import ADDR_BROADCAST
@@ -30,29 +28,26 @@ from easyshare.es.connection import Connection, ConnectionMinimal
 from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
-    sharings_to_pretty_str, server_info_to_pretty_str, server_info_to_short_str
+    sharings_pretty_str, server_info_pretty_str, server_info_short_str, file_info_str, StyledString
 from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
     ListSharings, Ping, Find, Rfind
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import RequestsParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
     create_error_of_response, ResponsesParams
-from easyshare.protocol.services import Response, IPutService, IGetService, IRexecService, IRshellService
-from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, FTYPE_FILE, ServerInfo, create_file_info, PutNextResponse, RexecEventType
-from easyshare.sockets import SocketTcpOut
-from easyshare.ssl import get_ssl_context
-from easyshare.styling import red, bold
+from easyshare.protocol.services import Response
+from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, FTYPE_FILE, \
+    ServerInfo, create_file_info, RexecEventType
+from easyshare.styling import bold
 from easyshare.timer import Timer
 from easyshare.tracing import trace_bin_payload
-from easyshare.utils.json import j, btoj, jtob
+from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
 from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str, find
 from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress import ProgressBarRendererFactory
 from easyshare.utils.progress.file import FileProgressor
 from easyshare.utils.progress.simple import SimpleProgressor
-from easyshare.utils.pyro import pyro_uri
-from easyshare.utils.pyro.client import TracedPyroProxy
 from easyshare.utils.str import q
 from easyshare.utils.types import btos, itob, btoi
 
@@ -229,12 +224,17 @@ class OverwritePolicy:
 
 
 class Client:
+    LOCAL_FINDINGS_RE = re.compile(r"\$([a-z])+(\d+)")
 
     def __init__(self, discover_port: int, discover_timeout: int):
         self.connection: Optional[Connection] = None
 
         self._discover_port = discover_port
         self._discover_timeout = discover_timeout
+
+        # letter => findings, search path
+        self._local_findings: Dict[str, Tuple[List[FileInfo], Path]] = {}
+        self._local_finding_letter: str = "a"
 
         def LOCAL(parser: ArgsSpec) -> ArgsSpec:
             return parser
@@ -507,9 +507,8 @@ class Client:
 
     # === LOCAL Commands ===
 
-    @classmethod
-    def cd(cls, args: Args, _):
-        directory = LocalPath(args.get_positional(), default="~")
+    def cd(self, args: Args, _):
+        directory = self._local_path(args.get_positional(), default="~")
         log.i(">> CD %s", directory)
 
         if not directory.is_dir():
@@ -529,17 +528,15 @@ class Client:
                                                   q(directory)))
 
 
-    @classmethod
-    def pwd(cls, _: Args, _2):
+    def pwd(self, _: Args, _2):
         log.i(">> PWD")
 
         print(Path.cwd())
 
-    @classmethod
-    def ls(cls, args: Args, _):
+    def ls(self, args: Args, _):
 
         def ls_provider(path: str, **kwargs):
-            p = LocalPath(path)
+            p = self._local_path(path)
             kws = {k: v for k, v in kwargs.items() if k in
                    ["sort_by", "name", "reverse", "hidden", "details"]}
             try:
@@ -557,21 +554,19 @@ class Client:
 
             return ls_res
 
-        cls._xls(args, ls_provider, "LS")
+        self._xls(args, ls_provider, "LS")
 
-    @classmethod
-    def l(cls, args: Args, _):
+    def l(self, args: Args, _):
         # Just call ls -la
         # Reuse the parsed args for keep the (optional) path
         args._parsed[Ls.SHOW_ALL[0]] = True
         args._parsed[Ls.SHOW_DETAILS[0]] = True
-        cls.ls(args, _)
+        self.ls(args, _)
 
-    @classmethod
-    def tree(cls, args: Args, _):
+    def tree(self, args: Args, _):
 
         def tree_provider(path, **kwargs):
-            p = LocalPath(path)
+            p = self._local_path(path)
             kws = {k: v for k, v in kwargs.items() if k in
                    ["sort_by", "name", "reverse", "max_depth", "hidden", "details"]}
             try:
@@ -589,12 +584,11 @@ class Client:
 
             return tree_res
 
-        cls._xtree(args, tree_provider, "TREE")
+        self._xtree(args, tree_provider, "TREE")
 
-    @classmethod
-    def find(cls, args: Args, _):
+    def find(self, args: Args, _):
         def find_provider(path: str, **kwargs):
-            p = LocalPath(path)
+            p = self._local_path(path)
             kws = {k: v for k, v in kwargs.items() if k in
                    ["name", "regex", "ftype", "case_sensitive", "details"]}
             try:
@@ -612,11 +606,10 @@ class Client:
 
             return find_res
 
-        cls._xfind(args, find_provider, "FIND")
+        self._xfind(args, True, find_provider, "FIND")
 
-    @classmethod
-    def mkdir(cls, args: Args, _):
-        directory = args.get_positional()
+    def mkdir(self, args: Args, _):
+        directory = self._local_path(args.get_positional())
 
         if not directory:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -638,9 +631,8 @@ class Client:
                                                   os_error_str(oserr),
                                                   q(directory)))
 
-    @classmethod
-    def rm(cls, args: Args, _):
-        paths = [LocalPath(p) for p in args.get_positionals()]
+    def rm(self, args: Args, _):
+        paths = [self._local_path(p) for p in args.get_positionals()]
 
         if not paths:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -1101,7 +1093,7 @@ class Client:
             if is_data_response(resp) and resp.get("data") == "pong":
                 print("[{}] PONG from {}  |  time={:.1f}ms".format(
                     i,
-                    server_info_to_short_str(conn.server_info),
+                    server_info_short_str(conn.server_info),
                     timer.elapsed_ms())
                 )
             else:
@@ -1139,13 +1131,13 @@ class Client:
 
             s += bold("{}. {}".format(
                       servers_found + 1,
-                      server_info_to_short_str(server_info_full)))
+                      server_info_short_str(server_info_full)))
 
             if show_all_details:
-                s += "\n" + server_info_to_pretty_str(server_info_full,
-                                                      sharing_details=True) + "\n" + SEP
+                s += "\n" + server_info_pretty_str(server_info_full,
+                                                   sharing_details=True) + "\n" + SEP
             else:
-                sharings_str = sharings_to_pretty_str(
+                sharings_str = sharings_pretty_str(
                     server_info_full.get("sharings"),
                     details=show_sharings_details,
                     indent=2)
@@ -1176,9 +1168,9 @@ class Client:
     def info(self, args: Args, conn: Connection):
         show_sharings_details = Info.SHOW_SHARINGS_DETAILS in args
 
-        print(server_info_to_pretty_str(conn.server_info,
-                                        sharing_details=show_sharings_details,
-                                        separators=True))
+        print(server_info_pretty_str(conn.server_info,
+                                     sharing_details=show_sharings_details,
+                                     separators=True))
 
     @provide_connection
     def list(self, args: Args, conn: Connection):
@@ -1189,8 +1181,8 @@ class Client:
         resp = conn.list()
         ensure_data_response(resp)
 
-        sharings_str = sharings_to_pretty_str(resp.get("data"),
-                                     details=show_details)
+        sharings_str = sharings_pretty_str(resp.get("data"),
+                                           details=show_details)
 
         if sharings_str:
             print(sharings_str)
@@ -1264,7 +1256,7 @@ class Client:
             resp = conn.rfind(**kwargs, path=f)
             return ensure_data_response(resp)
 
-        self._xfind(args, data_provider=rfind_provider, data_provider_name="RFIND")
+        self._xfind(args, False, data_provider=rfind_provider, data_provider_name="RFIND")
 
     @provide_d_sharing_connection
     def rmkdir(self, args: Args, conn: Connection):
@@ -1623,7 +1615,7 @@ class Client:
             #       remote:     f1, f2
             log.d("f = %s", f)
 
-            p = LocalPath(f)
+            p = self._local_path(f)
 
             take_all_unwrapped = True if (p.parts and p.parts[len(p.parts) - 1]) == "*" else False
 
@@ -1966,6 +1958,85 @@ class Client:
                 err_str = formatted_error_from_error_of_response(err)
                 print(f"{idx + 1}. {err_str}")
 
+
+    def _mvcp(self,
+              args: Args,
+              primitive: Callable[[Path, Path], bool],
+              primitive_name: str = "mv/cp",
+              error_callback: Callable[[Exception, Path, Path], None] = None):
+
+
+        # mv <src>... <dest>
+        #
+        # A1  At least two parameters
+        # A2  If a <src> doesn't exist => IGNORES it
+        #
+        # 2 args:
+        # B1  If <dest> exists
+        #     B1.1    If type of <dest> is DIR => put <src> into <dest> anyway
+        #
+        #     B1.2    If type of <dest> is FILE
+        #         B1.2.1  If type of <src> is DIR => ERROR
+        #         B1.2.2  If type of <src> is FILE => OVERWRITE
+        # B2  If <dest> doesn't exist => preserve type of <src>
+        #
+        # 3 args:
+        # C1  if <dest> exists => must be a dir
+        # C2  If <dest> doesn't exist => ERROR
+
+
+        mvcp_args = [self._local_path(f) for f in args.get_positionals()]
+
+        if not mvcp_args or len(mvcp_args) < 2:
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
+
+        dest = mvcp_args.pop() # dest is always the last one
+        sources = mvcp_args    # we can treat mvcp_args as sources since dest is popped
+
+        # C1/C2 check: with 3+ arguments
+        if len(sources) >= 2:
+            # C1  if <dest> exists => must be a dir
+            # C2  If <dest> doesn't exist => ERROR
+            # => must be a valid dir
+            if not dest.is_dir():
+                log.e("'%s' must be an existing directory", dest)
+                raise CommandExecutionError(errno_str(ErrorsStrings.NOT_A_DIRECTORY, q(dest)))
+
+        # Every other constraint is well handled by shutil.move() or shutil.copytree()
+
+        for src in sources:
+            log.i(">> %s '%s' '%s'", primitive_name.upper(), src, dest)
+
+            try:
+                primitive(src, dest)
+            except Exception as ex:
+                if error_callback:
+                    error_callback(ex, src, dest)
+                else:
+                    raise ex
+
+
+    @classmethod
+    def _rmvcp(cls,
+               args: Args,
+               api: Callable[[List[str], str], Response],
+               api_name: str = "RMV/RCP"):
+        paths = args.get_positionals()
+
+        if not paths:
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
+
+        dest = paths.pop()
+
+        if not dest or not paths:
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
+
+        log.i(">> %s %s -> %s", api_name, str(paths), dest)
+
+        resp = api(paths, dest)
+        ensure_success_response(resp)
+
+
     @classmethod
     def _xls(cls,
              args: Args,
@@ -2043,11 +2114,11 @@ class Client:
                               show_size=details)
 
 
-    @classmethod
-    def _xfind(cls,
-             args: Args,
-             data_provider: Callable[..., Optional[List[FileInfo]]],
-             data_provider_name: str = "FIND"):
+    def _xfind(self,
+               args: Args,
+               is_local: bool,
+               data_provider: Callable[..., Optional[List[FileInfo]]],
+               data_provider_name: str = "FIND"):
 
         # Do not wrap here in a Path here, since the provider could be remote
         path = args.get_positional()
@@ -2073,93 +2144,86 @@ class Client:
         if find_result is None:
             raise CommandExecutionError()
 
+
+        justify = len(str(len(find_result)))
+
+        if is_local:
+            finding_letter = self._local_finding_letter
+            self._add_local_findings(self._local_path(path), find_result)
+        else:
+            finding_letter = ""
+            # self._add_local_findings(LocalPath(path), find_result)
+
+        def file_info_str_find(
+                info: FileInfo,
+                show_file_type: bool = False,
+                show_size: bool = False,
+                show_hidden: bool = False,
+                show_perm: bool = False,
+                index: int = None) -> Optional[StyledString]:
+
+            finfo_str = file_info_str(
+                info,
+                show_file_type=show_file_type,
+                show_size=show_size,
+                show_hidden=show_hidden,
+                show_perm=show_perm
+            )
+
+            if finfo_str:
+                prefix = ("$" + finding_letter + str(index)).rjust(justify + 2) + " "
+                finfo_str.string = prefix + finfo_str.string
+                finfo_str.styled_string = prefix + finfo_str.styled_string
+                return finfo_str
+
+
         print_files_info_list(
             find_result,
             show_hidden=True,
             compact=False,
             show_perm=details,
             show_file_type=details,
-            show_size=details
+            show_size=details,
+            file_info_renderer=file_info_str_find
         )
 
-    @classmethod
-    def _mvcp(cls,
-              args: Args,
-              primitive: Callable[[Path, Path], bool],
-              primitive_name: str = "mv/cp",
-              error_callback: Callable[[Exception, Path, Path], None] = None):
+    def _add_local_findings(self, path: Path, find_result: List[FileInfo]):
+        log.i("Adding %d local findings for search on path = %s (letter %s)",
+              len(find_result), str(path), self._local_finding_letter)
+
+        self._local_findings[self._local_finding_letter] = (find_result, path)
+        self._local_finding_letter = \
+            chr((ord(self._local_finding_letter) - ord("a") + 1) % 26 + ord("a"))
 
 
-        # mv <src>... <dest>
-        #
-        # A1  At least two parameters
-        # A2  If a <src> doesn't exist => IGNORES it
-        #
-        # 2 args:
-        # B1  If <dest> exists
-        #     B1.1    If type of <dest> is DIR => put <src> into <dest> anyway
-        #
-        #     B1.2    If type of <dest> is FILE
-        #         B1.2.1  If type of <src> is DIR => ERROR
-        #         B1.2.2  If type of <src> is FILE => OVERWRITE
-        # B2  If <dest> doesn't exist => preserve type of <src>
-        #
-        # 3 args:
-        # C1  if <dest> exists => must be a dir
-        # C2  If <dest> doesn't exist => ERROR
+    def _local_path(self, path: str, default: str = ""):
+        log.i("Computing local path of '%s'", path)
 
+        if path:
+            # Eventually make substitutions of findings (e.g. $a2, %b12)
+            match = re.fullmatch(Client.LOCAL_FINDINGS_RE, path)
+            if match:
+                # The path contains a finding pattern
+                letter = match.groups()[0]
+                idx = int(match.groups()[1])
+                log.d("Found finding match in path (letter=%s | idx=%d)", letter, idx)
 
-        mvcp_args = [LocalPath(f) for f in args.get_positionals()]
+                # Check whether we actually have the finding
+                findings: List[FileInfo]
+                searchpath: Path
 
-        if not mvcp_args or len(mvcp_args) < 2:
-            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
+                findings, searchpath = self._local_findings.get(letter)
+                if findings and idx <= len(findings):
+                    log.d("Findings for letter %s found - search path was '%s'", letter, searchpath)
 
-        dest = mvcp_args.pop() # dest is always the last one
-        sources = mvcp_args    # we can treat mvcp_args as sources since dest is popped
+                    finfo: FileInfo = findings[idx]
+                    path = searchpath / finfo.get("name")
 
-        # C1/C2 check: with 3+ arguments
-        if len(sources) >= 2:
-            # C1  if <dest> exists => must be a dir
-            # C2  If <dest> doesn't exist => ERROR
-            # => must be a valid dir
-            if not dest.is_dir():
-                log.e("'%s' must be an existing directory", dest)
-                raise CommandExecutionError(errno_str(ErrorsStrings.NOT_A_DIRECTORY, q(dest)))
-
-        # Every other constraint is well handled by shutil.move() or shutil.copytree()
-
-        for src in sources:
-            log.i(">> %s '%s' '%s'", primitive_name.upper(), src, dest)
-
-            try:
-                primitive(src, dest)
-            except Exception as ex:
-                if error_callback:
-                    error_callback(ex, src, dest)
+                    log.d("Finding for '%s' found: '%s'", match.group(), path)
                 else:
-                    raise ex
+                    log.w("Finding not found: '%s'", match.group())
 
-
-    @classmethod
-    def _rmvcp(cls,
-               args: Args,
-               api: Callable[[List[str], str], Response],
-               api_name: str = "RMV/RCP"):
-        paths = args.get_positionals()
-
-        if not paths:
-            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
-
-        dest = paths.pop()
-
-        if not dest or not paths:
-            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
-
-        log.i(">> %s %s -> %s", api_name, str(paths), dest)
-
-        resp = api(paths, dest)
-        ensure_success_response(resp)
-
+        return LocalPath(path, default)
 
 
     def _get_current_sharing_connection_or_create_from_sharing_location_args(

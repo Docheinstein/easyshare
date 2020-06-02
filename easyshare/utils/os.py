@@ -266,18 +266,16 @@ def find(path: Union[Path, PathLike],
         root = Path(root)
         rel_root = root.relative_to(path)
 
-        log.d("root = %s", root)
-        log.d("rel_root = %s", root)
+        log.d("root = '%s'", root)
+        log.d("rel_root = '%s'", root)
 
-        for f in files + dirs:
+        for f in isorted(files + dirs):
             log.d("f = %s", f)
 
             full_path = root / f
             rel_path = rel_root / f
 
-            log.d("Filtering\n"
-                  f"full_path: {full_path}\n"
-                  f"rel_path:  {rel_path}")
+            log.d(f"Filtering '{rel_path}'")
 
             path_filter_subject = str(rel_path)
 

@@ -1,5 +1,5 @@
 from math import ceil
-from typing import List
+from typing import List, Optional, Callable
 
 from easyshare.common import DIR_COLOR, FILE_COLOR
 from easyshare.logging import get_logger
@@ -76,58 +76,70 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None):
         print(print_row)
 
 
+def file_info_str(info: FileInfo,
+                  show_file_type: bool = False,  # -l
+                  show_size: bool = False,  # -S
+                  show_hidden: bool = False,  # -a
+                  show_perm: bool = False,
+                  **kwargs) -> Optional[StyledString]:
+    fname = info.get("name")
+
+    if not show_hidden and is_hidden(fname):
+        log.d("Not showing hidden files: %s", fname)
+        return None
+
+    if info.get("ftype") == FTYPE_DIR:
+        ftype_short = "d"
+        fname_styled = fg(fname, DIR_COLOR)
+    else:
+        ftype_short = "f"
+        fname_styled = fg(fname, FILE_COLOR)
+
+    file_str = ""
+
+    if show_file_type:
+        file_str += ftype_short + " "
+
+    if show_perm:
+        file_str += perm_str(info.get("perm")) + " "
+
+    if show_size:
+        file_str += size_str(info.get("size"),
+                             prefixes=("", "K", "M", "G")).rjust(4) + "  "
+
+    file_str_styled = file_str + fname_styled
+    file_str = file_str + fname
+
+    return StyledString(file_str, file_str_styled)
+
+
+
 def print_files_info_list(infos: List[FileInfo],
+                          show_hidden: bool = False,    # -a
                           show_file_type: bool = False, # -l
                           show_size: bool = False,      # -S
-                          show_hidden: bool = False,    # -a
                           show_perm: bool = False,      # -l
-                          compact: bool = True):        # -l
+                          compact: bool = True,         # not -l
+                          file_info_renderer: Callable[..., StyledString] = file_info_str):
     """ Prints a list of 'FileInfo' (ls -l like). """
     if not infos:
         return
 
-    sstrings: List[StyledString] = []
+    sstrings: List[StyledString] = [ss for ss in (
+        file_info_renderer(
+            info,
+            show_hidden=show_hidden,
+            show_file_type=show_file_type,
+            show_size=show_size,
+            show_perm=show_perm,
+            index=idx
+        ) for idx, info in enumerate(infos)) if ss is not None]
 
-    for info in infos:
-        log.d("f_info: %s", info)
-
-        fname = info.get("name")
-
-        if not show_hidden and is_hidden(fname):
-            log.d("Not showing hidden files: %s", fname)
-            continue
-
-        if info.get("ftype") == FTYPE_DIR:
-            ftype_short = "d"
-            fname_styled = fg(fname, DIR_COLOR)
-        else:
-            ftype_short = "f"
-            fname_styled = fg(fname, FILE_COLOR)
-
-        file_str = ""
-
-        if show_file_type:
-            file_str += ftype_short + " "
-
-        if show_perm:
-            file_str += perm_str(info.get("perm")) + " "
-
-        if show_size:
-            file_str += size_str(info.get("size"),
-                                 prefixes=("", "K", "M", "G")).rjust(4) + "  "
-
-        file_str_styled = file_str
-
-        file_str += fname
-        file_str_styled += fname_styled
-
-        sstrings.append(StyledString(file_str, file_str_styled))
-
-    if not compact:
+    if compact:
+        print_tabulated(sstrings)
+    else:
         for ss in sstrings:
             print(ss.styled_string)
-    else:
-        print_tabulated(sstrings)
 
 
 def print_files_info_tree(root: TreeNodeDict,
@@ -155,7 +167,7 @@ def print_files_info_tree(root: TreeNodeDict,
         ))
 
 
-def ssl_certificate_to_pretty_str(ssl_cert: SSLCertificate) -> str:
+def ssl_certificate_pretty_str(ssl_cert: SSLCertificate) -> str:
     """ Returns a string representation of a 'SSLCertificate' """
     if not ssl_cert:
         return ""
@@ -178,7 +190,7 @@ Issuer:             {", ".join([issuer.get("common_name"), issuer.get("organizat
 Signing:            {"self signed" if ssl_cert.get("self_signed") else "signed"}"""
 
 
-def server_info_to_pretty_str(info: ServerInfoFull, sharing_details: bool = False, separators: bool = False) -> str:
+def server_info_pretty_str(info: ServerInfoFull, sharing_details: bool = False, separators: bool = False) -> str:
     """ Returns a string representation of a 'ServerInfoFull' """
 
     discover_port_str = ""
@@ -212,7 +224,7 @@ Version:         {info.get("version")}
 
 {bold("SSL CERTIFICATE")}
 
-{ssl_certificate_to_pretty_str(ssl_cert)}
+{ssl_certificate_pretty_str(ssl_cert)}
 
 ================================"""
 
@@ -221,21 +233,21 @@ Version:         {info.get("version")}
 
 {bold("SHARINGS")}
 
-{sharings_to_pretty_str(info.get("sharings"), details=sharing_details, indent=2)}
+{sharings_pretty_str(info.get("sharings"), details=sharing_details, indent=2)}
 
 ================================"""
 
     return s
 
-def server_info_to_short_str(server_info: ServerInfoFull):
+def server_info_short_str(server_info: ServerInfoFull):
     """ Returns a compact string representation of a 'ServerInfoFull' """
 
     return f"{server_info.get('name')} ({server_info.get('ip')}:{server_info.get('port')})"
 
 
-def sharings_to_pretty_str(sharings: List[SharingInfo],
-                           details: bool = False,
-                           indent: int = 0) -> str:
+def sharings_pretty_str(sharings: List[SharingInfo],
+                        details: bool = False,
+                        indent: int = 0) -> str:
     """ Returns a string representation of a list of 'Sharing' """
 
     if sharings is None:

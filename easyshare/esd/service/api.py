@@ -731,11 +731,13 @@ class ClientHandler:
         ftype = params.get(RequestsParams.RFIND_FTYPE)
         details = params.get(RequestsParams.RFIND_DETAILS) or False
 
+        if case_sensitive is None:
+            case_sensitive = True
 
         if not is_str(path) or \
                 (name and not is_str(name)) or \
                 (regex and not is_str(regex)) or \
-                (case_sensitive is not None and not is_bool(case_sensitive)) or \
+                (not is_bool(case_sensitive)) or \
                 ftype not in [None, FTYPE_DIR, FTYPE_FILE]:
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
@@ -757,7 +759,7 @@ class ClientHandler:
                                ftype=ftype, details=details)
 
             # OK - report it
-            print(f"[{self._client.tag}] rfind '{find_result}' "
+            print(f"[{self._client.tag}] rfind '{find_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
         except FileNotFoundError:
             log.exception("rls exception occurred")
