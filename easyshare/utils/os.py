@@ -265,7 +265,7 @@ def find(path: Union[Path, PathLike],
 
     for f in walk_preorder(path):
         p = Path(f)
-        finfo = create_file_info(p, name=file_info_name_provider(p))
+        finfo = create_file_info(p, name=file_info_name_provider(p), details=details)
         if not finfo:
             continue
 

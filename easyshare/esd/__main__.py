@@ -594,6 +594,7 @@ Discover port:      {get_discover_daemon().port() if get_discover_daemon() else 
 Auth:               {auth_str}
 SSL:                {tf(get_ssl_context(), "enabled", "disabled")}
 Remote execution:   {tf(server_rexec, "enabled", "disabled")}
+Version:            {APP_VERSION}
 
 ================================
 

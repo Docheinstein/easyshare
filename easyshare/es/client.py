@@ -648,25 +648,10 @@ class Client:
 
         errors = []
 
-        def handle_rm_error(exc: Exception, path):
-
-            if isinstance(exc, PermissionError):
-                errors.append(errno_str(ClientErrors.RM_PERMISSION_DENIED,
-                                        q(path)))
-            elif isinstance(exc, FileNotFoundError):
-                errors.append(errno_str(ClientErrors.RM_NOT_EXISTS,
-                                        q(path)))
-            elif isinstance(exc, OSError):
-                errors.append(errno_str(ClientErrors.RM_OTHER_ERROR,
-                                        os_error_str(exc),
-                                        q(path)))
-            else:
-                errors.append(errno_str(ClientErrors.RM_OTHER_ERROR,
-                                        exc,
-                                        q(path)))
-
         for p in paths:
-            rm(p, error_callback=handle_rm_error)
+            err = self._rm(p)
+            if err:
+                errors.append(err)
 
         if errors:
             raise CommandExecutionError(errors)
@@ -1313,6 +1298,7 @@ class Client:
         do_check = Get.CHECK in args
         quiet = Get.QUIET in args
         no_hidden = Get.NO_HIDDEN in args
+        sync = Get.SYNC in args
 
         chunk_size = args.get_option_param(Get.CHUNK_SIZE)
         use_mmap = args.get_option_param(Get.MMAP)
@@ -1328,9 +1314,9 @@ class Client:
         # Overwrite preference
 
         if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
-            Get.OVERWRITE_NEWER].count(True) > 1:
-            log.e("Only one between -n, -y and -N can be specified")
-            raise CommandExecutionError("Only one between -n, -y and -N can be specified")
+            Get.OVERWRITE_NEWER in args, Get.SYNC in args].count(True) > 1:
+            log.e("Only one between -n, -y, -N and -s can be specified")
+            raise CommandExecutionError("Only one between -n, -y, -N and -s can be specified")
 
         overwrite_policy = OverwritePolicy.PROMPT
 
@@ -1339,6 +1325,9 @@ class Client:
         elif Get.OVERWRITE_NO in args:
             overwrite_policy = OverwritePolicy.NO
         elif Get.OVERWRITE_NEWER in args:
+            overwrite_policy = OverwritePolicy.NEWER
+        elif Get.SYNC in args:
+            # Sync is the same as NEWER but deletes the old files after the transfer
             overwrite_policy = OverwritePolicy.NEWER
 
         log.i("Overwrite policy: %s", str(overwrite_policy))
@@ -1356,6 +1345,39 @@ class Client:
         errors = []
 
         outcome_resp = None
+
+        # If sync is True track the files in the current directory
+        # so that we can remove old files (the one for which no file info
+        # is retrieved from the server) after the transfer completes.
+        sync_table = None
+        if sync:
+            # Ensure that only a path parameter is passed
+            if len(files) > 1:
+                raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
+
+            down_path = Path.cwd()
+            trail = ""
+
+            if files:
+                if not files[0].endswith("*"):
+                    trail = files[0]
+            else:
+                # No path specified, will get the content wrapped into
+                # a folder with the rcwd name
+                trail = conn.current_rcwd()
+                if not trail:
+                    # No rcwd? we will get the content wrapped into a folter
+                    # with the sharing name
+                    trail = conn.current_sharing_name()
+
+            log.d("SYNC Trail: '%s'", trail)
+            down_path = down_path / trail
+            log.d("SYNC Down path: '%s'", down_path)
+
+            findings = find(down_path)
+            sync_table = {f.get("name"): f for f in findings}
+            log.d("SYNC computed old_files table\n%s",
+                  "\n".join(sync_table.keys()))
 
         while True:
             log.i("Fetching another file info")
@@ -1402,6 +1424,18 @@ class Client:
             local_path = Path(fname)
 
             log.i("NEXT: %s of type %s", fname, ftype)
+
+            # Remove from the SYNC table eventually
+            if sync_table:
+                # Do the removal for each possible path within local_path
+                # (so that we won't delete parent folder if the change is
+                # inside the children)
+                incremental_path = Path.cwd()
+                for part in local_path.parts:
+                    incremental_path = incremental_path / part
+                    incremental_path_str = str(incremental_path)
+                    log.d("Removing from SYNC table: '%s'", incremental_path_str)
+                    sync_table.pop(incremental_path_str, None)
 
             # Case: DIR
             if ftype == FTYPE_DIR:
@@ -1576,20 +1610,43 @@ class Client:
             log.w("Response has errors")
             errors += outcome_errors
 
+        if sync:
+            # Check if there are old files to removes
+            log.i("Detected %d removal to do due to sync", len(sync_table))
+
+            # We can avoid some rm if we are deleting a parent folder
+            # and sync_table contains the children.
+            # Since the entries are sorted (walk_preoreder) we can iterate and skip
+            # consecutive entries if they have the same prefix as the one before
+
+            cur_del_path_str = None
+            for path_str, finfo in sync_table.items():
+                if cur_del_path_str and path_str.startswith(cur_del_path_str):
+                    log.d("Should remove '%s' but skipping, already deleting parent", path_str)
+                    continue
+                # We actually have to delete this
+                log.i("Will remove '%s'", path_str)
+
+                err = self._rm(Path(path_str))
+                if err:
+                    errors.append(err)
+
+                cur_del_path_str = path_str
+
         log.i("GET outcome: %d", outcome)
 
         if n_files > 0:
             print("")
-        print("GET outcome:  {}".format(outcome_str(outcome)))
+        print(f"GET outcome:  {outcome_str(outcome)}")
         print("-----------------------")
-        print("Files:        {} ({})".format(n_files, size_str(tot_bytes)))
-        print("Time:         {}".format(duration_str_human(round(elapsed_s))))
-        print("Avg. speed:   {}".format(speed_str(tot_bytes / elapsed_s)))
+        print(f"Files:        {n_files} ({size_str(tot_bytes)})")
+        print(f"Time:         {duration_str_human(round(elapsed_s))}")
+        print(f"Avg. speed:   {speed_str(tot_bytes / elapsed_s)}")
 
         # Any error? (e.g. permission denied)
         if errors:
             print("-----------------------")
-            print("Errors:       {}".format(len(errors)))
+            print(f"Errors:       {len(errors)}")
             for idx, err in enumerate(errors):
                 err_str = formatted_error_from_error_of_response(err)
                 print(f"{idx + 1}. {err_str}")
@@ -1661,7 +1718,7 @@ class Client:
         # Overwrite preference
 
         if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
-            Get.OVERWRITE_NEWER].count(True) > 1:
+            Get.OVERWRITE_NEWER in args, Get.SYNC in args].count(True) > 1:
             log.e("Only one between -n, -y and -N can be specified")
             raise CommandExecutionError("Only one between -n, -y and -N can be specified")
 
@@ -2051,6 +2108,34 @@ class Client:
         resp = api(paths, dest)
         ensure_success_response(resp)
 
+    @classmethod
+    def _rm(cls, path: Path) -> Optional[str]:
+
+        log.i("RM '%s'", path)
+
+        error = None
+
+        def handle_rm_error(exc: Exception, p: Path):
+            nonlocal error
+
+            if isinstance(exc, PermissionError):
+                error = errno_str(ClientErrors.RM_PERMISSION_DENIED,
+                                        q(p))
+            elif isinstance(exc, FileNotFoundError):
+                error = errno_str(ClientErrors.RM_NOT_EXISTS,
+                                        q(p))
+            elif isinstance(exc, OSError):
+                error = errno_str(ClientErrors.RM_OTHER_ERROR,
+                                        os_error_str(exc),
+                                        q(p))
+            else:
+                error = errno_str(ClientErrors.RM_OTHER_ERROR,
+                                        exc,
+                                        q(p))
+
+        rm(path, error_callback=handle_rm_error)
+
+        return error
 
     @classmethod
     def _xls(cls,

@@ -35,6 +35,7 @@ mkdir               create a local directory
 cp                  copy files and directories locally
 mv                  move files and directories locally
 rm                  remove files and directories locally
+find                search for local files
 exec, :             execute an arbitrary command locally
 shell, sh           start a local shell
 </i>
@@ -48,6 +49,7 @@ rmkdir              create a remote directory
 rcp                 copy files and directories remotely
 rmv                 move files and directories remotely
 rrm                 remove files and directories remotely
+rfind               search for local files
 rexec, ::           execute an arbitrary command remotely
 rshell, rsh         start a remote shell
 </i>
