@@ -18,7 +18,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams, RequestsParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response, \
     create_error_of_response, TransferOutcomes, ResponsesParams
-from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType, create_file_info, FTYPE_FILE
+from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType, create_file_info, FTYPE_FILE, FileType
 from easyshare.sockets import SocketTcp
 from easyshare.ssl import get_ssl_context
 from easyshare.streams import StreamClosedError
@@ -1479,7 +1479,7 @@ class ClientHandler:
 
         sync_table: Optional[Set[FPath]] = None
 
-        def compute_sync_table(fpath: FPath):
+        def compute_sync_table(fpath: FPath, ftype: FileType):
             nonlocal sync_table
 
             if sync_table:
@@ -1488,7 +1488,7 @@ class ClientHandler:
                 raise ValueError("Sync table already initialized, "
                                  "only a directory/file can be pushed with --sync")
 
-            up_path = fpath if fpath.is_dir() else fpath.parent
+            up_path = fpath if ftype == FTYPE_DIR else fpath.parent
             log.d("SYNC Up path: '%s'", up_path)
 
             findings = find(up_path)
@@ -1552,7 +1552,7 @@ class ClientHandler:
                     # Only the first push determinates the directory the be pushed
                     # (Therefore the client have to send the finfo of the root folder first)
                     if not sync_table:
-                        compute_sync_table(fpath)
+                        compute_sync_table(fpath, ftype)
 
                     # Remove from the SYNC table eventually
                     # Do the removal for each possible path within local_path

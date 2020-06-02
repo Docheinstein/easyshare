@@ -1755,7 +1755,7 @@ class Client:
             overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_NO
         elif Put.OVERWRITE_NEWER in args:
             overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_NEWER
-        elif Put.OVERWRITE_NEWER in args:
+        elif Put.SYNC in args:
             # Sync is the same as NEWER but deletes the old files after the transfer
             overwrite_policy = OverwritePolicy.NEWER
 
@@ -1790,39 +1790,35 @@ class Client:
             fsize = finfo.get("size")
             ftype = finfo.get("ftype")
 
-            # Case: DIR => no transfer
-            if ftype == FTYPE_DIR:
-                log.d("Sent a DIR, nothing else to do")
-                return
+            if ftype == FTYPE_FILE:
+                # Case: FILE => try to open the file and then transfer
 
-            # Case: FILE => transfer
+                # Before invoke next(), try to open the file for real.
+                # At least we are able to detect any error (e.g. perm denied)
+                # before say the server that the transfer is began
+                log.d("Trying to open file before initializing transfer")
 
-            # Before invoke next(), try to open the file for real.
-            # At least we are able to detect any error (e.g. perm denied)
-            # before say the server that the transfer is began
-            log.d("Trying to open file before initializing transfer")
-
-            try:
-                local_fd = local_path.open("rb")
-                log.d("Able to open file: %s", local_path)
-            except FileNotFoundError:
-                errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
-                                                         q(next_file_local)))
-                return
-            except PermissionError:
-                errors.append(create_error_of_response(ClientErrors.PERMISSION_DENIED,
-                                                         q(next_file_local)))
-                return
-            except OSError as oserr:
-                errors.append(create_error_of_response(ClientErrors.ERR_2,
-                                                       os_error_str(oserr),
-                                                        q(next_file_local)))
-                return
-            except Exception as exc:
-                errors.append(create_error_of_response(ClientErrors.ERR_2,
-                                                       exc,
-                                                       q(next_file_local)))
-                return
+                try:
+                    local_fd = local_path.open("rb")
+                    log.d("Able to open file: %s", local_path)
+                except FileNotFoundError:
+                    errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
+                                                             q(next_file_local)))
+                    return
+                except PermissionError:
+                    errors.append(create_error_of_response(ClientErrors.PERMISSION_DENIED,
+                                                             q(next_file_local)))
+                    return
+                except OSError as oserr:
+                    errors.append(create_error_of_response(ClientErrors.ERR_2,
+                                                           os_error_str(oserr),
+                                                            q(next_file_local)))
+                    return
+                except Exception as exc:
+                    errors.append(create_error_of_response(ClientErrors.ERR_2,
+                                                           exc,
+                                                           q(next_file_local)))
+                    return
 
             log.d("doing a put_next")
 
@@ -1830,7 +1826,6 @@ class Client:
                 RequestsParams.PUT_NEXT_FILE: finfo,
                 RequestsParams.PUT_NEXT_OVERWRITE: overwrite_policy
             })
-            ensure_data_response(put_next_resp) #, ...
 
             if is_error_response(put_next_resp):
                 log.w("Received error response for next()")
@@ -1840,6 +1835,12 @@ class Client:
 
             if not is_data_response(put_next_resp, ResponsesParams.PUT_NEXT_STATUS):
                 raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+
+            # Case: DIR => no transfer
+            if ftype == FTYPE_DIR:
+                log.d("Sent a DIR, nothing else to do")
+                return
 
             # Possible responses:
             # "accepted" => add the file to the transfer socket
@@ -2005,17 +2006,20 @@ class Client:
 
                 # Directory found
 
-                if dir_files:
+                if sync:
+                    log.d("Sending the directory finfo as first since sync is True")
+                    send_file(next_file_local, next_file_remote)
 
+                if dir_files:
+                    # standard case
                     log.i("Found a filled directory: adding all inner files to remaining_files")
                     for file_in_dir in dir_files:
                         sendfile = (file_in_dir, next_file_remote / file_in_dir.name)
                         log.i("Adding sendfile %s", sendfile)
                         sendfiles.append(sendfile)
-                else:
+                elif not sync: # if sync is True the finfo is already sent
                     log.i("Found an empty directory")
                     log.d("Pushing an info for the empty directory")
-
                     send_file(next_file_local, next_file_remote)
             else:
                 log.w(f"Failed to send '{next_file_local}': unknown file type, doing nothing")
