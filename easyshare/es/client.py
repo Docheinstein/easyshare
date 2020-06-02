@@ -1610,6 +1610,9 @@ class Client:
             log.w("Response has errors")
             errors += outcome_errors
 
+        sync_rm_ok = []
+        sync_rm_errs = []
+
         if sync:
             # Check if there are old files to removes
             log.i("Detected %d removal to do due to sync", len(sync_table))
@@ -1628,8 +1631,11 @@ class Client:
                 log.i("Will remove '%s'", path_str)
 
                 err = self._rm(Path(path_str))
-                if err:
-                    errors.append(err)
+                if not err:
+                    # Removal OK
+                    sync_rm_ok.append(path_str)
+                else:
+                    sync_rm_errs.append(err)
 
                 cur_del_path_str = path_str
 
@@ -1639,17 +1645,32 @@ class Client:
             print("")
         print(f"GET outcome:  {outcome_str(outcome)}")
         print("-----------------------")
-        print(f"Files:        {n_files} ({size_str(tot_bytes)})")
+        print(f"Downloads:    {n_files} ({size_str(tot_bytes)})")
         print(f"Time:         {duration_str_human(round(elapsed_s))}")
         print(f"Avg. speed:   {speed_str(tot_bytes / elapsed_s)}")
 
         # Any error? (e.g. permission denied)
         if errors:
             print("-----------------------")
-            print(f"Errors:       {len(errors)}")
+            print(f"GET errors:   {len(errors)}")
             for idx, err in enumerate(errors):
                 err_str = formatted_error_from_error_of_response(err)
                 print(f"{idx + 1}. {err_str}")
+
+        # SYNC stats
+        if sync:
+            print("=======================")
+            print(f"SYNC removed: {len(sync_rm_ok)}")
+            for idx, removed in enumerate(sync_rm_ok):
+                print(f"{idx + 1}. {removed}")
+
+            if sync_rm_errs:
+                print("-----------------------")
+                print(f"SYNC errors:  {len(sync_rm_errs)}")
+                for idx, err in enumerate(errors):
+                    print(f"{idx + 1}. {err}")
+
+
 
     @provide_d_sharing_connection
     def put(self, args: Args, conn: Connection):
