@@ -1553,7 +1553,8 @@ class ClientHandler:
                 if sync:
                     # Only the first push determinates the directory the be pushed
                     # (Therefore the client have to send the finfo of the root folder first)
-                    if not sync_table:
+                    if sync_table is None:  # check is None because if the dir is new
+                                            # sync table could be already initialized but empty
                         compute_sync_table(fpath, ftype)
 
                     # Remove from the SYNC table eventually
@@ -1762,15 +1763,15 @@ class ClientHandler:
                     continue
                 # We actually have to delete this
                 log.i("Will remove '%s'", path_str)
-                #
-                # p = Path(path_str)
-                # err = self._rm(p)
-                # if not err:
-                #     # Removal OK
-                #     # TODO leading / maybe
-                #     sync_rm_oks.append(self._spath_rel_to_root_of_fpath(p))
-                # else:
-                #     sync_rm_errs.append(err)
+
+                p = Path(path_str)
+                err = self._rm(p)
+                if not err:
+                    # Removal OK
+                    # TODO leading / maybe
+                    sync_rm_oks.append(str(self._spath_rel_to_root_of_fpath(p)))
+                else:
+                    sync_rm_errs.append(err)
 
                 cur_del_path_str = path_str
 
@@ -1854,7 +1855,7 @@ class ClientHandler:
         fp = self._as_path(p)
         log.d("-> fp: %s", fp)
 
-        return fp.relative_to(self._current_sharing.path)
+        return Path("/") / fp.relative_to(self._current_sharing.path)
 
 
     def _is_fpath_allowed(self, p: Union[str, FPath]) -> bool:

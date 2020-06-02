@@ -249,7 +249,7 @@ class ConnectionMinimal:
         if is_success_response(resp):
             self._connected_to_sharing = True
             self._sharing_name = sharing_name
-            self._rcwd = ""
+            self._rcwd = "/"
         # else?
 
         return resp

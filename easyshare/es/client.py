@@ -1214,7 +1214,7 @@ class Client:
 
         rcwd = resp.get("data")
 
-        print(Path("/", rcwd))
+        print(rcwd)
 
     @provide_d_sharing_connection
     def rcd(self, args: Args, conn: Connection):
@@ -2394,7 +2394,7 @@ class Client:
             found = self._get_finding(path, self._remote_findings)
             if found:
                 finding, searchpath = found
-                path = os.path.join("/", searchpath, finding.get("name"))
+                path = os.path.join(searchpath, finding.get("name"))
 
         return path
 
