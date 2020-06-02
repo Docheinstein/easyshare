@@ -6,7 +6,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull, FTYPE_DIR, FileInfo, SharingInfo, FTYPE_FILE
 from easyshare.ssl import get_cached_or_fetch_ssl_certificate_for_endpoint
 from easyshare.styling import fg, bold
-from easyshare.tree import TreeNodeDict, TreeRenderPostOrder
+from easyshare.tree import TreeNodeDict, TreeRenderPreOrder
 from easyshare.utils.env import terminal_size, is_unicode_supported
 from easyshare.utils.json import j
 from easyshare.utils.measures import size_str
@@ -148,7 +148,7 @@ def print_files_info_tree(root: TreeNodeDict,
                           show_hidden: bool = False):
     """ Traverse the 'TreeNodeDict' and prints the 'FileInfo' as a tree (tree like). """
 
-    for prefix, node, depth in TreeRenderPostOrder(root, depth=max_depth):
+    for prefix, node, depth in TreeRenderPreOrder(root, depth=max_depth):
         log.d("TreeRenderPostOrder over %s", j(node))
 
         name = node.get("name")

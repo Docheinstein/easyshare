@@ -63,7 +63,7 @@ class TreeRenderStyleFactory:
 
 
 
-class TreeRenderPostOrder:
+class TreeRenderPreOrder:
     """
     Iterator of a 'TreeNodeDict'.
     # Usage: for prefix, node, depth in TreeRenderPostOrder(root, depth=max_depth):

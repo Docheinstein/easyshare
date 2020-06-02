@@ -74,21 +74,12 @@ def leftof(s: str, sep: str, from_end=False) -> str:
         return before_or_ori
 
 
-def isorted(iterable, key = None, in_subset: str = None, not_in_subset: str = None):
-    """
-    Case insensitive sorts a list of string, eventually restricted to
-    the given whitelist and blacklist.
-    """
+def isorted(iterable, key = None):
+    """ Case insensitive sorting. """
+
     def conv(o: Any):
-        if key:
-            val = key(o)
-        else:
-            val = o
+        val = key(o) if key else o
         if is_str(val):
-            if not_in_subset:
-                val = discardchars(val, not_in_subset)
-            if in_subset:
-                val = keepchars(val, in_subset)
             val = val.lower()
         return val
 

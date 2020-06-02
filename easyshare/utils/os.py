@@ -260,55 +260,75 @@ def find(path: Union[Path, PathLike],
 
     ret: List[FileInfo] = []
 
-    # path:  = path.resolve()
+    # root = Path(path).resolve()
+    # rel_root = root.relative_to(path)
+    #
+    # log.d("root = '%s'", root)
+    # log.d("rel_root = '%s'", root)
+    #
+    # cursor = root
 
-    for root, dirs, files in os.walk(path, topdown=True):
-        root = Path(root)
-        rel_root = root.relative_to(path)
+    for f in walk_preorder(path):
+        p = Path(f)
+        finfo = create_file_info(p, name=str(p))
+        if not finfo:
+            continue
 
-        log.d("root = '%s'", root)
-        log.d("rel_root = '%s'", root)
+        log.d("finfo = %s", finfo)
+        f_name = finfo.get("name")
 
-        for f in isorted(files + dirs):
-            log.d("f = %s", f)
+        # full_path = root / f_name
+        # rel_path = rel_root / f_name
 
-            full_path = root / f
-            rel_path = rel_root / f
+        # log.d(f"Filtering rel_path='{rel_path}', full_path='{full_path}'")
 
-            log.d(f"Filtering '{rel_path}'")
+        path_filter_subject = f_name
 
-            path_filter_subject = str(rel_path)
+        if case_sensitive is False:
+            path_filter_subject = path_filter_subject.lower()
 
-            if case_sensitive is False:
-                path_filter_subject = path_filter_subject.lower()
-
-            # Check if satisfy the filter
-            if name_filter:
-                if name_filter not in path_filter_subject:
-                    log.d("-> name filter failed")
-                    continue
-            if regex_filter:
-                if not re.search(regex_filter, path_filter_subject):
-                    log.d("-> regex filter failed")
-                    continue
-
-            # Filename filters passed
-
-            finfo: FileInfo = create_file_info(full_path,
-                                               name=str(rel_path),
-                                               details=details)
-
-            # Type filters
-            ftype = finfo.get("ftype")
-            if ftype_filter and ftype_filter != ftype:
-                log.d("-> ftype filter failed")
+        # Check if satisfy the filter
+        if name_filter:
+            if name_filter not in path_filter_subject:
+                log.d("-> name filter failed")
+                continue
+        if regex_filter:
+            if not re.search(regex_filter, path_filter_subject):
+                log.d("-> regex filter failed")
                 continue
 
-            log.i("Find filters passed: %s", f)
-            if finfo:
-                ret.append(finfo)
+        # Filename filters passed
+
+        # Type filters
+        ftype = finfo.get("ftype")
+        if ftype_filter and ftype_filter != ftype:
+            log.d("-> ftype filter failed")
+            continue
+
+        log.i("find ok: %s", f_name)
+        ret.append(finfo)
+
 
     return ret
+
+def walk_preorder(path: Path):
+    root = path
+    log.d("walk_preorder over '%s'", root)
+
+    stack: List[Path] = [root]
+
+    while stack:
+        cursor = stack.pop(0)
+
+        yield cursor
+
+        if cursor.is_dir():
+            try:
+                children: List = isorted(list(cursor.iterdir()))
+                stack = children + stack
+            except OSError as oserr:
+                log.w("Can't descend: %s", str(oserr))
+
 
 def rm(path: Path, error_callback: Callable[[Exception, Path], None] = None) -> bool:
     """
@@ -371,6 +391,7 @@ def cp(src: Path, dest: Path):
         shutil.copytree(str(src), str(dest))
     else:
         shutil.copy2(str(src), str(dest), follow_symlinks=False)
+
 
 
 def run_attached(cmd: str, stderr_redirect: int = None):

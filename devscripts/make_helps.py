@@ -19,7 +19,7 @@ from easyshare.helps.esd import Esd
 from easyshare.helps.estools import EsTools
 from easyshare.helps import CommandHelp, CommandOptionInfo, CommandUsage
 from easyshare.utils.json import j
-from easyshare.utils.str import isorted
+from easyshare.utils.str import isorted, discardchars
 from easyshare.helps.commands import COMMANDS_INFO
 from easyshare.utils import eprint
 
@@ -86,7 +86,8 @@ def generate_command_usage_markdown(info: Type[CommandUsage]):
                 justification=options_alignment)
             )
 
-        options_strings = isorted(options_strings, not_in_subset="-")
+
+        options_strings = isorted(options_strings, key= lambda st: discardchars(st, "-"))
         info_options = "\n".join(options_strings)
 
     section_synopsis = make_section(
@@ -194,7 +195,7 @@ def generate_command_help_markdown(info: Type[CommandHelp], styled: bool = True)
             #        options_alignment, " + ",
             #     aliases_str_style_chars, params_str_style_chars)
 
-        options_strings = isorted(options_strings, not_in_subset="-")
+        options_strings = isorted(options_strings, key= lambda st: discardchars(st, "-"))
         info_options = "\n".join(options_strings)
 
     subsection_synopsis_extra = ("\n\n" + info_synopsis_extra) if info_synopsis_extra else ""

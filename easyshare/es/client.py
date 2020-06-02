@@ -2149,7 +2149,7 @@ class Client:
 
         if is_local:
             finding_letter = self._local_finding_letter
-            self._add_local_findings(self._local_path(path), find_result)
+            self._add_local_findings(find_result)
         else:
             finding_letter = ""
             # self._add_local_findings(LocalPath(path), find_result)
@@ -2187,17 +2187,22 @@ class Client:
             file_info_renderer=file_info_str_find
         )
 
-    def _add_local_findings(self, path: Path, find_result: List[FileInfo]):
-        log.i("Adding %d local findings for search on path = %s (letter %s)",
-              len(find_result), str(path), self._local_finding_letter)
+    def _add_local_findings(self, find_result: List[FileInfo]):
+        curpwd = Path.cwd()
 
-        self._local_findings[self._local_finding_letter] = (find_result, path)
+        log.i("Adding %d local findings for search from path = %s (letter %s)",
+              len(find_result), str(curpwd), self._local_finding_letter)
+
+        self._local_findings[self._local_finding_letter] = (find_result, curpwd)
         self._local_finding_letter = \
             chr((ord(self._local_finding_letter) - ord("a") + 1) % 26 + ord("a"))
 
 
     def _local_path(self, path: str, default: str = ""):
+        # TODO if the filename has the form of the finding we can't treat it...
+        #  found a way such as escape $ or use double $$
         log.i("Computing local path of '%s'", path)
+
 
         if path:
             # Eventually make substitutions of findings (e.g. $a2, %b12)
@@ -2214,7 +2219,8 @@ class Client:
 
                 findings, searchpath = self._local_findings.get(letter)
                 if findings and idx <= len(findings):
-                    log.d("Findings for letter %s found - search path was '%s'", letter, searchpath)
+                    log.d("Findings for letter %s found - search path was '%s'",
+                          letter, searchpath)
 
                     finfo: FileInfo = findings[idx]
                     path = searchpath / finfo.get("name")
