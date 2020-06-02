@@ -1307,7 +1307,7 @@ class Client:
                 # No path specified, will get the content wrapped into
                 # a folder with the rcwd name
                 trail = conn.current_rcwd()
-                if not trail:
+                if not trail or trail == "/":
                     # No rcwd? we will get the content wrapped into a folter
                     # with the sharing name
                     trail = conn.current_sharing_name()
