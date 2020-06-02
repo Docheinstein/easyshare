@@ -195,7 +195,7 @@ def server_info_pretty_str(info: ServerInfoFull, sharing_details: bool = False, 
 
     discover_port_str = ""
     if info.get("discoverable", False):
-        discover_port_str = "Discover Port:   {}\n".format(info.get("discover_port"))
+        discover_port_str = "Discover Port:    {}\n".format(info.get("discover_port"))
 
 
     s = f"""\
@@ -203,14 +203,15 @@ def server_info_pretty_str(info: ServerInfoFull, sharing_details: bool = False, 
 
 {bold("SERVER INFO")}
 
-Name:            {info.get("name")}
-Address:         {info.get("ip")}
-Port:            {info.get("port")}
-Discoverable:    {yn(info.get("discoverable", False))}
+Name:             {info.get("name")}
+Address:          {info.get("ip")}
+Port:             {info.get("port")}
+Discoverable:     {yn(info.get("discoverable", False))}
 {discover_port_str}\
-Auth:            {yn(info.get("auth"))}
-SSL:             {tf(info.get("ssl"), "enabled", "disabled")}
-Version:         {info.get("version")}
+Auth:             {yn(info.get("auth"))}
+SSL:              {tf(info.get("ssl"), "enabled", "disabled")}
+Remote execution: {tf(info.get("rexec"), "enabled", "disabled")}
+Version:          {info.get("version")}
 
 ================================"""
 

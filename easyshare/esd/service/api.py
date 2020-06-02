@@ -5,7 +5,7 @@ import threading
 import time
 import zlib
 from pathlib import Path
-from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO
+from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO, Set
 
 from ptyprocess import PtyProcess
 
@@ -76,6 +76,7 @@ class ApiService:
             "sharings": [sh.info() for sh in self._sharings.values()],
             "ssl": True if get_ssl_context() is not None else False,
             "auth": True if (self._auth and self._auth.algo_security() > 0) else False,
+            "rexec": self._rexec_enabled,
             "version": APP_VERSION
         }
 
@@ -848,32 +849,17 @@ class ClientHandler:
         log.i("<< RRM %s  |  %s", paths, self._client)
 
         errors = []
-        def handle_rm_error(exc: Exception, path: Path):
-            if isinstance(exc, PermissionError):
-                log.exception("rrm exception occurred")
-                errors.append(create_error_of_response(ServerErrors.RM_PERMISSION_DENIED,
-                                                       *self._qspathify(path)))
-            elif isinstance(exc, FileNotFoundError):
-                log.exception("rrm exception occurred")
-                errors.append(create_error_of_response(ServerErrors.RM_NOT_EXISTS,
-                                                       *self._qspathify(path)))
-            elif isinstance(exc, OSError):
-                log.exception("rrm exception occurred")
-                errors.append(create_error_of_response(ServerErrors.RM_OTHER_ERROR,
-                                                       os_error_str(exc),
-                                                       *self._qspathify(path)))
-            else:
-                log.exception("rrm exception occurred")
-                errors.append(create_error_of_response(ServerErrors.RM_OTHER_ERROR,
-                                                       exc,
-                                                       *self._qspathify(path)))
 
         for p in paths:
             fpath = self._fpath_joining_rcwd_and_spath(p)
 
             if self._is_fpath_allowed(fpath):
                 errcnt = len(errors)
-                rm(fpath, error_callback=handle_rm_error)
+                err = self._rm(fpath)
+
+                if err:
+                    errors.append(err)
+
                 new_errcnt = len(errors)
                 # OK - report it (even if failures might happen within it)
                 #    - at least notify the number of failures, if any
@@ -889,6 +875,34 @@ class ClientHandler:
             return create_error_response(errors)
 
         return create_success_response()
+
+    def _rm(self, path: Path) -> Optional[str]:
+
+        log.i("RM '%s'", path)
+
+        error = None
+
+        def handle_rm_error(exc: Exception, p: Path):
+            nonlocal error
+
+            if isinstance(exc, PermissionError):
+                error = create_error_of_response(ServerErrors.RM_PERMISSION_DENIED,
+                                                 *self._qspathify(p))
+            elif isinstance(exc, FileNotFoundError):
+                error = create_error_of_response(ServerErrors.RM_NOT_EXISTS,
+                                                 *self._qspathify(p))
+            elif isinstance(exc, OSError):
+                error = create_error_of_response(ServerErrors.RM_OTHER_ERROR,
+                                                 os_error_str(exc),
+                                                 *self._qspathify(p))
+            else:
+                error = create_error_of_response(ServerErrors.RM_OTHER_ERROR,
+                                                 exc,
+                                                 *self._qspathify(p))
+
+        rm(path, error_callback=handle_rm_error)
+
+        return error
 
 
     @require_sharing_connection
@@ -1449,6 +1463,7 @@ class ClientHandler:
     @require_write_permission
     def _put(self, params: RequestParams):
         check = params.get(RequestsParams.PUT_CHECK)
+        sync = params.get(RequestsParams.PUT_SYNC)
 
         # Hidden
 
@@ -1462,6 +1477,26 @@ class ClientHandler:
         errors = []
         outcome = TransferOutcomes.SUCCESS
 
+        sync_table: Optional[Set[FPath]] = None
+
+        def compute_sync_table(fpath: FPath):
+            nonlocal sync_table
+
+            if sync_table:
+                log.e("Sync table already initialized, only a directory/file can be pushed with --sync")
+                # TODO: raise exception known (instead of command exec failed)...
+                raise ValueError("Sync table already initialized, "
+                                 "only a directory/file can be pushed with --sync")
+
+            up_path = fpath if fpath.is_dir() else fpath.parent
+            log.d("SYNC Up path: '%s'", up_path)
+
+            findings = find(up_path)
+            sync_table = set(f.get("name") for f in findings)
+            log.d("SYNC computed old_files table\n%s",
+                  "\n".join(sync_table))
+
+
         def put_next():
 
             while True:
@@ -1471,7 +1506,6 @@ class ClientHandler:
 
                 # e.g. {file: {name: f1, size: 293}, overwrite: "..."} // client doesn't provide the path
                 req = self._recv_json()
-
 
                 # File info
                 finfo = req.get(RequestsParams.PUT_NEXT_FILE)
@@ -1510,6 +1544,26 @@ class ClientHandler:
                     continue
 
                 log.d("Sharing domain check OK")
+
+                # If sync is True track the files in the current directory
+                # so that we can remove old files (the one for which no file info
+                # is retrieved from the server) after the transfer completes.
+                if sync:
+                    # Only the first push determinates the directory the be pushed
+                    # (Therefore the client have to send the finfo of the root folder first)
+                    if not sync_table:
+                        compute_sync_table(fpath)
+
+                    # Remove from the SYNC table eventually
+                    # Do the removal for each possible path within local_path
+                    # (so that we won't delete parent folder if the change is
+                    # inside the children)
+                    incremental_path = Path.cwd()
+                    for part in fpath.parts:
+                        incremental_path = incremental_path / part
+                        incremental_path_str = str(incremental_path)
+                        log.d("Removing from SYNC table: '%s'", incremental_path_str)
+                        sync_table.discard(incremental_path_str)
 
                 # Check whether is a dir or a file
                 if ftype == FTYPE_DIR:
@@ -1687,12 +1741,48 @@ class ClientHandler:
 
         log.i("PUT finished")
 
+        sync_rm_oks = []
+        sync_rm_errs = []
+
+        if sync:
+            # Check if there are old files to removes
+            log.i("Detected %d removal to do due to sync", len(sync_table))
+
+            # We can avoid some rm if we are deleting a parent folder
+            # and sync_table contains the children.
+            # Since the entries are sorted (walk_preoreder) we can iterate and skip
+            # consecutive entries if they have the same prefix as the one before
+
+            cur_del_path_str = None
+            for path_str in sync_table:
+                if cur_del_path_str and path_str.startswith(cur_del_path_str):
+                    log.d("Should remove '%s' but skipping, already deleting parent", path_str)
+                    continue
+                # We actually have to delete this
+                log.i("Will remove '%s'", path_str)
+                #
+                # p = Path(path_str)
+                # err = self._rm(p)
+                # if not err:
+                #     # Removal OK
+                #     # TODO leading / maybe
+                #     sync_rm_oks.append(self._spath_rel_to_root_of_fpath(p))
+                # else:
+                #     sync_rm_errs.append(err)
+
+                cur_del_path_str = path_str
+
+
         resp_data = {
             ResponsesParams.PUT_OUTCOME: outcome
         }
 
         if errors:
-            resp_data[ResponsesParams.GET_ERRORS] = errors
+            resp_data[ResponsesParams.PUT_ERRORS] = errors
+
+        if sync:
+            resp_data[ResponsesParams.PUT_SYNC_OKS] = sync_rm_oks
+            resp_data[ResponsesParams.PUT_SYNC_ERRORS] = sync_rm_errs
 
         return create_success_response(resp_data)
 

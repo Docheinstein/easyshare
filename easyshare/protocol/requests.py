@@ -88,8 +88,7 @@ class RequestsParams:
     GET_NEXT_ACTIONS = [GET_NEXT_ACTION_SEEK, GET_NEXT_ACTION_TRANSFER, GET_NEXT_ACTION_SKIP]
 
     PUT_CHECK = "check"
-    PUT_NO_HIDDEN = "no_hidden"
-    PUT_CHUNK_SIZE = "chunk_size"
+    PUT_SYNC = "sync"
 
     PUT_NEXT_FILE = "file"
     PUT_NEXT_OVERWRITE = "overwrite"

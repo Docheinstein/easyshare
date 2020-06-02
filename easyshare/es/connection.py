@@ -387,9 +387,10 @@ class ConnectionMinimal:
 
     @handle_connection_response
     @require_sharing_connection
-    def put(self, check: bool) -> Response:
+    def put(self, check: bool, sync: bool) -> Response:
         return self.call(create_request(Requests.PUT, {
             RequestsParams.PUT_CHECK: check,
+            RequestsParams.PUT_SYNC: sync,
         }))
 
 

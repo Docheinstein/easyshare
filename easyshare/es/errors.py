@@ -55,6 +55,9 @@ class ClientErrors:
     TRANSFER_CONNECTION_CANT_BE_ESTABLISHED =     128
 
 
+    SYNC_ONLY_ONE_PARAMETER =       129
+
+
 class ErrorsStrings:
     """
     Error messages; tipically for each error code there is an error string,

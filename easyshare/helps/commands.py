@@ -2272,6 +2272,7 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
     NO_HIDDEN = ["-h", "--no-hidden"]
+    SYNC = ["-s", "--sync"]
 
 
     # Secret params
@@ -2286,6 +2287,7 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.CHECK, PRESENCE_PARAM),
             (self.QUIET, PRESENCE_PARAM),
             (self.NO_HIDDEN, PRESENCE_PARAM),
+            (self.SYNC, PRESENCE_PARAM),
 
             (self.MMAP, INT_PARAM),
             (self.CHUNK_SIZE, INT_PARAM),
@@ -2354,6 +2356,7 @@ with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
             CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
             CommandOptionInfo(cls.QUIET, "doesn't show progress"),
             CommandOptionInfo(cls.NO_HIDDEN, "doesn't copy hidden files"),
+            CommandOptionInfo(cls.SYNC, "synchronize (same as -N but remove old files)"),
         ]
 
     @classmethod

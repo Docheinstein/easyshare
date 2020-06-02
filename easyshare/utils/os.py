@@ -262,7 +262,6 @@ def find(path: Union[Path, PathLike],
 
     ret: List[FileInfo] = []
 
-
     for f in walk_preorder(path):
         p = Path(f)
         finfo = create_file_info(p, name=file_info_name_provider(p), details=details)
@@ -310,10 +309,12 @@ def walk_preorder(path: Path):
     while stack:
         cursor = stack.pop(0)
 
-        if cursor != root:
+        if cursor.is_file():
             yield cursor
+        else:
+            if cursor != root:
+                yield cursor
 
-        if cursor.is_dir():
             try:
                 children: List = isorted(list(cursor.iterdir()))
                 stack = children + stack

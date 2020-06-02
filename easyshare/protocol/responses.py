@@ -66,6 +66,9 @@ class ResponsesParams:
     GET_ERRORS = "errors"
 
     PUT_OUTCOME = "outcome"
+    PUT_ERRORS = "errors"
+    PUT_SYNC_OKS = "sync_oks"
+    PUT_SYNC_ERRORS = "sync_errors"
 
     PUT_NEXT_STATUS = "status"
     PUT_NEXT_STATUS_ACCEPTED = "accepted"

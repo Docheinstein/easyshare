@@ -1353,7 +1353,7 @@ class Client:
         if sync:
             # Ensure that only a path parameter is passed
             if len(files) > 1:
-                raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
+                raise CommandExecutionError(ClientErrors.SYNC_ONLY_ONE_PARAMETER)
 
             down_path = Path.cwd()
             trail = ""
@@ -1375,9 +1375,9 @@ class Client:
             log.d("SYNC Down path: '%s'", down_path)
 
             findings = find(down_path)
-            sync_table = {f.get("name"): f for f in findings}
+            sync_table = set(f.get("name") for f in findings)
             log.d("SYNC computed old_files table\n%s",
-                  "\n".join(sync_table.keys()))
+                  "\n".join(sync_table))
 
         while True:
             log.i("Fetching another file info")
@@ -1435,7 +1435,7 @@ class Client:
                     incremental_path = incremental_path / part
                     incremental_path_str = str(incremental_path)
                     log.d("Removing from SYNC table: '%s'", incremental_path_str)
-                    sync_table.pop(incremental_path_str, None)
+                    sync_table.discard(incremental_path_str)
 
             # Case: DIR
             if ftype == FTYPE_DIR:
@@ -1623,7 +1623,7 @@ class Client:
             # consecutive entries if they have the same prefix as the one before
 
             cur_del_path_str = None
-            for path_str, finfo in sync_table.items():
+            for path_str in sync_table:
                 if cur_del_path_str and path_str.startswith(cur_del_path_str):
                     log.d("Should remove '%s' but skipping, already deleting parent", path_str)
                     continue
@@ -1667,7 +1667,7 @@ class Client:
             if sync_rm_errs:
                 print("-----------------------")
                 print(f"SYNC errors:  {len(sync_rm_errs)}")
-                for idx, err in enumerate(errors):
+                for idx, err in enumerate(sync_rm_errs):
                     print(f"{idx + 1}. {err}")
 
 
@@ -1678,22 +1678,26 @@ class Client:
         sendfiles: List[Tuple[Path, Path]] = []
 
         if len(files) == 0:
-            files = ["."]
+            files = [Path(".")]
 
         do_check = Put.CHECK in args
         quiet = Put.QUIET in args
         no_hidden = Put.NO_HIDDEN in args
+        sync = Put.SYNC in args
 
         chunk_size = args.get_option_param(Put.CHUNK_SIZE, BEST_BUFFER_SIZE)
         use_mmap = args.get_option_param(Put.MMAP)
 
-        resp = conn.put(check=do_check)
+        if sys and len(files) > 1:
+            raise CommandExecutionError(ClientErrors.SYNC_ONLY_ONE_PARAMETER)
+
+        resp = conn.put(check=do_check, sync=sync)
         ensure_success_response(resp)
 
         # TODO: use a secondary socket?
         transfer_socket = conn._stream._socket
 
-        for f in files:
+        for p in files:
             # STANDARD CASE
             # e.g.  local:      ./to/something      [/tmp/to/something]
             #       remote:     something
@@ -1707,9 +1711,9 @@ class Client:
             # e.g.  local:      ./to/adir/*         [/tmp/to/adir]
             #                   (with content f1, f2)
             #       remote:     f1, f2
-            log.d("f = %s", f)
+            log.d("p = %s", p)
 
-            p = self._local_path(f)
+            # p = self._local_path(f)
 
             take_all_unwrapped = True if (p.parts and p.parts[len(p.parts) - 1]) == "*" else False
 
@@ -1751,6 +1755,9 @@ class Client:
             overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_NO
         elif Put.OVERWRITE_NEWER in args:
             overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_NEWER
+        elif Put.OVERWRITE_NEWER in args:
+            # Sync is the same as NEWER but deletes the old files after the transfer
+            overwrite_policy = OverwritePolicy.NEWER
 
         log.i("Overwrite policy: %s", overwrite_policy)
 
@@ -2030,6 +2037,8 @@ class Client:
         # Take outcome and (eventually) errors out of the resp
         outcome = outcome_resp_data.get("outcome")
         outcome_errors = outcome_resp_data.get("errors")
+
+
         if outcome_errors:
             log.w("Response has errors")
             errors += outcome_errors
@@ -2038,20 +2047,35 @@ class Client:
 
         if n_files > 0:
             print("")
-        print("PUT outcome:  {}".format(outcome_str(outcome)))
+        print(f"PUT outcome:  {outcome_str(outcome)}")
         print("-----------------------")
-        print("Files:        {} ({})".format(n_files, size_str(tot_bytes)))
-        print("Time:         {}".format(duration_str_human(round(elapsed_s))))
-        print("Avg. speed:   {}".format(speed_str(tot_bytes / elapsed_s)))
+        print(f"Files:        {n_files} ({size_str(tot_bytes)})")
+        print(f"Time:         {duration_str_human(round(elapsed_s))}")
+        print(f"Avg. speed:   {speed_str(tot_bytes / elapsed_s)}")
 
         # Any error? (e.g. permission denied)
         if errors:
             print("-----------------------")
-            print("Errors:       {}".format(len(errors)))
+            print(f"PUT Errors:   {len(errors)}")
             for idx, err in enumerate(errors):
-                err_str = formatted_error_from_error_of_response(err)
-                print(f"{idx + 1}. {err_str}")
+                    err_str = formatted_error_from_error_of_response(err)
+                    print(f"{idx + 1}. {err_str}")
 
+        # SYNC stats
+        if sync:
+            outcome_sync_rm_oks = outcome_resp_data.get("sync_oks")
+            outcome_sync_rm_errors = outcome_resp_data.get("sync_errors")
+
+            print("=======================")
+            print(f"SYNC removed: {len(outcome_sync_rm_oks)}")
+            for idx, removed in enumerate(outcome_sync_rm_oks):
+                print(f"{idx + 1}. {removed}")
+
+            if outcome_sync_rm_errors:
+                print("-----------------------")
+                print(f"SYNC errors:  {len(outcome_sync_rm_errors)}")
+                for idx, err in enumerate(outcome_sync_rm_errors):
+                    print(f"{idx + 1}. {err}")
 
     def _mvcp(self,
               args: Args,
@@ -2168,7 +2192,6 @@ class Client:
         path = args.get_positional()
         reverse = Ls.REVERSE in args
         show_hidden = Ls.SHOW_ALL in args
-        fetch_details = Ls.SHOW_SIZE in args or Ls.SHOW_DETAILS in args
 
         # Sorting
         sort_by = ["name"]
@@ -2177,6 +2200,9 @@ class Client:
             sort_by.append("size")
         if Ls.GROUP in args:
             sort_by.append("ftype")
+
+        fetch_details = Ls.SHOW_SIZE in args or Ls.SHOW_DETAILS in args or \
+                        "size" in sort_by or "ftype" in sort_by
 
         log.i(">> %s %s (sort by %s%s)",
               data_provider_name, path or "*", sort_by, " | reverse" if reverse else "")
