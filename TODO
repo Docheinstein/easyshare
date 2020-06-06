@@ -1,26 +1,13 @@
-- Best BUFFER_SIZE (static or dinamic) ?
 - Refactor (and unifying) of StyledString and ansistr
 - test on windows - create an exe
 - Add more unit tests
 - Handle addresses instead of numeric IPs
 - Info/debug messages re-partition
-- find, rfind
-- sync / get --sync (just a get -N followed by a delete)
-- add an option for transfer/not transfer hidden files (get and put)
-- info() should return the server version too
--   the client prints a warn if the version of the server mismatch the client one
-- rtree on large directories (maybe return the results as os.walk, one a time?)
-- bug: ls -la is not aligned as before
-- annotations with pyro?
-- use low socket for rsh? (or annotations)
-- custom serializer?
-- implement everything with lowe level socket instead of pyro?
-- expose rexec_enabled in info?
-- trace at socket level? t1 for text t2 for bin
-- tree consistent with rtree (show or not show directory name)
 - fuse service with daemons
 - ctr+c while transferring
 - tree error not exists
-- rw permission FileInfo
-- default fileInfo w/o perm and mtime
+- user/group FileInfo
 - don't throw commexecerror on xls() xtree() xfind()
+- put/get --simulate for preview of what will happen
+- specify open sd/... that performs open and rcd
+- merge master

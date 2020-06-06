@@ -19,7 +19,7 @@ from typing import Optional, Callable, List, Dict, Union, Tuple, cast, Any
 from easyshare.args import Args as Args, ArgsParseError, PosArgsSpec, \
     VarArgsSpec, ArgsSpec, StopParseArgsSpec
 from easyshare.common import DEFAULT_SERVER_PORT, SUCCESS_COLOR, PROGRESS_COLOR, BEST_BUFFER_SIZE, \
-    ERROR_COLOR
+    ERROR_COLOR, APP_VERSION
 from easyshare.consts import ansi
 from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.consts.os import STDIN
@@ -329,6 +329,7 @@ class Client:
         self._command_dispatcher[Commands.INFO_SHORT] = self._command_dispatcher[Commands.INFO]
         self._command_dispatcher[Commands.LOCAL_EXEC_SHORT] = self._command_dispatcher[Commands.LOCAL_EXEC]
         self._command_dispatcher[Commands.REMOTE_EXEC_SHORT] = self._command_dispatcher[Commands.REMOTE_EXEC]
+        self._command_dispatcher[Commands.REMOTE_SHELL_SHORT] = self._command_dispatcher[Commands.REMOTE_SHELL]
 
     def has_command(self, command: str) -> bool:
         return command in self._command_dispatcher or \
@@ -2613,10 +2614,16 @@ class Client:
               server_conn.server_ip(),
               server_conn.server_port())
 
+        # Version check
+        if APP_VERSION != server_conn.server_info.get("version"):
+            log.w("Server version (%s) doesn't match client one (%s): bad things might happen",
+                  server_conn.server_info.get("version"), APP_VERSION)
+
         # We have a valid TCP connection with the server
-        log.d("-> same as %s:%d",
-              server_conn.server_info.get("ip"),
-              server_conn.server_info.get("port"))
+        # log.d("-> same as %s:%d",
+        #       server_conn.server_info.get("ip"),
+        #       server_conn.server_info.get("port"))
+
 
         # Check whether we have to do connect()
         # (It might be unnecessary for public server api such as ping, info, list, ...)

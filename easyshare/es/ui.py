@@ -208,7 +208,7 @@ Address:          {info.get("ip")}
 Port:             {info.get("port")}
 Discoverable:     {yn(info.get("discoverable", False))}
 {discover_port_str}\
-Auth:             {yn(info.get("auth"))}
+Authentication:   {yn(info.get("auth"))}
 SSL:              {tf(info.get("ssl"), "enabled", "disabled")}
 Remote execution: {tf(info.get("rexec"), "enabled", "disabled")}
 Version:          {info.get("version")}

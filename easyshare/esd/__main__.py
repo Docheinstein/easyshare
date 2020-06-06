@@ -416,6 +416,7 @@ def main():
 
     set_tracing_level(tracing)
 
+    # TODO: doesn't work with -c for some reason
     if verbosity:
         log.set_verbosity(verbosity)
         enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
@@ -591,7 +592,7 @@ Address:            {get_api_daemon().address()}
 Server port:        {get_api_daemon().port()}
 Transfer port:      {get_transfer_daemon().port()}
 Discover port:      {get_discover_daemon().port() if get_discover_daemon() else "disabled"}
-Auth:               {auth_str}
+Authentication:     {auth_str}
 SSL:                {tf(get_ssl_context(), "enabled", "disabled")}
 Remote execution:   {tf(server_rexec, "enabled", "disabled")}
 Version:            {APP_VERSION}

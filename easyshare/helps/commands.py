@@ -2705,13 +2705,15 @@ Usage example:
 
 SERVER INFO
 
-Name:           alice-arch
-Address:        192.168.1.105
-Port:           12020
-Discoverable:   True
-Discover Port:  12019
-Auth:           False
-SSL:            True
+Name:             alice-arch
+Address:          192.168.1.105
+Port:             12020
+Discoverable:     True
+Discover Port:    12019
+Authentication:   False
+SSL:              True
+Remote execution: disabled
+Version:          0.4
 
 ================================
 
