@@ -3,7 +3,6 @@
 - Add more unit tests
 - Handle addresses instead of numeric IPs
 - Info/debug messages re-partition
-- fuse service with daemons
 - ctr+c while transferring
 - tree error not exists
 - user/group FileInfo
