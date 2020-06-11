@@ -11,3 +11,5 @@
 - put/get --simulate for preview of what will happen
 - specify open sd/... that performs open and rcd
 - merge master
+- errors refactor
+- * replacement as shell?

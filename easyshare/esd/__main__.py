@@ -7,14 +7,11 @@ from easyshare import logging
 from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, ArgType, Args, StrParams, VarArgsSpec
 from easyshare.auth import AuthFactory
 from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO, \
-    transfer_port, DEFAULT_SERVER_PORT, DEFAULT_DISCOVER_PORT
+    DEFAULT_SERVER_PORT, DEFAULT_DISCOVER_PORT
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.common import Sharing
-from easyshare.esd.daemons.api import init_api_daemon, get_api_daemon
-from easyshare.esd.daemons.discover import get_discover_daemon, init_discover_daemon
-from easyshare.esd.daemons.transfer import get_transfer_daemon, init_transfer_daemon
-from easyshare.esd.service.api import ApiService
-from easyshare.esd.service.discover import DiscoverService
+from easyshare.esd.daemons.api import ApiDaemon
+from easyshare.esd.daemons.discover import DiscoverDaemon
 from easyshare.helps.esd import Esd
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
@@ -26,7 +23,6 @@ from easyshare.utils import terminate, abort
 from easyshare.utils.env import are_colors_supported
 from easyshare.utils.json import j
 from easyshare.utils.net import is_valid_port, get_primary_ip
-from easyshare.utils.pyro import enable_pyro_logging
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfychars, tf
 
@@ -419,7 +415,6 @@ def main():
     # TODO: doesn't work with -c for some reason
     if verbosity:
         log.set_verbosity(verbosity)
-        enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
 
     # Parse sharing arguments
@@ -520,33 +515,10 @@ def main():
     server_port = server_port if server_port is not None else DEFAULT_SERVER_PORT
     server_discover_port = server_discover_port if server_discover_port is not None else DEFAULT_DISCOVER_PORT
 
-    # INIT daemons
-
-    # - discover daemon
-    discover_d = None
-    if is_valid_port(server_discover_port):
-        discover_d = init_discover_daemon(port=server_discover_port)
-
-    # - transfer daemon
-    transfer_d = init_transfer_daemon(
-        address=server_address, port=transfer_port(server_port))
-
-    # - api daemon
-    api_d = init_api_daemon(
-        address=server_address, port=server_port)
-
-
-    log.i("ApiDaemon started at %s:%d", api_d.address(), api_d.port())
-    log.i("TransferDaemon started at %s:%d", transfer_d.address(), transfer_d.port())
-
-    if discover_d:
-        log.i("DiscoverDaemon started at %s:%d", discover_d.address(), discover_d.port())
-
-    # START services
-
-    # - server
-
-    server_service = ApiService(
+    # INIT api daemon
+    api_d = ApiDaemon(
+        address=server_address,
+        port=server_port,
         sharings=list(sharings.values()),
         name=server_name,
         auth=AuthFactory.parse(server_password),
@@ -554,20 +526,25 @@ def main():
     )
 
     # build server info
-
-    server_info_full: ServerInfoFull = cast(ServerInfoFull, server_service.server_info())
-    api_d, discover_d = get_api_daemon(), get_discover_daemon()
+    server_info_full: ServerInfoFull = cast(ServerInfoFull, api_d.server_info())
 
     server_info_full["ip"] = api_d.address()
     server_info_full["port"] = api_d.port()
 
-    server_info_full["discoverable"] = True if discover_d else False
+    server_info_full["discoverable"] = True if is_valid_port(server_discover_port) else False
     if server_info_full["discoverable"]:
-        server_info_full["discover_port"] = discover_d.port()
+        server_info_full["discover_port"] = server_discover_port
 
-    # - discover
-    DiscoverService(server_info_full)
+    # INIT discover daemon
 
+    discover_d = None
+    if is_valid_port(server_discover_port):
+        discover_d = DiscoverDaemon(port=server_discover_port, trace=True, server_info=server_info_full)
+
+    log.i("ApiDaemon started at %s:%d", api_d.address(), api_d.port())
+
+    if discover_d:
+        log.i("DiscoverDaemon started at %s:%d", discover_d.address(), discover_d.port())
 
     if not sharings:
         sharings_str = "NONE"
@@ -588,10 +565,9 @@ def main():
 {bold("SERVER INFO")}
 
 Name:               {server_name}
-Address:            {get_api_daemon().address()}
-Server port:        {get_api_daemon().port()}
-Transfer port:      {get_transfer_daemon().port()}
-Discover port:      {get_discover_daemon().port() if get_discover_daemon() else "disabled"}
+Address:            {api_d.address()}
+Server port:        {api_d.port()}
+Discover port:      {discover_d.port() if discover_d else "disabled"}
 Authentication:     {auth_str}
 SSL:                {tf(get_ssl_context(), "enabled", "disabled")}
 Remote execution:   {tf(server_rexec, "enabled", "disabled")}
@@ -612,14 +588,11 @@ Version:            {APP_VERSION}
 
     # - discover
     th_discover = None
-    if get_discover_daemon():
-        th_discover = threading.Thread(target=get_discover_daemon().run, daemon=True)
+    if discover_d:
+        th_discover = threading.Thread(target=discover_d.run, daemon=True)
 
     # - api
-    th_api = threading.Thread(target=get_api_daemon().run, daemon=True)
-
-    # - transfer
-    th_transfer = threading.Thread(target=get_transfer_daemon().run, daemon=True)
+    th_api = threading.Thread(target=api_d.run, daemon=True)
 
     try:
         if th_discover:
@@ -632,15 +605,11 @@ Version:            {APP_VERSION}
         log.i("Starting API daemon")
         th_api.start()
 
-        log.i("Starting TRANSFER daemon")
-        th_transfer.start()
-
         log.i("Ready to handle requests")
 
         if th_discover:
             th_discover.join()
         th_api.join()
-        th_transfer.join()
 
     except KeyboardInterrupt:
         log.d("CTRL+C detected; quitting")

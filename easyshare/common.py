@@ -71,10 +71,6 @@ class TransferDirection(enum.Enum):
     OUT = "OUT"
 
 
-def transfer_port(api_port: int):
-    return api_port + 1
-
-
 # =====================
 # ==== PYRO NETWORK ====
 # =====================
