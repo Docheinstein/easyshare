@@ -40,11 +40,11 @@ from easyshare.protocol.responses import is_data_response, is_error_response, is
 from easyshare.protocol.services import Response
 from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, FTYPE_FILE, \
     ServerInfo, create_file_info, RexecEventType
-from easyshare.styling import bold
+from easyshare.styling import bold, green, red
 from easyshare.timer import Timer
 from easyshare.tracing import trace_bin_payload
 from easyshare.utils.json import j
-from easyshare.utils.measures import duration_str_human, speed_str, size_str
+from easyshare.utils.measures import duration_str_human, speed_str, size_str, size_str_justify
 from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, user, is_unix, pty_attached, os_error_str, \
     find, du
 from easyshare.utils.path import LocalPath, is_hidden
@@ -1247,6 +1247,8 @@ class Client:
         quiet = Get.QUIET in args
         no_hidden = Get.NO_HIDDEN in args
         sync = Get.SYNC in args
+        preview = Get.PREVIEW in args
+        preview_total_size = 0
 
         chunk_size = args.get_option_param(Get.CHUNK_SIZE)
         use_mmap = args.get_option_param(Get.MMAP)
@@ -1338,9 +1340,11 @@ class Client:
             # 2. Skip the file
 
             # If OverwritePolicy.YES transfer immediately since we won't
-            # ask to the user whether overwrite or not
+            # ask to the user whether overwrite or not.
+            # The only exception is if preview is True, in that case we won't
+            # perform the transfer so do a regular seek
 
-            if overwrite_policy == OverwritePolicy.YES:
+            if overwrite_policy == OverwritePolicy.YES and not preview:
                 action = RequestsParams.GET_NEXT_ACTION_TRANSFER
             else:
                 action = RequestsParams.GET_NEXT_ACTION_SEEK
@@ -1390,6 +1394,9 @@ class Client:
             if ftype == FTYPE_DIR:
                 log.i("Creating dirs %s", fname)
                 local_path.mkdir(parents=True, exist_ok=True)
+
+                if preview:
+                    print(green(f"+ [{size_str_justify(0)}] {local_path}"))
                 continue  # No FTYPE_FILE => neither skip nor transfer for next()
 
             if ftype != FTYPE_FILE:
@@ -1398,16 +1405,18 @@ class Client:
 
             # Case: FILE
             local_path_parent = local_path.parent
+
             if local_path_parent:
                 log.i("Creating parent dirs %s", local_path_parent)
                 local_path_parent.mkdir(parents=True, exist_ok=True)
 
             # Check whether it already exists
-            if local_path.is_file():
+            if local_path.is_file() and action == RequestsParams.GET_NEXT_ACTION_SEEK:
                 log.w("File already exists, asking whether overwrite it (if needed)")
 
-                # Overwrite handling
                 local_stat = local_path.stat()
+
+                # Overwrite handling
 
                 timer.stop() # Don't take the user time into account
                 current_overwrite_decision, overwrite_policy = self._ask_overwrite(
@@ -1419,57 +1428,68 @@ class Client:
 
                 log.d("Overwrite decision: %s", str(current_overwrite_decision))
 
-                if action == RequestsParams.GET_NEXT_ACTION_SEEK:
-                    will_accept = False
+                will_accept = False
 
-                    if current_overwrite_decision == OverwritePolicy.YES:
-                        will_accept = True
-                    elif current_overwrite_decision in OverwritePolicy.NEWERS or \
-                        current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
+                if current_overwrite_decision == OverwritePolicy.YES:
+                    will_accept = True
+                elif current_overwrite_decision in OverwritePolicy.NEWERS or \
+                    current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
 
-                        if current_overwrite_decision in OverwritePolicy.NEWERS:
-                            log.d("Checking whether skip based on mtime")
-                            will_accept = will_accept or local_stat.st_mtime_ns < fmtime
+                    if current_overwrite_decision in OverwritePolicy.NEWERS:
+                        log.d("Checking whether skip based on mtime")
+                        will_accept = will_accept or local_stat.st_mtime_ns < fmtime
 
-                        if current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
-                            log.d("Checking whether skip based on size")
-                            will_accept = will_accept or local_stat.st_size != fsize
+                    if current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
+                        log.d("Checking whether skip based on size")
+                        will_accept = will_accept or local_stat.st_size != fsize
 
-                    if not will_accept:
-                        log.d("Would have seek, have to tell server to skip %s", fname)
-                        get_next_resp = conn.call({
-                            RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_SKIP
-                        })
-                        ensure_success_response(get_next_resp)
-                        continue
-                    else:
-                        log.d("Not skipping")
+
+                if not will_accept:
+                    log.d("Would have seek, have to tell server to skip %s", fname)
+                    ensure_success_response(conn.call({
+                        RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_SKIP
+                    }))
+                    continue
 
 
             # Eventually tell the server to begin the transfer
             # We have to call it now because the server can't know
             # in advance if we want or not overwrite the file
+
             if action == RequestsParams.GET_NEXT_ACTION_SEEK:
-                log.d("Would have seek, have to tell server to transfer %s", fname)
-                get_next_resp = conn.call({
-                    RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_TRANSFER
-                })
 
-                # The server may say the transfer can't be done actually (e.g. EPERM)
-                if is_success_response(get_next_resp):
-                    log.d("Transfer can actually began")
-                elif is_error_response(get_next_resp):
-                    log.w("Transfer cannot be initialized due to remote error")
-
-                    errors += get_next_resp.get("errors")
-
-                    # All the errors will be reported at the end
+                if preview:
+                    # Don't transfer
+                    print(green(f"+ [{size_str_justify(fsize)}] {local_path}"))
+                    preview_total_size += fsize
+                    ensure_success_response(conn.call({
+                        RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_SKIP
+                    }))
                     continue
                 else:
-                    raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+                    # Regular case, we did a seek and now tell the server to transfer
+                    log.d("Would have seek, have to tell server to transfer %s", fname)
+
+                    get_next_resp = conn.call({
+                        RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_TRANSFER
+                    })
+
+                    # The server may say the transfer can't be done actually (e.g. EPERM)
+                    if is_success_response(get_next_resp):
+                        log.d("Transfer can actually began")
+                    elif is_error_response(get_next_resp):
+                        log.w("Transfer cannot be initialized due to remote error")
+
+                        errors += get_next_resp.get("errors")
+
+                        # All the errors will be reported at the end
+                        continue
+                    else:
+                        raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
             # else: file already put into the transfer socket
 
+            # At this point the server is sending us the file
             if not quiet:
                 progressor = FileProgressor(
                     fsize,
@@ -1585,16 +1605,24 @@ class Client:
                 # We actually have to delete this
                 log.i("Will remove '%s'", path_str)
 
-                err = self._rm(Path(path_str))
-                if not err:
-                    # Removal OK
-                    sync_rm_ok.append(path_str)
+                if preview:
+                    print(red(f"- {path_str}"))
                 else:
-                    sync_rm_errs.append(err)
+                    # regular case
+                    err = self._rm(Path(path_str))
+                    if not err:
+                        # Removal OK
+                        sync_rm_ok.append(path_str)
+                    else:
+                        sync_rm_errs.append(err)
 
-                cur_del_path_str = path_str
+                    cur_del_path_str = path_str
 
         log.i("GET outcome: %d", outcome)
+
+        if preview:
+            print(f"Download size: {size_str_justify(preview_total_size)}")
+            return # Nothing else to do
 
         if n_files > 0:
             print("")

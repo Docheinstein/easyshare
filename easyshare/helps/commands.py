@@ -2207,6 +2207,7 @@ class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
     OVERWRITE_NO = ["-n", "--overwrite-no"]
     OVERWRITE_NEWER = ["-N", "--overwrite-newer"]
     OVERWRITE_DIFF_SIZE = ["-S", "--overwrite-diff-size"]
+    PREVIEW = ["-p", "--preview"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
     NO_HIDDEN = ["-h", "--no-hidden"]
@@ -2222,6 +2223,7 @@ class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.OVERWRITE_NO, PRESENCE_PARAM),
             (self.OVERWRITE_NEWER, PRESENCE_PARAM),
             (self.OVERWRITE_DIFF_SIZE, PRESENCE_PARAM),
+            (self.PREVIEW, PRESENCE_PARAM),
             (self.CHECK, PRESENCE_PARAM),
             (self.QUIET, PRESENCE_PARAM),
             (self.NO_HIDDEN, PRESENCE_PARAM),
@@ -2304,6 +2306,7 @@ and <b>-S</b> (overwrite if size is different)."""
             CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
             CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
             CommandOptionInfo(cls.OVERWRITE_DIFF_SIZE, "overwrite files only if size is different"),
+            CommandOptionInfo(cls.PREVIEW, "do not transfer, just show a preview of what will happen"),
             CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
             CommandOptionInfo(cls.QUIET, "doesn't show progress"),
             CommandOptionInfo(cls.NO_HIDDEN, "doesn't copy hidden files"),
@@ -2419,6 +2422,7 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
     OVERWRITE_NO = ["-n", "--overwrite-no"]
     OVERWRITE_NEWER = ["-N", "--overwrite-newer"]
     OVERWRITE_DIFF_SIZE = ["-S", "--overwrite-diff-size"]
+    PREVIEW = ["-p", "--preview"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
     NO_HIDDEN = ["-h", "--no-hidden"]
@@ -2435,6 +2439,7 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.OVERWRITE_NO, PRESENCE_PARAM),
             (self.OVERWRITE_NEWER, PRESENCE_PARAM),
             (self.OVERWRITE_DIFF_SIZE, PRESENCE_PARAM),
+            (self.PREVIEW, PRESENCE_PARAM),
             (self.CHECK, PRESENCE_PARAM),
             (self.QUIET, PRESENCE_PARAM),
             (self.NO_HIDDEN, PRESENCE_PARAM),
@@ -2505,6 +2510,7 @@ and <b>-S</b> (overwrite if size is different)."""
             CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
             CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
             CommandOptionInfo(cls.OVERWRITE_DIFF_SIZE, "overwrite files only if size is different"),
+            CommandOptionInfo(cls.PREVIEW, "do not transfer, just show a preview of what will happen"),
             CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
             CommandOptionInfo(cls.QUIET, "doesn't show progress"),
             CommandOptionInfo(cls.NO_HIDDEN, "doesn't copy hidden files"),

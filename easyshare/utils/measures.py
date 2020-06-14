@@ -34,6 +34,8 @@ def size_str(size: float,
         i -= 1
     return "0{}".format(prefixes[0])
 
+def size_str_justify(size: float):
+    return size_str(size, prefixes=(" ", "K", "M", "G")).rjust(6)
 
 if __name__ == "__main__":
     print(duration_str(1313))

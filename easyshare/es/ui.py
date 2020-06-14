@@ -9,7 +9,7 @@ from easyshare.styling import fg, bold
 from easyshare.tree import TreeNodeDict, TreeRenderPreOrder
 from easyshare.utils.env import terminal_size, is_unicode_supported
 from easyshare.utils.json import j
-from easyshare.utils.measures import size_str
+from easyshare.utils.measures import size_str, size_str_justify
 from easyshare.utils.os import perm_str
 from easyshare.utils.path import is_hidden
 from easyshare.utils.ssl import SSLCertificate
@@ -119,8 +119,7 @@ def file_info_str(info: FileInfo,
         file_str += info.get("group").ljust(owner_group_justify) + "  "
 
     if show_size:
-        file_str += size_str(info.get("size"),
-                             prefixes=("", "K", "M", "G")).rjust(6) + "  "
+        file_str += size_str_justify(info.get("size")) + "  "
 
     file_str_styled = file_str + fname_styled
     file_str = file_str + fname
@@ -191,7 +190,7 @@ def print_files_info_tree(root: TreeNodeDict,
 
         print("{}{}{}".format(
             prefix,
-            "[{}]  ".format(size_str(size, prefixes=(" ", "K", "M", "G")).rjust(4)) if show_size else "",
+            "[{}]  ".format(size_str_justify(size)) if show_size else "",
             fg(name, color=DIR_COLOR if ftype == FTYPE_DIR else FILE_COLOR),
         ))
 
