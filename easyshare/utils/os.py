@@ -16,10 +16,9 @@ from typing import Optional, List, Union, Tuple, Any, Callable
 
 from ptyprocess import PtyProcess, PtyProcessUnicode
 
-from easyshare.logging import get_logger, init_logging
+from easyshare.logging import get_logger
 from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info, FileType
 from easyshare.utils.env import terminal_size
-from easyshare.utils.measures import size_str
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import isorted
 from easyshare.utils.types import list_wrap
@@ -105,7 +104,9 @@ def ls(path: Path,
     # Single file
     if path.is_file():
         # Show it even if it is hidden
-        finfo = create_file_info(path, details=details) # might fail (e.g. broken link)
+        finfo = create_file_info(path,
+                                 fetch_size=details, fetch_time=details,
+                                 fetch_perm=details, fetch_owner=details)
         if not finfo:
             return []
         return [finfo]
@@ -121,8 +122,9 @@ def ls(path: Path,
         if not hidden and is_hidden(p):
             log.d("Not showing hidden file: %s", p)
             continue
-
-        finfo = create_file_info(p, details=details) # might fail (e.g. broken link)
+        finfo = create_file_info(p,
+                                 fetch_size=details, fetch_time=details,
+                                 fetch_perm=details, fetch_owner=details)
         if finfo:
             ret.append(finfo)
 
@@ -156,7 +158,9 @@ def tree(path: Path,
 
     log.i("TREE on {}, sorting by {}{}".format(path, sort_by, " (reverse)" if reverse else ""))
 
-    root: Any = create_file_info(path, details=details) # might fail (e.g. broken link)
+    root: Any = create_file_info(path,
+                                 fetch_size=details, fetch_time=details,
+                                 fetch_perm=details, fetch_owner=details)
 
     if not root:
         return None
@@ -283,7 +287,8 @@ def find(path: Union[Path, PathLike],
         finfo = create_file_info(p,
                                  fstat=fstat,
                                  name=file_info_name_provider(p),
-                                 details=details)
+                                 fetch_size=details, fetch_time=details,
+                                 fetch_perm=details, fetch_owner=details)
         if not finfo:
             continue
 
@@ -546,11 +551,3 @@ def pty_detached(out_hook: Callable[[str], None],
     proc_handler_th.start()
 
     return ptyproc
-
-
-
-if __name__ == "__main__":
-    init_logging(5)
-    while True:
-        path = input("> ")
-        print(size_str(du(Path(path))))

@@ -2203,9 +2203,10 @@ Usage example:
 
 
 class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
-    OVERWRITE_YES = ["-y", "--yes"]
-    OVERWRITE_NO = ["-n", "--no"]
-    OVERWRITE_NEWER = ["-N", "--newer"]
+    OVERWRITE_YES = ["-y", "--overwrite-yes"]
+    OVERWRITE_NO = ["-n", "--overwrite-no"]
+    OVERWRITE_NEWER = ["-N", "--overwrite-newer"]
+    OVERWRITE_DIFF_SIZE = ["-S", "--overwrite-diff-size"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
     NO_HIDDEN = ["-h", "--no-hidden"]
@@ -2220,6 +2221,7 @@ class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.OVERWRITE_YES, PRESENCE_PARAM),
             (self.OVERWRITE_NO, PRESENCE_PARAM),
             (self.OVERWRITE_NEWER, PRESENCE_PARAM),
+            (self.OVERWRITE_DIFF_SIZE, PRESENCE_PARAM),
             (self.CHECK, PRESENCE_PARAM),
             (self.QUIET, PRESENCE_PARAM),
             (self.NO_HIDDEN, PRESENCE_PARAM),
@@ -2292,7 +2294,8 @@ Directories are automatically downloaded recursively.
 
 If a remote file has the same name of a local file, you will be asked \
 whether overwrite it or not. The default overwrite behaviour can be specified \
-with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
+with the options <b>-y</b> (yes), <b>-n</b> (no), <b>-N</b> (overwrite if newer) 
+and <b>-S</b> (overwrite if size is different)."""
 
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
@@ -2300,6 +2303,7 @@ with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
             CommandOptionInfo(cls.OVERWRITE_YES, "always overwrite files"),
             CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
             CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
+            CommandOptionInfo(cls.OVERWRITE_DIFF_SIZE, "overwrite files only if size is different"),
             CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
             CommandOptionInfo(cls.QUIET, "doesn't show progress"),
             CommandOptionInfo(cls.NO_HIDDEN, "doesn't copy hidden files"),
@@ -2411,9 +2415,10 @@ Avg. speed   1MB/s
 
 
 class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
-    OVERWRITE_YES = ["-y", "--yes"]
-    OVERWRITE_NO = ["-n", "--no"]
-    OVERWRITE_NEWER = ["-N", "--newer"]
+    OVERWRITE_YES = ["-y", "--overwrite-yes"]
+    OVERWRITE_NO = ["-n", "--overwrite-no"]
+    OVERWRITE_NEWER = ["-N", "--overwrite-newer"]
+    OVERWRITE_DIFF_SIZE = ["-S", "--overwrite-diff-size"]
     CHECK = ["-c", "--check"]
     QUIET = ["-q", "--quiet"]
     NO_HIDDEN = ["-h", "--no-hidden"]
@@ -2429,6 +2434,7 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.OVERWRITE_YES, PRESENCE_PARAM),
             (self.OVERWRITE_NO, PRESENCE_PARAM),
             (self.OVERWRITE_NEWER, PRESENCE_PARAM),
+            (self.OVERWRITE_DIFF_SIZE, PRESENCE_PARAM),
             (self.CHECK, PRESENCE_PARAM),
             (self.QUIET, PRESENCE_PARAM),
             (self.NO_HIDDEN, PRESENCE_PARAM),
@@ -2490,14 +2496,15 @@ Directories are automatically uploaded recursively.
 
 If a remote file has the same name of a local file, you will be asked \
 whether overwrite it or not. The default overwrite behaviour can be specified \
-with the options <b>-y</b> (yes), <b>-n</b> (no), <b>N</b> (newer)."""
-
+with the options <b>-y</b> (yes), <b>-n</b> (no), <b>-N</b> (overwrite if newer) 
+and <b>-S</b> (overwrite if size is different)."""
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
         return [
             CommandOptionInfo(cls.OVERWRITE_YES, "always overwrite files"),
             CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
             CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
+            CommandOptionInfo(cls.OVERWRITE_DIFF_SIZE, "overwrite files only if size is different"),
             CommandOptionInfo(cls.CHECK, "performs a check of files consistency"),
             CommandOptionInfo(cls.QUIET, "doesn't show progress"),
             CommandOptionInfo(cls.NO_HIDDEN, "doesn't copy hidden files"),

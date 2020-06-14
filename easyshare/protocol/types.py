@@ -70,8 +70,13 @@ _users_cache = {}
 _groups_cache = {}
 
 def create_file_info(path: Path, *,
-                     fstat: stat_result = None, details: bool = True,
-                     name: str = None, raise_exceptions: bool = False) -> Optional[FileInfo]:
+                     fstat: stat_result = None,
+                     name: str = None,
+                     fetch_size: bool = True,
+                     fetch_time: bool = True,
+                     fetch_perm: bool = False,
+                     fetch_owner: bool = False,
+                     raise_exceptions: bool = False) -> Optional[FileInfo]:
     """
     Helper that creates a 'FileInfo' for the given path;
     'stat' can be given for avoid a stat() call.
@@ -84,13 +89,19 @@ def create_file_info(path: Path, *,
             "ftype": ftype(path, fstat),
         }
 
-        if details:
+        if fetch_size:
+            finfo["size"] = fstat.st_size
+        if fetch_time:
+            finfo["mtime"] = fstat.st_mtime_ns
+        if fetch_perm:
+            finfo["perm"] = oct(fstat.st_mode & 0o777)[-3:]
+
+        if fetch_owner:
             user_name = _users_cache.get(fstat.st_uid)
             if not user_name:
                 user_name = getpwuid(fstat.st_uid).pw_name
                 _users_cache[fstat.st_uid] = user_name
                 log.i(f"UID {fstat.st_gid} = '{user_name}'")
-
 
             group_name = _groups_cache.get(fstat.st_gid)
             if not group_name:
@@ -98,11 +109,9 @@ def create_file_info(path: Path, *,
                 _groups_cache[fstat.st_gid] = group_name
                 log.i(f"GID {fstat.st_gid} = '{group_name}'")
 
-            finfo["size"] = fstat.st_size
-            finfo["mtime"] = fstat.st_mtime_ns
-            finfo["perm"] = oct(fstat.st_mode & 0o777)[-3:]
             finfo["user"] = user_name
             finfo["group"] = group_name
+
 
         return finfo
 

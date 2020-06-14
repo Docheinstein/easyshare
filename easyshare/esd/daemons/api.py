@@ -10,6 +10,7 @@ from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO, Set
 
 from ptyprocess import PtyProcess
 
+
 from easyshare.auth import Auth
 from easyshare.common import TransferDirection, TransferProtocol, BEST_BUFFER_SIZE, APP_VERSION
 from easyshare.endpoint import Endpoint
@@ -1376,7 +1377,7 @@ class ClientHandler:
 
                     # Directory found
                     try:
-                        dir_files: List[FPath] = list(next_fpath.iterdir())
+                        dir_files: List[FPath] = sorted(list(next_fpath.iterdir()), reverse=True)
                     except FileNotFoundError:
                         errors.append(create_error_of_response(ServerErrors.NOT_EXISTS,
                                                                q(next_spath_str)))
@@ -1474,7 +1475,7 @@ class ClientHandler:
                     log.i("Finished to handle: %s", next_transf_fpath)
                     break
 
-                log.i("Read chunk of %dB", len(chunk))
+                log.d("Read chunk of %dB", len(chunk))
                 cur_pos += len(chunk)
 
                 if check:
@@ -1650,22 +1651,35 @@ class ClientHandler:
                         log.d("Overwrite policy is PROMPT, asking the client whether overwrite")
                         self._send_response(create_success_response({
                             ResponsesParams.PUT_NEXT_STATUS:
-                                ResponsesParams.PUT_NEXT_STATUS_ALREADY_EXISTS
+                                ResponsesParams.PUT_NEXT_STATUS_ALREADY_EXISTS,
+                            ResponsesParams.PUT_NEXT_STATUS_FILE_INFO:
+                                create_file_info(fpath, name=str(self._spath_rel_to_root_of_fpath(fpath)))
+
                         }))
                         continue
 
-                    if overwrite == RequestsParams.PUT_NEXT_OVERWRITE_NEWER:
-                        log.d("Overwrite policy is NEWER, checking mtime")
+                    if overwrite in RequestsParams.PUT_NEXT_OVERWRITES_NEWER or \
+                        overwrite in RequestsParams.PUT_NEXT_OVERWRITES_DIFF_SIZE:
                         stat = fpath.stat()
-                        if stat.st_mtime_ns >= fmtime:
-                            # Our version is newer, won't accept the file
+
+                        will_accept = False
+
+                        if overwrite in RequestsParams.PUT_NEXT_OVERWRITES_NEWER:
+                            log.d("Overwrite policy is NEWER, checking mtime")
+                            will_accept = will_accept or stat.st_mtime_ns < fmtime
+
+                        if overwrite in RequestsParams.PUT_NEXT_OVERWRITES_DIFF_SIZE:
+                            log.d("Overwrite policy is SIZE, checking size")
+                            will_accept = will_accept or stat.st_size != fsize
+
+                        if will_accept:
+                            log.d("Will accept file")
+                        else:
                             self._send_response(create_success_response({
                                 ResponsesParams.PUT_NEXT_STATUS:
                                     ResponsesParams.PUT_NEXT_STATUS_REFUSED
                             }))
                             continue
-                        else:
-                            log.d("Our version is older, will accept file")
 
                     elif overwrite == RequestsParams.PUT_NEXT_OVERWRITE_YES:
                         log.d("Overwrite policy is YES, overwriting it unconditionally")

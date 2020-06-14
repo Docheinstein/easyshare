@@ -71,6 +71,7 @@ class ResponsesParams:
     PUT_SYNC_ERRORS = "sync_errors"
 
     PUT_NEXT_STATUS = "status"
+    PUT_NEXT_STATUS_FILE_INFO = "file"
     PUT_NEXT_STATUS_ACCEPTED = "accepted"
     PUT_NEXT_STATUS_REFUSED = "refused" # e.g. already exists and overwrite == "newer"
     PUT_NEXT_STATUS_ALREADY_EXISTS = "already_exists"

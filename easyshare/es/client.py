@@ -16,8 +16,7 @@ from pathlib import Path
 from pwd import struct_passwd
 from typing import Optional, Callable, List, Dict, Union, Tuple, cast, Any
 
-from easyshare.args import Args as Args, ArgsParseError, PosArgsSpec, \
-    VarArgsSpec, ArgsSpec, StopParseArgsSpec
+from easyshare.args import Args as Args, ArgsParseError, ArgsSpec
 from easyshare.common import DEFAULT_SERVER_PORT, SUCCESS_COLOR, PROGRESS_COLOR, BEST_BUFFER_SIZE, \
     ERROR_COLOR, APP_VERSION
 from easyshare.consts import ansi
@@ -29,7 +28,8 @@ from easyshare.es.connection import Connection, ConnectionMinimal
 from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
-    sharings_pretty_str, server_info_pretty_str, server_info_short_str, file_info_str, StyledString
+    sharings_pretty_str, server_info_pretty_str, server_info_short_str, file_info_str, StyledString, \
+    file_info_full_str
 from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
     ListSharings, Ping, Find, Rfind, Du, Rdu, Rls, Cd, L, Mkdir, Pwd, Rm, Mv, Cp, Exec, Shell, Rcd, Rl, Rtree, Rmkdir, \
     Rpwd, Rrm, Rmv, Rcp, Rexec, Rshell, Connect, Disconnect, Open, Close
@@ -222,6 +222,11 @@ class OverwritePolicy:
     YES = RequestsParams.PUT_NEXT_OVERWRITE_YES
     NO = RequestsParams.PUT_NEXT_OVERWRITE_NO
     NEWER = RequestsParams.PUT_NEXT_OVERWRITE_NEWER
+    DIFF_SIZE = RequestsParams.PUT_NEXT_OVERWRITE_DIFF_SIZE
+    NEWER_DIFF_SIZE = RequestsParams.PUT_NEXT_OVERWRITE_NEWER_DIFF_SIZE
+
+    NEWERS = [NEWER, NEWER_DIFF_SIZE]
+    DIFF_SIZES = [DIFF_SIZE, NEWER_DIFF_SIZE]
 
 
 # ==================================================================
@@ -1021,7 +1026,7 @@ class Client:
                     timer.elapsed_ms())
                 )
             else:
-                print("[{}] FAIL")
+                print(f"[{i}] FAIL")
 
             i += 1
             time.sleep(1)
@@ -1402,29 +1407,35 @@ class Client:
                 log.w("File already exists, asking whether overwrite it (if needed)")
 
                 # Overwrite handling
+                local_stat = local_path.stat()
 
                 timer.stop() # Don't take the user time into account
-                current_overwrite_decision, overwrite_policy = \
-                    self._ask_overwrite(fname, current_policy=overwrite_policy)
+                current_overwrite_decision, overwrite_policy = self._ask_overwrite(
+                    local_info=create_file_info(local_path, fstat=local_stat),
+                    remote_info=finfo,
+                    current_policy=overwrite_policy
+                )
                 timer.start()
 
                 log.d("Overwrite decision: %s", str(current_overwrite_decision))
 
                 if action == RequestsParams.GET_NEXT_ACTION_SEEK:
-                    do_skip = False
+                    will_accept = False
 
-                    if current_overwrite_decision == OverwritePolicy.NO:
-                        # Skip
-                        do_skip = True
-                    elif current_overwrite_decision == OverwritePolicy.NEWER:
-                        # Check whether skip or not based on the last modified time
-                        log.d("Checking whether skip based on mtime")
-                        stat = local_path.stat()
-                        do_skip = stat.st_mtime_ns >= fmtime
-                        log.d("Local mtime: %d | Remote mtime: %d => skip: %s",
-                              stat.st_mtime_ns, fmtime, do_skip)
+                    if current_overwrite_decision == OverwritePolicy.YES:
+                        will_accept = True
+                    elif current_overwrite_decision in OverwritePolicy.NEWERS or \
+                        current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
 
-                    if do_skip:
+                        if current_overwrite_decision in OverwritePolicy.NEWERS:
+                            log.d("Checking whether skip based on mtime")
+                            will_accept = will_accept or local_stat.st_mtime_ns < fmtime
+
+                        if current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
+                            log.d("Checking whether skip based on size")
+                            will_accept = will_accept or local_stat.st_size != fsize
+
+                    if not will_accept:
                         log.d("Would have seek, have to tell server to skip %s", fname)
                         get_next_resp = conn.call({
                             RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_SKIP
@@ -1686,10 +1697,11 @@ class Client:
 
         # Overwrite preference
 
-        if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
-            Get.OVERWRITE_NEWER in args, Get.SYNC in args].count(True) > 1:
-            log.e("Only one between -n, -y and -N can be specified")
-            raise CommandExecutionError("Only one between -n, -y and -N can be specified")
+        if [Put.OVERWRITE_YES in args, Put.OVERWRITE_NO in args,
+            True if Put.OVERWRITE_NEWER in args or Put.OVERWRITE_DIFF_SIZE in args else False,
+            Put.SYNC in args].count(True) > 1:
+            log.e("Only one between -n, -y, -s and (-N and/or -S) can be specified")
+            raise CommandExecutionError("Only one between -n, -y, -s and (-N and/or -S) can be specified")
 
         overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_PROMPT
 
@@ -1697,8 +1709,12 @@ class Client:
             overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_YES
         elif Put.OVERWRITE_NO in args:
             overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_NO
+        elif Put.OVERWRITE_NEWER in args and Put.OVERWRITE_DIFF_SIZE in args:
+            overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_NEWER_DIFF_SIZE
         elif Put.OVERWRITE_NEWER in args:
             overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_NEWER
+        elif Put.OVERWRITE_DIFF_SIZE in args:
+            overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_DIFF_SIZE
         elif Put.SYNC in args:
             # Sync is the same as NEWER but deletes the old files after the transfer
             overwrite_policy = OverwritePolicy.NEWER
@@ -1799,9 +1815,14 @@ class Client:
             if status == ResponsesParams.PUT_NEXT_STATUS_ALREADY_EXISTS:
                 # Ask the user what to do
 
+                remote_finfo = put_next_resp.get("data").get(ResponsesParams.PUT_NEXT_STATUS_FILE_INFO)
+
                 timer.stop() # Don't take the user time into account
-                current_overwrite_decision, overwrite_policy =\
-                    self._ask_overwrite(str(remote_path), current_policy=overwrite_policy)
+                current_overwrite_decision, overwrite_policy = self._ask_overwrite(
+                    local_info=finfo,
+                    remote_info=remote_finfo,
+                    current_policy=overwrite_policy
+                )
                 timer.start()
 
                 if current_overwrite_decision == OverwritePolicy.NO:
@@ -1872,7 +1893,7 @@ class Client:
                 chunk = source.read(readlen)
                 chunk_len = len(chunk)
 
-                log.i("Read chunk of %dB", chunk_len)
+                log.d("Read chunk of %dB", chunk_len)
 
                 # CRC check update
                 if do_check:
@@ -1927,7 +1948,7 @@ class Client:
                 log.d("-> is a DIR")
 
                 try:
-                    dir_files: List[Path] = list(next_file_local.iterdir())
+                    dir_files: List[Path] = sorted(list(next_file_local.iterdir()), reverse=True)
                 except FileNotFoundError:
                     errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
                                                              q(next_file_local)))
@@ -2856,8 +2877,21 @@ class Client:
 
         return True
 
+    _OVERWRITE_POLICY_MAP = { # current, default
+        None: (OverwritePolicy.YES, None),
+        "y": (OverwritePolicy.YES, None),
+        "n": (OverwritePolicy.NO, None),
+        "yy": (OverwritePolicy.YES, OverwritePolicy.YES),
+        "nn": (OverwritePolicy.NO, OverwritePolicy.NO),
+        "NN": (OverwritePolicy.NEWER, OverwritePolicy.NEWER),
+        "SS": (OverwritePolicy.DIFF_SIZE, OverwritePolicy.DIFF_SIZE),
+        "NNSS": (OverwritePolicy.NEWER_DIFF_SIZE, OverwritePolicy.NEWER_DIFF_SIZE),
+    }
+
     @classmethod
-    def _ask_overwrite(cls, fname: str, current_policy: str) -> Tuple[str, str]:  # cur_decision, new_default
+    def _ask_overwrite(cls,
+                       local_info: FileInfo, remote_info: FileInfo,
+                       current_policy: str) -> Tuple[str, str]:  # cur_decision, new_default
         """
         If the 'current_policy' is PROMPT asks the user whether override
         a file with name 'fname'.
@@ -2873,34 +2907,32 @@ class Client:
 
         # Ask until we get a valid answer
         while cur_decision == OverwritePolicy.PROMPT:
+            overwrite_answer = input(f"""\
+File already exists, overwrite it?
+------------ LOCAL ---------------
+{file_info_full_str(local_info)}
+------------ REMOTE --------------
+{file_info_full_str(remote_info)}
+----------------------------------
+y     : yes (default)
+n     : no
+yy    : yes - to all
+nn    : no - to all
+NN    : only if newer - to all
+SS    : only if size is different - to all
+NNSS  : only if newer OR size is different - to all
+: """
+)
+            if not overwrite_answer:
+                overwrite_answer = None
 
-            overwrite_answer = input(
-                "{} already exists, overwrite it?\n"
-                "y  : yes (default)\n"
-                "n  : no\n"
-                "N  : only if newer\n"
-                "yy : yes - to all\n"
-                "nn : no - to all\n"
-                "NN : only if newer - to all\n".format(fname)
-            )
+            decision = cls._OVERWRITE_POLICY_MAP.get(overwrite_answer)
 
-            if not overwrite_answer or overwrite_answer == "y":
-                cur_decision = OverwritePolicy.YES
-            elif overwrite_answer == "n":
-                cur_decision = OverwritePolicy.NO
-            elif overwrite_answer == "N":
-                cur_decision = OverwritePolicy.NEWER
-            elif overwrite_answer == "yy":
-                cur_decision = OverwritePolicy.YES
-                new_default = OverwritePolicy.YES
-            elif overwrite_answer == "nn":
-                cur_decision = OverwritePolicy.NO
-                new_default = OverwritePolicy.NO
-            elif overwrite_answer == "NN":
-                cur_decision = OverwritePolicy.NEWER
-                new_default = OverwritePolicy.NEWER
-            else:
+            if not decision:
                 log.w("Invalid answer, asking again")
+                continue
+
+            cur_decision, new_default = decision[0], decision[1] or new_default
 
         return cur_decision, new_default
 

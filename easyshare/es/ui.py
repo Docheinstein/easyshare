@@ -76,6 +76,14 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None):
         print(print_row)
 
 
+def file_info_full_str(info: FileInfo):
+    s = f"""\
+File:           {info.get("name")}    
+Type:           {info.get("ftype")}
+Size:           {info.get("size")}
+Last modified:  {info.get("mtime")}"""
+    return s
+
 def file_info_str(info: FileInfo,
                   show_file_type: bool = False,  # -l
                   show_size: bool = False,  # -S
