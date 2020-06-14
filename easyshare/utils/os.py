@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import threading
 import tty
+from grp import getgrgid, struct_group
 from os import PathLike
 from pathlib import Path
 from stat import S_ISREG
@@ -45,12 +46,25 @@ def is_windows():
 if is_unix():
     from pwd import getpwuid, struct_passwd
 
-    def get_passwd() -> struct_passwd:
-        """ Get the /etc/passwd entry for the current effective user id """
-        return getpwuid(os.geteuid())
+    def user(uid = os.geteuid()) -> struct_passwd:
+        """
+        Get the user entry for the given user id
+        (or the current one if not specified)
+        """
+        return getpwuid(uid)
+
+    def group(gid = os.getgid()) -> struct_group:
+        """
+        Get the group entry for the given group id
+        (or the current one if not specified)
+        """
+        return getgrgid(gid)
 else:
-    def get_passwd():
-        pass
+    def user(uid):
+        raise ValueError("Not implemented")
+
+    def group(gid):
+        raise ValueError("Not implemented")
 
 
 def os_error_str(err: OSError):

@@ -45,7 +45,7 @@ from easyshare.timer import Timer
 from easyshare.tracing import trace_bin_payload
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str
-from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, get_passwd, is_unix, pty_attached, os_error_str, \
+from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, user, is_unix, pty_attached, os_error_str, \
     find, du
 from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress import ProgressBarRendererFactory
@@ -659,7 +659,7 @@ class Client:
         if shell_args:
             shell_cmd = " ".join(shell_args)
         else:
-            passwd: struct_passwd = get_passwd()
+            passwd: struct_passwd = user()
             log.i(f"{passwd.pw_uid} {passwd.pw_name} - shell: {passwd.pw_shell}")
             shell_cmd = passwd.pw_shell
 
@@ -2168,6 +2168,7 @@ class Client:
             show_hidden=show_hidden,
             show_size=Ls.SHOW_SIZE in args or Ls.SHOW_DETAILS in args,
             show_perm=Ls.SHOW_DETAILS in args,
+            show_owner=Ls.SHOW_DETAILS in args,
             compact=Ls.SHOW_DETAILS not in args
         )
 
@@ -2251,6 +2252,9 @@ class Client:
                 show_size: bool = False,
                 show_hidden: bool = False,
                 show_perm: bool = False,
+                show_owner: bool = False,
+                owner_user_justify: int = 0,  # -l
+                owner_group_justify: int = 0,  # -l
                 index: int = None) -> Optional[StyledString]:
 
             finfo_str = file_info_str(
@@ -2258,7 +2262,10 @@ class Client:
                 show_file_type=show_file_type,
                 show_size=show_size,
                 show_hidden=show_hidden,
-                show_perm=show_perm
+                show_perm=show_perm,
+                show_owner=show_owner,
+                owner_user_justify=owner_user_justify,
+                owner_group_justify=owner_group_justify
             )
 
             if finfo_str:
@@ -2274,6 +2281,7 @@ class Client:
             show_hidden=True,
             compact=False,
             show_perm=details,
+            show_owner=details,
             show_file_type=details,
             show_size=details,
             file_info_renderer=file_info_str_find

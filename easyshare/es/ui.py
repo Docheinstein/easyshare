@@ -80,7 +80,10 @@ def file_info_str(info: FileInfo,
                   show_file_type: bool = False,  # -l
                   show_size: bool = False,  # -S
                   show_hidden: bool = False,  # -a
-                  show_perm: bool = False,
+                  show_perm: bool = False, # -l
+                  show_owner: bool = False, # -l
+                  owner_user_justify: int = 0,  # -l
+                  owner_group_justify: int = 0,  # -l
                   **kwargs) -> Optional[StyledString]:
     fname = info.get("name")
 
@@ -101,11 +104,15 @@ def file_info_str(info: FileInfo,
         file_str += ftype_short + " "
 
     if show_perm:
-        file_str += perm_str(info.get("perm")) + " "
+        file_str += perm_str(info.get("perm")) + "  "
+
+    if show_owner:
+        file_str += info.get("user").ljust(owner_user_justify) + "  "
+        file_str += info.get("group").ljust(owner_group_justify) + "  "
 
     if show_size:
         file_str += size_str(info.get("size"),
-                             prefixes=("", "K", "M", "G")).rjust(4) + "  "
+                             prefixes=("", "K", "M", "G")).rjust(6) + "  "
 
     file_str_styled = file_str + fname_styled
     file_str = file_str + fname
@@ -119,11 +126,22 @@ def print_files_info_list(infos: List[FileInfo],
                           show_file_type: bool = False, # -l
                           show_size: bool = False,      # -S
                           show_perm: bool = False,      # -l
+                          show_owner: bool = False,     # -l
                           compact: bool = True,         # not -l
                           file_info_renderer: Callable[..., StyledString] = file_info_str):
     """ Prints a list of 'FileInfo' (ls -l like). """
     if not infos:
         return
+
+    # Detect the longest user/group length for render properly
+    longest_user = 0
+    longest_group = 0
+    if show_owner:
+        for i in infos:
+            if len(i.get("user")) > longest_user:
+                longest_user = len(i.get("user"))
+            if len(i.get("group")) > longest_group:
+                longest_group = len(i.get("group"))
 
     sstrings: List[StyledString] = [ss for ss in (
         file_info_renderer(
@@ -132,6 +150,9 @@ def print_files_info_list(infos: List[FileInfo],
             show_file_type=show_file_type,
             show_size=show_size,
             show_perm=show_perm,
+            show_owner=show_owner,
+            owner_user_justify=longest_user,
+            owner_group_justify=longest_group,
             index=idx
         ) for idx, info in enumerate(infos)) if ss is not None]
 

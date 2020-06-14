@@ -26,7 +26,7 @@ from easyshare.streams import StreamClosedError
 from easyshare.styling import green, red
 from easyshare.tracing import get_tracing_level, TRACING_TEXT, trace_text
 from easyshare.utils.json import btoj, jtob, j
-from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, get_passwd, pty_detached, \
+from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, user, pty_detached, \
     find, du
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import q
@@ -450,7 +450,7 @@ class ClientHandler:
     def _rshell(self, params: RequestParams):
         cmd = params.get(RequestsParams.RSHELL_CMD)
         if not cmd:
-            cmd = get_passwd().pw_shell
+            cmd = user().pw_shell
 
         log.i("<< RSHELL %s  |  %s", cmd, self._client)
 

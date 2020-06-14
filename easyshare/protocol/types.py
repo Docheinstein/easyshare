@@ -1,6 +1,7 @@
-import stat
+from grp import getgrgid
 from os import stat_result
 from pathlib import Path
+from pwd import getpwuid
 from stat import S_ISDIR, S_ISREG
 
 from easyshare.logging import get_logger
@@ -54,6 +55,8 @@ try:
         size: int           # size in bytes
         mtime: int          # last modification time
         perm: str           # permissions
+        user: str           # user owner
+        group: str          # group owner
 
     class FileInfoTreeNode(FileInfo, TreeNodeDict, total=False):
         pass
@@ -62,6 +65,9 @@ except:
     FileInfo = Dict[str, Union[str, FileType, int]]
     FileInfoNode = Dict[str, Union[str, FileType, int, List['FileInfoNode']]]
 
+
+_users_cache = {}
+_groups_cache = {}
 
 def create_file_info(path: Path, *,
                      fstat: stat_result = None, details: bool = True,
@@ -79,14 +85,29 @@ def create_file_info(path: Path, *,
         }
 
         if details:
+            user_name = _users_cache.get(fstat.st_uid)
+            if not user_name:
+                user_name = getpwuid(fstat.st_uid).pw_name
+                _users_cache[fstat.st_uid] = user_name
+                log.i(f"UID {fstat.st_gid} = '{user_name}'")
+
+
+            group_name = _groups_cache.get(fstat.st_gid)
+            if not group_name:
+                group_name = getgrgid(fstat.st_gid).gr_name
+                _groups_cache[fstat.st_gid] = group_name
+                log.i(f"GID {fstat.st_gid} = '{group_name}'")
+
             finfo["size"] = fstat.st_size
             finfo["mtime"] = fstat.st_mtime_ns
             finfo["perm"] = oct(fstat.st_mode & 0o777)[-3:]
+            finfo["user"] = user_name
+            finfo["group"] = group_name
 
         return finfo
 
     except Exception as ex:
-        log.w("Can't create file info - exception occurred")
+        log.w("Can't create file info - exception occurred: ", str(ex))
         if raise_exceptions:
             raise ex
         return None
