@@ -16,4 +16,9 @@ def test_sharing_location():
     assert SharingLocation.parse("shared@john-arch").server_name == "john-arch"
     assert not SharingLocation.parse("shared@john-arch").server_ip
 
+    assert SharingLocation.parse("shared@192.168.1.105/Music").path == "Music"
+    assert SharingLocation.parse("shared@192.168.1.105:9999/Music").path == "Music"
+    assert SharingLocation.parse("shared/Music").path == "Music"
+    assert SharingLocation.parse("shared//Music").path == "/Music"
+
 

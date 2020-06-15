@@ -92,21 +92,25 @@ class SharingLocation:
     """
     # SYNTAX
     #
-    # |----name-----|-----server location--------|
-    # <sharing_name>[@<server_name>|<ip>[:<port>]]
-    # |-------------sharing location-------------|
+    # |----name-----|-----server location--------|---path--|
+    # <sharing_name>[@<server_name>|<ip>[:<port>]][/<path>]
+    # |------------------sharing location------------------|
     #
     # e.g.  shared
     #       shared@john-desktop
     #       shared@john-desktop:54794
     #       shared@192.168.1.105
     #       shared@192.168.1.105:47294
+    #       shared/Music
+    #       shared@192.168.1.105:47294/Music
 
     def __init__(self,
                  sharing_name: str,
-                 server_location: ServerLocation = None):
+                 server_location: ServerLocation = None,
+                 path: str = None):
         self.name: str = sharing_name
         self.server: ServerLocation = server_location
+        self.path = path
 
     def __str__(self):
         s = self.name
@@ -132,8 +136,9 @@ class SharingLocation:
             log.d("SharingLocation.parse() -> None")
             return None
 
-        sharing_name, _, server_locationifier = location.partition("@")
-        server_location = ServerLocation.parse(server_locationifier)
+        l1, _, sharing_path = location.partition("/")
+        sharing_name, _, server_locator = l1.partition("@")
+        server_location = ServerLocation.parse(server_locator)
 
         if not sharing_name:
             log.w("Invalid sharing location for '%s'", location)
@@ -141,7 +146,8 @@ class SharingLocation:
 
         sharing_location = SharingLocation(
             sharing_name=sharing_name,
-            server_location=server_location
+            server_location=server_location,
+            path=sharing_path
         )
 
         log.d("SharingLocation.parse() -> %s", str(sharing_location))

@@ -770,7 +770,7 @@ class Client:
                     # it with server_info_satisfy_sharing_location)
                     self.create_sharing_connection_from_server_connection(
                         self.connection,
-                        sharing_name=sharing_location.name
+                        sharing_location=sharing_location
                     )
 
         # Have we found the sharing yet or do we have to perform a scan?
@@ -2522,7 +2522,7 @@ class Client:
 
         self.create_sharing_connection_from_server_connection(
             connection=conn,
-            sharing_name=sharing_location.name,
+            sharing_location=sharing_location,
         )
 
         if not conn.is_connected_to_sharing():
@@ -2766,7 +2766,7 @@ class Client:
 
     @classmethod
     def create_sharing_connection_from_server_connection(
-            cls, connection: Connection, sharing_name: str):
+            cls, connection: Connection, sharing_location: SharingLocation):
         """
         Given an already valid server connection, tries to establish a sharing
         connection to the sharing with the given name (=> does open())
@@ -2777,25 +2777,14 @@ class Client:
 
         # Create the sharing connection: open()
 
-        open_resp = connection.open(sharing_name)
+        open_resp = connection.open(sharing_location.name)
         ensure_success_response(open_resp)
-        #
-        # sharing_uid = open_resp.get("data")
-        #
-        # # Take out the sharing info from the server info
-        # for shinfo in conn.server_info.get("sharings"):
-        #     if shinfo.get("name") == sharing_name:
-        #         log.d("Found the sharing info among server_info sharings")
-        #
-        #         sharing_conn = SharingConnection(
-        #             sharing_uid,
-        #             sharing_info=shinfo,
-        #             server_info=server_conn.server_info
-        #         )
-        #
-        #         return sharing_conn
-        #
-        # raise CommandExecutionError(ClientErrors.SHARING_NOT_FOUND)
+
+        # Eventually rcd into the path specified
+        # (the part after the last / of the sharing location)
+        if sharing_location.path:
+            log.d("Sharing location contains a path, rcd-ing into it")
+            connection.rcd(sharing_location.path)
 
 
     @classmethod
