@@ -1515,10 +1515,11 @@ class ClientHandler:
     def _put(self, params: RequestParams):
         check = params.get(RequestsParams.PUT_CHECK)
         sync = params.get(RequestsParams.PUT_SYNC)
+        preview = params.get(RequestsParams.PUT_PREVIEW)
 
         # Hidden
 
-        log.i("<< PUT  |  %s", self._client)
+        log.i("<< PUT %s |  %s", "(preview)" if preview else "", self._client)
 
         self._send_response(create_success_response())
 
@@ -1550,7 +1551,6 @@ class ClientHandler:
 
 
         def put_next():
-
             while True:
                 log.d("Waiting for next() request from client...")
 
@@ -1601,7 +1601,7 @@ class ClientHandler:
                 # so that we can remove old files (the one for which no file info
                 # is retrieved from the server) after the transfer completes.
                 if sync:
-                    # Only the first push determinates the directory the be pushed
+                    # Only the first push determines the directory the be pushed
                     # (Therefore the client have to send the finfo of the root folder first)
                     if sync_table is None:  # check is None because if the dir is new
                                             # sync table could be already initialized but empty
@@ -1687,32 +1687,36 @@ class ClientHandler:
                 # Before accept it for real, try to open the file.
                 # At least we are able to detect any error (e.g. perm denied)
                 # before say the the that the transfer is began.
-                log.d("Trying to open file before initializing transfer")
 
-                try:
-                    fd = fpath.open("wb")
-                    log.d("Able to open file: %s", fpath)
-                except FileNotFoundError:
-                    self._send_response(self._create_error_response(
-                        ServerErrors.NOT_EXISTS, q(fname))
-                    )
-                    continue
-                except PermissionError:
-                    self._send_response(self._create_error_response(
-                        ServerErrors.PERMISSION_DENIED, q(fname))
-                    )
-                    continue
-                except OSError as oserr:
-                    self._send_response(self._create_error_response(
-                        ServerErrors.ERR_2, os_error_str(oserr), q(fname))
-                    )
-                    continue
-                except Exception as exc:
-                    self._send_response(self._create_error_response(
-                        ServerErrors.ERR_2, exc, q(fname))
-                    )
-                    continue
+                fd = None
 
+                if not preview:
+                    # If it's just a preview don't try to open the file for real
+                    log.d("Trying to open file before initializing transfer")
+
+                    try:
+                        fd = fpath.open("wb")
+                        log.d("Able to open file: %s", fpath)
+                    except FileNotFoundError:
+                        self._send_response(self._create_error_response(
+                            ServerErrors.NOT_EXISTS, q(fname))
+                        )
+                        continue
+                    except PermissionError:
+                        self._send_response(self._create_error_response(
+                            ServerErrors.PERMISSION_DENIED, q(fname))
+                        )
+                        continue
+                    except OSError as oserr:
+                        self._send_response(self._create_error_response(
+                            ServerErrors.ERR_2, os_error_str(oserr), q(fname))
+                        )
+                        continue
+                    except Exception as exc:
+                        self._send_response(self._create_error_response(
+                            ServerErrors.ERR_2, exc, q(fname))
+                        )
+                        continue
 
                 self._send_response(create_success_response({
                     ResponsesParams.PUT_NEXT_STATUS:
@@ -1733,6 +1737,12 @@ class ClientHandler:
                 break
 
             incoming_fpath, incoming_size, local_fd = next_incoming
+
+            if preview:
+                log.i("Just a preview, not transferring file for real")
+                # Don't transfer, just a preview
+                continue
+
             log.i("Next incoming file to handle: %s", incoming_fpath)
 
             # OK - report it
@@ -1810,7 +1820,7 @@ class ClientHandler:
         sync_rm_oks = []
         sync_rm_errs = []
 
-        if sync:
+        if sync and sync_table:
             # Check if there are old files to removes
             log.i("Detected %d removal to do due to sync", len(sync_table))
 
@@ -1828,7 +1838,11 @@ class ClientHandler:
                 log.i("Will remove '%s'", path_str)
 
                 p = Path(path_str)
-                err = self._rm(p)
+
+                err = None
+                if not preview: # don't remove for real if it's a preview
+                    err = self._rm(p)
+
                 if not err:
                     # Removal OK
                     # TODO leading / maybe

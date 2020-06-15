@@ -282,6 +282,9 @@ def find(path: Union[Path, PathLike],
 
     ret: List[FileInfo] = []
 
+    if not path.exists():
+        return ret
+
     for f, fstat in walk_preorder(path):
         p = Path(f)
         finfo = create_file_info(p,

@@ -1476,7 +1476,7 @@ class Client:
 
                     # The server may say the transfer can't be done actually (e.g. EPERM)
                     if is_success_response(get_next_resp):
-                        log.d("Transfer can actually began")
+                        log.d("Transfer can actually begin")
                     elif is_error_response(get_next_resp):
                         log.w("Transfer cannot be initialized due to remote error")
 
@@ -1621,7 +1621,7 @@ class Client:
         log.i("GET outcome: %d", outcome)
 
         if preview:
-            print(f"Download size: {size_str_justify(preview_total_size)}")
+            print(f"Download size: {size_str(preview_total_size)}")
             return # Nothing else to do
 
         if n_files > 0:
@@ -1667,6 +1667,8 @@ class Client:
         quiet = Put.QUIET in args
         no_hidden = Put.NO_HIDDEN in args
         sync = Put.SYNC in args
+        preview = Put.PREVIEW in args
+        preview_total_size = 0
 
         chunk_size = args.get_option_param(Put.CHUNK_SIZE, BEST_BUFFER_SIZE)
         use_mmap = args.get_option_param(Put.MMAP)
@@ -1674,7 +1676,7 @@ class Client:
         if sys and len(files) > 1:
             raise CommandExecutionError(ClientErrors.SYNC_ONLY_ONE_PARAMETER)
 
-        resp = conn.put(check=do_check, sync=sync)
+        resp = conn.put(check=do_check, sync=sync, preview=preview)
         ensure_success_response(resp)
 
         # TODO: use a secondary socket?
@@ -1726,7 +1728,7 @@ class Client:
         # Overwrite preference
 
         if [Put.OVERWRITE_YES in args, Put.OVERWRITE_NO in args,
-            True if Put.OVERWRITE_NEWER in args or Put.OVERWRITE_DIFF_SIZE in args else False,
+            True if (Put.OVERWRITE_NEWER in args or Put.OVERWRITE_DIFF_SIZE in args) else False,
             Put.SYNC in args].count(True) > 1:
             log.e("Only one between -n, -y, -s and (-N and/or -S) can be specified")
             raise CommandExecutionError("Only one between -n, -y, -s and (-N and/or -S) can be specified")
@@ -1764,6 +1766,7 @@ class Client:
             nonlocal tot_bytes
             nonlocal n_files
             nonlocal errors
+            nonlocal preview_total_size
 
             progressor = None
 
@@ -1828,6 +1831,8 @@ class Client:
             # Case: DIR => no transfer
             if ftype == FTYPE_DIR:
                 log.d("Sent a DIR, nothing else to do")
+                if preview:
+                    print(green(f"+ [{size_str_justify(0)}] {remote_path}"))
                 return
 
             # Possible responses:
@@ -1865,7 +1870,7 @@ class Client:
                 })
 
                 if is_success_response(put_next_resp):
-                    log.d("Transfer can actually began")
+                    log.d("Transfer can actually begin")
                 elif is_error_response(put_next_resp):
                     log.w("Transfer cannot be initialized due to remote error")
                     errors += put_next_resp.get("errors")
@@ -1891,6 +1896,12 @@ class Client:
                 raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
             # File has been accepted by the remote, we can begin the transfer
+
+            if preview:
+                # Just a preview, nothing to transfer
+                print(green(f"+ [{size_str_justify(fsize)}] {remote_path}"))
+                preview_total_size += fsize
+                return
 
             if not quiet:
                 progressor = FileProgressor(
@@ -2041,6 +2052,14 @@ class Client:
             errors += outcome_errors
 
         log.i("PUT outcome: %d", outcome)
+
+        if preview:
+            if sync:
+                sync_oks = outcome_resp_data.get("sync_oks")
+                for sync_ok in sync_oks:
+                    print(red(f"- {sync_ok}"))
+            print(f"Upload size: {size_str(preview_total_size)}")
+            return # Nothing else to do
 
         if n_files > 0:
             print("")

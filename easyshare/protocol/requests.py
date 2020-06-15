@@ -92,6 +92,7 @@ class RequestsParams:
 
     PUT_CHECK = "check"
     PUT_SYNC = "sync"
+    PUT_PREVIEW = "preview"
 
     PUT_NEXT_FILE = "file"
     PUT_NEXT_OVERWRITE = "overwrite"
