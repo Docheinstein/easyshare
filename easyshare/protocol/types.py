@@ -99,13 +99,23 @@ def create_file_info(path: Path, *,
         if fetch_owner:
             user_name = _users_cache.get(fstat.st_uid)
             if not user_name:
-                user_name = getpwuid(fstat.st_uid).pw_name
+                try:
+                    user_name = getpwuid(fstat.st_uid).pw_name
+                except:
+                    # Don't fail globally if user name can't be retrieved (permission problems?)
+                    # User the UID as fallback
+                    user_name = str(fstat.st_uid)
                 _users_cache[fstat.st_uid] = user_name
                 log.i(f"UID {fstat.st_gid} = '{user_name}'")
 
             group_name = _groups_cache.get(fstat.st_gid)
             if not group_name:
-                group_name = getgrgid(fstat.st_gid).gr_name
+                try:
+                    group_name = getgrgid(fstat.st_gid).gr_name
+                except:
+                    # Don't fail globally if group id can't be retrieved (permission problems?)
+                    # User the UID as fallback
+                    group_name = str(fstat.st_gid)
                 _groups_cache[fstat.st_gid] = group_name
                 log.i(f"GID {fstat.st_gid} = '{group_name}'")
 
