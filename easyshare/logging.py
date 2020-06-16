@@ -95,7 +95,7 @@ class LoggerFormatter(logging.Formatter):
                "%(message)s"
 
 
-_log_handler = logging.StreamHandler(sys.stdout)
+_log_handler = logging.StreamHandler(sys.stderr)
 _log_handler.setFormatter(LoggerFormatter())
 
 def init_logging(default_verbosity: int = None):

@@ -1,5 +1,6 @@
 import os
 import pydoc
+import re
 import readline as rl
 import shlex
 import traceback
@@ -20,6 +21,9 @@ from easyshare.utils import eprint
 from easyshare.utils.env import is_unicode_supported
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
+from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
+    rl_get_completion_quote_character, rl_set_completion_suppress_quote, \
+    rl_get_completer_quote_characters
 from easyshare.utils.types import is_bool
 
 log = get_logger(__name__)
@@ -43,14 +47,15 @@ _TRACING_EXPLANATION_MAP = {
     tracing.TRACING_BIN_ALL: Trace.T3[1],
 }
 
-
 class Shell:
     """
     The interactive shell of client that is able to parse and execute commands.
     Uses GNU readline for provide command completion and files suggestions.
     """
-
+    # Quoting/Escaping GNU readline tutorial
+    # https://thoughtbot.com/blog/tab-completion-in-gnu-readline
     def __init__(self, client: Client):
+
         self._client: Client = client
 
         self._prompt: str = ""
@@ -75,22 +80,7 @@ class Shell:
 
         self._help_map = None
 
-        # GNU readline config
-
-        rl.parse_and_bind("tab: complete")
-        rl.parse_and_bind("set completion-query-items 50")
-
-        # Remove '-' from the delimiters for handle suggestions
-        # starting with '-' properly
-        # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
-        rl.set_completer_delims(rl.get_completer_delims().replace("-", ""))
-
-        # Use a custom render function; this has been necessary for print
-        # colors while using readline for the suggestions engine
-        rl.set_completion_display_matches_hook(self._display_suggestions_wrapper)
-
-        rl.set_completer(self._next_suggestion_wrapper)
-
+        self._init_readline()
 
     def input_loop(self):
         """
@@ -214,6 +204,36 @@ class Shell:
             log.d("\nCTRL+C")
 
 
+    def _init_readline(self):
+        # GNU readline config
+        rl_load()
+
+        # TAB: autocomplete
+        rl.parse_and_bind("tab: complete")
+
+        # Show 'show all possibilities' if there are too many items
+        rl.parse_and_bind("set completion-query-items 50")
+
+        # Remove '-' from the delimiters for handle suggestions
+        # starting with '-' properly and '/' for handle paths
+        # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
+        # rl.set_completer_delims(multireplace(rl.get_completer_delims(),
+        #                                      [("-", ""), ("/", "")]))
+
+        # Use only a space as word breaker
+        rl.set_completer_delims(" ")
+
+        # Use a custom render function; this has been necessary for print
+        # colors while using readline for the suggestions engine
+        rl.set_completion_display_matches_hook(self._display_suggestions_wrapper)
+
+        # Completion function
+        rl.set_completer(self._next_suggestion_wrapper)
+
+        # Set quote characters for quoting strings with spaces
+        # rl_set_completer_quote_characters(b'"\'')
+        rl_set_completer_quote_characters('"')
+
     def _display_suggestions_wrapper(self, substitution, matches, longest_match_length):
         """ Called by GNU readline when suggestions have to be rendered """
         try:
@@ -229,6 +249,7 @@ class Shell:
         #    core for treat it as a simple string
         # 2. Internally handles the max_columns constraints
 
+        # eprint(f"_display_suggestions called for {len(self._suggestions_intent.suggestions)} suggs")
         print("") # break the prompt line
 
         # print the suggestions (without the dummy addition for avoid completion)
@@ -248,9 +269,15 @@ class Shell:
 
     def _next_suggestion(self, token: str, count: int):
         """ Provide the next suggestion, or None if there is nothing more to suggest"""
-        self._current_line = rl.get_line_buffer()
 
+        # Never insert trailing quote, we will do it manually
+        rl_set_completion_suppress_quote(1)
+        rl_get_completer_quote_characters()
+
+        self._current_line = rl.get_line_buffer()
         stripped_current_line = self._current_line.lstrip()
+        # eprint(f"\ntoken:  {token}")
+        # eprint(f"\nline:  {stripped_current_line}")
 
         if count == 0:
             self._suggestions_intent = SuggestionsIntent([])
@@ -263,7 +290,7 @@ class Shell:
                     log.d("Fetching suggestions intent for command '%s'", comm_name)
 
                     self._suggestions_intent = comm_info.suggestions(
-                        token, stripped_current_line, self._client
+                        token, self._client
                     ) or self._suggestions_intent # don't let it to be None
 
                     if self._suggestions_intent:
@@ -294,21 +321,20 @@ class Shell:
 
 
         if count < len(self._suggestions_intent.suggestions):
-            log.d("Returning suggestion %d", count)
             sug = self._suggestions_intent.suggestions[count].string
+            log.d("Returning suggestion %d: %s", count, sug)
 
-            # Escape whitespaces
-            sug = sug.replace(" ", "\\ ")
+            # Escape whitespaces, unless this token is beginning with a quote "
+            # TODO: escaping is a l
+            # sug = sug.replace(" ", "\\ ")
 
             log.d("Completion is enabled = %s", self._suggestions_intent.completion)
 
-            # If there is only a command that begins with
-            # this name, complete the command (and eventually insert a space)
+            # If there is only a suggestion that begins with
+            # this name, complete the suggestion (and eventually insert a space)
             if self._suggestions_intent.completion and \
                     self._suggestions_intent.space_after_completion and \
                     len(self._suggestions_intent.suggestions) == 1:
-
-                log.d("Last command with autocomplete -> adding space")
 
                 if is_bool(self._suggestions_intent.space_after_completion):
                     append_space = self._suggestions_intent.space_after_completion
@@ -316,7 +342,12 @@ class Shell:
                     append_space = self._suggestions_intent.space_after_completion(sug)
 
                 if append_space:
+                    log.d("Last command with autocomplete -> adding space required")
+                    if rl_get_completion_quote_character():
+                        # Insert the quote before the space
+                        sug += '"'
                     sug += " "
+
 
             return sug
 
@@ -376,7 +407,7 @@ class Shell:
         cmd_help = get_command_help(cmd)
 
         if not cmd_help:
-            eprint(f"Can't provide help for command '{cmd}'")
+            print(f"Can't provide help for command '{cmd}'")
             return
 
         # Pass the helps to the available pager (typically less)

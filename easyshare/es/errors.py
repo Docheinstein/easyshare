@@ -235,9 +235,9 @@ def print_errors(err: Union[int, str, List[Union[int, str]]]):
 def _print_error(err: Union[int, str]):
     if is_int(err):
         if err != 0: # 0 is success
-            eprint(errno_str(err))
+            print(errno_str(err))
     elif is_str(err):
-        eprint(err)
+        print(err)
     else:
         log.w("err expected of type int or str, found %s", type(err))
         log.w(stacktrace(color=ansi.FG_YELLOW))

@@ -12,7 +12,7 @@ print("setup.py prefix:", sys.prefix)
 
 setup(
     name="easyshare",
-    version="0.4",
+    version="0.5",
 
     # Requires python3.6
     python_requires=">=3.6",

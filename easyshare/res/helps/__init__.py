@@ -64,7 +64,7 @@ def _get_command_hmd_from_map(cmd: Union[str, None], styled: bool, help_map: Dic
     Extracts the given help markdown string from the given map.
     """
     if not help_map:
-        eprint("Failed to load help")
+        print("Failed to load help")
         return None
 
     if cmd:
@@ -76,7 +76,7 @@ def _get_command_hmd_from_map(cmd: Union[str, None], styled: bool, help_map: Dic
 
 
     if not cmd_help:
-        eprint("Can't find help for command '{}'".format(cmd))
+        print("Can't find help for command '{}'".format(cmd))
         return None
 
     try:

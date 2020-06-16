@@ -139,7 +139,7 @@ class SuggestionsIntent:
 class CommandInfo(CommandHelp, ABC):
     """ Provide full information of a command and the suggestions too """
     @classmethod
-    def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
         options = cls.options()
 
         if not options:
@@ -204,20 +204,20 @@ class FilesSuggestionsCommandInfo(CommandInfo):
 
     @classmethod
     @abstractmethod
-    def _provide_file_info_list(cls, token: str, line: str, client) -> List[FileInfo]:
+    def _provide_file_info_list(cls, token: str, client) -> List[FileInfo]:
         """ The file list to suggest, after being filtered by '_file_info_filter' """
         pass
 
     @classmethod
-    def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
         log.d("Providing files listing suggestions")
 
-        suggestions_intent = super().suggestions(token, line, client)
+        suggestions_intent = super().suggestions(token, client)
         if suggestions_intent:
             return suggestions_intent
 
         suggestions = []
-        for finfo in cls._provide_file_info_list(token, line, client):
+        for finfo in cls._provide_file_info_list(token, client):
             log.d("Suggestion finfo: %s", finfo)
 
             fname = finfo.get("name")
@@ -227,21 +227,25 @@ class FilesSuggestionsCommandInfo(CommandInfo):
                 continue
 
             _, fname_tail = os.path.split(fname)
+            token_head, token_tail = os.path.split(token)
 
-            if not fname_tail.lower().startswith(token.lower()):
+            if not fname_tail.lower().startswith(token_tail.lower()):
+                log.d(f"Does not match: '{fname_tail.lower()}' and '{token_tail.lower()}'")
                 continue
+
+            model = os.path.join(token_head, fname_tail)
+            view = fname_tail
 
             if finfo.get("ftype") == FTYPE_DIR:
                 # Append a dir, with a trailing / so that the next
                 # suggestion can continue to traverse the file system
-                ff = fname_tail + "/"
-                suggestions.append(StyledString(ff, fg(ff, color=DIR_COLOR)))
+                suggestions.append(StyledString(model + "/", fg(view + "/", color=DIR_COLOR)))
             else:
                 # Append a file, with a trailing space since there
                 # is no need to traverse the file system
-                ff = fname_tail
-                suggestions.append(StyledString(ff, fg(ff, color=FILE_COLOR)))
+                suggestions.append(StyledString(model, fg(view, color=FILE_COLOR)))
 
+        log.d(f"There will be {len(suggestions)} suggestions")
         return SuggestionsIntent(suggestions,
                                  completion=True,
                                  space_after_completion=lambda s: not s.endswith("/"))
@@ -256,20 +260,19 @@ class FilesSuggestionsCommandInfo(CommandInfo):
 class LocalFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
     """ Files suggestions provider of local files """
     @classmethod
-    def _provide_file_info_list(cls, token: str, line: str, client) -> List[FileInfo]:
-        log.d("List on token = '%s', line = '%s'", token, line)
+    def _provide_file_info_list(cls, token: str, client) -> List[FileInfo]:
+        log.d("List on token = '%s'", token)
         # token contains only the last part after a /
         # e.g. /tmp/something => something
         # we have to use all the path (line)
 
         # Take the part after the last space
-        pattern = rightof(line, " ", from_end=True)
 
         # Take the parent
         # path.parent can't be used unconditionally since it returns
         # the parent dir even if "pattern" ends with a os.path.sep
-        path = LocalPath(pattern)
-        if not pattern.endswith(os.path.sep):
+        path = LocalPath(token)
+        if not token.endswith(os.path.sep):
             path = path.parent
 
         log.i("ls-ing for suggestions on '%s'", path)
@@ -280,16 +283,15 @@ class RemoteFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
     """ Files suggestions provider of remote files (performs an rls) """
 
     @classmethod
-    def _provide_file_info_list(cls, token: str, line: str, client) -> List[FileInfo]:
+    def _provide_file_info_list(cls, token: str, client) -> List[FileInfo]:
         if not client or not client.is_connected_to_sharing():
             log.w("Cannot list suggestions on a non connected es")
             return []
 
-        log.i("List remotely on token = '%s', line = '%s'", token, line)
-        pattern = rightof(line, " ", from_end=True)
-        path_dir, path_trail = os.path.split(pattern)
+        log.i("List remotely on token = '%s'", token)
+        path_dir, path_trail = os.path.split(token)
 
-        log.i("rls-ing on %s", pattern)
+        log.i("rls-ing on %s", token)
         # rls the remote, use -a if we the user is submitting a dot
 
         resp = client.connection.rls(sort_by=["name"], hidden=token.startswith("."),
@@ -417,7 +419,7 @@ Available commands are:
 {comms}"""
 
     @classmethod
-    def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
         log.d("Providing commands suggestions")
 
         suggestions = [StyledString(comm)
@@ -549,7 +551,7 @@ it to <u>0</u> if it exceeds the maximum."""
 # <b>alice-arch.temp:/</b> - <b>/tmp></b>"""
 
     @classmethod
-    def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
             [StyledString(info.to_str(justification=15 + 6))
              for info in [
@@ -607,7 +609,7 @@ If no argument is given, increase the verbosity or resets \
 it to <u>0</u> if it exceeds the maximum."""
 
     @classmethod
-    def suggestions(cls, token: str, line: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
             [StyledString(info.to_str(justification=15 + 6))
              for info in [
@@ -2726,7 +2728,7 @@ Discover Port:    12019
 Authentication:   False
 SSL:              True
 Remote execution: disabled
-Version:          0.4
+Version:          0.5
 
 ================================
 

@@ -6,7 +6,5 @@
 - ctr+c while transferring
 - tree error not exists
 - don't throw commexecerror on xls() xtree() xfind()
-- specify open sd/... that performs open and rcd
-- merge master
 - errors refactor
 - * replacement as shell?
