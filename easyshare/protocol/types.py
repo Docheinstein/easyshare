@@ -116,7 +116,7 @@ def create_file_info(path: Path, *,
         return finfo
 
     except Exception as ex:
-        log.w("Can't create file info - exception occurred: ", str(ex))
+        log.w("Can't create file info - exception occurred: %s", str(ex))
         if raise_exceptions:
             raise ex
         return None
