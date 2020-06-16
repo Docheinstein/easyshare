@@ -589,9 +589,7 @@ class Client:
             raise CommandExecutionError(errors)
 
 
-
-    @classmethod
-    def mv(cls, args: Args, _):
+    def mv(self, args: Args, _):
         errors = []
 
         def handle_mv_error(exc: Exception, src: Path, dst: Path):
@@ -610,13 +608,12 @@ class Client:
                                     exc, q(src),
                                     q(dst)))
 
-        cls._mvcp(args, mv, "MV", error_callback=handle_mv_error)
+        self._mvcp(args, mv, "MV", error_callback=handle_mv_error)
 
         if errors:
             raise CommandExecutionError(errors)
 
-    @classmethod
-    def cp(cls, args: Args, _):
+    def cp(self, args: Args, _):
 
         errors = []
 
@@ -634,7 +631,7 @@ class Client:
                 errors.append(errno_str(ClientErrors.CP_OTHER_ERROR,
                                         exc, q(src), q(dst)))
 
-        cls._mvcp(args, cp, "CP", error_callback=handle_cp_error)
+        self._mvcp(args, cp, "CP", error_callback=handle_cp_error)
 
         if errors:
             raise CommandExecutionError(errors)
