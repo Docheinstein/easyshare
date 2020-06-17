@@ -104,6 +104,8 @@ def create_file_info(path: Path, *,
                 except:
                     # Don't fail globally if user name can't be retrieved (permission problems?)
                     # User the UID as fallback
+                    log.w("User name for UID %d can't be retrieved, "
+                          "using itself as fallback", fstat.st_uid)
                     user_name = str(fstat.st_uid)
                 _users_cache[fstat.st_uid] = user_name
                 log.i(f"UID {fstat.st_gid} = '{user_name}'")
@@ -115,6 +117,8 @@ def create_file_info(path: Path, *,
                 except:
                     # Don't fail globally if group id can't be retrieved (permission problems?)
                     # User the UID as fallback
+                    log.w("Group name for GID %d can't be retrieved, "
+                          "using itself as fallback", fstat.st_gid)
                     group_name = str(fstat.st_gid)
                 _groups_cache[fstat.st_gid] = group_name
                 log.i(f"GID {fstat.st_gid} = '{group_name}'")

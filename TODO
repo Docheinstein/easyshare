@@ -8,3 +8,5 @@
 - don't throw commexecerror on xls() xtree() xfind()
 - errors refactor
 - * replacement as shell?
+- don't show "." in put -p
+- hard: quoting with ctypes + libreadline
