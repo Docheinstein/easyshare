@@ -1,24 +1,18 @@
-import fcntl
 import os
-import pty
 import re
 import select
 import shlex
 import shutil
 import subprocess
 import threading
-import tty
-from grp import getgrgid, struct_group
 from os import PathLike
 from pathlib import Path
 from stat import S_ISREG
 from typing import Optional, List, Union, Tuple, Any, Callable
 
-from ptyprocess import PtyProcess, PtyProcessUnicode
-
 from easyshare.logging import get_logger
 from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info, FileType
-from easyshare.utils.env import terminal_size
+from easyshare.utils.env import terminal_size, is_unix
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import isorted
 from easyshare.utils.types import list_wrap
@@ -36,14 +30,15 @@ _PERM_DIGIT_STR = {
     "7": "rwx",
 }
 
-def is_unix():
-    return os.name == "posix"
-
-def is_windows():
-    return os.name == "nt"
 
 if is_unix():
     from pwd import getpwuid, struct_passwd
+    from grp import getgrgid, struct_group
+    from ptyprocess import PtyProcess, PtyProcessUnicode
+    import fcntl
+    import tty
+    import pty
+
 
     def user(uid = os.geteuid()) -> struct_passwd:
         """
@@ -53,6 +48,7 @@ if is_unix():
         return getpwuid(uid)
 
     def group(gid = os.getgid()) -> struct_group:
+
         """
         Get the group entry for the given group id
         (or the current one if not specified)
@@ -527,7 +523,7 @@ def pty_attached(cmd: str = "/bin/sh") -> int:
 
 def pty_detached(out_hook: Callable[[str], None],
                  end_hook: Callable[[int], None],
-                 cmd: str = "/bin/sh") -> PtyProcess:
+                 cmd: str = "/bin/sh"):  # -> PtyProcess:
     """
     Run a command, reporting stdout and stderr of the process outside (via out_hook).
     The stdin can be provided with ptyproc.write().

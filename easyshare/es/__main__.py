@@ -17,6 +17,13 @@ from easyshare.utils.env import is_stdout_terminal, are_colors_supported
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
 
+
+if __name__ == "__main__":
+    # Call it now before get_logger for enable colors properly
+    # and let logger be initialized with/without colors
+    easyshare_setup()
+
+
 log = get_logger(__name__)
 
 
@@ -54,7 +61,8 @@ CLI_COMMANDS = [k for k in values(Commands) if k not in NON_CLI_COMMANDS]
 
 
 def main():
-    easyshare_setup()
+    # Already called
+    # easyshare_setup()
 
     # Parse arguments
     args = None

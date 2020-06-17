@@ -46,11 +46,17 @@ setup(
     # Metadata
     author="Stefano Dottore",
     author_email="docheinstein@gmail.com",
-    description="Client-Server command line application for share files, similar to FTP; written in Python 3 + Pyro5.",
+    description="Client-Server command line application for share files, similar to FTP but more powerful;"
+                " written in Python 3.6+",
     long_description=read('README.MD'),
     long_description_content_type="text/markdown",
     license="MIT",
     keywords="easyshare",
     url="https://github.com/Docheinstein/easyshare",
-    install_requires=['Pyro5', 'colorama', 'ptyprocess']
+    install_requires=[
+        "colorama",
+        "ptyprocess; 'linux' in sys_platform",
+        "pywin32; 'win' in sys_platform"
+        "pyreadline; 'win' in sys_platform"
+    ]
 )

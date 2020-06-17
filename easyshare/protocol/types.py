@@ -1,11 +1,19 @@
-from grp import getgrgid
 from os import stat_result
 from pathlib import Path
-from pwd import getpwuid
 from stat import S_ISDIR, S_ISREG
 
+from easyshare.utils.env import is_unix
+from easyshare.utils.types import itob
 from easyshare.logging import get_logger
 from easyshare.tree import TreeNodeDict
+
+
+if is_unix():
+    from pwd import getpwuid
+    from grp import getgrgid
+
+log = get_logger(__name__)
+
 
 # Use advanced typing if possible (Literal, TypedDict)
 # since offers a better developer experience
@@ -16,9 +24,7 @@ from easyshare.tree import TreeNodeDict
 # ================================================
 # ================= FILE INFO  ===================
 # ================================================
-from easyshare.utils.types import itob
 
-log = get_logger(__name__)
 
 FTYPE_FILE = "file"
 FTYPE_DIR = "dir"

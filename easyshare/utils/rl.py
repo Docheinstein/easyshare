@@ -1,4 +1,4 @@
-from ctypes import c_int, CDLL, c_char_p, CFUNCTYPE, c_void_p, byref, POINTER, c_char
+from ctypes import c_int, CDLL, c_char_p
 from typing import Optional
 
 from easyshare.logging import get_logger

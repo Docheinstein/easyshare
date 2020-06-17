@@ -10,3 +10,4 @@
 - * replacement as shell?
 - don't show "." in put -p
 - hard: quoting with ctypes + libreadline
+- s now is -NS not only -N

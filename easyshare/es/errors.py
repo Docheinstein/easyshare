@@ -57,6 +57,8 @@ class ClientErrors:
 
     SYNC_ONLY_ONE_PARAMETER =       129
 
+    SUPPORTED_ONLY_FOR_UNIX =       130
+
 
 class ErrorsStrings:
     """
@@ -190,6 +192,7 @@ _ERRORS_STRINGS_MAP = {
     ClientErrors.RM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
     ClientErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
 
+    ClientErrors.SUPPORTED_ONLY_FOR_UNIX: ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX
 }
 
 _OUTCOMES_STRINGS_MAP = {

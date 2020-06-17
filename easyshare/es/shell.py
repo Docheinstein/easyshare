@@ -1,7 +1,5 @@
 import os
 import pydoc
-import re
-import readline as rl
 import shlex
 import traceback
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
@@ -17,14 +15,19 @@ from easyshare.helps.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import get_command_help
 from easyshare.tracing import get_tracing_level, set_tracing_level
-from easyshare.utils import eprint
-from easyshare.utils.env import is_unicode_supported
+from easyshare.utils.env import is_unicode_supported, is_unix, is_windows
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
     rl_get_completion_quote_character, rl_set_completion_suppress_quote, \
     rl_get_completer_quote_characters
 from easyshare.utils.types import is_bool
+
+if is_unix():
+    import readline as rline
+else:
+    rline = None
+
 
 log = get_logger(__name__)
 
@@ -50,10 +53,10 @@ _TRACING_EXPLANATION_MAP = {
 class Shell:
     """
     The interactive shell of client that is able to parse and execute commands.
-    Uses GNU readline for provide command completion and files suggestions.
+    Uses GNU rline for provide command completion and files suggestions.
     """
-    # Quoting/Escaping GNU readline tutorial
-    # https://thoughtbot.com/blog/tab-completion-in-gnu-readline
+    # Quoting/Escaping GNU rline tutorial
+    # https://thoughtbot.com/blog/tab-completion-in-gnu-rline
     def __init__(self, client: Client):
 
         self._client: Client = client
@@ -80,7 +83,8 @@ class Shell:
 
         self._help_map = None
 
-        self._init_readline()
+        if is_unix():
+            self._init_rline()
 
     def input_loop(self):
         """
@@ -106,13 +110,15 @@ class Shell:
 
                 try:
                     self._prompt = self._build_prompt_string()
-                except:
+                except Exception as ex:
                     # Should never happen...
-                    log.w("Prompt can't be build")
+                    log.w(f"Prompt can't be build: {ex}")
                     self._prompt = "> " # fallback
 
                 try:
-                    command_line = input(self._prompt)
+                    print(self._prompt, flush=True, end="")
+                    command_line = input()
+                    # command_line = input(self._prompt)
                 except EOFError:
                     log.i("\nCTRL+D: exiting")
                     self._client.destroy_connection()
@@ -204,38 +210,42 @@ class Shell:
             log.d("\nCTRL+C")
 
 
-    def _init_readline(self):
-        # GNU readline config
+    def _init_rline(self):
+        # GNU rline config
         rl_load()
 
         # TAB: autocomplete
-        rl.parse_and_bind("tab: complete")
+        rline.parse_and_bind("tab: complete")
 
         # Show 'show all possibilities' if there are too many items
-        rl.parse_and_bind("set completion-query-items 50")
+        rline.parse_and_bind("set completion-query-items 50")
 
         # Remove '-' from the delimiters for handle suggestions
         # starting with '-' properly and '/' for handle paths
         # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
-        # rl.set_completer_delims(multireplace(rl.get_completer_delims(),
+        # rline.set_completer_delims(multireplace(rline.get_completer_delims(),
         #                                      [("-", ""), ("/", "")]))
 
         # Use only a space as word breaker
-        rl.set_completer_delims(" ")
+        rline.set_completer_delims(" ")
 
         # Use a custom render function; this has been necessary for print
-        # colors while using readline for the suggestions engine
-        rl.set_completion_display_matches_hook(self._display_suggestions_wrapper)
+        # colors while using rline for the suggestions engine
+        if is_unix():
+            rline.set_completion_display_matches_hook(self._display_suggestions_wrapper)
+        else:
+            # FIXME
+            log.w("set_completion_display_matches_hook not available; bad display")
 
         # Completion function
-        rl.set_completer(self._next_suggestion_wrapper)
+        rline.set_completer(self._next_suggestion_wrapper)
 
         # Set quote characters for quoting strings with spaces
         # rl_set_completer_quote_characters(b'"\'')
         rl_set_completer_quote_characters('"')
 
     def _display_suggestions_wrapper(self, substitution, matches, longest_match_length):
-        """ Called by GNU readline when suggestions have to be rendered """
+        """ Called by GNU rline when suggestions have to be rendered """
         try:
             self._display_suggestions(substitution, matches, longest_match_length)
         except:
@@ -243,9 +253,9 @@ class Shell:
 
     def _display_suggestions(self, substitution_help, matches, longest_match_length):
         """ Display the current suggestions """
-        # Simulate the default behaviour of readline, but:
+        # Simulate the default behaviour of rline, but:
         # 1. Separate the concept of suggestion/rendered suggestion: in this
-        #    way we can render a colored suggestion while using the readline
+        #    way we can render a colored suggestion while using the rline
         #    core for treat it as a simple string
         # 2. Internally handles the max_columns constraints
 
@@ -261,7 +271,7 @@ class Shell:
         print(self._prompt + self._current_line, end="", flush=True)
 
     def _next_suggestion_wrapper(self, token: str, count: int):
-        """ Called by GNU readline when new suggestions have to be provided """
+        """ Called by GNU rline when new suggestions have to be provided """
         try:
             return self._next_suggestion(token, count)
         except:
@@ -274,7 +284,7 @@ class Shell:
         rl_set_completion_suppress_quote(1)
         rl_get_completer_quote_characters()
 
-        self._current_line = rl.get_line_buffer()
+        self._current_line = rline.get_line_buffer()
         stripped_current_line = self._current_line.lstrip()
         # eprint(f"\ntoken:  {token}")
         # eprint(f"\nline:  {stripped_current_line}")
@@ -310,7 +320,7 @@ class Shell:
 
             if not self._suggestions_intent.completion:
                 # TODO: find a way for not show the the suggestion inline
-                #  probably see https://tiswww.case.edu/php/chet/readline/readline.html#SEC45
+                #  probably see https://tiswww.case.edu/php/chet/rline/rline.html#SEC45
                 #  for now we add a dummy suggestion that we won't print in our
                 #  custom renderer
                 self._suggestions_intent.suggestions.append(StyledString(""))
@@ -377,15 +387,19 @@ class Shell:
 
         sep = (" " + 2 * self._prompt_local_remote_sep + " ") if remote else ""
 
-        IS = ansi.RL_PROMPT_START_IGNORE
-        IE = ansi.RL_PROMPT_END_IGNORE
         R = ansi.RESET
         B = ansi.ATTR_BOLD
         M = ansi.FG_MAGENTA
         C = ansi.FG_CYAN
 
+        if is_windows():
+            return B + M + remote + R + B + sep + R + B + C + local + R + B + "> " + R
+
+        IS = ansi.RL_PROMPT_START_IGNORE if is_unix() else ""  # no readline on Windows for now
+        IE = ansi.RL_PROMPT_END_IGNORE if is_unix() else ""  # no readline on Windows for now
+
         # Escape sequence must be wrapped into \001 and \002
-        # so that readline can handle those well and deal with terminal/prompt
+        # so that rline can handle those well and deal with terminal/prompt
         # width properly
         # prompt = remote + sep + local + "> "
 

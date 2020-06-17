@@ -1,19 +1,15 @@
-import fcntl
 import mmap
 import os
-import pty
 import re
 import select
 import signal
 import sys
 import threading
 import time
-import tty
 import zlib
 from collections import OrderedDict
 from getpass import getpass
 from pathlib import Path
-from pwd import struct_passwd
 from typing import Optional, Callable, List, Dict, Union, Tuple, cast, Any
 
 from easyshare.args import Args as Args, ArgsParseError, ArgsSpec
@@ -43,9 +39,10 @@ from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode,
 from easyshare.styling import bold, green, red
 from easyshare.timer import Timer
 from easyshare.tracing import trace_bin_payload
+from easyshare.utils.env import is_unix
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str, size_str_justify
-from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, user, is_unix, pty_attached, os_error_str, \
+from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, user, pty_attached, os_error_str, \
     find, du
 from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress import ProgressBarRendererFactory
@@ -53,6 +50,14 @@ from easyshare.utils.progress.file import FileProgressor
 from easyshare.utils.progress.simple import SimpleProgressor
 from easyshare.utils.str import q, chrnext
 from easyshare.utils.types import btos, itob, btoi
+
+
+if is_unix():
+    import fcntl
+    import pty
+    import tty
+    from pwd import struct_passwd
+
 
 log = get_logger(__name__)
 
@@ -206,6 +211,14 @@ def provide_server_connection(api):
 
 def provide_connection(api):
     return make_server_connection_api_wrapper(api, connect=False)
+
+# decorator
+def require_unix(api):
+    def require_unix_wrapper(client: 'Client', args: Args, conn: Connection):
+        if not is_unix():
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
+        return api(client, args, conn)
+    return require_unix_wrapper
 
 # ==================================================================
 
@@ -807,6 +820,7 @@ class Client:
 
 
     @provide_server_connection
+    @require_unix
     def rexec(self, args: Args, conn: Connection):
         popen_args = args.get_unparsed_args(default=[])
         popen_cmd = " ".join(popen_args)
@@ -903,6 +917,7 @@ class Client:
         conn.write(RexecEventType.ENDACK_B, trace=True)
 
     @provide_server_connection
+    @require_unix
     def rshell(self, args: Args, conn: Connection):
         rshell_args = args.get_unparsed_args(default=[])
         if rshell_args:

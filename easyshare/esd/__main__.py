@@ -26,6 +26,15 @@ from easyshare.utils.net import is_valid_port, get_primary_ip
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfychars, tf
 
+
+if __name__ == "__main__":
+    # Call it now before get_logger for enable colors properly
+    # and let logger be initialized with/without colors
+    easyshare_setup()
+
+log = get_logger(__name__)
+
+
 # ==================================
 # ==== ENTRY POINT OF ESD ==========
 # ==================================
@@ -50,8 +59,6 @@ from easyshare.utils.str import satisfychars, tf
 # -v, --verbose  level                            set verbosity level
 # -V, --version                                   show the easyshare version
 
-
-log = get_logger(__name__)
 
 
 # === ARGUMENTS ===
@@ -163,7 +170,8 @@ ESD_CONF_SPEC = {
 # ==================================================================
 
 def main():
-    easyshare_setup()
+    # Already called
+    # easyshare_setup()
 
     if len(sys.argv) <= 1:
         _print_usage_and_quit()

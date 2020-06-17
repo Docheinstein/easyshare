@@ -1,11 +1,12 @@
-from typing import List, Union, Optional
+import sys
 
 import colorama
 
+from typing import List, Union, Optional
 from easyshare.consts import ansi
-from easyshare.utils import eprint
 
 _colorful = True
+
 
 def enable_colors(enabled: bool = True):
     """ Enables/disables colors and styling of strings """
@@ -13,8 +14,15 @@ def enable_colors(enabled: bool = True):
     _colorful = enabled
     if enabled:
         if not are_colors_enabled():
-            print("Colors enabled but output stream doesn't support colors")
-        colorama.init()
+            pass
+            # print("Colors enabled but output stream doesn't support colors")
+        colorama.init(convert=True)
+    else:
+        pass
+        # print("Colors disabled")
+
+    print(cyan(f"enable_colors done"))
+
 
 def are_colors_enabled():
     """ Returns whether colors are enabled """
@@ -41,6 +49,7 @@ def _styled(s: str, *attributes)-> str:
     ss += s + ansi.RESET
 
     return ss
+
 
 def fg(s: str, color: str, *attributes) -> str:
     return styled(s, fg=color, bg=None, *attributes)
@@ -123,3 +132,14 @@ def bold(s: str) -> str:
 
 def underline(s: str) -> str:
     return styled(s, attrs=ansi.ATTR_UNDERLINE)
+
+
+if __name__ == "__main__":
+    import os
+    from easyshare.utils.env import are_colors_supported
+
+    colors_disabled = os.getenv('ANSI_COLORS_DISABLED')
+    enable_colors(are_colors_supported() and not colors_disabled)
+
+    print(cyan(f"CYAN on {sys.platform}, does it works?"))
+    print(bold(f"BOLD on {sys.platform}, does it works?"))

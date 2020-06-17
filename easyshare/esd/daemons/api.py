@@ -8,8 +8,6 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO, Set
 
-from ptyprocess import PtyProcess
-
 
 from easyshare.auth import Auth
 from easyshare.common import TransferDirection, TransferProtocol, BEST_BUFFER_SIZE, APP_VERSION
@@ -26,12 +24,17 @@ from easyshare.ssl import get_ssl_context
 from easyshare.streams import StreamClosedError
 from easyshare.styling import green, red
 from easyshare.tracing import get_tracing_level, TRACING_TEXT, trace_text
+from easyshare.utils.env import is_unix
 from easyshare.utils.json import btoj, jtob, j
-from easyshare.utils.os import is_unix, ls, os_error_str, tree, cp, mv, rm, run_detached, user, pty_detached, \
+from easyshare.utils.os import ls, os_error_str, tree, cp, mv, rm, run_detached, user, pty_detached, \
     find, du
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import q
 from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, stob, itob, btos, btoi, is_int
+
+if is_unix():
+    from ptyprocess import PtyProcess
+
 
 log = get_logger(__name__)
 

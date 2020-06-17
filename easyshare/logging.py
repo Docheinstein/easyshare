@@ -1,5 +1,4 @@
 import logging
-import sys
 
 from easyshare.styling import green, blue, yellow, red
 from easyshare.utils.mathematics import rangify
@@ -42,6 +41,7 @@ LEVEL_TO_VERBOSITY = {
 
 _initialized = False
 _default_verbosity = None
+_log_handler = None
 
 
 class Logger(logging.Logger):
@@ -95,9 +95,6 @@ class LoggerFormatter(logging.Formatter):
                "%(message)s"
 
 
-_log_handler = logging.StreamHandler(sys.stderr)
-_log_handler.setFormatter(LoggerFormatter())
-
 def init_logging(default_verbosity: int = None):
     """
     Initializes the logger and add the easyshare extension
@@ -107,9 +104,15 @@ def init_logging(default_verbosity: int = None):
     """
     global _initialized
     global _default_verbosity
+    global _log_handler
 
-    if _initialized:
+    if _initialized is True:
         return
+
+    import sys
+
+    _log_handler = logging.StreamHandler(sys.stdout)
+    _log_handler.setFormatter(LoggerFormatter())
 
     def set_verbosity(logger: logging.Logger, verbosity: int):
         if verbosity not in VERBOSITY_TO_LEVEL:
@@ -136,6 +139,9 @@ def init_logging(default_verbosity: int = None):
     # We can initialize the root logger at this point
     get_logger()
 
+    from easyshare.styling import cyan
+    print(cyan("log OK"))
+
 
 
 def get_logger(name: str = ROOT_LOGGER_PATTERN,
@@ -145,6 +151,8 @@ def get_logger(name: str = ROOT_LOGGER_PATTERN,
     Get the logger for 'name', eventually add an handler if the logger is a root logger
     (the responsible for print messages, the child only forwards message to it)
     """
+    global _log_handler
+
     # Don't call init_logging() even if is attempting...
     # We have to call it manually after checking the colors support
 

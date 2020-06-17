@@ -9,6 +9,17 @@ from easyshare.logging import get_logger
 
 log = get_logger(__name__)
 
+_UNIX = os.name == "posix"
+_WIN = os.name == "nt"
+
+
+def is_unix():
+    return _UNIX
+
+
+def is_windows():
+    return _WIN
+
 
 def is_terminal(fileno: int) -> bool:
     """ Returns true if the given file number belongs to a terminal (stdout)"""

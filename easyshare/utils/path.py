@@ -16,8 +16,12 @@ def is_hidden(p: Union[str, Path]):
         raise TypeError("Path should be str or Path")
 
     if os.name == "nt":
-        attribute = win32api.GetFileAttributes(name)
-        return attribute & (win32con.FILE_ATTRIBUTE_HIDDEN | win32con.FILE_ATTRIBUTE_SYSTEM)
+        try:
+            attribute = win32api.GetFileAttributes(name)
+            return attribute & (win32con.FILE_ATTRIBUTE_HIDDEN | win32con.FILE_ATTRIBUTE_SYSTEM)
+        except:
+            # FIXME
+            return False
     else:
         return name.startswith(".")
 

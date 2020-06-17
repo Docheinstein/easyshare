@@ -1,22 +1,16 @@
-import enum
 import socket
 import re
 
 from typing import Optional
-
-from Pyro5 import socketutil
 
 from easyshare.common import TransferProtocol, TransferDirection
 from easyshare.consts.net import ADDR_ANY, PORT_ANY
 from easyshare.logging import get_logger
 from easyshare.utils.types import is_int
 
-
 log = get_logger(__name__)
 
-
 IP_REGEX = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
-
 
 
 def get_primary_ip():
