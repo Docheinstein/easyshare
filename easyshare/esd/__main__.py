@@ -24,8 +24,7 @@ from easyshare.utils.env import are_colors_supported
 from easyshare.utils.json import j
 from easyshare.utils.net import is_valid_port, get_primary_ip
 from easyshare.utils.ssl import create_server_ssl_context
-from easyshare.utils.str import satisfychars, tf
-
+from easyshare.utils.str import satisfychars, tf, keepchars
 
 if __name__ == "__main__":
     # Call it now before get_logger for enable colors properly
@@ -467,8 +466,9 @@ def main():
     # Validation
 
     # - server name
-    if not satisfychars(server_name, SERVER_NAME_ALPHABET):
-        abort("Invalid server name: '{}'".format(server_name))
+    server_name = keepchars(server_name, SERVER_NAME_ALPHABET)
+    if not server_name:
+        abort("Invalid server name")
 
     # - ports
     for p in [server_port, server_discover_port]:
