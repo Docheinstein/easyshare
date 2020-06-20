@@ -37,14 +37,16 @@ def styled(s: str,
     return _styled(s, fg, bg, *attrs)
 
 
-def _styled(s: str, *attributes)-> str:
+def _styled(s: str, *attributes) -> str:
     ss = ""
 
+    reset = ""
     for attr in attributes:
         if attr:
             ss += attr
+            reset = ansi.RESET
 
-    ss += s + ansi.RESET
+    ss += s + reset
 
     return ss
 
@@ -95,6 +97,7 @@ def white(s: str) -> str:
 
 def blackbg(s: str) -> str:
     return bg(s, ansi.BG_BLACK)
+
 
 def redbg(s: str) -> str:
     return bg(s, ansi.BG_RED)

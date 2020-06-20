@@ -199,7 +199,7 @@ class Progressor(ABC):
             # it again the next iter)
             # DELETE_EOL could be used, but \r seems to work as well
             # (since we write always a full line)
-            print("\r" + progress_line, end="\r" if inline else "\n", flush=True)
+            print("\r" + progress_line, end="" if inline else "\n", flush=True)
 
     def __enter__(self):
         return self
@@ -230,13 +230,14 @@ class Progressor(ABC):
         inner = inner.ljust(progress_bar_inner_width)
 
         if self._success is None:
-            if self.partial < self.total and self.color_progress:
+            if self.partial < self.total:
                 inner = fg(inner, self.color_progress)
-            else:
+            # else:
                 # Should not happen, consider this as a success
-                inner = fg(inner, self.color_success)
+                # inner = fg(inner, self.color_success)
+                # pass
         else:
-            if self._success is True:
+            if self._success:
                 inner = fg(inner, self.color_success)
             else:
                 inner = fg(inner, self.color_error)

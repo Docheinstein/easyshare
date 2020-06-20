@@ -1,6 +1,7 @@
 import time
 
 from easyshare.consts import ansi
+from easyshare.styling import enable_colors
 from easyshare.utils.env import terminal_size
 from easyshare.utils.progress import Progressor
 
@@ -17,7 +18,8 @@ class SimpleProgressor(Progressor):
 
 
 if __name__ == "__main__":
-    with SimpleProgressor(100) as pbar:
-        for i in range(1, 100):
+    enable_colors()
+    with SimpleProgressor(10) as pbar:
+        for i in range(1, 10):
             pbar.update(i)
-            time.sleep(0.05)
+            time.sleep(1)

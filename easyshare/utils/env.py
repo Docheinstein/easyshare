@@ -50,6 +50,10 @@ def terminal_size(fallback=(80, 24)) -> Tuple[int, int]:
     except:
         # log.w("Failed to retrieved terminal size, using fallback")
         return fallback
+    if is_windows():
+        # It seems that on Windows CMD we need one more column
+        # for avoid going to the next line when it is fulfilled
+        columns -= 1
     return columns, rows
 
 
