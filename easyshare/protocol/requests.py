@@ -37,6 +37,7 @@ class Requests:
 
 class RequestsParams:
     CONNECT_PASSWORD = "password"
+    CONNECT_USER_AGENT = "user_agent"
 
     OPEN_SHARING = "sharing"
 

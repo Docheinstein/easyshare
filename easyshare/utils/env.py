@@ -4,10 +4,6 @@ import sys
 from stat import S_ISCHR
 from typing import Tuple
 
-from easyshare.logging import get_logger
-
-
-log = get_logger(__name__)
 
 _UNIX = os.name == "posix"
 _WIN = os.name == "nt"
@@ -19,6 +15,14 @@ def is_unix():
 
 def is_windows():
     return _WIN
+
+
+def has_pyreadline():
+    return "pyreadline" in sys.modules
+
+
+def has_gnureadline():
+    return not has_pyreadline() and "readline" in sys.modules
 
 
 def is_terminal(fileno: int) -> bool:
@@ -44,7 +48,7 @@ def terminal_size(fallback=(80, 24)) -> Tuple[int, int]:
     try:
         columns, rows = shutil.get_terminal_size(fallback=fallback)
     except:
-        log.w("Failed to retrieved terminal size, using fallback")
+        # log.w("Failed to retrieved terminal size, using fallback")
         return fallback
     return columns, rows
 
@@ -64,3 +68,20 @@ def is_unicode_supported(stream=sys.stdout) -> bool:
             return encoding.lower().startswith("utf-") or encoding == "U8"
         except:
             return False
+
+
+if __name__ == "__main__":
+    print("-- PYTHON --")
+    print(f"Python loaded modules: {sys.modules}")
+    print("-- OS --")
+    print(f"Windows: {is_windows()}")
+    print(f"Unix: {is_unix()}")
+    print("-- READLINE --")
+    print(f"pyreadline: {has_pyreadline()}")
+    print(f"gnureadline: {has_gnureadline()}")
+    print("-- TERMINAL --")
+    print(f"Is a terminal: {is_stdout_terminal()}")
+    print(f"Terminal size: {terminal_size()}")
+    print("-- TERMINAL SUPPORT --")
+    print(f"Supports unicode: {is_unicode_supported()}")
+    print(f"Supports colors: {are_colors_supported()}")

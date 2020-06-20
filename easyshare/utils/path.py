@@ -2,8 +2,9 @@ import os
 from pathlib import Path
 from typing import Optional, Union
 
-if os.name == "nt":
-    # Can't use is_windows() form utils.os due to circular import
+from easyshare.utils.env import is_windows
+
+if is_windows() == "nt":
     import win32api, win32con
 
 

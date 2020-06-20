@@ -29,7 +29,11 @@ class Socket(ABC):
         self.sock: Union[socket.socket, ssl.SSLSocket] = sock
 
     def endpoint(self) -> Endpoint:
-        return self.sock.getsockname()
+        try:
+            return self.sock.getsockname()
+        except:
+            log.exception("Cannot determinate remote endpoint")
+            return "0.0.0.0", 0  # fallback
 
     def address(self) -> str:
         return self.endpoint()[0]
@@ -144,7 +148,7 @@ class SocketTcp(Socket):
             return self.sock.getpeername()
         except:
             log.exception("Cannot determinate remote endpoint")
-            return None
+            return "0.0.0.0", 0  # fallback
 
     def remote_address(self) -> str:
         return self.remote_endpoint()[0]

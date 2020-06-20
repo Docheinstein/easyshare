@@ -59,6 +59,15 @@ def rl_get_char_p(varname: str) -> Optional[bytes]:
         log.w(f"GET {varname} failed: {e}")
         return None
 
+def rl_get_char_p_as_str(varname: str) -> Optional[str]:
+    try:
+        var = c_char_p.in_dll(_libreadline, varname)
+        log.d(f"GET {varname} is {var} ({var.value})")
+        return str(var.value, encoding="ascii")
+    except Exception as e:
+        log.w(f"GET {varname} failed: {e}")
+        return None
+
 
 
 # ---- rl_completion_quote_character ---
@@ -86,7 +95,7 @@ def rl_set_completer_quote_characters(chars: str):
     rl_set_char_p("rl_completer_quote_characters", _rl_completer_quote_characters)
 
 def rl_get_completer_quote_characters():
-    return str(rl_get_char_p("rl_completer_quote_characters"), encoding="ascii")
+    return rl_get_char_p_as_str("rl_completer_quote_characters")
 
 # ---- rl_basic_quote_characters ---
 """
@@ -101,7 +110,7 @@ def rl_set_basic_quote_characters(chars: str):
     rl_set_char_p("rl_basic_quote_characters", _rl_basic_quote_characters)
 
 def rl_get_basic_quote_characters():
-    return str(rl_get_char_p("rl_completer_quote_characters"), encoding="ascii")
+    return rl_get_char_p_as_str("rl_basic_quote_characters")
 
 # ---- rl_basic_quote_characters ---
 """

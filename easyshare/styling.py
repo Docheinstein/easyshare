@@ -21,8 +21,6 @@ def enable_colors(enabled: bool = True):
         pass
         # print("Colors disabled")
 
-    print(cyan(f"enable_colors done"))
-
 
 def are_colors_enabled():
     """ Returns whether colors are enabled """

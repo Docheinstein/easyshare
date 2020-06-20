@@ -1,4 +1,5 @@
 # ANSI escapes codes (colors, styles)
+from easyshare.utils.env import is_windows
 
 RESET =             "\033[0m"
 
@@ -29,7 +30,13 @@ BG_WHITE =          "\033[47m"
 
 
 PROMPT_BLINK_OFF =   "\033[25m"
-DELETE_EOL =         "\033[K"  # delete until end of line
+
+DELETE_EOL_ANSI =    "\033[K"  # delete until end of line
+DELETE_EOL_VT100 =   "\033[2K"  # delete until end of line
+
+# FIXME : DELETE_EOL_VT100 should work
+# DELETE_EOL = DELETE_EOL_VT100 if is_windows() else DELETE_EOL_ANSI
+DELETE_EOL = "\r" if is_windows() else DELETE_EOL_ANSI
 
 # From readline docs
 # declared in `readline.h'

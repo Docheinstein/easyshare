@@ -15,7 +15,7 @@ from easyshare.helps.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import get_command_help
 from easyshare.tracing import get_tracing_level, set_tracing_level
-from easyshare.utils.env import is_unicode_supported, is_unix, is_windows
+from easyshare.utils.env import is_unicode_supported, is_unix, is_windows, has_gnureadline, has_pyreadline
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
@@ -23,11 +23,7 @@ from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
     rl_get_completer_quote_characters
 from easyshare.utils.types import is_bool
 
-if is_unix():
-    import readline as rline
-else:
-    rline = None
-
+import readline
 
 log = get_logger(__name__)
 
@@ -83,8 +79,7 @@ class Shell:
 
         self._help_map = None
 
-        if is_unix():
-            self._init_rline()
+        self._init_rline()
 
     def input_loop(self):
         """
@@ -113,11 +108,11 @@ class Shell:
                 except Exception as ex:
                     # Should never happen...
                     log.w(f"Prompt can't be build: {ex}")
-                    self._prompt = "> " # fallback
+                    self._prompt = "> "  # fallback
 
                 try:
-                    print(self._prompt, flush=True, end="")
-                    command_line = input()
+                    # print(self._prompt, flush=True, end="")
+                    command_line = input(self._prompt)
                     # command_line = input(self._prompt)
                 except EOFError:
                     log.i("\nCTRL+D: exiting")
@@ -211,157 +206,184 @@ class Shell:
 
 
     def _init_rline(self):
-        # GNU rline config
+        # [GNU] readline config
         rl_load()
 
         # TAB: autocomplete
-        rline.parse_and_bind("tab: complete")
+        readline.parse_and_bind("tab: complete")
 
         # Show 'show all possibilities' if there are too many items
-        rline.parse_and_bind("set completion-query-items 50")
+        readline.parse_and_bind("set completion-query-items 50")
 
         # Remove '-' from the delimiters for handle suggestions
         # starting with '-' properly and '/' for handle paths
         # `~!@#$%^&*()-=+[{]}\|;:'",<>/?
-        # rline.set_completer_delims(multireplace(rline.get_completer_delims(),
+        # readline.set_completer_delims(multireplace(readline.get_completer_delims(),
         #                                      [("-", ""), ("/", "")]))
 
+        # Completion function
+        readline.set_completer(self._next_suggestion)
+
         # Use only a space as word breaker
-        rline.set_completer_delims(" ")
+        readline.set_completer_delims(" ")
 
         # Use a custom render function; this has been necessary for print
         # colors while using rline for the suggestions engine
-        if is_unix():
-            rline.set_completion_display_matches_hook(self._display_suggestions_wrapper)
-        else:
-            # FIXME
-            log.w("set_completion_display_matches_hook not available; bad display")
-
-        # Completion function
-        rline.set_completer(self._next_suggestion_wrapper)
+        if has_gnureadline():
+            readline.set_completion_display_matches_hook(self._display_suggestions_gnureadline)
+        elif has_pyreadline():
+            readline.rl.mode._display_completions = self._display_suggestions_pyreadline
 
         # Set quote characters for quoting strings with spaces
         # rl_set_completer_quote_characters(b'"\'')
         rl_set_completer_quote_characters('"')
 
-    def _display_suggestions_wrapper(self, substitution, matches, longest_match_length):
-        """ Called by GNU rline when suggestions have to be rendered """
+
+    # For Windows
+    def _display_suggestions_pyreadline(self, matches):
+        """
+        Called by GNU pyreadline when suggestions have to be rendered.
+        Display the current suggestions.
+        """
         try:
-            self._display_suggestions(substitution, matches, longest_match_length)
+            readline.rl.mode.console.write("\n")
+
+            # print the suggestions (without the dummy addition for avoid completion)
+            real_suggestions = [s for s in self._suggestions_intent.suggestions if s.string]
+            print_tabulated(real_suggestions,
+                            max_columns=self._suggestions_intent.max_columns,
+                            print_func=readline.rl.mode.console.write)
+
+            # Manually print what was displayed (prompt plus content)
+            # noinspection PyProtectedMember
+            readline.rl.mode._print_prompt()
+
         except:
             log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
 
-    def _display_suggestions(self, substitution_help, matches, longest_match_length):
-        """ Display the current suggestions """
-        # Simulate the default behaviour of rline, but:
-        # 1. Separate the concept of suggestion/rendered suggestion: in this
-        #    way we can render a colored suggestion while using the rline
-        #    core for treat it as a simple string
-        # 2. Internally handles the max_columns constraints
-
-        # eprint(f"_display_suggestions called for {len(self._suggestions_intent.suggestions)} suggs")
-        print("") # break the prompt line
-
-        # print the suggestions (without the dummy addition for avoid completion)
-        real_suggestions = [s for s in self._suggestions_intent.suggestions if s.string]
-        print_tabulated(real_suggestions,
-                        max_columns=self._suggestions_intent.max_columns)
-
-        # Manually print what was displayed (prompt plus content)
-        print(self._prompt + self._current_line, end="", flush=True)
-
-    def _next_suggestion_wrapper(self, token: str, count: int):
-        """ Called by GNU rline when new suggestions have to be provided """
+    # For Unix
+    def _display_suggestions_gnureadline(self, substitution_help, matches, longest_match_length):
+        """
+        Called by GNU readline when suggestions have to be rendered.
+        Display the current suggestions.
+        """
         try:
-            return self._next_suggestion(token, count)
+
+            # Simulate the default behaviour of readline, but:
+            # 1. Separate the concept of suggestion/rendered suggestion: in this
+            #    way we can render a colored suggestion while using the readline
+            #    core for treat it as a simple string
+            # 2. Internally handles the max_columns constraints
+
+            # eprint(f"_display_suggestions called for {len(self._suggestions_intent.suggestions)} suggs")
+            print("")  # break the prompt line
+
+            # print the suggestions (without the dummy addition for avoid completion)
+            real_suggestions = [s for s in self._suggestions_intent.suggestions if s.string]
+            print_tabulated(real_suggestions,
+                            max_columns=self._suggestions_intent.max_columns)
+
+            # Manually print what was displayed (prompt plus content)
+            print(self._prompt + self._current_line, end="", flush=True)
+        except:
+            log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
+    
+    def _next_suggestion(self, token: str, count: int):
+        """
+        Called by GNU readline when new suggestions have to be provided.
+        Provide the next suggestion, or None if there is nothing more to suggest.
+        """
+
+        try:
+            log.d(f"next_suggestion token={token} | count={count}")
+
+            # Never insert trailing quote, we will do it manually
+            rl_set_completion_suppress_quote(1)
+            rl_get_completer_quote_characters()
+
+            self._current_line = readline.get_line_buffer()
+            stripped_current_line = self._current_line.lstrip()
+            # eprint(f"\ntoken:  {token}")
+            # eprint(f"\nline:  {stripped_current_line}")
+            # import pyreadline
+            # pyreadline.logger.log(f"count = {count}")
+
+            if count == 0:
+
+                self._suggestions_intent = SuggestionsIntent([])
+
+                for comm_name, comm_info in COMMANDS_INFO.items():
+                    if stripped_current_line.startswith(comm_name + " ") or \
+                            matches_special_command(stripped_current_line, comm_name):
+                        # Typing a COMPLETE command
+                        # e.g. 'ls '
+                        log.d("Fetching suggestions intent for command '%s'", comm_name)
+
+                        self._suggestions_intent = comm_info.suggestions(
+                            token, self._client
+                        ) or self._suggestions_intent  # don't let it to be None
+
+                        if self._suggestions_intent:
+                            log.d("Fetched (%d) suggestions intent for command '%s'",
+                                  len(self._suggestions_intent.suggestions),
+                                  comm_name)
+
+                        break
+
+                    if comm_name.startswith(stripped_current_line):
+                        # Typing an INCOMPLETE command
+                        # e.g. 'clos '
+
+                        # Case 1: complete command
+                        log.d("Fetching suggestions for command completion of '%s'", comm_name)
+                        self._suggestions_intent.suggestions.append(StyledString(comm_name))
+
+                if not self._suggestions_intent.completion:
+                    # TODO: find a way for not show the the suggestion inline
+                    #  probably see https://tiswww.case.edu/php/chet/readline/readline.html#SEC45
+                    #  for now we add a dummy suggestion that we won't print in our
+                    #  custom renderer
+                    self._suggestions_intent.suggestions.append(StyledString(""))
+
+                self._suggestions_intent.suggestions = \
+                    sorted(self._suggestions_intent.suggestions,
+                           key=lambda sug: sug.string.lower())
+
+            if count < len(self._suggestions_intent.suggestions):
+                sug = self._suggestions_intent.suggestions[count].string
+                log.d("Returning suggestion %d: %s", count, sug)
+
+                # Escape whitespaces, unless this token is beginning with a quote "
+                # TODO: escaping is a l
+                # sug = sug.replace(" ", "\\ ")
+
+                log.d("Completion is enabled = %s", self._suggestions_intent.completion)
+
+                # If there is only a suggestion that begins with
+                # this name, complete the suggestion (and eventually insert a space)
+                if self._suggestions_intent.completion and \
+                        self._suggestions_intent.space_after_completion and \
+                        len(self._suggestions_intent.suggestions) == 1:
+
+                    if is_bool(self._suggestions_intent.space_after_completion):
+                        append_space = self._suggestions_intent.space_after_completion
+                    else:  # is a hook
+                        append_space = self._suggestions_intent.space_after_completion(sug)
+
+                    if append_space:
+                        log.d("Last command with autocomplete -> adding space required")
+                        if rl_get_completion_quote_character() == '"':
+                            # Insert the quote before the space
+                            sug += '"'
+                        sug += " "
+
+                return sug
+
+            return None
         except:
             log.w("Exception occurred while retrieving suggestions\n%s", traceback.format_exc())
+            return None
 
-    def _next_suggestion(self, token: str, count: int):
-        """ Provide the next suggestion, or None if there is nothing more to suggest"""
-
-        # Never insert trailing quote, we will do it manually
-        rl_set_completion_suppress_quote(1)
-        rl_get_completer_quote_characters()
-
-        self._current_line = rline.get_line_buffer()
-        stripped_current_line = self._current_line.lstrip()
-        # eprint(f"\ntoken:  {token}")
-        # eprint(f"\nline:  {stripped_current_line}")
-
-        if count == 0:
-            self._suggestions_intent = SuggestionsIntent([])
-
-            for comm_name, comm_info in COMMANDS_INFO.items():
-                if stripped_current_line.startswith(comm_name + " ") or \
-                        matches_special_command(stripped_current_line, comm_name):
-                    # Typing a COMPLETE command
-                    # e.g. 'ls '
-                    log.d("Fetching suggestions intent for command '%s'", comm_name)
-
-                    self._suggestions_intent = comm_info.suggestions(
-                        token, self._client
-                    ) or self._suggestions_intent # don't let it to be None
-
-                    if self._suggestions_intent:
-                        log.d("Fetched (%d) suggestions intent for command '%s'",
-                              len(self._suggestions_intent.suggestions),
-                              comm_name)
-
-                    break
-
-                if comm_name.startswith(stripped_current_line):
-                    # Typing an INCOMPLETE command
-                    # e.g. 'clos '
-
-                    # Case 1: complete command
-                    log.d("Fetching suggestions for command completion of '%s'", comm_name)
-                    self._suggestions_intent.suggestions.append(StyledString(comm_name))
-
-            if not self._suggestions_intent.completion:
-                # TODO: find a way for not show the the suggestion inline
-                #  probably see https://tiswww.case.edu/php/chet/rline/rline.html#SEC45
-                #  for now we add a dummy suggestion that we won't print in our
-                #  custom renderer
-                self._suggestions_intent.suggestions.append(StyledString(""))
-
-            self._suggestions_intent.suggestions = \
-                sorted(self._suggestions_intent.suggestions,
-                       key=lambda sug: sug.string.lower())
-
-
-        if count < len(self._suggestions_intent.suggestions):
-            sug = self._suggestions_intent.suggestions[count].string
-            log.d("Returning suggestion %d: %s", count, sug)
-
-            # Escape whitespaces, unless this token is beginning with a quote "
-            # TODO: escaping is a l
-            # sug = sug.replace(" ", "\\ ")
-
-            log.d("Completion is enabled = %s", self._suggestions_intent.completion)
-
-            # If there is only a suggestion that begins with
-            # this name, complete the suggestion (and eventually insert a space)
-            if self._suggestions_intent.completion and \
-                    self._suggestions_intent.space_after_completion and \
-                    len(self._suggestions_intent.suggestions) == 1:
-
-                if is_bool(self._suggestions_intent.space_after_completion):
-                    append_space = self._suggestions_intent.space_after_completion
-                else: # is a hook
-                    append_space = self._suggestions_intent.space_after_completion(sug)
-
-                if append_space:
-                    log.d("Last command with autocomplete -> adding space required")
-                    if rl_get_completion_quote_character():
-                        # Insert the quote before the space
-                        sug += '"'
-                    sug += " "
-
-
-            return sug
-
-        return None
 
     # noinspection PyPep8Naming
     def _build_prompt_string(self) -> str:
@@ -376,14 +398,11 @@ class Shell:
 
             if self._client.is_connected_to_sharing():
                 remote += ".{}:{}".format(
-                self._client.connection.current_sharing_name(),
-                self._client.connection.current_rcwd()
+                    self._client.connection.current_sharing_name(),
+                    self._client.connection.current_rcwd()
             )
 
-            # remote = styled(remote, fg=ansi.FG_MAGENTA, attrs=ansi.ATTR_BOLD)
-
         local = os.getcwd()
-        # local = styled(local, fg=ansi.FG_CYAN, attrs=ansi.ATTR_BOLD)
 
         sep = (" " + 2 * self._prompt_local_remote_sep + " ") if remote else ""
 
@@ -391,21 +410,17 @@ class Shell:
         B = ansi.ATTR_BOLD
         M = ansi.FG_MAGENTA
         C = ansi.FG_CYAN
-
-        if is_windows():
-            return B + M + remote + R + B + sep + R + B + C + local + R + B + "> " + R
-
-        IS = ansi.RL_PROMPT_START_IGNORE if is_unix() else ""  # no readline on Windows for now
-        IE = ansi.RL_PROMPT_END_IGNORE if is_unix() else ""  # no readline on Windows for now
+        IS = ansi.RL_PROMPT_START_IGNORE
+        IE = ansi.RL_PROMPT_END_IGNORE
 
         # Escape sequence must be wrapped into \001 and \002
-        # so that rline can handle those well and deal with terminal/prompt
+        # so that readline can handle those well and deal with terminal/prompt
         # width properly
-        # prompt = remote + sep + local + "> "
 
         # use a leading DELETE_EOL for overwrite eventual previously printed ^C
         # (won't overwrite the previous prompt since KeyboardInterrupt is captured
         # and prints a new line)
+
         prompt = ansi.DELETE_EOL + \
             ((IS + B + M + IE + remote + IS + R + IE) if remote else "") + \
             ((IS + B + IE + sep + IS + R + IE) if sep else "") + \
@@ -470,7 +485,6 @@ class Shell:
         log.i(">> VERBOSE (%d)", verbosity)
 
         root_log.set_verbosity(verbosity)
-        # enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
         print(f"Verbosity = {verbosity} ({_VERBOSITY_EXPLANATION_MAP.get(verbosity, '<unknown>')})")
 

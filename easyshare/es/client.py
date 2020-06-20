@@ -3080,7 +3080,8 @@ NNSS  : only if newer OR size is different - to all
 
                 t = time.monotonic_ns()
                 sleep_t = (discover_timeout - (t - discover_start_t) * 1e-9) / (K - i)
-                time.sleep(sleep_t)
+                if sleep_t > 0:
+                    time.sleep(sleep_t)
 
                 # time.sleep(discover_timeout / K)
 

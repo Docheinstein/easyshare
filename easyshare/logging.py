@@ -139,10 +139,6 @@ def init_logging(default_verbosity: int = None):
     # We can initialize the root logger at this point
     get_logger()
 
-    from easyshare.styling import cyan
-    print(cyan("log OK"))
-
-
 
 def get_logger(name: str = ROOT_LOGGER_PATTERN,
                root: bool = False,

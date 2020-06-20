@@ -9,7 +9,7 @@ from easyshare.styling import fg, bold
 from easyshare.tree import TreeNodeDict, TreeRenderPreOrder
 from easyshare.utils.env import terminal_size, is_unicode_supported
 from easyshare.utils.json import j
-from easyshare.utils.measures import size_str, size_str_justify
+from easyshare.utils.measures import size_str_justify
 from easyshare.utils.os import perm_str
 from easyshare.utils.path import is_hidden
 from easyshare.utils.ssl import SSLCertificate
@@ -29,7 +29,12 @@ class StyledString:
         return self.string
 
 
-def print_tabulated(strings: List[StyledString], max_columns: int = None):
+def _print_strict(*args, **kwargs):
+    print(*args, **kwargs, end="")
+
+
+def print_tabulated(strings: List[StyledString], max_columns: int = None,
+                    print_func: Callable = _print_strict):
     """
     Prints the 'strings' in columns (max max_columns);
     The space of the columns is the space needed for display the longest string.
@@ -73,7 +78,7 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None):
 
                 justification = min_col_width + len(ss.styled_string) - len(ss.string)
                 print_row += ss.styled_string.ljust(justification)
-        print(print_row)
+        print_func(print_row + "\n")
 
 
 def file_info_full_str(info: FileInfo):
