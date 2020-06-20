@@ -18,10 +18,11 @@ from easyshare.utils.net import is_valid_port
 from easyshare.utils.obj import values
 
 
-if __name__ == "__main__":
-    # Call it now before get_logger for enable colors properly
-    # and let logger be initialized with/without colors
-    easyshare_setup()
+# if __name__ == "__main__":
+
+# Call it now before get_logger for enable colors properly
+# and let logger be initialized with/without colors
+easyshare_setup()
 
 
 log = get_logger(__name__)

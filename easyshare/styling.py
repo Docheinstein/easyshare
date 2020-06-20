@@ -16,7 +16,7 @@ def enable_colors(enabled: bool = True):
         if not are_colors_enabled():
             pass
             # print("Colors enabled but output stream doesn't support colors")
-        colorama.init(convert=True)
+        colorama.init()
     else:
         pass
         # print("Colors disabled")

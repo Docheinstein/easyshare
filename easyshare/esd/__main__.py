@@ -26,10 +26,10 @@ from easyshare.utils.net import is_valid_port, get_primary_ip
 from easyshare.utils.ssl import create_server_ssl_context
 from easyshare.utils.str import satisfychars, tf, keepchars
 
-if __name__ == "__main__":
-    # Call it now before get_logger for enable colors properly
-    # and let logger be initialized with/without colors
-    easyshare_setup()
+# if __name__ == "__main__":
+# Call it now before get_logger for enable colors properly
+# and let logger be initialized with/without colors
+easyshare_setup()
 
 log = get_logger(__name__)
 
