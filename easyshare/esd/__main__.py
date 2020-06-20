@@ -187,7 +187,6 @@ def main():
     # Eventually set verbosity before anything else
     # so that the rest of the startup (config parsing, ...)
     # can be logged
-    # Verbosity over VERBOSITY_MAX enables pyro logging too
     if g_args.has_option(Esd.VERBOSE):
         log.set_verbosity(g_args.get_option_param(Esd.VERBOSE,
                                                   default=logging.VERBOSITY_MAX))

@@ -76,7 +76,6 @@ def main():
     # Eventually set verbosity before anything else
     # so that the rest of the startup (config parsing, ...)
     # can be logged
-    # Verbosity over VERBOSITY_MAX enables pyro logging too
     if args.has_option(Es.VERBOSE):
         log.set_verbosity(args.get_option_param(Es.VERBOSE,
                                                 default=logging.VERBOSITY_MAX))
@@ -155,7 +154,6 @@ def main():
 
     if verbosity:
         log.set_verbosity(verbosity)
-        # enable_pyro_logging(verbosity > logging.VERBOSITY_MAX)
 
 
     # Initialize the client

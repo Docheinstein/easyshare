@@ -12,3 +12,4 @@
 - hard: quoting with ctypes + libreadline
 - s now is -NS not only -N
 - es: user agent
+- fix get for FILEs which adds \.

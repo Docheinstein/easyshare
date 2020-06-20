@@ -32,8 +32,7 @@ from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMA
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import RequestsParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
-    create_error_of_response, ResponsesParams
-from easyshare.protocol.services import Response
+    create_error_of_response, ResponsesParams, Response
 from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, FTYPE_FILE, \
     ServerInfo, create_file_info, RexecEventType
 from easyshare.styling import bold, green, red
@@ -389,12 +388,6 @@ class Client:
         try:
             executor(args, None) # will be provided by decorators
             return 0
-
-        # except PyroError:
-        #     Pyro fail: destroy connection
-            # log.exception("Pyro exception caught, destroying active connections...")
-            # self.destroy_connection()
-            # return ClientErrors.CONNECTION_ERROR
 
         except CommandExecutionError as ex:
             # "Expected" fail

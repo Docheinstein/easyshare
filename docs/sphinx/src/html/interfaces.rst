@@ -2,10 +2,10 @@
 Interfaces
 ==============
 
-Services
+Requests
 -----------
 
-.. automodule:: easyshare.protocol.services
+.. automodule:: easyshare.protocol.requests
    :members:
 
 Responses

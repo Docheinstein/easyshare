@@ -56,7 +56,7 @@ setup(
     install_requires=[
         "colorama",
         "ptyprocess; 'linux' in sys_platform",
-        "pywin32; 'win' in sys_platform"
+        "pywin32; 'win' in sys_platform",
         "pyreadline; 'win' in sys_platform"
     ]
 )

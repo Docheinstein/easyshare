@@ -8,13 +8,11 @@ from easyshare.es.ui import StyledString
 from easyshare.helps import CommandHelp, CommandOptionInfo
 from easyshare.logging import get_logger
 from easyshare.common import DIR_COLOR, FILE_COLOR
-from easyshare.protocol.services import FileInfo
 from easyshare.protocol.responses import is_data_response
-from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR
+from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfo
 from easyshare.styling import fg
 from easyshare.utils.os import ls
 from easyshare.utils.path import LocalPath
-from easyshare.utils.str import rightof
 
 log = get_logger(__name__)
 

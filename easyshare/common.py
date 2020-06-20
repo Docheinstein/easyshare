@@ -72,13 +72,6 @@ class TransferDirection(enum.Enum):
 
 
 # =====================
-# ==== PYRO NETWORK ====
-# =====================
-
-ESD_PYRO_UID = "esd"
-
-
-# =====================
 # === SHARING/SERVER ==
 # =====================
 

@@ -1759,9 +1759,6 @@ class ClientHandler:
             #  if something about IO goes wrong all the transfer is compromised
             #  since we can't tell the user about it.
             #  Open is already done so there should be no permissions problems
-            # The solution is to notify the client on the pyro channel, but this
-            # implies that the client use an async mechanism for get (while for
-            # now is synchronous)
 
             cur_pos = 0
             crc = 0
