@@ -3,7 +3,7 @@
 # ================== REQUEST ====================
 # ===============================================
 from easyshare.utils.types import is_dict, is_str
-from typing import Any, Dict
+from typing import Any, Dict, Union, List, Optional
 
 class Requests:
     CONNECT = "connect"
@@ -118,7 +118,7 @@ RequestParams = Dict[str, Any]
 
 try:
     # From python 3.8
-    from typing import Literal, TypedDict, Union, List, Optional
+    from typing import TypedDict
 
     class Request(TypedDict, total=False):
         api: str

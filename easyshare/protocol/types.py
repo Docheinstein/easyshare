@@ -1,4 +1,5 @@
 from os import stat_result
+from typing import List, Union, Dict, Optional
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
 
@@ -31,7 +32,7 @@ FTYPE_DIR = "dir"
 
 try:
     # From python 3.8
-    from typing import Literal, List, Union, Dict, Optional
+    from typing import Literal
 
     FileType = Literal["file", "dir"]
 except:
@@ -69,7 +70,7 @@ try:
 
 except:
     FileInfo = Dict[str, Union[str, FileType, int]]
-    FileInfoNode = Dict[str, Union[str, FileType, int, List['FileInfoNode']]]
+    FileInfoTreeNode = Dict[str, Union[str, FileType, int, List['FileInfoTreeNode']]]
 
 
 _users_cache = {}

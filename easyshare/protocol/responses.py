@@ -3,6 +3,7 @@
 # ================ RESPONSE CODES ================
 # ================================================
 
+from typing import Any, Dict, Union, List, Optional
 from easyshare.utils.types import is_str, is_int, is_dict, is_list, is_valid_list
 
 
@@ -86,8 +87,7 @@ class ResponsesParams:
 
 try:
     # From python 3.8
-    from typing import Literal, TypedDict, Any, Dict, Union, List, Optional
-
+    from typing import TypedDict
 
     class ResponseError(TypedDict, total=False):
         errno: int

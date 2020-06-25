@@ -34,7 +34,7 @@ try:
 
 except:
     SSLCertificatePart = Dict[str, str]
-    SSLCertificate = Dict[str, Union[SSLCertificatePart], str, bool]
+    SSLCertificate = Dict[str, Union[SSLCertificatePart, str, bool]]
 
 
 

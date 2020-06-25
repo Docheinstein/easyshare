@@ -57,7 +57,7 @@ class TcpStream:
 
         return payload_data
 
-    def write(self, /, payload_data: Union[bytearray, bytes], *, trace: bool = True):
+    def write(self, payload_data: Union[bytearray, bytes], *, trace: bool = True):
         do_trace_bin_all = get_tracing_level() == TRACING_BIN_ALL
 
         payload_size = len(payload_data)
