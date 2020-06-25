@@ -350,7 +350,11 @@ def walk_preorder(path: Path):
     while stack:
         cursor = stack.pop(0)
 
-        fstat = cursor.stat()
+        try:
+            fstat = cursor.stat()
+        except OSError as oserr:
+            log.w("Can't stat: %s", str(oserr))
+            continue
 
         try:
             is_file = S_ISREG(fstat.st_mode)

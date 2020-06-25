@@ -814,7 +814,7 @@ class ClientHandler:
 
         try:
             # OK - report it
-            print(f"[{self._client.tag}] du '{rdu_fpath}' "
+            print(f"[{self._client.tag}] rdu '{rdu_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
             usage = du(rdu_fpath)
