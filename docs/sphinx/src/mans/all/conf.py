@@ -64,14 +64,48 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 # html_static_path = ['_static']
 #
+# This value determines how to group the document tree into manual pages.
+# It must be a list of tuples (startdocname, name, description, authors, section), where the items are:
+#
+# startdocname
+#     String that specifies the document name of the manual page’s master document.
+#     All documents referenced by the startdoc document in TOC trees will be included in the manual file.
+#     (If you want to use the default master document for your manual pages build, use your master_doc here.)
+# name
+#     Name of the manual page. This should be a short string without spaces or special characters.
+#     It is used to determine the file name as well as the name of the manual page (in the NAME section).
+# description
+#     Description of the manual page. This is used in the NAME section.
+# authors
+#     A list of strings with authors, or a single string.
+#     Can be an empty string or list if you do not want to automatically generate an AUTHORS section in the manual page.
+# section
+#
+#     The manual page section. Used for the output file name as well as in the manual page header.
 
 man_pages = [
     # man 1 es
     (
-    "index",
-    'es-tools',
-    'tools for administrators of easyshare servers',
-    [author],
-    1
+        "index",
+        'es',
+        'client of the easyshare application',
+        [author],
+        1
+    ),
+    # man 1 esd
+    (
+        "index",
+        'esd',
+        'server of the easyshare application',
+        [author],
+        1
+    ),
+    # man 1 es-tools
+    (
+        "index",
+        'es-tools',
+        'tools for administrators of easyshare servers',
+        [author],
+        1
     )
 ]

@@ -4,7 +4,7 @@ import shlex
 import traceback
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
-from easyshare import logging, tracing
+from easyshare import logging, tracing, styling
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
 from easyshare.consts import ansi
 from easyshare.es.client import Client
@@ -406,12 +406,13 @@ class Shell:
 
         sep = (" " + 2 * self._prompt_local_remote_sep + " ") if remote else ""
 
-        R = ansi.RESET
-        B = ansi.ATTR_BOLD
-        M = ansi.FG_MAGENTA
-        C = ansi.FG_CYAN
-        IS = ansi.RL_PROMPT_START_IGNORE
-        IE = ansi.RL_PROMPT_END_IGNORE
+        colored = styling.are_colors_enabled()
+        R = ansi.RESET if colored else ""
+        B = ansi.ATTR_BOLD if colored else ""
+        M = ansi.FG_MAGENTA if colored else ""
+        C = ansi.FG_CYAN if colored else ""
+        IS = ansi.RL_PROMPT_START_IGNORE if colored else ""
+        IE = ansi.RL_PROMPT_END_IGNORE if colored else ""
 
         # Escape sequence must be wrapped into \001 and \002
         # so that readline can handle those well and deal with terminal/prompt
@@ -433,7 +434,7 @@ class Shell:
         """ help - display the man of a command """
         cmd = args.get_positional()
 
-        cmd_help = get_command_help(cmd)
+        cmd_help = get_command_help(cmd, styled=styling.are_colors_enabled())
 
         if not cmd_help:
             print(f"Can't provide help for command '{cmd}'")

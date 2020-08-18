@@ -106,9 +106,6 @@ def init_logging(default_verbosity: int = None):
     global _default_verbosity
     global _log_handler
 
-    if _initialized is True:
-        return
-
     import sys
 
     _log_handler = logging.StreamHandler(sys.stderr)
@@ -133,11 +130,14 @@ def init_logging(default_verbosity: int = None):
     logging.Logger.d = logging.Logger.debug
     logging.Logger.set_verbosity = set_verbosity
 
+    # We can initialize the root logger at this point
+    if _initialized is False:
+        get_logger()
+
     _initialized = True
     _default_verbosity = default_verbosity
 
-    # We can initialize the root logger at this point
-    get_logger()
+
 
 
 def get_logger(name: str = ROOT_LOGGER_PATTERN,

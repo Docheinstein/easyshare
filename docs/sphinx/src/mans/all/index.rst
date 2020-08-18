@@ -10,3 +10,5 @@ Easyshare
    :maxdepth: 2
 
    es.1
+   esd.1
+   es-tools.1

@@ -415,6 +415,7 @@ def main():
     log.d("Verbosity: %s", verbosity)
 
     enable_colors(are_colors_supported() and not no_colors)
+    logging.init_logging() # update colors
 
     set_tracing_level(tracing)
 
