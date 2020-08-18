@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 from typing import Union
 
 from easyshare.common import TransferDirection, TransferProtocol
@@ -97,7 +98,7 @@ def _trace(what: str,
 {_1} From:      {f'{sender[0]}:{sender[1]}' if sender else "-----------------"}
 {_1} To:        {f'{receiver[0]}:{receiver[1]}' if receiver else "-----------------"}
 {_1} Protocol:  {protocol.value}
-{_1} Timestamp: {int(time.time_ns() * 1e-6)}"""
+{_1} Timestamp: {int(time.time_ns() * 1e-6)} ({datetime.now().strftime("%d/%m/%Y %H:%M:%S.%f")})"""
 
     if size >= 0:
         s += f"""

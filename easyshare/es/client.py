@@ -346,6 +346,7 @@ class Client:
         self._command_dispatcher[Commands.INFO_SHORT] = self._command_dispatcher[Commands.INFO]
         self._command_dispatcher[Commands.LOCAL_EXEC_SHORT] = self._command_dispatcher[Commands.LOCAL_EXEC]
         self._command_dispatcher[Commands.REMOTE_EXEC_SHORT] = self._command_dispatcher[Commands.REMOTE_EXEC]
+        self._command_dispatcher[Commands.LOCAL_SHELL_SHORT] = self._command_dispatcher[Commands.LOCAL_SHELL]
         self._command_dispatcher[Commands.REMOTE_SHELL_SHORT] = self._command_dispatcher[Commands.REMOTE_SHELL]
 
     def has_command(self, command: str) -> bool:

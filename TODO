@@ -13,3 +13,12 @@
 - s now is -NS not only -N
 - es: user agent
 - fix get for FILEs which adds \.
+- rsh is broken... (only zsh?)
+- findings slicing $A01:$04
+- findings completion
+- fix 1000MB might happen => 1 characters of space to keep into account
+- -S does not work
+- readline menu-complete
+- fix rsh /bin/bhsa -> wrong command
+- history of shell in history file
+- why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
