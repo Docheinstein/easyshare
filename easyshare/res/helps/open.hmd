@@ -1,0 +1,83 @@
+
+. =============================================
+. Automatically generated - 20/08/2020 12:03:42
+. =============================================
+**COMMAND**
+    open - open a remote sharing (eventually discovering it)
+
+**SYNOPSIS**
+    **open** *SHARING_LOCATION*
+
+**DESCRIPTION**
+    Open a sharing whose location is specified by *SHARING_LOCATION*
+    
+    *SHARING_LOCATION* has the following syntax:
+        <*sharing_name*>[@<*server_name*>|<*address*>[:<*port*>]]
+    
+    See the section **EXAMPLES** for more examples about *SHARING_LOCATION*.
+    
+    The following rules are applied for establish a connection:
+    
+    .A .
+    1. If *SHARING_LOCATION* is a valid <*sharing_name*> (e.g. shared), a discover is performed for figure out to which server the sharing belongs to.
+    2. If *SHARING_LOCATION* has the form <*sharing_name*>@<*server_name*>[:*port*] (e.g. shared@alice-arch) a discover is performed as well as in case 1. and the <*server_name*> and the <*port*> act only as a filter (i.e. the connection won't be established if they don't match).
+    3. If *SHARING_LOCATION* has the form <*sharing_name*>@<*address*> (e.g. shared@192.168.1.105) the connection will be tried to be established directly to the server at the default port. If the attempt fails, a discover is performed for figure out which port the server is really bound to and another attempt is done.
+    4. If *SHARING_LOCATION* has the form <*sharing_name*>@<*address*>:<*port*> (e.g. shared@192.168.1.105:12020) the connection will be established directly.
+    ./A
+    
+    The discover, if involved (1., 2. and 3.), is performed on the port specified to es with **-d** *port* for the time specified with **-w** *seconds* (default is two seconds).
+    
+    Note that **connect** is not necessary if you want to directly open a sharing, you can use open which automatically will establish the connection with the server as **connect** would do.
+    
+    When possible, using the server name (1., 2. and 3.) is more immediate and human friendly compared to specify the address and eventually the port of the server (4.).
+    
+    There are cases in which specify the address and the port of the server (4.) is necessary, for example when the discover can't be performed because the server is not on the same network of the client (e.g. behind a NAT).
+    
+    If the sharing described by *SHARING_LOCATION* is found within the sharings of the server to which the connection is already established, it will be obviously opened without perform any kind of discover or new connection.
+    
+    If already connected to a server and/or a sharing, a successful **open** execution to another server automatically closes the current connection.
+    
+    If, for some reason, there is more than a sharing with the same name on the same network, **open** will try to connect to the one that is discovered first (in general it's unpredictable which will be).
+    
+    If you need a deterministic (and more safe) approach, consider using **scan** for discover the server manually (eventually followed by a consecutive **info** call for fetch more accurate details such as SSL certificate) then invoke **open** specifying the server details too (i.e. server name or address and port).
+    
+    In general, **open** doesn't require you to use **connect** before; the connection will be created for you automatically.
+
+**EXAMPLES**
+    Usage example:
+    
+    .A .
+    1. Connection by sharing name (while connected)
+    ./A
+        **/tmp>** connect alice-arch
+        **alice-arch - /tmp> open** *temp*
+        **alice-arch.temp:/ - /tmp>** rls
+        f1      f2
+    
+    .A .
+    1b. Connection by sharing name (discover)
+    ./A
+        **/tmp> open** *temp*
+        **alice-arch.temp:/ - /tmp>** rls
+        f1      f2
+    
+    .A .
+    2. Connection by sharing name with server name filter (discover)
+    ./A
+        **/tmp> open** *temp@alice-arch*
+        **alice-arch.temp:/ - /tmp>**
+    
+    .A .
+    3. Connection by sharing name with address (attempt direct, discover if fails)
+    ./A
+        **/tmp> open** *temp@alice-arch*
+        **alice-arch.temp:/ - /tmp>**
+    
+    .A .
+    4. Connection by sharing name with address and port (direct)
+    ./A
+        **/tmp> open** *temp@192.168.1.105:12020*
+        **alice-arch.temp:/ - /tmp>**
+
+**SEE ALSO**
+    **close**, **connect**

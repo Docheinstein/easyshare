@@ -1,0 +1,90 @@
+
+. ===========================================
+Automatically generated - 20/08/2020 11:22:13
+. ===========================================
+
+**COMMAND**
+    find - search for local files
+
+**SYNOPSIS**
+    **find** [*OPTION*]... [*DIR*]
+
+**DESCRIPTION**
+    Search for files and directories based on the given filters the local *DIR*, 
+    or the current local directory if no *DIR* is specified.
+    
+    Each result of **find** is memorized and can be used further with any command that accept local paths by specifying the identifier shown by **find**.
+    For instance, you can search a file by name (i.e. **find** **-n** *usefulname*) and then perform a local action over it (e.g. **rm** $a1) or even a transfer action 
+    (e.g. **put** $a1).
+
+**OPTIONS**
+    **-i**, **--insensitive** 
+        Make filename filtering case insensitive
+    
+    **-l** 
+        Show more details
+    
+    **-n**, **--name** *pattern*
+        Filter by filename
+    
+    **-r**, **--regex** *pattern*
+        Filter by filename using regular expression
+    
+    **-t**, **--type** *ftype*
+        Filter by file type
+
+**EXAMPLES**
+    Usage example:
+    
+    .A .
+    1. List current local directory (no filters)
+    ./A
+        **/tmp> find**
+        $a1 FILE2
+        $a2 dir1
+        $a3 dir1/file
+        $a4 dir2
+        $a5 file1
+        
+    .A .
+    2. List local directory (no filters)
+    ./A
+        **/tmp> find** *dir1*
+        $b3 dir1/file
+    
+    .A .
+    3. Finding by name
+    ./A
+        **/tmp> find -n** *file*
+        $c1 dir1/file
+        $c2 file1
+    
+    .A .
+    4. Finding by name, case insensitive
+    ./A
+        **/tmp> find -in** *file*
+        $d1 FILE2
+        $d2 dir1/file
+        $d3 file1
+    
+    .A .
+    5. Finding by regex
+    ./A
+        **/tmp> find -r** *file[0-9]*
+        $e1 file1
+    
+    .A .
+    6. Finding by regex, case insensitive
+    ./A
+        **/tmp> find -ir** *file[0-9]*
+        $f1 FILE2
+        $f2 file1   
+    
+    .A .
+    7. Finding by name, files only
+    ./A
+        **/tmp> find -in** *dir1* **-t** *f*
+        $g1 dir1/file
+
+**SEE ALSO**
+    Type "**help** **rfind**" for the remote analogous.

@@ -15,7 +15,6 @@ if ! pip_module_exists recommonmark; then
   abort "sphinx must be installed for build docs"
 fi
 
-echo_cyan "====== CREATING MANS ====="
+echo_cyan "====== CREATING TEXTS ====="
 
-# all
-sphinx-build -M text docs/sphinx/src/mans/all docs/sphinx/build
+sphinx-build -M text docs/sphinx/src/mans docs/sphinx/build

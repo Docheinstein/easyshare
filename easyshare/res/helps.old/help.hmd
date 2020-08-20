@@ -1,0 +1,49 @@
+**COMMAND**
+    help - show the help of a command
+
+**SYNOPSIS**
+    **help** [*COMMAND*]
+
+**DESCRIPTION**
+    Show the help of *COMMAND* if specified, or show the list of commands if no *COMMAND* is given.
+
+    Available commands are:
+        ::
+        cd
+        close
+        connect
+        cp
+        disconnect
+        du
+        exec
+        exit
+        find
+        get
+        help
+        info
+        ls
+        mkdir
+        mv
+        open
+        ping
+        put
+        pwd
+        quit
+        rcd
+        rcp
+        rdu
+        rexec
+        rfind
+        rls
+        rm
+        rmkdir
+        rmv
+        rpwd
+        rrm
+        rshell
+        rtree
+        scan
+        shell
+        trace
+        tree
+        verbose

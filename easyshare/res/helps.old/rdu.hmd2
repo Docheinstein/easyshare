@@ -1,0 +1,25 @@
+
+. ===========================================
+Automatically generated - 20/08/2020 11:22:13
+. ===========================================
+
+**COMMAND**
+    rdu - estimate disk usage of remote files
+
+**SYNOPSIS**
+    **rdu** [*FILE*]
+    
+    *SHARING_LOCATION* must be specified if and only if not already connected to a remote server. In that case the connection will be established before execute the command, as "**connect** *SHARING_LOCATION*" would do.
+    
+    Type "**help** **connect**" for more information about *SHARING_LOCATION* format.
+
+**DESCRIPTION**
+    Estimate the disk usage of *FILE* (which could be either a file or a directory).
+    If *FILE* is not specified, the disk usage of the current remote directory is estimated instead.
+
+**OPTIONS**
+    **-h**, **--human** 
+        Print size in human readable format (e.g. 17K)
+
+**SEE ALSO**
+    Type "**help du**" for the remote analogous.

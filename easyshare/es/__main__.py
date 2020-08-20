@@ -9,8 +9,8 @@ from easyshare.es.shell import Shell
 from easyshare.helps.commands import Commands, is_special_command
 from easyshare.helps.es import Es
 from easyshare.logging import get_logger
-from easyshare.res.helps import get_command_usage
-from easyshare.styling import enable_colors
+from easyshare.res.helps import command_usage
+from easyshare.styling import enable_styling
 from easyshare.tracing import TRACING_NONE, TRACING_TEXT, set_tracing_level
 from easyshare.utils import abort, terminate
 from easyshare.utils.env import is_stdout_terminal, are_colors_supported
@@ -86,7 +86,8 @@ def main():
 
     # Help?
     if Es.HELP in args:
-        _print_usage_and_quit()
+        command_usage(Es.name())
+        terminate()
 
     # Version?
     if Es.VERSION in args:
@@ -149,7 +150,7 @@ def main():
         log.w("Disabling colors since detected non-terminal output file")
         no_colors = True
 
-    enable_colors(are_colors_supported() and not no_colors)
+    enable_styling(are_colors_supported() and not no_colors)
     logging.init_logging() # update colors
 
     set_tracing_level(tracing)
@@ -196,17 +197,6 @@ def main():
         log.i("Starting interactive shell")
         shell.input_loop()
 
-
-
-def _print_usage_and_quit():
-    """ Prints the es usage and exit """
-    es_usage = get_command_usage(Es.name())
-
-    if not es_usage:
-        # Something went wrong with the dynamic loading of the usage
-        abort(f"Can't provide usage of '{Es.name()}'")
-
-    terminate(es_usage)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,15 @@
+
+. =============================================
+. Automatically generated - 20/08/2020 12:03:42
+. =============================================
+**COMMAND**
+    cd - change local working directory
+
+**SYNOPSIS**
+    **cd** [*DIR*]
+
+**DESCRIPTION**
+    Change the current local working directory to *DIR* or to the user's home directory if *DIR* is not specified.
+
+**SEE ALSO**
+    Type "**help rcd**" for the remote analogous.

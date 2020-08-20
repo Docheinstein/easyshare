@@ -17,7 +17,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.res.helps import get_command_usage
 from easyshare.ssl import get_ssl_context, set_ssl_context
-from easyshare.styling import enable_colors, bold
+from easyshare.styling import enable_styling, bold
 from easyshare.tracing import set_tracing_level, TRACING_NONE, TRACING_TEXT
 from easyshare.utils import terminate, abort
 from easyshare.utils.env import are_colors_supported
@@ -414,7 +414,7 @@ def main():
     log.d("Tracing: %s", tracing)
     log.d("Verbosity: %s", verbosity)
 
-    enable_colors(are_colors_supported() and not no_colors)
+    enable_styling(are_colors_supported() and not no_colors)
     logging.init_logging() # update colors
 
     set_tracing_level(tracing)

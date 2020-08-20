@@ -5,25 +5,20 @@ import colorama
 from typing import List, Union, Optional
 from easyshare.consts import ansi
 
-_colorful = True
+_styling = True
 
 
-def enable_colors(enabled: bool = True):
+def enable_styling(enabled: bool = True):
     """ Enables/disables colors and styling of strings """
-    global _colorful
-    _colorful = enabled
+    global _styling
+    _styling = enabled
     if enabled:
-        if not are_colors_enabled():
-            pass
-            # print("Colors enabled but output stream doesn't support colors")
         colorama.init()
-    else:
-        pass
-        # print("Colors disabled")
 
-def are_colors_enabled():
+
+def is_styling_enabled():
     """ Returns whether colors are enabled """
-    return _colorful
+    return _styling
 
 
 def styled(s: str,
@@ -31,7 +26,7 @@ def styled(s: str,
            bg: Optional[str] = None,
            attrs: Union[str, List[str]] = ()) -> str:
     """ Styles the string with the given ansi escapes (foreground, background and attributes)"""
-    if not _colorful:
+    if not _styling:
         return s
     return _styled(s, fg, bg, *attrs)
 
@@ -139,7 +134,7 @@ if __name__ == "__main__":
     from easyshare.utils.env import are_colors_supported
 
     colors_disabled = os.getenv('ANSI_COLORS_DISABLED')
-    enable_colors(are_colors_supported() and not colors_disabled)
+    enable_styling(are_colors_supported() and not colors_disabled)
 
     print(cyan(f"CYAN on {sys.platform}, does it works?"))
     print(bold(f"BOLD on {sys.platform}, does it works?"))

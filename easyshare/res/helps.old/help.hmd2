@@ -1,0 +1,69 @@
+
+. ===========================================
+Automatically generated - 20/08/2020 11:22:13
+. ===========================================
+
+**COMMAND**
+    help - show the help of a command
+
+**SYNOPSIS**
+    **help** [*COMMAND*]
+
+**DESCRIPTION**
+    Show the help of *COMMAND* if specified, or show the list of commands if no *COMMAND* is given.
+    
+    Available commands are:
+        :
+        ::
+        c
+        cd
+        close
+        connect
+        cp
+        disconnect
+        du
+        exec
+        exit
+        f
+        find
+        g
+        get
+        h
+        help
+        i
+        info
+        ls
+        mkdir
+        mv
+        o
+        open
+        p
+        ping
+        put
+        pwd
+        q
+        quit
+        rcd
+        rcp
+        rdu
+        rexec
+        rf
+        rfind
+        rls
+        rm
+        rmkdir
+        rmv
+        rpwd
+        rrm
+        rsh
+        rshell
+        rtree
+        s
+        scan
+        sh
+        shell
+        t
+        trace
+        tree
+        v
+        verbose

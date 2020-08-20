@@ -1,10 +1,10 @@
 import os
-import pydoc
 import shlex
 import traceback
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
-from easyshare import logging, tracing, styling
+
+from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
 from easyshare.consts import ansi
 from easyshare.es.client import Client
@@ -13,9 +13,11 @@ from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.helps.commands import Commands, matches_special_command, Verbose, Trace
 from easyshare.helps.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
-from easyshare.res.helps import get_command_help
+from easyshare.res.helps import command_man
+from easyshare.styling import is_styling_enabled
+
 from easyshare.tracing import get_tracing_level, set_tracing_level
-from easyshare.utils.env import is_unicode_supported, is_unix, is_windows, has_gnureadline, has_pyreadline
+from easyshare.utils.env import is_unicode_supported, has_gnureadline, has_pyreadline
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
@@ -406,7 +408,7 @@ class Shell:
 
         sep = (" " + 2 * self._prompt_local_remote_sep + " ") if remote else ""
 
-        colored = styling.are_colors_enabled()
+        colored = is_styling_enabled()
         R = ansi.RESET if colored else ""
         B = ansi.ATTR_BOLD if colored else ""
         M = ansi.FG_MAGENTA if colored else ""
@@ -431,18 +433,8 @@ class Shell:
         return prompt
 
     def _help(self, args: Args) -> NoReturn:
-        """ help - display the man of a command """
-        cmd = args.get_positional()
-
-        cmd_help = get_command_help(cmd, styled=styling.are_colors_enabled())
-
-        if not cmd_help:
-            print(f"Can't provide help for command '{cmd}'")
-            return
-
-        # Pass the helps to the available pager (typically less)
-        pydoc.pager(cmd_help)
-
+        cmd = args.get_positional(default="usage")
+        command_man(cmd)
 
     @staticmethod
     def _exit(_: Args) -> NoReturn:

@@ -55,6 +55,7 @@ setup(
     url="https://github.com/Docheinstein/easyshare",
     install_requires=[
         "colorama",
+        "hmd",
         "ptyprocess; 'linux' in sys_platform",
         "pywin32; 'win' in sys_platform",
         "pyreadline; 'win' in sys_platform"

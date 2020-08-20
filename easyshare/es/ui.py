@@ -81,7 +81,7 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None,
         print_func(print_row + "\n")
 
 
-def file_info_full_str(info: FileInfo):
+def file_info_pretty_str(info: FileInfo):
     s = f"""\
 File:           {info.get("name")}    
 Type:           {info.get("ftype")}
@@ -199,6 +199,80 @@ def print_files_info_tree(root: TreeNodeDict,
             fg(name, color=DIR_COLOR if ftype == FTYPE_DIR else FILE_COLOR),
         ))
 
+def server_pretty_str(info: ServerInfoFull,
+                      show_server_info: bool = True,
+                      show_ssl_certificate: bool = True,
+                      show_sharings: bool = True,
+                      show_sharings_details: bool = True,
+                      separators: bool = False) -> str:
+    """ Returns a string representation of a 'ServerInfoFull' """
+
+    s = """\
+================================"""
+
+    # Server info?
+    if show_server_info:
+        s += f"""\
+
+{bold("SERVER INFO")}
+
+{server_info_pretty_str(info)}
+
+================================"""
+
+    # SSL?
+    if show_ssl_certificate:
+        if info.get("ssl"):
+            ssl_cert = get_cached_or_fetch_ssl_certificate_for_endpoint(
+                (info.get("ip"), info.get("port"))
+            )
+
+            s += f"""
+
+{bold("SSL CERTIFICATE")}
+
+{ssl_certificate_pretty_str(ssl_cert)}
+
+================================"""
+
+    # Sharings?
+    if show_sharings:
+        s += f"""
+
+{bold("SHARINGS")}
+
+{sharings_pretty_str(info.get("sharings"), details=show_sharings_details, indent=2)}
+
+================================"""
+
+    return s
+
+
+
+def server_info_pretty_str(info: ServerInfoFull) -> str:
+    """ Returns a string representation of a 'ServerInfoFull', apart from SSL and sharings """
+
+    discover_port_str = ""
+    if info.get("discoverable", False):
+        discover_port_str = "Discover Port:    {}\n".format(info.get("discover_port"))
+
+    return f"""\
+Name:             {info.get("name")}
+Address:          {info.get("ip")}
+Port:             {info.get("port")}
+Discoverable:     {yn(info.get("discoverable", False))}
+{discover_port_str}\
+Authentication:   {yn(info.get("auth"))}
+SSL:              {tf(info.get("ssl"), "enabled", "disabled")}
+Remote execution: {tf(info.get("rexec"), "enabled", "disabled")}
+Version:          {info.get("version")}"""
+
+
+def server_info_short_str(server_info: ServerInfoFull):
+    """ Returns a compact string representation of a 'ServerInfoFull' """
+
+    return f"{server_info.get('name')} ({server_info.get('ip')}:{server_info.get('port')})"
+
 
 def ssl_certificate_pretty_str(ssl_cert: SSLCertificate) -> str:
     """ Returns a string representation of a 'SSLCertificate' """
@@ -221,62 +295,6 @@ Valid From:         {ssl_cert.get("valid_from")}
 Valid To:           {ssl_cert.get("valid_to")}
 Issuer:             {", ".join([issuer.get("common_name"), issuer.get("organization")])}
 Signing:            {"self signed" if ssl_cert.get("self_signed") else "signed"}"""
-
-
-def server_info_pretty_str(info: ServerInfoFull, sharing_details: bool = False, separators: bool = False) -> str:
-    """ Returns a string representation of a 'ServerInfoFull' """
-
-    discover_port_str = ""
-    if info.get("discoverable", False):
-        discover_port_str = "Discover Port:    {}\n".format(info.get("discover_port"))
-
-
-    s = f"""\
-================================
-
-{bold("SERVER INFO")}
-
-Name:             {info.get("name")}
-Address:          {info.get("ip")}
-Port:             {info.get("port")}
-Discoverable:     {yn(info.get("discoverable", False))}
-{discover_port_str}\
-Authentication:   {yn(info.get("auth"))}
-SSL:              {tf(info.get("ssl"), "enabled", "disabled")}
-Remote execution: {tf(info.get("rexec"), "enabled", "disabled")}
-Version:          {info.get("version")}
-
-================================"""
-
-    # SSL?
-    if info.get("ssl"):
-        ssl_cert = get_cached_or_fetch_ssl_certificate_for_endpoint(
-            (info.get("ip"), info.get("port"))
-        )
-
-        s += f"""
-
-{bold("SSL CERTIFICATE")}
-
-{ssl_certificate_pretty_str(ssl_cert)}
-
-================================"""
-
-    # Sharings
-    s += f"""
-
-{bold("SHARINGS")}
-
-{sharings_pretty_str(info.get("sharings"), details=sharing_details, indent=2)}
-
-================================"""
-
-    return s
-
-def server_info_short_str(server_info: ServerInfoFull):
-    """ Returns a compact string representation of a 'ServerInfoFull' """
-
-    return f"{server_info.get('name')} ({server_info.get('ip')}:{server_info.get('port')})"
 
 
 def sharings_pretty_str(sharings: List[SharingInfo],

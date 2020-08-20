@@ -5,7 +5,7 @@ import string
 from easyshare import logging
 from easyshare.consts import ansi
 from easyshare.logging import get_logger, init_logging
-from easyshare.styling import enable_colors
+from easyshare.styling import enable_styling
 from easyshare.utils.env import are_colors_supported
 from easyshare.utils.str import satisfychars
 from easyshare.utils.types import to_int
@@ -97,7 +97,7 @@ def easyshare_setup():
     # disable colors when redirection is involved or if
     # colors are disabled
     colors_disabled = os.getenv('ANSI_COLORS_DISABLED')
-    enable_colors(are_colors_supported() and not colors_disabled)
+    enable_styling(are_colors_supported() and not colors_disabled)
 
     # Init logging manually now, after enable_colors call
     init_logging()

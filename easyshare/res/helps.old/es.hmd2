@@ -1,0 +1,117 @@
+
+. ===========================================
+Automatically generated - 20/08/2020 11:22:13
+. ===========================================
+
+**COMMAND**
+    es - client of the easyshare application
+
+**SYNOPSIS**
+    es <A> # just for alignment
+    <b>es</b> [<u>OPTION</u>]... [<u>COMMAND</u> [<u>COMMAND_OPTIONS</u>]]</a>
+
+**DESCRIPTION**
+    Client of the easyshare network application.
+    
+    If no <b>COMMAND</b> is given, the interactive console is started.
+    If <b>COMMAND</b> is a valid command, it is executed and the process quits unless the command is <b>open</b>.
+    
+    Type "<b>help <u>command</u>" for the full documentation of a <u>command</u>.
+    
+    Commands:
+    <I+4>
+                        <A>
+    help                show this help
+    exit, quit, q       exit from the interactive shell
+    trace, t            enable/disable packet tracing
+    verbose, v          change verbosity level
+    </i>
+    <I+4>
+    scan, s             scan the network for easyshare servers
+    connect, c          connect to a remote server
+    disconnect          disconnect from a remote server
+    open, o             open a remote sharing (eventually discovering it)
+    close               close the remote sharing
+    </i>
+    <I+4>
+    get, g              get files and directories from the remote sharing
+    put, p              put files and directories in the remote sharing
+    </i>
+    <I+4>
+    pwd                 show the name of current local working directory
+    ls                  list local directory content
+    l                   alias for ls -la
+    tree                list local directory contents in a tree-like format
+    cd                  change local working directory
+    mkdir               create a local directory
+    cp                  copy files and directories locally
+    mv                  move files and directories locally
+    rm                  remove files and directories locally
+    find                search for local files
+    exec, :             execute an arbitrary command locally
+    shell, sh           start a local shell
+    </i>
+    <I+4>
+    rpwd                show the name of current remote working directory
+    rls                 list remote directory content
+    rl                  alias for rls -la
+    rtree               list remote directory contents in a tree-like format
+    rcd                 change remote working directory
+    rmkdir              create a remote directory
+    rcp                 copy files and directories remotely
+    rmv                 move files and directories remotely
+    rrm                 remove files and directories remotely
+    rfind               search for local files
+    rexec, ::           execute an arbitrary command remotely
+    rshell, rsh         start a remote shell
+    </i>
+    <I+4>
+    info, i             show information about the remote server
+    list                list the sharings of the remote server
+    ping                test the connection with the remote server</i></a>
+
+**OPTIONS**
+    **--no-color** 
+        Don't print ANSI escape characters
+    
+    **-d**, **--discover-port** *port*
+        Port used for broadcast discovery messages
+    
+    **-h**, **--help** 
+        Show this help
+    
+    **-t**, **--trace** *0_or_1*
+        Enable/disable tracing
+    
+    **-v**, **--verbose** *level*
+        Set verbosity level
+    
+    **-V**, **--version** 
+        Show the easyshare version
+    
+    **-w**, **--discover-wait** *seconds*
+        Time to wait for discovery responses
+
+**EXAMPLES**
+    Usage example:
+       <a>
+    1. Start the interactive shell (from which you can use any command)</a>
+    <b>es</b>
+       <a>
+    2. Scan the network for easyshare sharings</a>
+    <b>es</b> <u>scan</u>
+    <b>alice-arch (192.168.1.105:12020)</b>
+      DIRECTORIES
+      - shared
+      - tmp
+       <a>
+    3. Get the content of a known sharing</a>
+    <b>es</b> <u>get shared</u>
+    GET shared/f1    [===================] 100%  745KB/745KB
+    GET outcome: OK
+    Files        1  (745KB)
+    Time         1s
+    Avg. speed   1MB/s
+
+**SEE ALSO**
+    SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES

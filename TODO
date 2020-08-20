@@ -22,3 +22,5 @@
 - fix rsh /bin/bhsa -> wrong command
 - history of shell in history file
 - why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
+- allow alias in config file
+- command detection as gdb, by longest known prefix

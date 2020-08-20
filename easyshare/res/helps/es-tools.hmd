@@ -1,0 +1,52 @@
+
+. =============================================
+. Automatically generated - 20/08/2020 12:03:42
+. =============================================
+**COMMAND**
+    es-tools - tools for administrators of easyshare servers
+
+**SYNOPSIS**
+    **es-tools** [*OPTION*]...
+
+**DESCRIPTION**
+    Collection of tools for administrators of easyshare servers.
+    
+    If neither **-c** nor **-p** is given, an interactive script is started and you will be asked what to do.
+
+**OPTIONS**
+    **-c**, **--generate-config** 
+        Generate default esd.conf file
+    
+    **-h**, **--help** 
+        Show this help
+    
+    **-p**, **--hash-password** *password*
+        Generate an hash of the password
+    
+    **-V**, **--version** 
+        Show the easyshare version
+
+**EXAMPLES**
+    Usage example:
+    
+    .A .
+    1. Generate a default config file
+    ./A
+        **es-tools** **-c** > /tmp/esd.conf
+        
+    .A .
+    2. Create a secure hash of a password
+    ./A
+        **es-tools** **-p** *aSecurePassword*
+        
+    .A .
+    3. Start the interactive script
+    ./A
+        **es-tools**
+        What do you want to do?
+        1. Generate an hash of a password (hash)
+        2. Generate the default server configuration file
+        3. Generate a self signed SSL certificate
+
+**SEE ALSO**
+    SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES

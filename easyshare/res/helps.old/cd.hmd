@@ -1,0 +1,12 @@
+**COMMAND**
+    cd - change local working directory
+
+**SYNOPSIS**
+    **cd** [*DIR*]
+
+**DESCRIPTION**
+    Change the current local working directory to *DIR* or \
+    to the user's home directory if *DIR* is not specified.
+
+**SEE ALSO**
+    Type "**help rcd**" for the remote analogous.

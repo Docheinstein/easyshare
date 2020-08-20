@@ -1,0 +1,24 @@
+**COMMAND**
+    disconnect - disconnect from a remote server
+
+**SYNOPSIS**
+    **disconnect**
+
+**DESCRIPTION**
+    Disconnect from the remote server to which the connection is established.
+
+    While this command is the counterpart of **connect**, it can be used to \
+    close connections opened in other ways (i.e. with **open**).
+
+    This differs from **close** which closes only the currently opened sharing \
+    without closing the connection.
+
+**EXAMPLES**
+    Usage example:
+
+    **/tmp>** connect alice-arch
+    **alice-arch - /tmp> disconnect**
+    **/tmp>** connect
+
+**SEE ALSO**
+    **connect**, **close**

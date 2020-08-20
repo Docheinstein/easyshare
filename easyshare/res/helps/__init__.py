@@ -1,10 +1,10 @@
 from typing import Optional, Dict, Union
 
+from hmd import HMD, text_filter, ansii_filter
+
 from easyshare.common import EASYSHARE_RESOURCES_PKG
 from easyshare.logging import get_logger
-from easyshare.utils import eprint
-from easyshare.utils.helpmarkdown import HelpMarkdown, HelpMarkdownParseError
-from easyshare.utils.json import stoj
+from easyshare.styling import is_styling_enabled
 from easyshare.utils.resources import read_resource_string
 
 _help_map: Optional[Dict[str, str]] = None
@@ -12,78 +12,31 @@ _usage_map: Optional[Dict[str, str]] = None
 
 log = get_logger(__name__)
 
-def get_command_usage(cmd: str) -> Optional[str]:
-    """
-    Returns the help markdown of the usage of a command (minimal information)
-    """
-    global _usage_map
 
-    if not _usage_map:
-        log.i("Loading usages map")
-        try:
-            _usage_map = stoj(
-                read_resource_string(EASYSHARE_RESOURCES_PKG,
-                                     "helps/usages.json"))
-        except Exception:
-            log.exception("Exception occurred while loading help")
-            pass
+def command_usage(cmd: str) -> Optional[str]:
+    hmd_content = _load_command_content(cmd)
 
-
-    if not _usage_map:
-        log.e("Failed to load usages")
+    if not hmd_content:
+        print(f"Can't provide help for command '{cmd}'")
         return None
 
-    return _get_command_hmd_from_map(cmd, False, _usage_map)
-
-def get_command_help(cmd: Union[str, None], styled: bool = True) -> Optional[str]:
-    """
-    Returns the help markdown of the help of a command (more information)
-    """
-    global _help_map
-
-    if not _help_map:
-        log.i("Loading help map")
-
-        try:
-            _help_map = stoj(
-                read_resource_string(EASYSHARE_RESOURCES_PKG,
-                                     "helps/helps.json"))
-        except Exception:
-            log.exception("Exception occurred while loading help")
-            pass
+    print(HMD(hmd_filter=text_filter).convert(hmd_content))
 
 
-    if not _help_map:
-        log.e("Failed to load help")
+def command_man(cmd: Union[str, None]) -> Optional[str]:
+    hmd_content = _load_command_content(cmd)
+
+    if not hmd_content:
+        print(f"Can't provide help for command '{cmd}'")
         return None
 
-    return _get_command_hmd_from_map(cmd, styled, _help_map)
-
-def _get_command_hmd_from_map(cmd: Union[str, None], styled: bool, help_map: Dict) -> Optional[str]:
-    """
-    Extracts the given help markdown string from the given map.
-    """
-    if not help_map:
-        print("Failed to load help")
-        return None
-
-    if cmd:
-        # Show the helps of cmd if found on helps.py
-        # cmd_help = getattr(helps, cmd.upper(), None)
-        cmd_help = help_map.get(cmd)
-    else:
-        cmd_help = help_map["usage"]
+    HMD(hmd_filter=ansii_filter if is_styling_enabled() else text_filter).render(hmd_content)
 
 
-    if not cmd_help:
-        print("Can't find help for command '{}'".format(cmd))
-        return None
-
+def _load_command_content(cmd: str) -> Optional[str]:
     try:
-        formatted_cmd_help = HelpMarkdown(cmd_help).to_term_str(styled=styled)
-    except HelpMarkdownParseError:
-        log.exception("Exception occurred while parsing help markdown")
+        return read_resource_string(EASYSHARE_RESOURCES_PKG,
+                                    f"helps/{cmd}.hmd")
+    except Exception:
+        log.exception(f"Exception occurred while {cmd} help")
         return None
-
-    return formatted_cmd_help.strip("\n")
-

@@ -1,0 +1,92 @@
+**COMMAND**
+    rfind - search for remote files
+
+**SYNOPSIS**
+    **rfind** [*OPTION*]... [*DIR*]
+
+    *SHARING_LOCATION* must be specified if and only if not already connected to \
+    a remote server. In that case the connection will be established before \
+    execute the command, as "**connect** *SHARING_LOCATION*" would do.
+
+    Type "**help** **connect**" for more information about *SHARING_LOCATION* format.
+
+**DESCRIPTION**
+    Search for files and directories based on the given filters the remote DIR, \
+    or the current remote directory if no DIR is specified.
+
+    Each result of rfind is memorized and can be used further with any command \
+    that accept local paths by specifying the identifier shown by find.
+    For instance, you can search a file by name (i.e. find -n usefulname) and then \
+    perform a local action over it (e.g. rrm $a1) or even a transfer action (e.g. get $a1).
+
+**OPTIONS**
+    **-i**, **--insensitive**
+        Make filename filtering case insensitive
+        
+    **-l**
+        Show more details
+        
+    **-n**, **--name** *pattern*
+        Filter by filename
+        
+    **-r**, **--regex** *pattern*
+        Filter by filename using regular expression
+        
+    **-t**, **--type**  *ftype*
+        Filter by file type
+
+**EXAMPLES**
+    Usage example:
+
+.A     .
+    1. List current remote directory (no filters)
+./A
+        **bob-debian.shared:/ - /tmp> rfind**
+        $A1 FILE2
+        $A2 dir1
+        $A3 dir1/file
+        $A4 dir2
+        $A5 file1
+
+.A     .
+    2. List remote directory (no filters)
+./A
+        **bob-debian.shared:/ - /tmp> rfind** *dir1*
+        $B3 dir1/file
+
+.A     .
+    3. Finding by name
+./A
+        **bob-debian.shared:/ - /tmp> rfind** **-n** *file*
+        $C1 dir1/file
+        $C2 file1
+
+.A     .
+    4. Finding by name, case insensitive
+./A
+        **bob-debian.shared:/ - /tmp> rfind** **-in** *file*
+        $D1 FILE2
+        $D2 dir1/file
+        $D3 file1
+
+.A     .
+    5. Finding by regex
+./A
+        **bob-debian.shared:/ - /tmp> rfind** **-r** *file[0-9]*
+        $E1 file1
+
+.A     .
+    6. Finding by regex, case insensitive
+./A
+        **bob-debian.shared:/ - /tmp> rfind** **-ir** *file[0-9]*
+        $F1 FILE2
+        $F2 file1   
+
+.A     .
+    7. Finding by name, files only
+./A
+        **bob-debian.shared:/ - /tmp> rfind** **-in** *dir1* **-t** *f*
+        $G1 dir1/file
+
+**SEE ALSO**
+    Type "**help** **find**" for the local analogous.

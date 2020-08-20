@@ -1,0 +1,25 @@
+
+. =============================================
+. Automatically generated - 20/08/2020 12:03:42
+. =============================================
+**COMMAND**
+    cp - copy files and directories locally
+
+**SYNOPSIS**
+    **cp** *SOURCE* *DEST*
+    **cp** *SOURCE*... *DIR*
+
+**DESCRIPTION**
+    Copy local *SOURCE* file or directory to *DEST*, or copy multiple SOURCEs to the directory *DIR*.
+    
+    If used with two arguments as "**cp** *SOURCE* *DEST*" the following rules are applied:
+    .A.
+    - If *DEST* doesn't exists, *SOURCE* will copied as *DEST*
+    - If *DEST* exists and it is a directory, *SOURCE* will be copied into *DEST*
+    - If *DEST* exists and it is a file, *SOURCE* must be a file and it will overwrite *DEST*
+    ./A
+    
+    If used with at least arguments as "**cp** *SOURCE*... *DIR*" then *DIR* must be an existing directory and *SOURCE*s will be copied into it.
+
+**SEE ALSO**
+    Type "**help** **rcp**" for the remote analogous.

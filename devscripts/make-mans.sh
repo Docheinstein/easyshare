@@ -17,14 +17,4 @@ fi
 
 echo_cyan "====== CREATING MANS ====="
 
-# all
-sphinx-build -M man docs/sphinx/src/mans/all docs/sphinx/build
-
-# es
-#sphinx-build -M man docs/sphinx/src/mans/es docs/sphinx/build
-
-# esd
-#sphinx-build -M man docs/sphinx/src/mans/esd docs/sphinx/build
-
-# es-tools
-#sphinx-build -M man docs/sphinx/src/mans/es-tools docs/sphinx/build
+sphinx-build -M man docs/sphinx/src/mans docs/sphinx/build

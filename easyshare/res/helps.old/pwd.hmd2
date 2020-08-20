@@ -1,0 +1,18 @@
+
+. ===========================================
+Automatically generated - 20/08/2020 11:22:13
+. ===========================================
+
+**COMMAND**
+    pwd - show the name of current local working directory
+
+**SYNOPSIS**
+    **pwd**
+
+**DESCRIPTION**
+        Show the name of current local working directory.
+    
+        The local working directory can be changed with the command **cd**.
+
+**SEE ALSO**
+    Type "**help** **rpwd**" for the remote analogous.

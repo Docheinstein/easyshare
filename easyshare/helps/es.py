@@ -5,30 +5,24 @@ from easyshare.args import Option, ArgType, Args, PRESENCE_PARAM, INT_PARAM_OPT,
 from easyshare.helps import CommandHelp, CommandOptionInfo
 
 
-
 _AVAILABLE_COMMANDS_STR = """\
-<I+4>
-                    <A>
+.A                  .
 help                show this help
-exit, quit, q       exit from the interactive shell
-trace, t            enable/disable packet tracing
-verbose, v          change verbosity level
-</i>
-<I+4>
-scan, s             scan the network for easyshare servers
-connect, c          connect to a remote server
+exit, quit          exit from the interactive shell
+trace               enable/disable packet tracing
+verbose             change verbosity level
+
+scan                scan the network for easyshare servers
+connect             connect to a remote server
 disconnect          disconnect from a remote server
-open, o             open a remote sharing (eventually discovering it)
+open                open a remote sharing (eventually discovering it)
 close               close the remote sharing
-</i>
-<I+4>
-get, g              get files and directories from the remote sharing
-put, p              put files and directories in the remote sharing
-</i>
-<I+4>
+
+get                 get files and directories from the remote sharing
+put                 put files and directories in the remote sharing
+
 pwd                 show the name of current local working directory
 ls                  list local directory content
-l                   alias for ls -la
 tree                list local directory contents in a tree-like format
 cd                  change local working directory
 mkdir               create a local directory
@@ -37,9 +31,8 @@ mv                  move files and directories locally
 rm                  remove files and directories locally
 find                search for local files
 exec, :             execute an arbitrary command locally
-shell, sh           start a local shell
-</i>
-<I+4>
+shell               start a local shell
+
 rpwd                show the name of current remote working directory
 rls                 list remote directory content
 rl                  alias for rls -la
@@ -51,24 +44,22 @@ rmv                 move files and directories remotely
 rrm                 remove files and directories remotely
 rfind               search for local files
 rexec, ::           execute an arbitrary command remotely
-rshell, rsh         start a remote shell
-</i>
-<I+4>
-info, i             show information about the remote server
+rshell              start a remote shell
+
+info                show information about the remote server
 list                list the sharings of the remote server
-ping                test the connection with the remote server</i></a>"""
+ping                test the connection with the remote server"""
 
 USAGE = f"""\
-Type <b>es<b> <u>--help</u> for see <b>es</b> usage and options.
-Type <b>help <u>command</u> for the full documentation of a <u>command</u>.
+Type **es** *--help* for see **es** usage and options.
+Type **help** *command* for the full documentation of a *command*.
 
-Available commands are:     
-                    <a>
+Available commands are:
+
 {_AVAILABLE_COMMANDS_STR}"""
 
 
 class Es(CommandHelp, ArgsSpec):
-
     HELP = ["-h", "--help"]
     VERSION = ["-V", "--version"]
 
@@ -117,8 +108,8 @@ class Es(CommandHelp, ArgsSpec):
     @classmethod
     def synopsis(cls):
         return f"""\
-es <A> # just for alignment
-<b>es</b> [<u>OPTION</u>]... [<u>COMMAND</u> [<u>COMMAND_OPTIONS</u>]]</a>"""
+es [*OPTION*]... [*COMMAND* [*COMMAND_OPTIONS*]]\
+"""
 
     @classmethod
     def see_also(cls):
@@ -127,13 +118,16 @@ es <A> # just for alignment
     @classmethod
     def long_description(cls):
         return f"""\
-Client of the easyshare network application.
+**easyshare** is a client-server command line application written in \
+Python for transfer files between network hosts.
 
-If no <b>COMMAND</b> is given, the interactive console is started.
-If <b>COMMAND</b> is a valid command, it is executed and the process quits \
-unless the command is <b>open</b>.
+**es** is the client of the easyshare network application.
 
-Type "<b>help <u>command</u>" for the full documentation of a <u>command</u>.
+If no *COMMAND* is given, the interactive console is started. \
+If *COMMAND* is a valid command, it is executed and the process quits \
+unless the command is open.
+
+Type "**help** *command*" for the full documentation of a command.
 
 Commands:
 {_AVAILABLE_COMMANDS_STR}"""
@@ -141,22 +135,111 @@ Commands:
     @classmethod
     def examples(cls):
         return """\
-Usage example:
-   <a>
-1. Start the interactive shell (from which you can use any command)</a>
-<b>es</b>
-   <a>
-2. Scan the network for easyshare sharings</a>
-<b>es</b> <u>scan</u>
-<b>alice-arch (192.168.1.105:12020)</b>
-  DIRECTORIES
-  - shared
-  - tmp
-   <a>
-3. Get the content of a known sharing</a>
-<b>es</b> <u>get shared</u>
-GET shared/f1    [===================] 100%  745KB/745KB
-GET outcome: OK
-Files        1  (745KB)
-Time         1s
-Avg. speed   1MB/s"""
+These are only examples, see the *help* section of each command for known exactly
+what you can do.
+
+.A.
+- Start the interactive shell (from which you can use any command)
+    **es**
+./A
+
+.A.
+- Scan the network for easyshare sharings
+    **es** *scan*
+./A
+    alice-arch (192.168.1.105:12020)
+      DIRECTORIES
+      - shared
+      - tmp
+
+.A.
+- Open a sharing by name (implicit discovery and server connection) and \
+start the interactive shell
+./A
+    **es** *open* *shared*
+
+    alice-arch.shared:/ - /tmp>
+
+.A.
+- Get the content of a sharing by name
+./A
+    **es** *get* *shared*
+
+    GET shared/f1    [===================] 100%  745KB/745KB
+    GET outcome: OK
+    Files        1  (745KB)
+    Time         1s
+    Avg. speed   1MB/s
+
+.A.
+- Open a sharing by name and put some files into it
+./A
+    **es**
+
+    /tmp> open shared
+    alice-arch.shared:/ - /tmp> rls
+    f1      f2
+    alice-arch.shared:/ - /tmp> put /tmp/afile
+    PUT afile    [===================] 100%  745KB/745KB
+    PUT outcome: OK
+    Files        1  (745KB)
+    Time         1s
+    Avg. speed   1MB/s
+    alice-arch.shared:/ - /tmp> rls
+    f1      f2      afile
+
+.A.
+- Connect to a server by specific address and port, then list the available sharings
+./A
+    **es** *connect* *192.168.1.105:12020*
+
+    alice-arch:/ - /tmp> list
+    DIRECTORIES
+    - shared
+    - tmp
+    FILES
+    - zshrc
+
+.A.
+- See content of the remote sharing, then move some files
+./A
+    **es**
+
+    /tmp> open shared
+    alice-arch.shared:/ - /tmp> rtree
+    /tmp> tree
+    |-- dir
+    |   |-- f3
+    |   +-- f4
+    |-- f1
+    +-- f2
+    alice-arch.shared:/ - /tmp> rmv f1 f2 dir
+    alice-arch.shared:/ - /tmp> rtree
+    +-- dir
+        |-- f1
+        |-- f2
+        |-- f3
+        +-- f4
+    alice-arch.shared:/ - /tmp> rcd dir
+    alice-arch.shared:/dir - /tmp> rls
+    f1      f2      f3      f4
+
+.A.
+- Arbitrary local command execution
+./A.
+    **es**
+
+    >/tmp> cd d
+    /tmp/d> ls
+    f0
+    /tmp> :touch f1
+    f0      f1
+
+.A.
+- Arbitrary remote command execution (DISABLED BY DEFAULT)
+./A
+    **es**
+
+    /tmp> connect alice-arch
+    alice-arch:/ - /tmp> ::whoami
+    alice"""

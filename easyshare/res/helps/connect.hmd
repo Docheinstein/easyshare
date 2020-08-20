@@ -1,0 +1,59 @@
+
+. =============================================
+. Automatically generated - 20/08/2020 12:03:42
+. =============================================
+**COMMAND**
+    connect - connect to a remote server
+
+**SYNOPSIS**
+    **connect** *SERVER_LOCATION*
+
+**DESCRIPTION**
+    Connect to a remote server whose location is specified by *SERVER_LOCATION*.
+    
+    *SERVER_LOCATION* has the following syntax:
+        <*server_name*> or <*address*>[:<*port*>]
+    
+    See the section **EXAMPLES** for more examples about *SERVER_LOCATION*.
+    
+    The following rules are applied for establish a connection:
+    .A .
+    1. If *SERVER_LOCATION* is a valid <*server_name*> (e.g. alice-arch), a discover is performed for figure out which port the server is bound to.
+    2. If *SERVER_LOCATION* has the form <*address*> (e.g. 192.168.1.105), the connection will be tried to be established directly to the server at the default port. If the attempt fails, a discover is performed for figure out which port the server is really bound to and another attempt is done.
+    3. If *SERVER_LOCATION* has the form <*address*>:<*port*> (e.g, 182.168.1.106:22020), the connection will be established directly.
+    ./A
+    
+    The discover, if involved (1. and 2.), is performed on the port specified to **es** with **-d** *port* for the time specified with **-w** *seconds* (default is two seconds).
+    
+    Note that **connect** is not necessary if you want to directly open a sharing, you can use **open** which automatically will establish the connection with the server as connect would do.
+    
+    There might be cases in which use **connect** is still required, for example for execute server commands (i.e. info, ping, list, rexec) which are not related to any sharings (you can use those commands if connected to a sharing, by the way).
+    
+    When possible, using "**connect** <*server_name*>" (1.) is more immediate and human friendly compared to specify the address and eventually the port of the server (2. and 3.).
+    
+    There are cases in which specify the address and the port of the server (3.) is necessary, for example when the discover can't be performed because the server is not on the same network of the client (e.g. behind a NAT).
+    
+    If already connected to a server, a successful **connect** execution to another server automatically closes the current connection.
+    
+    Remember that **connect** establish the connection with the server, but do not place you inside any server's sharing. Use **open** for that.
+
+**EXAMPLES**
+    Usage example:
+    
+    1. Connection by server name (discover)
+        **/tmp> connect** *alice-arch*
+        **alice-arch - /tmp>** list
+        DIRECTORIES
+        - shared
+        - tmp
+    
+        2. Connection by address (direct attempt, discover if fails)
+        **/tmp> connect** *192.168.1.105*
+        **alice-arch - /tmp>**
+    
+    3. Connection by address and port (direct)
+        **/tmp> connect** *89.1.2.84:22020*
+        **eve-kali - /tmp>**
+
+**SEE ALSO**
+    **disconnect**, **open**

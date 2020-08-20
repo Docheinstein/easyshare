@@ -56,7 +56,7 @@ class CommandUsage(ABC):
     @classmethod
     @abstractmethod
     def synopsis(cls) -> str:
-        # e.g. ls> [OPTION]... [DIR]
+        # e.g. ls [OPTION]... [DIR]
         pass
 
     @classmethod
@@ -77,11 +77,6 @@ class CommandHelp(CommandUsage):
     def short_description(cls) -> str:
         # e.g. list local directory contents in a tree-like format
         pass
-
-    @classmethod
-    def synopsis_extra(cls) -> Optional[str]:
-        # Extra content of the synopsis section
-        return None
 
     @classmethod
     @abstractmethod

@@ -1,0 +1,59 @@
+**COMMAND**
+    rcp - copy files and directories remotely
+
+**SYNOPSIS**
+    **rcp** *SOURCE* *DEST*
+    **rcp** *SOURCE*... *DIR*
+
+    **rcp** [*SHARING_LOCATION*] *SOURCE* *DEST*
+    **rcp** [*SHARING_LOCATION*] *SOURCE*... *DIR*
+
+    *SHARING_LOCATION* must be specified if and only if not already connected to \
+    a remote server. In that case the connection will be established before \
+    execute the command, as "**connect** *SHARING_LOCATION*" would do.
+
+    Type "**help** **connect**" for more information about *SHARING_LOCATION* format.
+
+**DESCRIPTION**
+    Copy remote *SOURCE* file or directory to *DEST*, or copy multiple *SOURCE*s to \
+    the directory *DIR*.
+
+    If used with two arguments as "**rcp** *SOURCE* *DEST*" the following rules are \
+    applied:
+
+.A    .
+    - If DEST doesn't exists, SOURCE will copied as DEST
+    - If DEST exists and it is a directory, SOURCE will be copied into DEST
+    - If DEST exists and it is a file, SOURCE must be a file and it will overwrite DEST
+./A
+
+    If used with at least arguments as "**rcp** *SOURCE*... *DIR*" then *DIR* \
+    must be an existing directory and *SOURCE*s will be copied into it.
+
+**EXAMPLES**
+    Usage example:
+
+    1.
+        **/tmp>** open music
+        **bob-debian.music:/ - /tmp>** rls
+        f1
+        **bob-debian.music:/ - /tmp> rcp** *f1* *f2*
+        **bob-debian.music:/ - /tmp>** rls
+        f1      f2
+    
+    2.
+        **/tmp>** open music
+        **bob-debian.music:/ - /tmp>** rtree
+        |-- dir
+        |-- f1
+        +-- f2
+        **bob-debian.music:/ - /tmp> rcp** *f1* *f2* *dir*
+        **bob-debian.music:/ - /tmp>** rtree
+        |-- dir
+        |   |-- f1
+        |   +-- f2
+        |-- f1
+        +-- f2
+
+**SEE ALSO**
+    Type "**help** **cp**" for the local analogous.

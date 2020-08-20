@@ -1,0 +1,11 @@
+**COMMAND**
+    exit - exit from the interactive shell
+
+**SYNOPSIS**
+    **exit**
+    **quit**
+
+**DESCRIPTION**
+    Exit from the interactive shell.
+
+    Open connections are automatically closed.

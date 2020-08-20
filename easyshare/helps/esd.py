@@ -1,12 +1,11 @@
 from typing import List, Optional, Callable
 
 from easyshare.args import Option, ArgType, Args, PRESENCE_PARAM, INT_PARAM_OPT, INT_PARAM, \
-    ArgsSpec, STR_PARAM, VARIADIC_PARAMS
+    ArgsSpec, STR_PARAM
 from easyshare.helps import CommandHelp, CommandOptionInfo
 
 
 class Esd(CommandHelp, ArgsSpec):
-
     HELP = ["-h", "--help"]
     VERSION = ["-V", "--version"]
 
@@ -89,8 +88,7 @@ class Esd(CommandHelp, ArgsSpec):
     @classmethod
     def synopsis(cls):
         return f"""\
-esd <A> # just for alignment
-<b>esd</b> [<u>OPTION</u>]... [<u>SHARING</u> [<u>SHARING_NAME</u>] [<u>SHARING_OPTION</u>]...]</a>"""
+*esd* [**OPTION**]... [**SHARING** [**SHARING_NAME**] [**SHARING_OPTION**]...]"""
 
     @classmethod
     def see_also(cls):
@@ -102,85 +100,89 @@ esd <A> # just for alignment
 Server of the easyshare network application.
 
 Files and directories can be shared in one of the following manners:
-   <A>
-1. By providing the path of the file/directory to share in the command line as <u>SHARING</u> 
-2. By creating a configuration file and specifying it with the option <b>-c</b> <u>config</u>
-</A>
+.A .
+1. By providing the path of the file/directory to share in the command line as **SHARING** 
+2. By creating a configuration file and specifying it with the option **-c** **config**
+./A
 
 The option 1. should be preferred for an easy one-shot sharing of a file or directory, \
 since doesn't need the creation a configuration file, but has the limit that \
 only a file or folder can be shared (unless the option -s is used before each \
 sharing path (and eventually name or options).
 
-If given, <u>SHARING</u> must be a valid path to a local file or directory.
-<u>SHARING_NAME</u> is an optional name to assign to the sharing, as it will be seen \
+If given, **SHARING** must be a valid path to a local file or directory.
+**SHARING_NAME** is an optional name to assign to the sharing, as it will be seen \
 by clients. If not given, the name of the file/directory is used instead.
-Currently the only supported <u>SHARING_OPTION</u> is the read-only flag, which \
-can be enabled with <b>-r</b>, and denies any write operation on a directory sharing.
+Currently the only supported **SHARING_OPTION** is the read-only flag, which \
+can be enabled with **-r**, and denies any write operation on a directory sharing.
 
 The server can be configured either with a configuration file (2.) or by giving \
-<b>esd</b> the options you need. The command line arguments have precedence over \
+**esd** the options you need. The command line arguments have precedence over \
 the corresponding setting of the configuration file (i.e. if you specify an option \
 in both the configuration file and as an argument, the argument will be taken into account).
 
 The configuration file is composed of two parts.
-   <A>
+.A .
 1. Global section
 2. Sharings sections
-</A>
+./A
 
-Each line of a section has the form <u><key></u>=<u><value></u>.
-The available <u><key></u> of the global section are:
-<I+4>
-<b>address</b>
-<b>discover_port</b>
-<b>name</b>
-<b>no_color</b>
-<b>password</b>
-<b>port</b>
-<b>rexec</b>
-<b>ssl</b>
-<b>ssl_cert</b>
-<b>ssl_privkey</b>
-<b>trace</b>
-<b>verbose</b>
-</I>
+Each line of a section has the form **<key>**=**<value>**.
+The available **<key>** of the global section are:
+    **address**
+    **discover_port**
+    **name**
+    **no_color**
+    **password**
+    **port**
+    **rexec**
+    **ssl**
+    **ssl_cert**
+    **ssl_privkey**
+    **trace**
+    **verbose**
 
-The available <u><key></u> of the sharings sections are:
-<I+4>
-<b>path</b>
-<b>readonly</b>
-</I>
+The available **<key>** of the sharings sections are:
+    **path**
+    **readonly**
 
 The first lines of the configuration file belongs to the global section by default.
-Each sharing section begins with "[<u>SHARING_NAME</u>]".
-If you omit the <u>SHARING_NAME</u>, the name of the shared file or directory will be \
+Each sharing section begins with "[**SHARING_NAME**]".
+If you omit the **SHARING_NAME**, the name of the shared file or directory will be \
 used instead.
 
-See the section <b>EXAMPLES</b> for an example of a configuration file.
+See the section **EXAMPLES** for an example of a configuration file.
 
-You might consider using <b>es-tools</b> for some facilities, such as:
-  <A>
+You might consider using **es-tools** for some facilities, such as:
+.A.
 - Create a default configuration file
 - Create a secure hash of a password, useful for avoid to give a plain password \
-to <b>esd</b>.</a>"""
+to **esd**."""
 
     @classmethod
     def examples(cls):
         return """\
 Usage example:
-   <a>
-1. Share a file</a>
-<b>esd</b> <u>/tmp/file</u>
-   <a>
-2. Share a directory, assigning it a name</a>
-<b>esd</b> <u>/tmp/shared_directory</u> <u>shared</u>
-   <a>
-3. Share multiples directories, one as read only</a>
-<b>esd</b> <b>-s</b> <u>/home/user</u> <u>-r</u> <b>-s</b> <u>/tmp</u> <u>temp</u>
 
-3. Share multiples directories, with a configuration file</a>
-<b>esd</b> <b>-c</b> <u>/home/user/.easyshare/esd.conf</u>
+.A .
+1. Share a file
+./A
+    **esd** **/tmp/file**
+
+.A .
+2. Share a directory, assigning it a name
+./A
+    **esd** **/tmp/shared_directory** **shared**
+
+.A .
+3. Share multiples directories, one as read only
+./A
+    **esd** **-s** **/home/user** **-r** **-s** **/tmp** **temp**
+
+.A .
+3. Share multiples directories, with a configuration file
+./A
+    **esd** **-c** **/home/user/.easyshare/esd.conf**
 
 Configuration file example (esd.conf):
 
@@ -205,15 +207,11 @@ trace=1
 # ===== SHARINGS =====
 
 [download]
-<I+4>
-path="/home/stefano/Downloads"
-</i>
+    path="/home/stefano/Downloads"
 [shared]
-<I+4>
-path="/tmp/shared"
-readonly=true
-</i>
+    path="/tmp/shared"
+    readonly=true
 # Automatic sharing name
 []
-<I+4>
-path="/tmp/afile"</i>"""
+    path="/tmp/afile"\
+"""

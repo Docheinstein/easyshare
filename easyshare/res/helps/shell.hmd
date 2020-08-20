@@ -1,0 +1,21 @@
+
+. =============================================
+. Automatically generated - 20/08/2020 12:03:42
+. =============================================
+**COMMAND**
+    shell - start a local shell
+
+**SYNOPSIS**
+    **shell** [*COMMAND*]
+
+**DESCRIPTION**
+    If no *COMMAND* is given, start a local shell using the user's preferred shell.
+    
+    Differently from **exec**, this really opens a pseudo terminal (ssh style).
+    
+    If *COMMAND* is given, it is executed on the pseudo terminal (but you won't get a shell unless *COMMAND* is a command invoking a shell)
+    
+    Currently supported only if the server is Unix.
+
+**SEE ALSO**
+    Type "**help** **rshell**" for the remote analogous.

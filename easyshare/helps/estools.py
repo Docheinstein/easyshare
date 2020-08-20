@@ -40,8 +40,8 @@ class EsTools(CommandHelp, ArgsSpec):
     @classmethod
     def synopsis(cls):
         return f"""\
-es-tools <A> # just for alignment
-<b>es-tools</b> [<u>OPTION</u>]..."""
+**es-tools** [*OPTION*]...\
+"""
 
     @classmethod
     def see_also(cls):
@@ -52,23 +52,29 @@ es-tools <A> # just for alignment
         return """\
 Collection of tools for administrators of easyshare servers.
 
-If neither <b>-c</b> nor <b>-p</b> is given, an interactive script is started and you will \
+If neither **-c** nor **-p** is given, an interactive script is started and you will \
 be asked what to do."""
 
     @classmethod
     def examples(cls):
         return """\
 Usage example:
-   <a>
-1. Generate a default config file</a>
-<b>es-tools</b> <b>-c</b> > /tmp/esd.conf
-   <a>
-2. Create a secure hash of a password</a>
-<b>es-tools</b> <b>-p</b> <u>aSecurePassword</u>
-   <a>
-3. Start the interactive script</a>
-<b>es-tools</b>
-What do you want to do?
-1. Generate an hash of a password (hash)
-2. Generate the default server configuration file
-3. Generate a self signed SSL certificate"""
+
+.A .
+1. Generate a default config file
+./A
+    **es-tools** **-c** > /tmp/esd.conf
+    
+.A .
+2. Create a secure hash of a password
+./A
+    **es-tools** **-p** *aSecurePassword*
+    
+.A .
+3. Start the interactive script
+./A
+    **es-tools**
+    What do you want to do?
+    1. Generate an hash of a password (hash)
+    2. Generate the default server configuration file
+    3. Generate a self signed SSL certificate"""

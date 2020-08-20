@@ -25,9 +25,9 @@ from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_pretty_str, server_info_pretty_str, server_info_short_str, file_info_str, StyledString, \
-    file_info_full_str
+    file_info_pretty_str, server_pretty_str
 from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
-    ListSharings, Ping, Find, Rfind, Du, Rdu, Rls, Cd, L, Mkdir, Pwd, Rm, Mv, Cp, Exec, Shell, Rcd, Rl, Rtree, Rmkdir, \
+    Ping, Find, Rfind, Du, Rdu, Rls, Cd, Mkdir, Pwd, Rm, Mv, Cp, Exec, Shell, Rcd, Rtree, Rmkdir, \
     Rpwd, Rrm, Rmv, Rcp, Rexec, Rshell, Connect, Disconnect, Open, Close
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import RequestsParams
@@ -293,7 +293,6 @@ class Client:
 
             Commands.LOCAL_CHANGE_DIRECTORY: (LOCAL, [Cd()], self.cd),
             Commands.LOCAL_LIST_DIRECTORY: (LOCAL, [Ls()], self.ls),
-            Commands.LOCAL_LIST_DIRECTORY_ENHANCED: (LOCAL, [L()], self.l),
             Commands.LOCAL_TREE_DIRECTORY: (LOCAL, [Tree()], self.tree),
             Commands.LOCAL_FIND: (LOCAL, [Find()], self.find),
             Commands.LOCAL_DISK_USAGE: (LOCAL, [Du()], self.du),
@@ -307,7 +306,6 @@ class Client:
 
             Commands.REMOTE_CHANGE_DIRECTORY: (SHARING, [Rcd(0), Rcd(1)], self.rcd),
             Commands.REMOTE_LIST_DIRECTORY: (SHARING, [Rls(0), Rls(1)], self.rls),
-            Commands.REMOTE_LIST_DIRECTORY_ENHANCED: (SHARING, [Rl(0), Rl(1)], self.rl),
             Commands.REMOTE_TREE_DIRECTORY: (SHARING, [Rtree(0), Rtree(1)], self.rtree),
             Commands.REMOTE_FIND: (SHARING, [Rfind(0), Rfind(1)], self.rfind),
             Commands.REMOTE_DISK_USAGE: (SHARING, [Rdu(0), Rdu(1)], self.rdu),
@@ -324,8 +322,6 @@ class Client:
 
             Commands.SCAN: (SERVER, [Scan(), Scan()], self.scan),
             Commands.INFO: (SERVER, [Info(0, 1), Info(1, 0)], self.info),
-
-            Commands.LIST: (SERVER, [ListSharings(0), ListSharings(1)], self.list),
 
             Commands.CONNECT: (SERVER, [Connect(), Connect()], self.connect),
             Commands.DISCONNECT: (SERVER, [Disconnect(0), Disconnect(1)], self.disconnect),
@@ -475,13 +471,6 @@ class Client:
             return ls_res
 
         self._xls(args, ls_provider, "LS")
-
-    def l(self, args: Args, _):
-        # Just call ls -la
-        # Reuse the parsed args for keep the (optional) path
-        args._parsed[Ls.SHOW_ALL[0]] = True
-        args._parsed[Ls.SHOW_DETAILS[0]] = True
-        self.ls(args, _)
 
     def tree(self, args: Args, _):
 
@@ -1101,28 +1090,15 @@ class Client:
 
     @provide_connection
     def info(self, args: Args, conn: Connection):
-        show_sharings_details = Info.SHOW_SHARINGS_DETAILS in args
+        show_only_sharings = Info.SHOW_ONLY_SHARINGS in args
 
-        print(server_info_pretty_str(conn.server_info,
-                                     sharing_details=show_sharings_details,
-                                     separators=True))
-
-    @provide_connection
-    def list(self, args: Args, conn: Connection):
-        show_details = ListSharings.SHOW_DETAILS in args
-
-        log.i(">> LIST")
-
-        resp = conn.list()
-        ensure_data_response(resp)
-
-        sharings_str = sharings_pretty_str(resp.get("data"),
-                                           details=show_details)
-
-        if sharings_str:
-            print(sharings_str)
+        if show_only_sharings:
+            print(server_pretty_str(conn.server_info,
+                                    show_server_info=False,
+                                    show_ssl_certificate=False,
+                                    show_sharings_details=False))
         else:
-            log.w("Remote server doesn't have any sharing")
+            print(server_pretty_str(conn.server_info))
 
 
     # =================================================
@@ -1171,13 +1147,6 @@ class Client:
             return ensure_data_response(resp)
 
         self._xls(args, data_provider=rls_provider, data_provider_name="RLS")
-
-    def rl(self, args: Args, conn: Connection):
-        # Just call rls -la
-        # Reuse the parsed args for keep the (optional) path
-        args._parsed[Ls.SHOW_ALL[0]] = True
-        args._parsed[Ls.SHOW_DETAILS[0]] = True
-        self.rls(args, conn)
 
     @provide_d_sharing_connection
     def rtree(self, args: Args, conn: Connection):
@@ -2952,9 +2921,9 @@ class Client:
             overwrite_answer = input(f"""\
 File already exists, overwrite it?
 ------------ LOCAL ---------------
-{file_info_full_str(local_info)}
+{file_info_pretty_str(local_info)}
 ------------ REMOTE --------------
-{file_info_full_str(remote_info)}
+{file_info_pretty_str(remote_info)}
 ----------------------------------
 y     : yes (default)
 n     : no
