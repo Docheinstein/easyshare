@@ -1,7 +1,7 @@
 from typing import Optional, List
 
 from easyshare.args import ArgsSpec, PRESENCE_PARAM, STR_PARAM, Option
-from easyshare.helps import CommandHelp, CommandOptionInfo
+from easyshare.commands import CommandHelp, CommandOptionInfo
 
 
 class EsTools(CommandHelp, ArgsSpec):

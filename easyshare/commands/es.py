@@ -2,8 +2,7 @@ from typing import List, Optional, Callable
 
 from easyshare.args import Option, ArgType, Args, PRESENCE_PARAM, INT_PARAM_OPT, INT_PARAM, \
     ArgsSpec
-from easyshare.helps import CommandHelp, CommandOptionInfo
-
+from easyshare.commands import CommandHelp, CommandOptionInfo
 
 _AVAILABLE_COMMANDS_STR = """\
 .A                  .
@@ -30,7 +29,7 @@ cp                  copy files and directories locally
 mv                  move files and directories locally
 rm                  remove files and directories locally
 find                search for local files
-exec, :             execute an arbitrary command locally
+exec                execute an arbitrary command locally
 shell               start a local shell
 
 rpwd                show the name of current remote working directory
@@ -43,7 +42,7 @@ rcp                 copy files and directories remotely
 rmv                 move files and directories remotely
 rrm                 remove files and directories remotely
 rfind               search for local files
-rexec, ::           execute an arbitrary command remotely
+rexec               execute an arbitrary command remotely
 rshell              start a remote shell
 
 info                show information about the remote server

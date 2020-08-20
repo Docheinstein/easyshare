@@ -4,13 +4,14 @@ from typing import List, Callable, Union, Optional, Dict, Type
 
 from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec, STR_PARAM, \
     StopParseArgsSpec
+from easyshare.commands import CommandHelp, CommandOptionInfo
 from easyshare.es.ui import StyledString
-from easyshare.helps import CommandHelp, CommandOptionInfo
 from easyshare.logging import get_logger
 from easyshare.common import DIR_COLOR, FILE_COLOR
 from easyshare.protocol.responses import is_data_response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfo
 from easyshare.styling import fg
+from easyshare.utils.obj import values
 from easyshare.utils.os import ls
 from easyshare.utils.path import LocalPath
 
@@ -24,21 +25,15 @@ log = get_logger(__name__)
 # =============== COMMANDS ====================
 # =============================================
 
-SPECIAL_COMMAND_MARK = ":" # exec and rexec begin with this marker
-
 class Commands:
     """ es commands """
     HELP = "help"
-    HELP_SHORT = "h"
+
     EXIT = "exit"
     QUIT = "quit"
-    QUIT_SHORT = "q"
 
     TRACE = "trace"
-    TRACE_SHORT = "t"
-
     VERBOSE = "verbose"
-    VERBOSE_SHORT = "v"
 
     LOCAL_CURRENT_DIRECTORY = "pwd"
     LOCAL_LIST_DIRECTORY = "ls"
@@ -46,7 +41,6 @@ class Commands:
     LOCAL_TREE_DIRECTORY = "tree"
     LOCAL_FIND = "find"
     LOCAL_DISK_USAGE = "du"
-    LOCAL_FIND_SHORT = "f"
     LOCAL_CHANGE_DIRECTORY = "cd"
     LOCAL_CREATE_DIRECTORY = "mkdir"
     LOCAL_COPY = "cp"
@@ -54,8 +48,6 @@ class Commands:
     LOCAL_REMOVE = "rm"
     LOCAL_EXEC = "exec"
     LOCAL_SHELL = "shell"
-    LOCAL_SHELL_SHORT = "sh"
-    LOCAL_EXEC_SHORT = SPECIAL_COMMAND_MARK
 
     REMOTE_CURRENT_DIRECTORY = "rpwd"
     REMOTE_LIST_DIRECTORY = "rls"
@@ -63,7 +55,6 @@ class Commands:
     REMOTE_TREE_DIRECTORY = "rtree"
     REMOTE_FIND = "rfind"
     REMOTE_DISK_USAGE = "rdu"
-    REMOTE_FIND_SHORT = "rf"
     REMOTE_CHANGE_DIRECTORY = "rcd"
     REMOTE_CREATE_DIRECTORY = "rmkdir"
     REMOTE_COPY = "rcp"
@@ -71,41 +62,23 @@ class Commands:
     REMOTE_REMOVE = "rrm"
     REMOTE_EXEC = "rexec"
     REMOTE_SHELL = "rshell"
-    REMOTE_SHELL_SHORT = "rsh"
-    REMOTE_EXEC_SHORT = SPECIAL_COMMAND_MARK * 2
 
     SCAN = "scan"
-    SCAN_SHORT = "s"
 
     CONNECT = "connect"
-    CONNECT_SHORT = "c"
-
     DISCONNECT = "disconnect"
 
     OPEN = "open"
-    OPEN_SHORT = "o"
     CLOSE = "close"
 
     GET = "get"
-    GET_SHORT = "g"
     PUT = "put"
-    PUT_SHORT = "p"
 
     LIST = "list"
     INFO = "info"
-    INFO_SHORT = "i"
     PING = "ping"
 
-
-def is_special_command(s: str) -> bool:
-    """ Whether 's' is a special command is or starts with ":" """
-    return s.startswith(SPECIAL_COMMAND_MARK)
-
-def matches_special_command(s: str, sp_comm: str) -> bool:
-    """ Returns whether 's' is exactly a special command or has the form :command or ::command """
-    return is_special_command(sp_comm) and \
-           s.startswith(sp_comm) and \
-           (len(s) == len(sp_comm) or s[len(sp_comm)] != SPECIAL_COMMAND_MARK)
+COMMANDS = values(Commands)
 
 
 # ==================================================
@@ -1673,9 +1646,7 @@ class Exec(LocalAllFilesSuggestionsCommandInfo, StopParseArgsSpec):
     @classmethod
     def synopsis(cls):
         return """\
-**exec** *COMMAND*
-**:**    *COMMAND*
-**:***COMMAND*\
+**exec** *COMMAND*\
 """
 
     @classmethod
@@ -1688,8 +1659,6 @@ features (e.g. variables, glob expansions, redirection).
 
 This might be useful for execute commands without exiting the easyshare's shell.
 
-The command can be run either with "**exec** *COMMAND*",  "**:** *COMMAND*" or "**:***COMMAND*".
-
 Currently supported only for Unix."""
 
     @classmethod
@@ -1700,10 +1669,7 @@ Usage example:
 **/tmp>** ls
 f1      f2
 **/tmp> exec** _touch f3_
-f1      f2      f3
-**/tmp> :** *echo "hello" > f3*
-**/tmp> :***cat f3*
-hello"""
+f1      f2      f3"""
 
     @classmethod
     def see_also(cls):
@@ -1726,13 +1692,9 @@ class Rexec(FastServerConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInf
     def _synopsis(cls):
         return """\
 **rexec** *COMMAND*
-**::**    *COMMAND*
-**::***COMMAND*
 
-**rexec** [*SERVER_LOCATION*] *COMMAND*
-**::**    [*SERVER_LOCATION*] *COMMAND*
-**::**[*SERVER_LOCATION*] *COMMAND*\
-    """
+**rexec** [*SERVER_LOCATION*] *COMMAND*\
+"""
 
     @classmethod
     def long_description(cls):
@@ -1748,9 +1710,6 @@ features (e.g. variables, glob expansions, redirection).
 This might be useful for execute commands remotely, giving the client a \
 kind of easy and plug-and-play shell.
 
-The command can be run either with "**rexec** *COMMAND*",  "**::** *COMMAND*" \
-or "**::***COMMAND*".
-
 Currently supported only for Unix."""
 
     @classmethod
@@ -1762,10 +1721,7 @@ Usage example:
 **bob-debian.music:/ - /tmp>** rls
 f1      f2
 **bob-debian.music:/ - /tmp> rexec** *touch f3*
-f1      f2      f3
-**bob-debian.music:/ - /tmp> ::** *echo "hello" > f3*
-**bob-debian.music:/ - /tmp> ::cat** *f3*
-hello"""
+f1      f2      f3"""
 
     @classmethod
     def see_also(cls):
@@ -2855,3 +2811,6 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.INFO: Info,
     Commands.PING: Ping,
 }
+
+def commands_for_prefix(prefix: str) -> List[str]:
+    return [comm for comm in COMMANDS if comm.startswith(prefix)]

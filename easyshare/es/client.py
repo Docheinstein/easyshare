@@ -26,7 +26,7 @@ from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_er
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_pretty_str, server_info_pretty_str, server_info_short_str, file_info_str, StyledString, \
     file_info_pretty_str, server_pretty_str
-from easyshare.helps.commands import Commands, is_special_command, SPECIAL_COMMAND_MARK, Ls, Scan, Info, Tree, Put, Get, \
+from easyshare.commands.commands import Commands, Ls, Scan, Info, Tree, Put, Get, \
     Ping, Find, Rfind, Du, Rdu, Rls, Cd, Mkdir, Pwd, Rm, Mv, Cp, Exec, Shell, Rcd, Rtree, Rmkdir, \
     Rpwd, Rrm, Rmv, Rcp, Rexec, Rshell, Connect, Disconnect, Open, Close
 from easyshare.logging import get_logger
@@ -332,36 +332,14 @@ class Client:
             Commands.PING: (SERVER, [Ping(0), Ping(1)], self.ping),
         }
 
-        self._command_dispatcher[Commands.LOCAL_FIND_SHORT] = self._command_dispatcher[Commands.LOCAL_FIND]
-        self._command_dispatcher[Commands.REMOTE_FIND_SHORT] = self._command_dispatcher[Commands.REMOTE_FIND]
-        self._command_dispatcher[Commands.GET_SHORT] = self._command_dispatcher[Commands.GET]
-        self._command_dispatcher[Commands.PUT_SHORT] = self._command_dispatcher[Commands.PUT]
-        self._command_dispatcher[Commands.CONNECT_SHORT] = self._command_dispatcher[Commands.CONNECT]
-        self._command_dispatcher[Commands.OPEN_SHORT] = self._command_dispatcher[Commands.OPEN]
-        self._command_dispatcher[Commands.SCAN_SHORT] = self._command_dispatcher[Commands.SCAN]
-        self._command_dispatcher[Commands.INFO_SHORT] = self._command_dispatcher[Commands.INFO]
-        self._command_dispatcher[Commands.LOCAL_EXEC_SHORT] = self._command_dispatcher[Commands.LOCAL_EXEC]
-        self._command_dispatcher[Commands.REMOTE_EXEC_SHORT] = self._command_dispatcher[Commands.REMOTE_EXEC]
-        self._command_dispatcher[Commands.LOCAL_SHELL_SHORT] = self._command_dispatcher[Commands.LOCAL_SHELL]
-        self._command_dispatcher[Commands.REMOTE_SHELL_SHORT] = self._command_dispatcher[Commands.REMOTE_SHELL]
-
     def has_command(self, command: str) -> bool:
-        return command in self._command_dispatcher or \
-               is_special_command(command)
+        return command in self._command_dispatcher
 
     def execute_command(self, command: str, command_args: List[str]) -> Union[int, str, List[str]]:
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 
         command_args_normalized = command_args.copy()
-
-        # Handle special Commands (':')
-        command_parts = command.rsplit(SPECIAL_COMMAND_MARK, maxsplit=1)
-        if len(command_parts) > 1:
-            command = command_parts[0] + SPECIAL_COMMAND_MARK
-            log.d("Found special command: '%s'", command)
-            if command_parts[1]:
-                command_args_normalized.insert(0, command_parts[1])
 
         log.i("Executing %s(%s)", command, command_args_normalized)
 

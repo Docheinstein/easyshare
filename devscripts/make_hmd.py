@@ -1,5 +1,5 @@
 import datetime
-from typing import Type, Tuple, List, Optional
+from typing import Type, Tuple, List
 import sys
 
 import os
@@ -15,11 +15,11 @@ sys.path.append(SCRIPT_PARENT_DIR)
 
 # Now we can import easyshare stuff
 
-from easyshare.helps import CommandHelp, es
-from easyshare.helps.commands import COMMANDS_INFO
-from easyshare.helps.es import Es
-from easyshare.helps.esd import Esd
-from easyshare.helps.estools import EsTools
+from easyshare.commands import CommandHelp, es
+from easyshare.commands.commands import COMMANDS_INFO
+from easyshare.commands.es import Es
+from easyshare.commands.esd import Esd
+from easyshare.commands.estools import EsTools
 from easyshare.utils.str import isorted
 
 
@@ -60,6 +60,7 @@ def make_hmd(cmd: Type[CommandHelp]):
 if __name__ == "__main__":
     HELPS_PATH = "../easyshare/res/helps"
     # noinspection PyTypeChecker
+
     cmds: List[Tuple[str, Type[CommandHelp]]] = \
         [(k, v) for k, v in COMMANDS_INFO.items()] + [
             (Es.name(), Es),

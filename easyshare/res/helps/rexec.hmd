@@ -1,18 +1,14 @@
 
 . =============================================
-. Automatically generated - 20/08/2020 12:03:42
+. Automatically generated - 20/08/2020 14:48:51
 . =============================================
 **COMMAND**
     rexec - execute an arbitrary command remotely
 
 **SYNOPSIS**
     **rexec** *COMMAND*
-    **::**    *COMMAND*
-    **::***COMMAND*
     
     **rexec** [*SERVER_LOCATION*] *COMMAND*
-    **::**    [*SERVER_LOCATION*] *COMMAND*
-    **::**[*SERVER_LOCATION*] *COMMAND*    
     
     *SERVER_LOCATION* must be specified if and only if not already connected to a remote server. In that case the connection will be established before execute the command, as "**connect** *SERVER_LOCATION*" would do.
     
@@ -27,8 +23,6 @@
     
     This might be useful for execute commands remotely, giving the client a kind of easy and plug-and-play shell.
     
-    The command can be run either with "**rexec** *COMMAND*",  "**::** *COMMAND*" or "**::***COMMAND*".
-    
     Currently supported only for Unix.
 
 **EXAMPLES**
@@ -39,9 +33,6 @@
     f1      f2
     **bob-debian.music:/ - /tmp> rexec** *touch f3*
     f1      f2      f3
-    **bob-debian.music:/ - /tmp> ::** *echo "hello" > f3*
-    **bob-debian.music:/ - /tmp> ::cat** *f3*
-    hello
 
 **SEE ALSO**
     Type "**help** **exec**" for the local analogous.

@@ -1,5 +1,3 @@
 include README.MD
 include LICENSE
 include easyshare/res/esd.conf
-include easyshare/res/helps/helps.json
-include easyshare/res/helps/usages.json

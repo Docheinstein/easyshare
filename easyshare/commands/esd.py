@@ -2,7 +2,7 @@ from typing import List, Optional, Callable
 
 from easyshare.args import Option, ArgType, Args, PRESENCE_PARAM, INT_PARAM_OPT, INT_PARAM, \
     ArgsSpec, STR_PARAM
-from easyshare.helps import CommandHelp, CommandOptionInfo
+from easyshare.commands import CommandHelp, CommandOptionInfo
 
 
 class Esd(CommandHelp, ArgsSpec):

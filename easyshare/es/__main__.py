@@ -6,8 +6,8 @@ from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT, APP_VERSION
     DEFAULT_DISCOVER_TIMEOUT, APP_INFO
 from easyshare.es.client import Client
 from easyshare.es.shell import Shell
-from easyshare.helps.commands import Commands, is_special_command
-from easyshare.helps.es import Es
+from easyshare.commands.commands import Commands, COMMANDS
+from easyshare.commands.es import Es
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_usage
 from easyshare.styling import enable_styling
@@ -15,7 +15,6 @@ from easyshare.tracing import TRACING_NONE, TRACING_TEXT, set_tracing_level
 from easyshare.utils import abort, terminate
 from easyshare.utils.env import is_stdout_terminal, are_colors_supported
 from easyshare.utils.net import is_valid_port
-from easyshare.utils.obj import values
 
 
 # if __name__ == "__main__":
@@ -43,19 +42,6 @@ log = get_logger(__name__)
 # -v, --verbose  level           set verbosity level
 # -V, --version                  show the easyshare version
 # -w, --discover-wait  seconds   time to wait for discovery responses
-
-
-NON_CLI_COMMANDS = [
-    Commands.TRACE, Commands.TRACE_SHORT,       # trace
-    Commands.VERBOSE, Commands.VERBOSE_SHORT,   # verbose
-    Commands.EXIT,                              # exit
-    Commands.QUIT, Commands.QUIT_SHORT          # quit
-
-    # Others commands doesn't make sense (xCD, xPWD, close), but we can leave
-    # those anyway after all...
-]
-
-CLI_COMMANDS = [k for k in values(Commands) if k not in NON_CLI_COMMANDS]
 
 
 # ==================================================================
@@ -174,19 +160,14 @@ def main():
     # 1. Run a command directly from the cli ?
     pargs = args.get_unparsed_args()
     command = pargs[0] if pargs else None
+    command_args = pargs[1:] if pargs else None
+
     if command:
-        if command in CLI_COMMANDS or is_special_command(command):
-            log.i("Found a valid CLI command '%s'", command)
-            command_args = pargs[1:]
+        shell.execute(command, command_args)
 
-            shell.execute(command, command_args)
-
-            # Keep the shell opened only if we performed an 'open'
-            # Otherwise close it after the action
-            start_shell = client.is_connected_to_server()
-        else:
-            log.e("Allowed CLI commands are: %s", ", ".join(CLI_COMMANDS))
-            abort("Unknown CLI command '{}'".format(command))
+        # Keep the shell opened only if we performed an 'open'
+        # Otherwise close it after the action
+        start_shell = client.is_connected_to_server()
 
     # 2. Start an interactive session ?
     # Actually the shell is started if
@@ -196,7 +177,6 @@ def main():
         # Start the shell
         log.i("Starting interactive shell")
         shell.input_loop()
-
 
 
 if __name__ == "__main__":

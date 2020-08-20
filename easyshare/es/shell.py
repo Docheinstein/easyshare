@@ -6,15 +6,16 @@ from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
 from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
+from easyshare.commands.commands import commands_for_prefix
 from easyshare.consts import ansi
 from easyshare.es.client import Client
 from easyshare.es.errors import ClientErrors, print_errors
 from easyshare.es.ui import print_tabulated, StyledString
-from easyshare.helps.commands import Commands, matches_special_command, Verbose, Trace
-from easyshare.helps.commands import SuggestionsIntent, COMMANDS_INFO
+from easyshare.commands.commands import Commands, Verbose, Trace
+from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_man
-from easyshare.styling import is_styling_enabled
+from easyshare.styling import is_styling_enabled, bold, red
 
 from easyshare.tracing import get_tracing_level, set_tracing_level
 from easyshare.utils.env import is_unicode_supported, has_gnureadline, has_pyreadline
@@ -23,6 +24,7 @@ from easyshare.utils.obj import values
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
     rl_get_completion_quote_character, rl_set_completion_suppress_quote, \
     rl_get_completer_quote_characters
+from easyshare.utils.str import isorted
 from easyshare.utils.types import is_bool
 
 import readline
@@ -71,11 +73,6 @@ class Shell:
             Commands.EXIT: (VarArgsSpec(), self._exit),
             Commands.QUIT: (VarArgsSpec(), self._exit),
         }
-
-        self._shell_command_dispatcher[Commands.TRACE_SHORT] = self._shell_command_dispatcher[Commands.TRACE]
-        self._shell_command_dispatcher[Commands.VERBOSE_SHORT] = self._shell_command_dispatcher[Commands.VERBOSE]
-        self._shell_command_dispatcher[Commands.HELP_SHORT] = self._shell_command_dispatcher[Commands.HELP]
-        self._shell_command_dispatcher[Commands.QUIT_SHORT] = self._shell_command_dispatcher[Commands.QUIT]
 
         self._prompt_local_remote_sep = "\u2014" if is_unicode_supported() else "-"
 
@@ -184,7 +181,25 @@ class Shell:
 
         return 0
 
-    def execute(self, command: str, command_args: List[str]):
+    def execute(self, command_prefix: str, command_args: List[str]):
+        # 'command' might be partial (unique prefix of a valid command)
+        commands = commands_for_prefix(command_prefix)
+
+        # No command
+        if len(commands) == 0:
+            print_errors(f"Unknown command: '{command_prefix}'")
+            return
+
+        # More than 1 command
+        if len(commands) > 1:
+            print("Available commands: ")
+            for comm in isorted(commands):
+                print(red(command_prefix) + comm[len(command_prefix):])
+            return
+
+        command = commands[0]
+
+        # Exactly a known command, execute it
         try:
             outcome = ClientErrors.COMMAND_NOT_RECOGNIZED
 
@@ -315,8 +330,7 @@ class Shell:
                 self._suggestions_intent = SuggestionsIntent([])
 
                 for comm_name, comm_info in COMMANDS_INFO.items():
-                    if stripped_current_line.startswith(comm_name + " ") or \
-                            matches_special_command(stripped_current_line, comm_name):
+                    if stripped_current_line.startswith(comm_name + " "):
                         # Typing a COMPLETE command
                         # e.g. 'ls '
                         log.d("Fetching suggestions intent for command '%s'", comm_name)
