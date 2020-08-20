@@ -25,7 +25,7 @@ from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
     rl_get_completion_quote_character, rl_set_completion_suppress_quote, \
     rl_get_completer_quote_characters
 from easyshare.utils.str import isorted
-from easyshare.utils.types import is_bool
+from easyshare.utils.types import is_bool, is_list
 
 import readline
 
@@ -58,6 +58,7 @@ class Shell:
     # Quoting/Escaping GNU rline tutorial
     # https://thoughtbot.com/blog/tab-completion-in-gnu-rline
     def __init__(self, client: Client):
+        self._aliases: Dict[str, str] = {}
 
         self._client: Client = client
 
@@ -79,6 +80,11 @@ class Shell:
         self._help_map = None
 
         self._init_rline()
+
+
+    def add_alias(self, source: str, target: str):
+        log.i(f"Adding alias: '{source}'='{target}'")
+        self._aliases[source] = target
 
     def input_loop(self):
         """
@@ -139,12 +145,9 @@ class Shell:
                     print_errors(ClientErrors.COMMAND_NOT_RECOGNIZED)
                     continue
 
-                command: str = command_line_parts[0]
-                command_args: List[str] = command_line_parts[1:]
+                log.d("Detected command '%s'", command_line_parts)
 
-                log.d("Detected command '%s'", command)
-
-                self.execute(command, command_args)
+                self.execute(command_line_parts)
 
             except Exception:
                 log.exception("Unexpected exception")
@@ -181,9 +184,29 @@ class Shell:
 
         return 0
 
-    def execute(self, command_prefix: str, command_args: List[str]):
-        # 'command' might be partial (unique prefix of a valid command)
+    def execute(self, cmd: List[str]):
+        if not is_list(cmd):
+            log.e("Invalid command")
+            return
+
+        command_prefix = cmd[0]
+        command_args = cmd[1:]
+
+        # Eventually translate the alias
+        command_prefix = self._resolve_alias(command_prefix)
+
+        # If the alias produces new args, put those into args
+        x = shlex.split(command_prefix)
+        command_prefix = x[0]
+        command_args = x[1:] + command_args
+
+        log.d(f"CMD: {command_prefix}")
+        log.d(f"CMD args: {command_args}")
+
+        # 'command_prefix' might be partial (unique prefix of a valid command)
         commands = commands_for_prefix(command_prefix)
+
+        log.d(f"Commands found: {commands}")
 
         # No command
         if len(commands) == 0:
@@ -445,6 +468,12 @@ class Shell:
             IS + B + IE + "> " + IS + R + IE
 
         return prompt
+
+    def _resolve_alias(self, source: str) -> str:
+        target = self._aliases.get(source, source)
+        if source in self._aliases:
+            log.d(f"Alias for '{source}' found: '{target}'")
+        return target
 
     def _help(self, args: Args) -> NoReturn:
         cmd = args.get_positional(default="usage")

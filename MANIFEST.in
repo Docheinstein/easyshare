@@ -1,3 +1,4 @@
 include README.MD
 include LICENSE
 include easyshare/res/esd.conf
+include easyshare/res/.esrc

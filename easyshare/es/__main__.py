@@ -1,12 +1,15 @@
+import re
 import sys
+from pathlib import Path
+from typing import List, Tuple
 
 from easyshare import logging
 from easyshare.args import ArgsParseError
 from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT, APP_VERSION, easyshare_setup, \
-    DEFAULT_DISCOVER_TIMEOUT, APP_INFO
+    DEFAULT_DISCOVER_TIMEOUT, APP_INFO, EASYSHARE_RESOURCES_PKG
+from easyshare.conf import Conf, INT_VAL, BOOL_VAL, ConfParseError, STR_VAL
 from easyshare.es.client import Client
 from easyshare.es.shell import Shell
-from easyshare.commands.commands import Commands, COMMANDS
 from easyshare.commands.es import Es
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_usage
@@ -21,6 +24,8 @@ from easyshare.utils.net import is_valid_port
 
 # Call it now before get_logger for enable colors properly
 # and let logger be initialized with/without colors
+from easyshare.utils.resources import read_resource_string
+
 easyshare_setup()
 
 
@@ -45,6 +50,32 @@ log = get_logger(__name__)
 
 
 # ==================================================================
+
+
+class EsrcKeys:
+    """ Keys of the .esrc file """
+    G_VERBOSE =   "verbose"
+    G_TRACE =     "trace"
+    G_NO_COLOR =  "no_color"
+    G_DISCOVER_PORT = "discover_port"
+    G_DISCOVER_WAIT = "discover_wait"
+    G_ALIAS = "alias (\S+)"
+
+
+ESRC_SPEC = {
+    # global
+    None: {
+        EsrcKeys.G_DISCOVER_PORT: INT_VAL,
+        EsrcKeys.G_DISCOVER_WAIT: INT_VAL,
+
+        EsrcKeys.G_VERBOSE: INT_VAL,
+        EsrcKeys.G_TRACE: INT_VAL,
+        EsrcKeys.G_NO_COLOR: BOOL_VAL,
+
+        EsrcKeys.G_ALIAS: STR_VAL,
+    },
+}
+
 
 
 def main():
@@ -72,18 +103,92 @@ def main():
 
     # Help?
     if Es.HELP in args:
-        command_usage(Es.name())
-        terminate()
+        _print_usage_and_quit()
 
     # Version?
     if Es.VERSION in args:
         terminate(APP_INFO)
 
+    # Default values
     verbosity = logging.VERBOSITY_NONE
     tracing = TRACING_NONE
     no_colors = False
     discover_port = DEFAULT_DISCOVER_PORT
-    discover_timeout = DEFAULT_DISCOVER_TIMEOUT
+    discover_wait = DEFAULT_DISCOVER_TIMEOUT
+    aliases: List[Tuple[str, str]] = []
+
+    # Config file (.esrc)
+
+    esrc_path = Path.home() / ".esrc"
+
+    if not esrc_path.exists():
+        try:
+            log.d(f"Creating default .esrc")
+
+            default_esrc_content = read_resource_string(
+                EASYSHARE_RESOURCES_PKG, ".esrc")
+
+            log.d(default_esrc_content)
+
+            esrc_path.write_text(default_esrc_content)
+        except Exception:
+            log.w("Failed to write default .esrc file")
+
+    if esrc_path.exists():
+        try:
+            esrc = Conf.parse(
+                path=str(esrc_path),
+                sections_parsers=ESRC_SPEC,
+                comment_prefixes=["#", ";"]
+            )
+        except ConfParseError as err:
+            log.exception("Exception occurred while parsing .esrc")
+            abort(f"Parse of .esrc file failed: {err}")
+
+        if esrc:
+            _, global_section = esrc.global_section()
+
+            log.i(".esrc file parsed successfully:\n%s", esrc)
+
+            # Globals
+
+            discover_port = global_section.get(
+                EsrcKeys.G_DISCOVER_PORT,
+                discover_port
+            )
+
+            discover_wait = global_section.get(
+                EsrcKeys.G_DISCOVER_WAIT,
+                discover_wait
+            )
+
+            no_colors = global_section.get(
+                EsrcKeys.G_NO_COLOR,
+                no_colors
+            )
+
+            tracing = global_section.get(
+                EsrcKeys.G_TRACE,
+                tracing
+            )
+
+            verbosity = global_section.get(
+                EsrcKeys.G_VERBOSE,
+                verbosity
+            )
+
+            # Aliases
+            for (k, v) in global_section.items():
+                match = re.match(EsrcKeys.G_ALIAS, k)
+                if not match:
+                    continue
+
+                # Found an alias
+                target = match.groups()[0]
+                source = v
+                aliases.append((target, source))
+    else:
+        log.w(f"No config file found (expect at: '{esrc_path.absolute()}')")
 
     # Colors
     if Es.NO_COLOR in args:
@@ -113,10 +218,10 @@ def main():
         default=discover_port
     )
 
-    # Discover port
-    discover_timeout = args.get_option_param(
+    # Discover timeout
+    discover_wait = args.get_option_param(
         Es.DISCOVER_TIMEOUT,
-        default=discover_timeout
+        default=discover_wait
     )
 
     # Validation
@@ -147,10 +252,14 @@ def main():
 
     # Initialize the client
     client = Client(discover_port=discover_port,
-                    discover_timeout=discover_timeout)
+                    discover_timeout=discover_wait)
 
     # Initialize the shell as well
     shell = Shell(client)
+
+    # Add the aliases, if any
+    for (source, target) in aliases:
+        shell.add_alias(source, target)
 
     # Check whether
     # 1. Run a command directly from the cli
@@ -159,11 +268,9 @@ def main():
 
     # 1. Run a command directly from the cli ?
     pargs = args.get_unparsed_args()
-    command = pargs[0] if pargs else None
-    command_args = pargs[1:] if pargs else None
 
-    if command:
-        shell.execute(command, command_args)
+    if pargs:
+        shell.execute(pargs)
 
         # Keep the shell opened only if we performed an 'open'
         # Otherwise close it after the action
@@ -177,6 +284,12 @@ def main():
         # Start the shell
         log.i("Starting interactive shell")
         shell.input_loop()
+
+
+def _print_usage_and_quit():
+    """ Prints the es usage and exit """
+    command_usage(Es.name())
+    terminate()
 
 
 if __name__ == "__main__":

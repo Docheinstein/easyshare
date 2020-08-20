@@ -129,12 +129,14 @@ class Conf:
 
                 # Pass the key,val to the right parser
                 for parser_key, parser_func in current_keys_parsers.items():
-                    if parser_key == key:
+                    if re.match(parser_key, key):
                         log.d("Passing '%s' to known parser", key)
                         parsed_val = parser_func(current_section_name, key, val)
                         current_section[key] = parsed_val
                         parser_found = True
                         break
+                    else:
+                        log.d(f"Handler '{parser_key}' cannot handle key '{key}'")
 
                 if not parser_found:
                     log.w("No parser found for key '%s' inside section '%s'", key, current_section)

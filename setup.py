@@ -33,11 +33,13 @@ setup(
     },
 
     data_files=[
-        ("share/man/man1", [
-            "docs/sphinx/build/man/es.1",
-            "docs/sphinx/build/man/esd.1",
-            "docs/sphinx/build/man/es-tools.1",
-        ])
+        (
+            "share/man/man1", [
+                "docs/sphinx/build/man/es.1",
+                "docs/sphinx/build/man/esd.1",
+                "docs/sphinx/build/man/es-tools.1",
+            ]
+        )
     ],
 
     # Tests

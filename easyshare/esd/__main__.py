@@ -12,19 +12,19 @@ from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.common import Sharing
 from easyshare.esd.daemons.api import ApiDaemon
 from easyshare.esd.daemons.discover import DiscoverDaemon
-from easyshare.helps.esd import Esd
+from easyshare.commands.esd import Esd
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
-from easyshare.res.helps import get_command_usage
+from easyshare.res.helps import command_usage
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.styling import enable_styling, bold
 from easyshare.tracing import set_tracing_level, TRACING_NONE, TRACING_TEXT
 from easyshare.utils import terminate, abort
-from easyshare.utils.env import are_colors_supported
+from easyshare.utils.env import are_colors_supported, is_stdout_terminal
 from easyshare.utils.json import j
 from easyshare.utils.net import is_valid_port, get_primary_ip
 from easyshare.utils.ssl import create_server_ssl_context
-from easyshare.utils.str import satisfychars, tf, keepchars
+from easyshare.utils.str import tf, keepchars
 
 # if __name__ == "__main__":
 # Call it now before get_logger for enable colors properly
@@ -414,6 +414,10 @@ def main():
     log.d("Tracing: %s", tracing)
     log.d("Verbosity: %s", verbosity)
 
+    if not no_colors and not is_stdout_terminal():
+        log.w("Disabling colors since detected non-terminal output file")
+        no_colors = True
+
     enable_styling(are_colors_supported() and not no_colors)
     logging.init_logging() # update colors
 
@@ -628,13 +632,8 @@ Version:            {APP_VERSION}
 
 def _print_usage_and_quit():
     """ Prints the esd usage and exit """
-    esd_usage = get_command_usage(Esd.name())
-
-    if not esd_usage:
-        # Something went wrong with the dynamic loading of the usage
-        abort(f"Can't provide usage of '{Esd.name()}'")
-
-    terminate(esd_usage)
+    command_usage(Esd.name())
+    terminate()
 
 
 if __name__ == "__main__":
