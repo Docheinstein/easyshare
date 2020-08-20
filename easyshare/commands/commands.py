@@ -1,4 +1,5 @@
 import os
+import re
 from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
@@ -222,13 +223,69 @@ class FilesSuggestionsCommandInfo(CommandInfo):
                                  space_after_completion=lambda s: not s.endswith("/"))
 
 
+# ==================================================
+# =========== FINDINGS SUGGESTIONS =================
+# ==================================================
+
+FINDING_RE = re.compile(r"\$([a-zA-Z])?(\d+)?")
+
+
+class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
+    @classmethod
+    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
+        findings = cls._provide_findings_list(token, client)
+        if findings:
+            log.d(f"There will be {len(findings)} findings suggestions")
+            return SuggestionsIntent([StyledString(finding) for finding in findings],
+                                     completion=True)
+
+        # No findings, use default suggestions provider
+        return super().suggestions(token, client)
+
+    @classmethod
+    def _provide_findings_list(cls, token: str, client) -> List[str]:
+        match = re.match(FINDING_RE, token)
+        if match:
+            log.d("Handling valid finding token")
+
+            letter_filter = match.groups()[0]
+            n_filter = match.groups()[1]
+
+            log.d(f"letter_filter {letter_filter}")
+            log.d(f"n_filter {n_filter}")
+
+            findings = []
+            for (letter, findings_for_letter) in cls._provide_findings_dict(token, client).items():
+                # Letter filter?
+                if letter_filter and letter != letter_filter:
+                    continue
+
+                # N filter?
+                for i, finding in enumerate(findings_for_letter.infos):
+                    idx = i +1
+
+                    if n_filter and not str(idx).startswith(n_filter):
+                        continue
+
+                    # All filters passed, valid suggestion
+                    log.d(f"Finding: ${letter}{idx}")
+                    findings.append(f"${letter}{idx}")
+
+            return findings
+        return []
+
+
+    @classmethod
+    @abstractmethod
+    def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
+        pass
 
 # ==================================================
 # =========== LOCAL/REMOTE FILES SUGGESTIONS =======
 # ==================================================
 
 
-class LocalFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
+class LocalFilesSuggestionsCommandInfo(FilesAndFindingsSuggestionsCommandInfo, ABC):
     """ Files suggestions provider of local files """
     @classmethod
     def _provide_file_info_list(cls, token: str, client) -> List[FileInfo]:
@@ -242,6 +299,7 @@ class LocalFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
         # Take the parent
         # path.parent can't be used unconditionally since it returns
         # the parent dir even if "pattern" ends with a os.path.sep
+
         path = LocalPath(token)
         if not token.endswith(os.path.sep):
             path = path.parent
@@ -249,8 +307,12 @@ class LocalFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
         log.i("ls-ing for suggestions on '%s'", path)
         return ls(path, details=False)
 
+    @classmethod
+    def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
+        return client._local_findings
 
-class RemoteFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
+
+class RemoteFilesSuggestionsCommandInfo(FilesAndFindingsSuggestionsCommandInfo, ABC):
     """ Files suggestions provider of remote files (performs an rls) """
 
     @classmethod
@@ -274,6 +336,9 @@ class RemoteFilesSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
 
         return resp.get("data")
 
+    @classmethod
+    def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
+        return client._remote_findings
 
 # ==================================================
 # ================ FILE INFO FILTERS ===============

@@ -1,5 +1,6 @@
 import atexit
 import os
+import re
 import shlex
 import traceback
 from pathlib import Path
@@ -58,6 +59,11 @@ class Shell:
     The interactive shell of client that is able to parse and execute commands.
     Uses GNU rline for provide command completion and files suggestions.
     """
+
+    LOCAL_FINDINGS_RE = re.compile(r"^\$([a-z]\d+)$")
+    REMOTE_FINDINGS_RE = re.compile(r"^\$([A-Z]\d+)$")
+
+
     # Quoting/Escaping GNU rline tutorial
     # https://thoughtbot.com/blog/tab-completion-in-gnu-rline
     def __init__(self, client: Client):
@@ -258,6 +264,10 @@ class Shell:
 
         # TAB: autocomplete
         readline.parse_and_bind("tab: complete")
+        # readline.parse_and_bind("set show-all-if-ambiguous on")
+        # readline.parse_and_bind("set show-all-if-unmodified on")
+        # readline.parse_and_bind("set menu-complete-display-prefix on")
+        # readline.parse_and_bind("tab: complete")
 
         # Show 'show all possibilities' if there are too many items
         readline.parse_and_bind("set completion-query-items 50")
@@ -373,7 +383,7 @@ class Shell:
         """
 
         try:
-            log.d(f"next_suggestion token={token} | count={count}")
+            log.d(f"next_suggestion, token={token} | count={count}")
 
             # Never insert trailing quote, we will do it manually
             rl_set_completion_suppress_quote(1)
@@ -414,6 +424,16 @@ class Shell:
                         # Case 1: complete command
                         log.d("Fetching suggestions for command completion of '%s'", comm_name)
                         self._suggestions_intent.suggestions.append(StyledString(comm_name))
+
+                finding = None
+                if re.match(Shell.LOCAL_FINDINGS_RE, token):
+                    finding = self._client._get_local_finding(token)
+                elif re.match(Shell.REMOTE_FINDINGS_RE, token):
+                    finding = self._client._get_remote_finding(token)
+
+                if finding:
+                    log.d(f"Found finding for token: {finding}")
+                    return str(Path(finding.path) / finding.info.get("name"))
 
                 if not self._suggestions_intent.completion:
                     # TODO: find a way for not show the the suggestion inline

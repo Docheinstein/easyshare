@@ -156,7 +156,8 @@ def get_logger(name: str = ROOT_LOGGER_PATTERN,
 
     logger: logging.Logger = logging.getLogger(fetch_name)
     if ROOT_LOGGER_PATTERN in name or root:
-        logger.addHandler(_log_handler)
+        if not logger.hasHandlers():
+            logger.addHandler(_log_handler)
 
     verb = verbosity if verbosity is not None else _default_verbosity
 

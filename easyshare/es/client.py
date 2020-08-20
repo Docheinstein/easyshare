@@ -241,7 +241,22 @@ class OverwritePolicy:
     DIFF_SIZES = [DIFF_SIZE, NEWER_DIFF_SIZE]
 
 
+
 # ==================================================================
+
+class Findings:
+    def __init__(self, path: Union[str, Path], infos: List[FileInfo]):
+        self.path: Union[str, Path] = path
+        self.infos: List[FileInfo] = infos
+
+
+class Finding:
+    def __init__(self, path: Union[str, Path], info: FileInfo):
+        self.path: Union[str, Path] = path
+        self.info: FileInfo = info
+
+# ==================================================================
+
 
 
 class Client:
@@ -254,11 +269,11 @@ class Client:
         self._discover_timeout = discover_timeout
 
         # letter => findings, pwd when find the was performed
-        self._local_findings: Dict[str, Tuple[List[FileInfo], Path]] = {}
+        self._local_findings: Dict[str, Findings] = {}
         self._local_finding_letter: str = "a"
 
         # letter => findings, rpwd when find the was performed
-        self._remote_findings: Dict[str, Tuple[List[FileInfo], str]] = {}
+        self._remote_findings: Dict[str, Findings] = {}
         self._remote_finding_letter: str = "A"
 
         def LOCAL(parser: ArgsSpec) -> ArgsSpec:
@@ -2316,7 +2331,7 @@ class Client:
         log.i("Adding %d local findings from pwd = %s (letter %s)",
               len(find_result), str(curpwd), letter)
 
-        self._local_findings[letter] = (find_result, curpwd)
+        self._local_findings[letter] = Findings(curpwd, find_result)
         self._local_finding_letter = chrnext(letter, start="a", end="z")
 
         return letter
@@ -2333,7 +2348,7 @@ class Client:
         log.i("Adding %d remote findings from rcwd = %s (letter %s)",
               len(find_result), currpwd, letter)
 
-        self._remote_findings[letter] = (find_result, currpwd)
+        self._remote_findings[letter] = Findings(currpwd, find_result)
         self._remote_finding_letter = chrnext(letter, start="A", end="Z")
 
         return letter
@@ -2348,7 +2363,7 @@ class Client:
         log.i("Computing local path of '%s'", path)
 
         if path:
-            found = self._get_finding(path, self._local_findings)
+            found = self._get_local_finding(path)
             if found:
                 finding, searchpath = found
                 path = searchpath / finding.get("name")
@@ -2362,19 +2377,24 @@ class Client:
         log.i("Computing remote path of '%s'", path)
 
         if path:
-            found = self._get_finding(path, self._remote_findings)
+            found = self._get_remote_finding(path)
             if found:
                 finding, searchpath = found
                 path = os.path.join(searchpath, finding.get("name"))
 
         return path
 
-    @classmethod
-    def _get_finding(cls, path: str, findings: Dict[str, Tuple[List[FileInfo], Union[str, Path]]])\
-            -> Optional[Tuple[FileInfo, Union[str, Path]]]:
-        log.d("Looking for findings in pattern '%s'", path)
+    def _get_local_finding(self, pattern: str) -> Optional[Finding]:
+        return self._get_finding(pattern, self._local_findings)
 
-        match = re.fullmatch(Client.FINDINGS_RE, path)
+    def _get_remote_finding(self, pattern: str) -> Optional[Finding]:
+        return self._get_finding(pattern, self._remote_findings)
+
+    @classmethod
+    def _get_finding(cls, pattern: str, findings_dict: Dict[str, Findings]) -> Optional[Finding]:
+        log.d("Looking for findings in pattern '%s'", pattern)
+
+        match = re.fullmatch(Client.FINDINGS_RE, pattern)
         if match:
             # The path contains a finding pattern
             letter = match.groups()[0]
@@ -2386,16 +2406,15 @@ class Client:
             findings_of_letter: List[FileInfo]
             searchpath: Union[str, Path]
 
-            x = findings.get(letter)
-            if x:
-                findings_of_letter, searchpath = x
-                if findings_of_letter and idx < len(findings_of_letter):
+            findings = findings_dict.get(letter)
+            if findings:
+                if findings.infos and idx < len(findings.infos):
                     log.d("Findings for letter %s found - search path was '%s'",
-                          letter, searchpath)
+                          letter, findings.path)
 
-                    log.d("Finding for '%s' found: '%s'", match.group(), findings_of_letter[idx])
+                    log.d("Finding for '%s' found: '%s'", match.group(), findings.infos[idx])
 
-                    return findings_of_letter[idx], searchpath
+                    return Finding(findings.path, findings.infos[idx])
 
             log.w("Finding not found: '%s'", match.group())
 
