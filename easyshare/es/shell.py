@@ -1,12 +1,15 @@
+import atexit
 import os
 import shlex
 import traceback
+from pathlib import Path
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
 
 from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
 from easyshare.commands.commands import commands_for_prefix
+from easyshare.common import EASYSHARE_HISTORY
 from easyshare.consts import ansi
 from easyshare.es.client import Client
 from easyshare.es.errors import ClientErrors, print_errors
@@ -185,6 +188,8 @@ class Shell:
         return 0
 
     def execute(self, cmd: List[str]):
+        self._update_history()
+
         if not is_list(cmd):
             log.e("Invalid command")
             return
@@ -246,6 +251,8 @@ class Shell:
 
 
     def _init_rline(self):
+        log.d("Init GNU readline")
+
         # [GNU] readline config
         rl_load()
 
@@ -278,6 +285,37 @@ class Shell:
         # rl_set_completer_quote_characters(b'"\'')
         rl_set_completer_quote_characters('"')
 
+        # History
+
+        self._load_history()
+
+    def _load_history(self):
+        es_history = Path.home() / EASYSHARE_HISTORY
+        if not es_history.exists():
+            try:
+                es_history.touch()
+            except:
+                log.w(f"Failed to create {es_history}")
+
+        if es_history.exists():
+            try:
+                log.d(f"Loading history from: '{es_history}'")
+                readline.read_history_file(es_history)
+                log.d(f"readline.get_current_history_length() = {readline.get_current_history_length()}")
+                log.d(f"readline.get_history_length() = {readline.get_history_length()}")
+            except OSError as e:
+                log.w(f"Failed to load history file: {e}")
+        else:
+            log.w(f"History file not found at: '{es_history}'")
+
+
+    def _update_history(self):
+        es_history = Path.home() / EASYSHARE_HISTORY
+
+        log.d(f"Saving readline history file at: '{es_history}'")
+        readline.append_history_file(1, es_history)
+        log.d(f"readline.get_current_history_length() = {readline.get_current_history_length()}")
+        log.d(f"readline.get_history_length() = {readline.get_history_length()}")
 
     # For Windows
     def _display_suggestions_pyreadline(self, matches):

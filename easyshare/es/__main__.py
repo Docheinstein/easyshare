@@ -6,7 +6,7 @@ from typing import List, Tuple
 from easyshare import logging
 from easyshare.args import ArgsParseError
 from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT, APP_VERSION, easyshare_setup, \
-    DEFAULT_DISCOVER_TIMEOUT, APP_INFO, EASYSHARE_RESOURCES_PKG
+    DEFAULT_DISCOVER_TIMEOUT, APP_INFO, EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF
 from easyshare.conf import Conf, INT_VAL, BOOL_VAL, ConfParseError, STR_VAL
 from easyshare.es.client import Client
 from easyshare.es.shell import Shell
@@ -119,20 +119,20 @@ def main():
 
     # Config file (.esrc)
 
-    esrc_path = Path.home() / ".esrc"
+    esrc_path = Path.home() / EASYSHARE_ES_CONF
 
     if not esrc_path.exists():
         try:
-            log.d(f"Creating default .esrc")
+            log.d(f"Creating default {EASYSHARE_ES_CONF}")
 
             default_esrc_content = read_resource_string(
-                EASYSHARE_RESOURCES_PKG, ".esrc")
+                EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF)
 
             log.d(default_esrc_content)
 
             esrc_path.write_text(default_esrc_content)
         except Exception:
-            log.w("Failed to write default .esrc file")
+            log.w(f"Failed to write default {EASYSHARE_ES_CONF} file")
 
     if esrc_path.exists():
         try:
@@ -142,13 +142,13 @@ def main():
                 comment_prefixes=["#", ";"]
             )
         except ConfParseError as err:
-            log.exception("Exception occurred while parsing .esrc")
-            abort(f"Parse of .esrc file failed: {err}")
+            log.exception(f"Exception occurred while parsing {EASYSHARE_ES_CONF}")
+            abort(f"Parse of {EASYSHARE_ES_CONF} file failed: {err}")
 
         if esrc:
             _, global_section = esrc.global_section()
 
-            log.i(".esrc file parsed successfully:\n%s", esrc)
+            log.i(f"{EASYSHARE_ES_CONF} file parsed successfully:\n%s", esrc)
 
             # Globals
 

@@ -27,6 +27,8 @@ APP_INFO = f"{APP_NAME} {APP_VERSION}"
 # =====================
 
 EASYSHARE_RESOURCES_PKG = "easyshare.res"
+EASYSHARE_ES_CONF = ".esrc"
+EASYSHARE_HISTORY = ".es_history"
 
 
 # =====================
