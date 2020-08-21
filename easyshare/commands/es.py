@@ -126,6 +126,21 @@ If no *COMMAND* is given, the interactive console is started. \
 If *COMMAND* is a valid command, it is executed and the process quits \
 unless the command is open.
 
+**es** reads ~/.esrc file from the home directory at startup, in which \
+some configuration, such as the startup parameter and aliases, can be specified.
+
+Configuration file example (.esrc):
+    # discover_port=12019
+    # verbose=2
+    alias l=ls -la
+    alias rl=rls -la
+    alias s=scan
+    alias :=exec
+    alias ::=rexec
+    alias touch=: touch
+    alias cat=: cat
+    alias echo=: echo
+
 Type "**help** *command*" for the full documentation of a command.
 
 Commands:
