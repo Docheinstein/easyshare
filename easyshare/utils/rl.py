@@ -1,7 +1,9 @@
-from ctypes import c_int, CDLL, c_char_p, CFUNCTYPE, c_void_p, cast, POINTER
+from ctypes import c_int, CDLL, c_char_p, CFUNCTYPE
 from typing import Optional, Callable
 
 from easyshare.logging import get_logger
+from easyshare.utils import c
+from easyshare.utils.c import CException
 
 log = get_logger(__name__)
 
@@ -11,90 +13,20 @@ def rl_load():
     global _libreadline
 
     try:
-        import ctypes
-        _libreadline = ctypes.CDLL("libreadline.so")
-        log.d("libreadline loaded with ctypes")
+        _libreadline = c.load_library("libreadline.so")
     except:
         log.w("libreadline can't be accessed with ctypes")
 
 
-# UTIL
-
-def rl_set_int(varname: str, value: int):
-    try:
-        var = c_int.in_dll(_libreadline, varname)
-        log.d(f"SET {varname} was {var} ({var.value})")
-        var.value = value
-        log.d(f"SET {varname} is {var.value}")
-    except Exception as e:
-        log.w(f"SET {varname} failed: {e}")
-
-
-def rl_get_int(varname: str) -> Optional[int]:
-    try:
-        var = c_int.in_dll(_libreadline, varname)
-        log.d(f"GET {varname} is {var} ({var.value})")
-        return var.value
-    except Exception as e:
-        log.w(f"GET {varname} failed: {e}")
-        return None
-
-
-def rl_set_char_p(varname: str, value: bytes):
-    try:
-        var = c_char_p.in_dll(_libreadline, varname)
-        log.d(f"SET {varname} was {var} ({var.value})")
-        var.value = value
-        log.d(f"SET {varname} is {var.value}")
-    except Exception as e:
-        log.w(f"SET {varname} failed: {e}")
-
-
-def rl_get_char_p(varname: str) -> Optional[bytes]:
-    try:
-        var = c_char_p.in_dll(_libreadline, varname)
-        log.d(f"GET {varname} is {var} ({var.value})")
-        return var.value
-    except Exception as e:
-        log.w(f"GET {varname} failed: {e}")
-        return None
-
-def rl_get_char_p_as_str(varname: str) -> Optional[str]:
-    try:
-        var = c_char_p.in_dll(_libreadline, varname)
-        log.d(f"GET {varname} is {var} ({var.value})")
-        return c_btos(var.value)
-    except Exception as e:
-        log.w(f"GET {varname} failed: {e}")
-        return None
-
-
-def rl_set_func_ptr(funcname: str, func: Callable, prototype):
-    try:
-        log.d(f"SET {funcname}")
-        c_func = prototype(func)
-        fptr = c_void_p.in_dll(_libreadline, funcname)
-        fptr.value = cast(c_func, c_void_p).value
-    except Exception as e:
-        log.w(f"SET {funcname} failed: {e}")
-
-def c_btos(var: bytes):
-    return str(var, encoding="ascii")
-
-def c_stob(var: str):
-    return var.encode("ascii")
-
-# ---- rl_completion_quote_character ---
-
-"""
-/* Set to any quote character readline thinks it finds before any application
-completion function is called. */
-"""
-
 def rl_get_completion_quote_character() -> int:
-    return rl_get_int("rl_completion_quote_character")
-
-# ---- rl_completer_quote_characters ---
+    """
+    /* Set to any quote character readline thinks it finds before any application
+    completion function is called. */
+    """
+    try:
+        return c.get_int(_libreadline, "rl_completion_quote_character")
+    except CException:
+        return -1
 
 """
 /* List of characters which can be used to quote a substring of the line.
@@ -106,43 +38,53 @@ unless they also appear within this list. */
 _rl_completer_quote_characters = None # keep reference for avoid GC
 
 def rl_set_completer_quote_characters(chars: str):
-    global _rl_completer_quote_characters
-    _rl_completer_quote_characters = c_stob(chars)
-    rl_set_char_p("rl_completer_quote_characters", _rl_completer_quote_characters)
+    try:
+        global _rl_completer_quote_characters
+        _rl_completer_quote_characters = c.c_stob(chars)
+        c.set_char_p(_libreadline, "rl_completer_quote_characters", _rl_completer_quote_characters)
+    except:
+        pass
 
-def rl_get_completer_quote_characters():
-    return rl_get_char_p_as_str("rl_completer_quote_characters")
+
+def rl_get_completer_quote_characters() -> str:
+    try:
+        return c.get_char_p(_libreadline, "rl_completer_quote_characters")
+    except:
+        return ""
 
 
-# ---- rl_completion_suppress_quote ---
-"""
-/* If non-zero, the completion functions don't append any closing quote.
-This is set to 0 by rl_complete_internal and may be changed by an
-application-specific completion function. */
-"""
 
 def rl_set_completion_suppress_quote(value: int):
-    rl_set_int("rl_completion_suppress_quote", value)
+    """
+    /* If non-zero, the completion functions don't append any closing quote.
+    This is set to 0 by rl_complete_internal and may be changed by an
+    application-specific completion function. */
+    """
+    try:
+        c.set_int(_libreadline, "rl_completion_suppress_quote", value)
+    except:
+        pass
 
 
-# -------------- rl_char_is_quoted_p ---------------------
-"""
-/* Function to call to decide whether or not a word break character is
-   quoted.  If a character is quoted, it does not break words for the
-   completer. */
-   
-int quote_detector(char * text, int index);
-"""
 
 PROTOTYPE_rl_char_is_quoted_p = CFUNCTYPE(c_int, c_char_p, c_int)
 
 def rl_set_char_is_quoted_p(quote_detector: Callable[[str, int], int]):
+    """
+    /* Function to call to decide whether or not a word break character is
+       quoted.  If a character is quoted, it does not break words for the
+       completer. */
 
+    int quote_detector(char * text, int index);
+    """
     def rl_char_is_quoted_p_wrapper(text: bytes, index: int) -> int:
-        return quote_detector(c_btos(text), index)
+        return quote_detector(c.c_btos(text), index)
 
-    rl_set_func_ptr("rl_char_is_quoted_p", rl_char_is_quoted_p_wrapper,
-                    PROTOTYPE_rl_char_is_quoted_p)
+    try:
+        c.set_func_ptr(_libreadline, "rl_char_is_quoted_p",
+                       rl_char_is_quoted_p_wrapper, PROTOTYPE_rl_char_is_quoted_p)
+    except:
+        pass
 
 # from readline.h
 

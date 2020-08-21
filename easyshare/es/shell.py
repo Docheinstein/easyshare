@@ -10,7 +10,7 @@ from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
 from easyshare.commands.commands import commands_for_prefix
-from easyshare.common import EASYSHARE_HISTORY
+from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF
 from easyshare.consts import ansi
 from easyshare.es.client import Client
 from easyshare.es.errors import ClientErrors, print_errors
@@ -203,21 +203,31 @@ class Shell:
         command_args = cmd[1:]
 
         # Eventually translate the alias
-        command_prefix = self._resolve_alias(command_prefix)
+        # DANGER ZONE: the resolution is recursive, this might lead to
+        # an infinite loop if the alias is cyclic
+        for i in range(100):
+            prev_command_prefix = command_prefix
+            command_prefix = self._resolve_alias(command_prefix)
 
-        # If the alias produces new args, put those into args
-        x = shlex.split(command_prefix)
-        command_prefix = x[0]
-        command_args = x[1:] + command_args
+            # If the alias produces new args, put those into args
+            x = shlex.split(command_prefix)
+            command_prefix = x[0]
+            command_args = x[1:] + command_args
 
-        log.d(f"CMD: {command_prefix}")
-        log.d(f"CMD args: {command_args}")
+
+            log.d(f"CMD: {command_prefix}")
+            log.d(f"CMD args: {command_args}")
+
+            if command_prefix == prev_command_prefix:
+                break
+        else:
+            print_errors(f"Infinite alias substitution detected: "
+                         f"fix {EASYSHARE_ES_CONF} file")
 
         # 'command_prefix' might be partial (unique prefix of a valid command)
         commands = commands_for_prefix(command_prefix)
 
         log.d(f"Commands found: {commands}")
-
 
         # No command
         if len(commands) == 0:
@@ -390,27 +400,30 @@ class Shell:
         Provide the next suggestion, or None if there is nothing more to suggest.
         """
 
+        def escape(s: str):
+            return s.replace(" ", "\\ ")
+
+        def unescape(s: str):
+            return s.replace("\\ ", " ")
+
         try:
             log.d(f"next_suggestion, token={token} | count={count}")
 
             # Never insert trailing quote, we will do it manually
+            # (this is needed because for directory completion we should not
+            # insert the trailing quote)
             rl_set_completion_suppress_quote(1)
-            quoting = rl_get_completion_quote_character() == ord('"')
+            is_quoting = rl_get_completion_quote_character() == ord('"')
 
             self._current_line = readline.get_line_buffer()
             stripped_current_line = self._current_line.lstrip()
 
-            # Unescape
-            token = token.replace("\\", "")
-            stripped_current_line = stripped_current_line.replace("\\", "")
-
-            # eprint(f"\ntoken:  {token}")
-            # eprint(f"\nline:  {stripped_current_line}")
-            # import pyreadline
-            # pyreadline.logger.log(f"count = {count}")
+            # Unescape since the token might contain \ we inserted in next_suggestion
+            # for allow spaces in the line
+            token = unescape(token)
+            stripped_current_line = unescape(token)
 
             if count == 0:
-
                 self._suggestions_intent = SuggestionsIntent([])
 
                 for comm_name, comm_info in COMMANDS_INFO.items():
@@ -463,15 +476,10 @@ class Shell:
                 sug = self._suggestions_intent.suggestions[count].string
 
                 # Eventually escape it
-                if not quoting:
-                    sug = sug.replace(" ", "\ ")
+                if not is_quoting:
+                    sug = escape(sug)
 
                 log.d("Returning suggestion %d: %s", count, sug)
-
-                # Escape whitespaces, unless this token is beginning with a quote "
-                # TODO: escaping is a l
-                # sug = sug.replace(" ", "\\ ")
-
                 log.d("Completion is enabled = %s", self._suggestions_intent.completion)
 
                 # If there is only a suggestion that begins with
@@ -487,7 +495,7 @@ class Shell:
 
                     if append_space:
                         log.d("Last command with autocomplete -> adding space required")
-                        if quoting:
+                        if is_quoting:
                             # Insert the quote before the space
                             sug += '"'
                         sug += " "
