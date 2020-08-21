@@ -375,7 +375,8 @@ class Shell:
             print(self._prompt + self._current_line, end="", flush=True)
         except:
             log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
-    
+
+
     def _next_suggestion(self, token: str, count: int):
         """
         Called by GNU readline when new suggestions have to be provided.
@@ -469,7 +470,7 @@ class Shell:
 
                     if append_space:
                         log.d("Last command with autocomplete -> adding space required")
-                        if rl_get_completion_quote_character() == '"':
+                        if rl_get_completion_quote_character() == ord('"'):
                             # Insert the quote before the space
                             sug += '"'
                         sug += " "
