@@ -250,6 +250,11 @@ class Findings:
         self.path: Union[str, Path] = path
         self.infos: List[FileInfo] = infos
 
+    def __len__(self):
+        return len(self.infos)
+
+    def __getitem__(self, item):
+        return self.infos[item]
 
 class Finding:
     def __init__(self, path: Union[str, Path], info: FileInfo):
@@ -261,7 +266,7 @@ class Finding:
 
 
 class Client:
-    FINDINGS_RE = re.compile(r"\$([a-zA-Z])(\d+)")
+    FINDINGS_RE = re.compile(r"\$([a-zA-Z])(\d+):?(\d+)?")
 
     def __init__(self, discover_port: int, discover_timeout: int):
         self.connection: Optional[Connection] = None
@@ -561,7 +566,9 @@ class Client:
                                                   q(directory)))
 
     def rm(self, args: Args, _):
-        paths = [self._local_path(p) for p in args.get_positionals()]
+        paths = []
+        for p in args.get_positionals():
+            paths += self._local_paths(p)
 
         if not paths:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -1190,7 +1197,9 @@ class Client:
 
     @provide_d_sharing_connection
     def rrm(self, args: Args, conn: Connection):
-        paths = [self._remote_path(p) for p in args.get_positionals()]
+        paths = []
+        for p in args.get_positionals():
+            paths += self._remote_paths(p)
 
         if not paths:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -1210,7 +1219,9 @@ class Client:
 
     @provide_sharing_connection
     def get(self, args: Args, conn: Connection):
-        files = [self._remote_path(p) for p in args.get_positionals()]
+        files = []
+        for p in args.get_positionals():
+            files += self._remote_paths(p)
 
         do_check = Get.CHECK in args
         quiet = Get.QUIET in args
@@ -1626,7 +1637,11 @@ class Client:
 
     @provide_d_sharing_connection
     def put(self, args: Args, conn: Connection):
-        files = [self._local_path(p) for p in args.get_positionals()]
+
+        files = []
+        for p in args.get_positionals():
+            files += self._local_paths(p)
+
         sendfiles: List[Tuple[Path, Path]] = []
 
         if len(files) == 0:
@@ -2088,7 +2103,9 @@ class Client:
         # C2  If <dest> doesn't exist => ERROR
 
 
-        mvcp_args = [self._local_path(f) for f in args.get_positionals()]
+        mvcp_args = []
+        for f in args.get_positionals():
+            mvcp_args += self._local_paths(f)
 
         if not mvcp_args or len(mvcp_args) < 2:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -2123,7 +2140,9 @@ class Client:
                args: Args,
                api: Callable[[List[str], str], Response],
                api_name: str = "RMV/RCP"):
-        paths = [self._remote_path(p) for p in args.get_positionals()]
+        paths = []
+        for p in args.get_positionals():
+            paths += self._remote_paths(p)
 
         if not paths:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
@@ -2358,66 +2377,114 @@ class Client:
         self._remote_findings.clear()
         self._remote_finding_letter = "A"
 
-    def _local_path(self, path: str, default: str = "") -> Path:
+    def _local_path(self, path_or_finding_pattern: str, default: str = "") \
+            -> Path:
+        return self.__local_paths(path_or_finding_pattern, default)[0]
+
+    def _local_paths(self, path_or_finding_pattern: str, default: str = "") \
+            -> List[Path]:
+        return self.__local_paths(path_or_finding_pattern, default)
+
+    def __local_paths(self, path_or_finding_pattern: str, default: str = "") \
+            -> List[Path]:
+        log.i("Computing local path of '%s'", path_or_finding_pattern)
+
+        return self.__paths(
+            path_or_finding_pattern,
+            findings_provider=self._get_local_findings,
+            path_builder=lambda path, finfo: path / finfo.get("name"),
+            path_filter=lambda p: LocalPath(p, default)
+        )
+
+
+    def _remote_path(self, path_or_finding_pattern: str) \
+            -> str:
+        return self.__remote_paths(path_or_finding_pattern)[0]
+
+    def _remote_paths(self, path_or_finding_pattern: str) \
+            -> List[str]:
+        return self.__remote_paths(path_or_finding_pattern)
+
+    def __remote_paths(self, path_or_finding_pattern: str) \
+            -> List[str]:
+        log.i("Computing remote path of '%s'", path_or_finding_pattern)
+
+        return self.__paths(
+            path_or_finding_pattern,
+            findings_provider=self._get_remote_findings,
+            path_builder=lambda path, finfo: os.path.join(path, finfo.get("name")),
+        )
+
+    def __paths(self,
+                path_or_finding_pattern: str,
+                findings_provider: Callable[[str], Findings],
+                path_builder: Callable[[Union[Path, str], FileInfo], Union[Path, str]],
+                path_filter: Callable[[Union[Path, str]], Union[Path, str]] = lambda p: p) \
+            -> List[Union[Path, str]]:
         # TODO if the filename has the form of the finding we can't treat it...
         #  found a way such as escape $ or use double $$
-        log.i("Computing local path of '%s'", path)
 
-        if path:
-            found = self._get_local_finding(path)
-            if found:
-                finding, searchpath = found
-                path = searchpath / finding.get("name")
+        if not path_or_finding_pattern:
+            return [path_filter(path_or_finding_pattern)]
 
-        return LocalPath(path, default)
+        paths = []
 
-    def _remote_path(self, path: str) -> str:
-        # TODO if the filename has the form of the finding we can't treat it...
-        #  found a way such as escape $ or use double $$
+        findings = findings_provider(path_or_finding_pattern)
+        if findings:
+            for info in findings.infos:
+                paths.append(path_filter(path_builder(findings.path, info)))
+        else:
+            # Not a finding, just a regular path
+            paths.append(path_filter(path_or_finding_pattern))
 
-        log.i("Computing remote path of '%s'", path)
+        return paths
 
-        if path:
-            found = self._get_remote_finding(path)
-            if found:
-                finding, searchpath = found
-                path = os.path.join(searchpath, finding.get("name"))
+    def _get_local_findings(self, pattern: str) -> Optional[Findings]:
+        return self._get_findings(self._local_findings, pattern)
 
-        return path
-
-    def _get_local_finding(self, pattern: str) -> Optional[Finding]:
-        return self._get_finding(pattern, self._local_findings)
-
-    def _get_remote_finding(self, pattern: str) -> Optional[Finding]:
-        return self._get_finding(pattern, self._remote_findings)
+    def _get_remote_findings(self, pattern: str) -> Optional[Findings]:
+        return self._get_findings(self._remote_findings, pattern)
 
     @classmethod
-    def _get_finding(cls, pattern: str, findings_dict: Dict[str, Findings]) -> Optional[Finding]:
+    def _get_findings(cls, findings_dict: Dict[str, Findings], pattern: str) -> Optional[Findings]:
         log.d("Looking for findings in pattern '%s'", pattern)
 
         match = re.fullmatch(Client.FINDINGS_RE, pattern)
         if match:
-            # The path contains a finding pattern
-            letter = match.groups()[0]
-            idx = int(match.groups()[1])
-            log.d("Found finding match in path (letter=%s | idx=%d)", letter, idx)
-            idx = idx - 1 # start from 1
+            letter, idx_start, idx_end = match.groups()
+            if not idx_end:
+                idx_end = idx_start
+
+            idx_start = int(idx_start) - 1
+            idx_end = int(idx_end) - 1
+
+            # The path contains a valid finding pattern
+            log.d("Found finding match in path (letter=%s | idx_start=%d | idx_end=%d)",
+                  letter, idx_start + 1, idx_end + 1)
 
             # Check whether we actually have the finding
             findings_of_letter: List[FileInfo]
             searchpath: Union[str, Path]
 
-            findings = findings_dict.get(letter)
-            if findings:
-                if findings.infos and idx < len(findings.infos):
-                    log.d("Findings for letter %s found - search path was '%s'",
-                          letter, findings.path)
+            findings_for_letter = findings_dict.get(letter)
+            if findings_for_letter and findings_for_letter.infos:
+                log.d("Findings for letter %s found - search path was '%s'",
+                      letter, findings_for_letter.path)
 
-                    log.d("Finding for '%s' found: '%s'", match.group(), findings.infos[idx])
+                i = idx_start
 
-                    return Finding(findings.path, findings.infos[idx])
+                findings_path = findings_for_letter.path
+                findings_infos = []
 
-            log.w("Finding not found: '%s'", match.group())
+                while i <= idx_end and i < len(findings_for_letter.infos):
+                    log.d("Finding for '%s' found: '%s'", match.group(),
+                          findings_for_letter.infos[i])
+                    findings_infos.append(findings_for_letter.infos[i])
+                    i += 1
+
+                return Findings(findings_path, findings_infos)
+
+            log.w("Findings not found: '%s'", match.group())
 
         return None
 

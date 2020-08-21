@@ -407,7 +407,7 @@ class Shell:
             return s.replace("\\ ", " ")
 
         try:
-            log.d(f"next_suggestion, token={token} | count={count}")
+            log.d(f"next_suggestion, token='{token}' | count={count}")
 
             # Never insert trailing quote, we will do it manually
             # (this is needed because for directory completion we should not
@@ -421,7 +421,7 @@ class Shell:
             # Unescape since the token might contain \ we inserted in next_suggestion
             # for allow spaces in the line
             token = unescape(token)
-            stripped_current_line = unescape(token)
+            stripped_current_line = unescape(stripped_current_line)
 
             if count == 0:
                 self._suggestions_intent = SuggestionsIntent([])
@@ -451,15 +451,16 @@ class Shell:
                         log.d("Fetching suggestions for command completion of '%s'", comm_name)
                         self._suggestions_intent.suggestions.append(StyledString(comm_name))
 
-                finding = None
+                findings = None
                 if re.match(Shell.LOCAL_FINDINGS_RE, token):
-                    finding = self._client._get_local_finding(token)
+                    findings = self._client._get_local_findings(token)
                 elif re.match(Shell.REMOTE_FINDINGS_RE, token):
-                    finding = self._client._get_remote_finding(token)
+                    findings = self._client._get_local_findings(token)
 
-                if finding:
-                    log.d(f"Found finding for token: {finding}")
-                    return str(Path(finding.path) / finding.info.get("name"))
+                if findings and len(findings) == 1:
+                    finding_info = findings[0]
+                    log.d(f"Found single finding for token: {finding_info}")
+                    return str(Path(findings.path) / finding_info.get("name"))
 
                 if not self._suggestions_intent.completion:
                     # TODO: find a way for not show the the suggestion inline

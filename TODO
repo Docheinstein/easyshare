@@ -11,12 +11,13 @@
 - s now is -NS not only -N
 - fix get for FILEs which adds \.
 - rsh is broken... (only zsh?)
-- findings slicing $A01:$04
 - fix 1000MB might happen => 1 characters of space to keep into account
 - -S does not work
 - fix rsh /bin/bhsa -> wrong command
 - why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
 - strange rengeder effect: the | remains printed for 'scan'
+- rexec disabled just returns "Error"
+- add aliases to autocomplete
 
 ➜  easyshare git:(master) ✗ python -m easyshare.es
 /home/stefano/Develop/Python/easyshare> cd /tmp/
