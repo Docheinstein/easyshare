@@ -1,5 +1,5 @@
-from ctypes import c_int, CDLL, c_char_p
-from typing import Optional
+from ctypes import c_int, CDLL, c_char_p, CFUNCTYPE, c_void_p, cast, POINTER
+from typing import Optional, Callable
 
 from easyshare.logging import get_logger
 
@@ -63,14 +63,29 @@ def rl_get_char_p_as_str(varname: str) -> Optional[str]:
     try:
         var = c_char_p.in_dll(_libreadline, varname)
         log.d(f"GET {varname} is {var} ({var.value})")
-        return str(var.value, encoding="ascii")
+        return c_btos(var.value)
     except Exception as e:
         log.w(f"GET {varname} failed: {e}")
         return None
 
 
+def rl_set_func_ptr(funcname: str, func: Callable, prototype):
+    try:
+        log.d(f"SET {funcname}")
+        c_func = prototype(func)
+        fptr = c_void_p.in_dll(_libreadline, funcname)
+        fptr.value = cast(c_func, c_void_p).value
+    except Exception as e:
+        log.w(f"SET {funcname} failed: {e}")
+
+def c_btos(var: bytes):
+    return str(var, encoding="ascii")
+
+def c_stob(var: str):
+    return var.encode("ascii")
 
 # ---- rl_completion_quote_character ---
+
 """
 /* Set to any quote character readline thinks it finds before any application
 completion function is called. */
@@ -80,6 +95,7 @@ def rl_get_completion_quote_character() -> int:
     return rl_get_int("rl_completion_quote_character")
 
 # ---- rl_completer_quote_characters ---
+
 """
 /* List of characters which can be used to quote a substring of the line.
 Completion occurs on the entire substring, and within the substring
@@ -91,28 +107,14 @@ _rl_completer_quote_characters = None # keep reference for avoid GC
 
 def rl_set_completer_quote_characters(chars: str):
     global _rl_completer_quote_characters
-    _rl_completer_quote_characters = chars.encode("ascii")
+    _rl_completer_quote_characters = c_stob(chars)
     rl_set_char_p("rl_completer_quote_characters", _rl_completer_quote_characters)
 
 def rl_get_completer_quote_characters():
     return rl_get_char_p_as_str("rl_completer_quote_characters")
 
-# ---- rl_basic_quote_characters ---
-"""
-/* List of quote characters which cause a word break. */
-"""
 
-_rl_basic_quote_characters = None
-
-def rl_set_basic_quote_characters(chars: str):
-    global _rl_basic_quote_characters
-    _rl_basic_quote_characters = chars.encode("ascii")
-    rl_set_char_p("rl_basic_quote_characters", _rl_basic_quote_characters)
-
-def rl_get_basic_quote_characters():
-    return rl_get_char_p_as_str("rl_basic_quote_characters")
-
-# ---- rl_basic_quote_characters ---
+# ---- rl_completion_suppress_quote ---
 """
 /* If non-zero, the completion functions don't append any closing quote.
 This is set to 0 by rl_complete_internal and may be changed by an
@@ -123,7 +125,25 @@ def rl_set_completion_suppress_quote(value: int):
     rl_set_int("rl_completion_suppress_quote", value)
 
 
-# -----------------------------------
+# -------------- rl_char_is_quoted_p ---------------------
+"""
+/* Function to call to decide whether or not a word break character is
+   quoted.  If a character is quoted, it does not break words for the
+   completer. */
+   
+int quote_detector(char * text, int index);
+"""
+
+PROTOTYPE_rl_char_is_quoted_p = CFUNCTYPE(c_int, c_char_p, c_int)
+
+def rl_set_char_is_quoted_p(quote_detector: Callable[[str, int], int]):
+
+    def rl_char_is_quoted_p_wrapper(text: bytes, index: int) -> int:
+        return quote_detector(c_btos(text), index)
+
+    rl_set_func_ptr("rl_char_is_quoted_p", rl_char_is_quoted_p_wrapper,
+                    PROTOTYPE_rl_char_is_quoted_p)
+
 # from readline.h
 
 """

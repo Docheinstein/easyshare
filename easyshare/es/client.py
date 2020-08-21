@@ -2,6 +2,7 @@ import mmap
 import os
 import re
 import select
+import shlex
 import signal
 import sys
 import threading
@@ -632,7 +633,7 @@ class Client:
             raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
 
         exec_args = args.get_unparsed_args(default=[])
-        exec_cmd = " ".join(exec_args)
+        exec_cmd = shlex.join(exec_args)
 
         log.i(">> >> EXEC %s", exec_cmd)
 
@@ -648,7 +649,7 @@ class Client:
 
         shell_args = args.get_unparsed_args(default=[])
         if shell_args:
-            shell_cmd = " ".join(shell_args)
+            shell_cmd = shlex.join(shell_args)
         else:
             passwd: struct_passwd = user()
             log.i(f"{passwd.pw_uid} {passwd.pw_name} - shell: {passwd.pw_shell}")
@@ -799,7 +800,7 @@ class Client:
     @require_unix
     def rexec(self, args: Args, conn: Connection):
         popen_args = args.get_unparsed_args(default=[])
-        popen_cmd = " ".join(popen_args)
+        popen_cmd = shlex.join(popen_args)
 
         log.i(">> REXEC %s", popen_cmd)
 
@@ -897,7 +898,7 @@ class Client:
     def rshell(self, args: Args, conn: Connection):
         rshell_args = args.get_unparsed_args(default=[])
         if rshell_args:
-            rshell_cmd = " ".join(rshell_args)
+            rshell_cmd = shlex.join(rshell_args)
         else:
             rshell_cmd = None
 

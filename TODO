@@ -17,3 +17,9 @@
 - fix rsh /bin/bhsa -> wrong command
 - why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
 - strange rengeder effect: the | remains printed for 'scan'
+
+➜  easyshare git:(master) ✗ python -m easyshare.es
+/home/stefano/Develop/Python/easyshare> cd /tmp/
+/tmp> touch "Lupo alberto"
+Unknown command: 'touch'
+/tmp> tou  <--- can't erase further

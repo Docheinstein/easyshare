@@ -26,8 +26,7 @@ from easyshare.utils.env import is_unicode_supported, has_gnureadline, has_pyrea
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
-    rl_get_completion_quote_character, rl_set_completion_suppress_quote, \
-    rl_get_completer_quote_characters
+    rl_get_completion_quote_character, rl_set_completion_suppress_quote, rl_set_char_is_quoted_p
 from easyshare.utils.str import isorted
 from easyshare.utils.types import is_bool, is_list
 
@@ -219,19 +218,26 @@ class Shell:
 
         log.d(f"Commands found: {commands}")
 
+
         # No command
         if len(commands) == 0:
             print_errors(f"Unknown command: '{command_prefix}'")
             return
 
-        # More than 1 command
-        if len(commands) > 1:
+        # More than a command for this prefix
+        if len(commands) > 1 and command_prefix not in commands:
             print("Available commands: ")
             for comm in isorted(commands):
                 print(red(command_prefix) + comm[len(command_prefix):])
             return
 
-        command = commands[0]
+        if len(commands) == 1:
+            # Just 1 command found
+            command = commands[0]
+        else:
+            # More than a command, but one matches exactly
+            command = command_prefix
+
 
         # Exactly a known command, execute it
         try:
@@ -292,8 +298,9 @@ class Shell:
             readline.rl.mode._display_completions = self._display_suggestions_pyreadline
 
         # Set quote characters for quoting strings with spaces
-        # rl_set_completer_quote_characters(b'"\'')
         rl_set_completer_quote_characters('"')
+
+        rl_set_char_is_quoted_p(self._quote_detector)
 
         # History
 
@@ -388,10 +395,15 @@ class Shell:
 
             # Never insert trailing quote, we will do it manually
             rl_set_completion_suppress_quote(1)
-            rl_get_completer_quote_characters()
+            quoting = rl_get_completion_quote_character() == ord('"')
 
             self._current_line = readline.get_line_buffer()
             stripped_current_line = self._current_line.lstrip()
+
+            # Unescape
+            token = token.replace("\\", "")
+            stripped_current_line = stripped_current_line.replace("\\", "")
+
             # eprint(f"\ntoken:  {token}")
             # eprint(f"\nline:  {stripped_current_line}")
             # import pyreadline
@@ -449,6 +461,11 @@ class Shell:
 
             if count < len(self._suggestions_intent.suggestions):
                 sug = self._suggestions_intent.suggestions[count].string
+
+                # Eventually escape it
+                if not quoting:
+                    sug = sug.replace(" ", "\ ")
+
                 log.d("Returning suggestion %d: %s", count, sug)
 
                 # Escape whitespaces, unless this token is beginning with a quote "
@@ -470,7 +487,7 @@ class Shell:
 
                     if append_space:
                         log.d("Last command with autocomplete -> adding space required")
-                        if rl_get_completion_quote_character() == ord('"'):
+                        if quoting:
                             # Insert the quote before the space
                             sug += '"'
                         sug += " "
@@ -482,6 +499,13 @@ class Shell:
             log.w("Exception occurred while retrieving suggestions\n%s", traceback.format_exc())
             return None
 
+    def _quote_detector(self, text: str, index: int) -> int:
+        """
+        l_char_is_quoted_p callback called from GNU readline
+        """
+        is_quoted = 1 if (index > 0 and text[index] == " " and text[index - 1] == "\\") else 0
+        # print(f"\nis_quoted {text}[{index}]) = {is_quoted}\n")
+        return is_quoted
 
     # noinspection PyPep8Naming
     def _build_prompt_string(self) -> str:
