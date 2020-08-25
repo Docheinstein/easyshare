@@ -1,6 +1,6 @@
 
 . =============================================
-. Automatically generated - 21/08/2020 22:26:26
+. Automatically generated - 25/08/2020 09:30:41
 . =============================================
 **COMMAND**
     find - search for local files
@@ -12,9 +12,16 @@
     Search for files and directories based on the given filters the local *DIR*, 
     or the current local directory if no *DIR* is specified.
     
-    Each result of **find** is memorized and can be used further with any command that accept local paths by specifying the identifier shown by **find**.
+    Each result of **find** is memorized and can be used further with any command that accept local paths by specifying the identifier shown by **find**, which has the following syntax:
+        $<letter><number>
+        
     For instance, you can search a file by name (i.e. **find** **-n** *usefulname*) and then perform a local action over it (e.g. **rm** $a1) or even a transfer action 
     (e.g. **put** $a1).
+    
+    Furthermore, you can refer to a range of findings using the syntax:
+        $<letter><start>:<end>
+    You can use the range syntax only for commands that support multiple files (e.g. **rm** $a4:12).
+
 
 **OPTIONS**
     **-i**, **--insensitive** 

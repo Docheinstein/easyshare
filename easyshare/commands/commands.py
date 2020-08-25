@@ -986,10 +986,19 @@ Search for files and directories based on the given filters the local *DIR*,
 or the current local directory if no *DIR* is specified.
 
 Each result of **find** is memorized and can be used further with any command \
-that accept local paths by specifying the identifier shown by **find**.
+that accept local paths by specifying the identifier shown by **find**, which has \
+the following syntax:
+    $<letter><number>
+    
 For instance, you can search a file by name (i.e. **find** **-n** *usefulname*) and \
 then perform a local action over it (e.g. **rm** $a1) or even a transfer action 
-(e.g. **put** $a1)."""
+(e.g. **put** $a1).
+
+Furthermore, you can refer to a range of findings using the syntax:
+    $<letter><start>:<end>
+You can use the range syntax only for commands that support multiple files \
+(e.g. **rm** $a4:12).
+"""
 
     @classmethod
     def see_also(cls):
@@ -1076,10 +1085,20 @@ class Rfind(RemoteAllFilesSuggestionsCommandInfo, BaseFindCommandInfo, FastShari
 Search for files and directories based on the given filters the remote DIR, \
 or the current remote directory if no DIR is specified.
 
-Each result of rfind is memorized and can be used further with any command \
-that accept local paths by specifying the identifier shown by find.
-For instance, you can search a file by name (i.e. find -n usefulname) and then \
-perform a local action over it (e.g. rrm $a1) or even a transfer action (e.g. get $a1)."""
+Each result of **rfind** is memorized and can be used further with any command \
+that accept remote paths by specifying the identifier shown by **find**, which has \
+the following syntax:
+    $<letter><number>
+    
+For instance, you can search a file by name (i.e. **rfind** **-n** *usefulname*) and \
+then perform a local action over it (e.g. **rrm** $A1) or even a transfer action 
+(e.g. **get** $A1).
+
+Furthermore, you can refer to a range of findings using the syntax:
+    $<letter><start>:<end>
+You can use the range syntax only for commands that support multiple files \
+(e.g. **rrm** $A4:12).
+"""
 
     @classmethod
     def see_also(cls):

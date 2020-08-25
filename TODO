@@ -18,6 +18,7 @@
 - strange rengeder effect: the | remains printed for 'scan'
 - rexec disabled just returns "Error"
 - add aliases to autocomplete
+- resolve symbol link (e.g. android)
 
 ➜  easyshare git:(master) ✗ python -m easyshare.es
 /home/stefano/Develop/Python/easyshare> cd /tmp/
