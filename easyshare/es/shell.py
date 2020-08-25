@@ -70,7 +70,7 @@ class Shell:
     def __init__(self, client: Client):
         self._aliases: Dict[str, str] = {}
 
-        self._available_commands = {}
+        self._available_commands = COMMANDS_INFO
 
         self._client: Client = client
 
@@ -93,12 +93,37 @@ class Shell:
 
         self._init_rline()
 
-        self._compute_available_commands()
-
-
     def add_alias(self, source: str, target: str):
         log.i(f"Adding alias: '{source}'='{target}'")
         self._aliases[source] = target
+
+        # Try to retrieve the target CommandInfo of the alias for
+        # treat it as a stock command
+        cur_alias_target_comm = source
+        target_comm = None
+        for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
+            # Is this (the first token) already a valid command?
+            leading = lexer.split(cur_alias_target_comm)[0]
+            target_comm = self._available_commands.get(leading)
+            if target_comm:
+                break
+
+            # Resolve it, for next iter
+            cur_alias_target_comm = self._resolve_alias(leading)
+            log.d(f"cur_alias_target_comm: {cur_alias_target_comm}")
+
+            if not cur_alias_target_comm:
+                # No more substitution to do, alias does not
+                # refer to a valid command
+                log.w(f"Invalid alias detect: {source} (does not lead to a command=")
+                break
+        else:
+            print_errors(f"Infinite alias substitution detected: {source} - "
+                         f"fix {EASYSHARE_ES_CONF} file")
+
+        if target_comm:
+            log.d(f"Valid alias to command resolution {source} -> {target_comm.name()}")
+            self._available_commands[source] = target_comm
 
     def input_loop(self):
         """
@@ -323,36 +348,6 @@ class Shell:
 
         self._load_history()
 
-    def _compute_available_commands(self):
-        self._available_commands = COMMANDS_INFO
-        for alias in self._aliases:
-            # Try to retrieve the target CommandInfo of the alias for
-            # treat it as a stock command
-            cur_alias_target_comm = alias
-            target_comm = None
-            for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
-                # Is this (the first token) already a valid command?
-                leading = lexer.split(cur_alias_target_comm)[0]
-                target_comm = self._available_commands.get(leading)
-                if target_comm:
-                    break
-
-                # Resolve it, for next iter
-                cur_alias_target_comm = self._resolve_alias(leading)
-                log.d(f"cur_alias_target_comm: {cur_alias_target_comm}")
-
-                if not cur_alias_target_comm:
-                    # No more substitution to do, alias does not
-                    # refer to a valid command
-                    log.w(f"Invalid alias detect: {alias} (does not lead to a command=")
-                    break
-            else:
-                print_errors(f"Infinite alias substitution detected: {alias} - "
-                             f"fix {EASYSHARE_ES_CONF} file")
-
-            if target_comm:
-                log.d(f"Valid alias to command resolution {alias} -> {target_comm.name()}")
-                self._available_commands[alias] = target_comm
 
     def _load_history(self):
         es_history = Path.home() / EASYSHARE_HISTORY
@@ -465,14 +460,23 @@ class Shell:
 
                 # Detect the command (first token of the line) by resolving aliases
                 # and figure out if the command is unique for the given prefix
-                user_command = stripped_current_line.split(" ")[0]
-                user_command = command_for_prefix(
-                    self._resolve_alias(user_command, user_command), default='')
-                log.d(f"user_command: {user_command}")
+                log.d(f"Detecting user_command from: '{stripped_current_line}'")
 
+                user_command = stripped_current_line.split(" ")[0]
+                # Cases:
+                # 1 ---------------
+                # alias :=exec
+                # alias cat=: cat
+                #
+                # ca -> treat as exec
+
+                log.d(f"BASE user_command: {user_command}")
+                user_command = command_for_prefix(user_command, default=user_command)
+                log.d(f"DETECTED user_command: {user_command}")
+                user_command = self._resolve_alias(user_command, default=user_command)[0]
+                log.d(f"RESOLVED user_command: {user_command}")
 
                 self._suggestions_intent = SuggestionsIntent([])
-
 
                 for comm_name, comm_info in self._available_commands.items():
                     if user_command == comm_name:
