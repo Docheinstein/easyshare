@@ -69,6 +69,8 @@ def rl_set_completion_suppress_quote(value: int):
 
 PROTOTYPE_rl_char_is_quoted_p = CFUNCTYPE(c_int, c_char_p, c_int)
 
+_rl_char_is_quoted_p_wrapper = None
+
 def rl_set_char_is_quoted_p(quote_detector: Callable[[str, int], int]):
     """
     /* Function to call to decide whether or not a word break character is
@@ -77,12 +79,17 @@ def rl_set_char_is_quoted_p(quote_detector: Callable[[str, int], int]):
 
     int quote_detector(char * text, int index);
     """
+
+    global _rl_char_is_quoted_p_wrapper
+
     def rl_char_is_quoted_p_wrapper(text: bytes, index: int) -> int:
+        log.d(f"rl_char_is_quoted_p_wrapper({text}, {index})")
         return quote_detector(c.c_btos(text), index)
 
+    _rl_char_is_quoted_p_wrapper = PROTOTYPE_rl_char_is_quoted_p(rl_char_is_quoted_p_wrapper)
+
     try:
-        c.set_func_ptr(_libreadline, "rl_char_is_quoted_p",
-                       rl_char_is_quoted_p_wrapper, PROTOTYPE_rl_char_is_quoted_p)
+        c.set_func_ptr(_libreadline, "rl_char_is_quoted_p", _rl_char_is_quoted_p_wrapper)
     except:
         pass
 

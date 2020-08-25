@@ -25,3 +25,23 @@
 /tmp> touch "Lupo alberto"
 Unknown command: 'touch'
 /tmp> tou  <--- can't erase further
+
+
+[DEBUG] {easyshare.commands.commands} List on token = '/home/stefano/.'
+[INFO]  {easyshare.commands.commands} ls-ing for suggestions on '/home' <-- should list .
+
+
+/home/stefano/Develop/Python/easyshare> : cat ~/.esrc
+[INFO]  {easyshare.es.client} >> EXEC cat "~/.esrc"
+[DEBUG] {easyshare.utils.os} subprocess.Popen(cat "~/.esrc")
+cat: '~/.esrc': File o directory non esistente                         <-- does not work - OK
+
+TEST shell LocalList OK
+
+TEST rls-ing on hiddenfile OK
+
+SHOULD BE Not Exits error
+stefano-arch.stefano:/ —— /home/stefano/Develop/Python/easyshare> rdu .bas
+0B /.bas
+
+TOFIX = : cat "/tmp/A File"

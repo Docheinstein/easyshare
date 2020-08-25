@@ -72,10 +72,17 @@ def get_char_p(lib: CDLL, name: str) -> str:
 
 # function pointer
 
+#
+# def set_func_ptr(lib: CDLL, name: str, func: Callable, prototype):
+#     try:
+#         c_void_p.in_dll(lib, name).value = cast(prototype(func), c_void_p).value
+#     except Exception as e:
+#         log.w(f"set_func_ptr failed: {e}")
+#         raise CException(e)
 
-def set_func_ptr(lib: CDLL, name: str, func: Callable, prototype):
+def set_func_ptr(lib: CDLL, name: str, func_ptr):
     try:
-        c_void_p.in_dll(lib, name).value = cast(prototype(func), c_void_p).value
+        c_void_p.in_dll(lib, name).value = cast(func_ptr, c_void_p).value
     except Exception as e:
         log.w(f"set_func_ptr failed: {e}")
         raise CException(e)

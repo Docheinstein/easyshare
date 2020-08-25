@@ -201,9 +201,13 @@ class FilesSuggestionsCommandInfo(CommandInfo):
             _, fname_tail = os.path.split(fname)
             token_head, token_tail = os.path.split(token)
 
-            if not fname_tail.lower().startswith(token_tail.lower()):
-                log.d(f"Does not match: '{fname_tail.lower()}' and '{token_tail.lower()}'")
+            fname_tail_lower = fname_tail.lower()
+            token_tail_lower = token_tail.lower()
+            if not fname_tail_lower.startswith(token_tail_lower):
+                log.d(f"    (NO match: '{fname_tail_lower}' not starts with '{token_tail_lower}')")
                 continue
+
+            log.d(f"    (OK match: '{fname_tail_lower}' starts with '{token_tail_lower}')")
 
             model = os.path.join(token_head, fname_tail)
             view = fname_tail
@@ -300,12 +304,21 @@ class LocalFilesSuggestionsCommandInfo(FilesAndFindingsSuggestionsCommandInfo, A
         # path.parent can't be used unconditionally since it returns
         # the parent dir even if "pattern" ends with a os.path.sep
 
+        # The only (known) strange case occurs in the following case
+        # ls LocalPath(/home/user/.) -> /home/user while i want it to
+        # be /home/user/. literally, for suggests .vimrc, ...
+
+        _, trail = os.path.split(token)
+        listing_hidden_file = trail.startswith(".")
+
         path = LocalPath(token)
-        if not token.endswith(os.path.sep):
+        log.d(f"=> path = {path}")
+
+        if not token.endswith(os.path.sep) and trail != os.path.sep:
             path = path.parent
 
         log.i("ls-ing for suggestions on '%s'", path)
-        return ls(path, details=False)
+        return ls(path, details=False, hidden=listing_hidden_file)
 
     @classmethod
     def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
@@ -323,11 +336,11 @@ class RemoteFilesSuggestionsCommandInfo(FilesAndFindingsSuggestionsCommandInfo, 
 
         log.i("List remotely on token = '%s'", token)
         path_dir, path_trail = os.path.split(token)
+        listing_hidden_file = path_trail.startswith(".")
 
         log.i("rls-ing on %s", token)
-        # rls the remote, use -a if we the user is submitting a dot
 
-        resp = client.connection.rls(sort_by=["name"], hidden=token.startswith("."),
+        resp = client.connection.rls(sort_by=["name"], hidden=listing_hidden_file,
                                      path=path_dir)
 
         if not is_data_response(resp):
@@ -1814,8 +1827,7 @@ f1      f2      f3"""
 
 # ============ xSHELL ===============
 
-
-class Shell(CommandInfo, PosArgsSpec):
+class Shell(LocalAllFilesSuggestionsCommandInfo, PosArgsSpec):
     def __init__(self):
         super().__init__(0)
 
@@ -1850,7 +1862,7 @@ Currently supported only if the server is Unix."""
         return """Type "**help** **rshell**" for the remote analogous."""
 
 
-class Rshell(CommandInfo, PosArgsSpec):
+class Rshell(RemoteAllFilesSuggestionsCommandInfo, PosArgsSpec):
     def __init__(self, mandatory: int):
         super().__init__(mandatory)
 
@@ -2898,3 +2910,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
 
 def commands_for_prefix(prefix: str) -> List[str]:
     return [comm for comm in COMMANDS if comm.startswith(prefix)]
+
+def command_for_prefix(prefix: str, default=None) -> Optional[str]:
+    comms = commands_for_prefix(prefix)
+    return comms[0] if comms else default

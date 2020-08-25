@@ -39,6 +39,7 @@ from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode,
 from easyshare.styling import bold, green, red
 from easyshare.timer import Timer
 from easyshare.tracing import trace_bin_payload
+from easyshare.utils import lexer
 from easyshare.utils.env import is_unix
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str, size_str_justify
@@ -640,9 +641,11 @@ class Client:
             raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
 
         exec_args = args.get_unparsed_args(default=[])
-        exec_cmd = shlex.join(exec_args)
+        # " for allow shell substitution in exec (e.g. ~ -> /home/... or $VAR)
+        # exec_cmd = lexer.join(exec_args, quote_char="\"")
+        exec_cmd = lexer.join(exec_args, quote_char=None)
 
-        log.i(">> >> EXEC %s", exec_cmd)
+        log.i(">> EXEC %s", exec_cmd)
 
         retcode = run_attached(exec_cmd)
         if retcode != 0:
@@ -656,7 +659,7 @@ class Client:
 
         shell_args = args.get_unparsed_args(default=[])
         if shell_args:
-            shell_cmd = shlex.join(shell_args)
+            shell_cmd = lexer.join(shell_args, quote_char="\"")
         else:
             passwd: struct_passwd = user()
             log.i(f"{passwd.pw_uid} {passwd.pw_name} - shell: {passwd.pw_shell}")
@@ -807,7 +810,7 @@ class Client:
     @require_unix
     def rexec(self, args: Args, conn: Connection):
         popen_args = args.get_unparsed_args(default=[])
-        popen_cmd = shlex.join(popen_args)
+        popen_cmd = lexer.join(popen_args, quote_char="\"")
 
         log.i(">> REXEC %s", popen_cmd)
 
@@ -905,7 +908,7 @@ class Client:
     def rshell(self, args: Args, conn: Connection):
         rshell_args = args.get_unparsed_args(default=[])
         if rshell_args:
-            rshell_cmd = shlex.join(rshell_args)
+            rshell_cmd = lexer.join(rshell_args, quote_char="\"")
         else:
             rshell_cmd = None
 

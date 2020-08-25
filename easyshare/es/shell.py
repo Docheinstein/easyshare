@@ -9,7 +9,7 @@ from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
 
 from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
-from easyshare.commands.commands import commands_for_prefix
+from easyshare.commands.commands import commands_for_prefix, command_for_prefix
 from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF
 from easyshare.consts import ansi
 from easyshare.es.client import Client
@@ -22,6 +22,7 @@ from easyshare.res.helps import command_man
 from easyshare.styling import is_styling_enabled, bold, red
 
 from easyshare.tracing import get_tracing_level, set_tracing_level
+from easyshare.utils import lexer
 from easyshare.utils.env import is_unicode_supported, has_gnureadline, has_pyreadline
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
@@ -62,11 +63,14 @@ class Shell:
     LOCAL_FINDINGS_RE = re.compile(r"^\$([a-z]\d+)$")
     REMOTE_FINDINGS_RE = re.compile(r"^\$([A-Z]\d+)$")
 
+    ALIAS_RESOLUTION_MAX_DEPTH = 100
 
     # Quoting/Escaping GNU rline tutorial
     # https://thoughtbot.com/blog/tab-completion-in-gnu-rline
     def __init__(self, client: Client):
         self._aliases: Dict[str, str] = {}
+
+        self._available_commands = {}
 
         self._client: Client = client
 
@@ -88,6 +92,8 @@ class Shell:
         self._help_map = None
 
         self._init_rline()
+
+        self._compute_available_commands()
 
 
     def add_alias(self, source: str, target: str):
@@ -143,7 +149,7 @@ class Shell:
                 command_line = command_line.strip()
 
                 try:
-                    command_line_parts = shlex.split(command_line)
+                    command_line_parts = lexer.split(command_line)
                 except ValueError:
                     log.w("Invalid command line")
                     print_errors(ClientErrors.COMMAND_NOT_RECOGNIZED)
@@ -205,12 +211,12 @@ class Shell:
         # Eventually translate the alias
         # DANGER ZONE: the resolution is recursive, this might lead to
         # an infinite loop if the alias is cyclic
-        for i in range(100):
+        for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
             prev_command_prefix = command_prefix
-            command_prefix = self._resolve_alias(command_prefix)
+            command_prefix = self._resolve_alias(command_prefix, default=command_prefix)
 
             # If the alias produces new args, put those into args
-            x = shlex.split(command_prefix)
+            x = lexer.split(command_prefix)
             command_prefix = x[0]
             command_args = x[1:] + command_args
 
@@ -221,7 +227,7 @@ class Shell:
             if command_prefix == prev_command_prefix:
                 break
         else:
-            print_errors(f"Infinite alias substitution detected: "
+            print_errors(f"Infinite alias substitution detected - "
                          f"fix {EASYSHARE_ES_CONF} file")
 
         # 'command_prefix' might be partial (unique prefix of a valid command)
@@ -287,6 +293,7 @@ class Shell:
 
         # Show 'show all possibilities' if there are too many items
         readline.parse_and_bind("set completion-query-items 50")
+        readline.parse_and_bind("set completion-ignore-case on")
 
         # Remove '-' from the delimiters for handle suggestions
         # starting with '-' properly and '/' for handle paths
@@ -315,6 +322,37 @@ class Shell:
         # History
 
         self._load_history()
+
+    def _compute_available_commands(self):
+        self._available_commands = COMMANDS_INFO
+        for alias in self._aliases:
+            # Try to retrieve the target CommandInfo of the alias for
+            # treat it as a stock command
+            cur_alias_target_comm = alias
+            target_comm = None
+            for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
+                # Is this (the first token) already a valid command?
+                leading = lexer.split(cur_alias_target_comm)[0]
+                target_comm = self._available_commands.get(leading)
+                if target_comm:
+                    break
+
+                # Resolve it, for next iter
+                cur_alias_target_comm = self._resolve_alias(leading)
+                log.d(f"cur_alias_target_comm: {cur_alias_target_comm}")
+
+                if not cur_alias_target_comm:
+                    # No more substitution to do, alias does not
+                    # refer to a valid command
+                    log.w(f"Invalid alias detect: {alias} (does not lead to a command=")
+                    break
+            else:
+                print_errors(f"Infinite alias substitution detected: {alias} - "
+                             f"fix {EASYSHARE_ES_CONF} file")
+
+            if target_comm:
+                log.d(f"Valid alias to command resolution {alias} -> {target_comm.name()}")
+                self._available_commands[alias] = target_comm
 
     def _load_history(self):
         es_history = Path.home() / EASYSHARE_HISTORY
@@ -415,33 +453,43 @@ class Shell:
             rl_set_completion_suppress_quote(1)
             is_quoting = rl_get_completion_quote_character() == ord('"')
 
-            self._current_line = readline.get_line_buffer()
-            stripped_current_line = self._current_line.lstrip()
-
-            # Unescape since the token might contain \ we inserted in next_suggestion
-            # for allow spaces in the line
-            token = unescape(token)
-            stripped_current_line = unescape(stripped_current_line)
-
             if count == 0:
+
+                self._current_line = readline.get_line_buffer()
+                stripped_current_line = self._current_line.lstrip()
+
+                # Unescape since the token might contain \ we inserted in next_suggestion
+                # for allow spaces in the line
+                token = unescape(token)
+                stripped_current_line = unescape(stripped_current_line)
+
+                # Detect the command (first token of the line) by resolving aliases
+                # and figure out if the command is unique for the given prefix
+                user_command = stripped_current_line.split(" ")[0]
+                user_command = command_for_prefix(
+                    self._resolve_alias(user_command, user_command), default='')
+                log.d(f"user_command: {user_command}")
+
+
                 self._suggestions_intent = SuggestionsIntent([])
 
-                for comm_name, comm_info in COMMANDS_INFO.items():
-                    if stripped_current_line.startswith(comm_name + " "):
+
+                for comm_name, comm_info in self._available_commands.items():
+                    if user_command == comm_name:
                         # Typing a COMPLETE command
                         # e.g. 'ls '
                         log.d("Fetching suggestions intent for command '%s'", comm_name)
 
-                        self._suggestions_intent = comm_info.suggestions(
-                            token, self._client
-                        ) or self._suggestions_intent  # don't let it to be None
+                        comms_sugg  = comm_info.suggestions(token, self._client)
+                        if comms_sugg:
+                            # don't let it to be None
+                            self._suggestions_intent = comms_sugg
 
-                        if self._suggestions_intent:
                             log.d("Fetched (%d) suggestions intent for command '%s'",
                                   len(self._suggestions_intent.suggestions),
                                   comm_name)
 
-                        break
+                        break # nothing more to complete, the command has been found
 
                     if comm_name.startswith(stripped_current_line):
                         # Typing an INCOMPLETE command
@@ -450,6 +498,7 @@ class Shell:
                         # Case 1: complete command
                         log.d("Fetching suggestions for command completion of '%s'", comm_name)
                         self._suggestions_intent.suggestions.append(StyledString(comm_name))
+
 
                 findings = None
                 if re.match(Shell.LOCAL_FINDINGS_RE, token):
@@ -489,6 +538,7 @@ class Shell:
                         self._suggestions_intent.space_after_completion and \
                         len(self._suggestions_intent.suggestions) == 1:
 
+
                     if is_bool(self._suggestions_intent.space_after_completion):
                         append_space = self._suggestions_intent.space_after_completion
                     else:  # is a hook
@@ -503,6 +553,7 @@ class Shell:
 
                 return sug
 
+            log.d("END OF suggestions")
             return None
         except:
             log.w("Exception occurred while retrieving suggestions\n%s", traceback.format_exc())
@@ -513,7 +564,7 @@ class Shell:
         l_char_is_quoted_p callback called from GNU readline
         """
         is_quoted = 1 if (index > 0 and text[index] == " " and text[index - 1] == "\\") else 0
-        # print(f"\nis_quoted {text}[{index}]) = {is_quoted}\n")
+        log.d(f"\n_quote_detector('{text}', {index}) -> '{text[index]}', is quoted = {is_quoted}")
         return is_quoted
 
     # noinspection PyPep8Naming
@@ -561,10 +612,8 @@ class Shell:
 
         return prompt
 
-    def _resolve_alias(self, source: str) -> str:
-        target = self._aliases.get(source, source)
-        if source in self._aliases:
-            log.d(f"Alias for '{source}' found: '{target}'")
+    def _resolve_alias(self, source: str, default=None) -> str:
+        target = self._aliases.get(source, default)
         return target
 
     def _help(self, args: Args) -> NoReturn:

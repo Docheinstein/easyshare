@@ -12,6 +12,7 @@ from typing import Optional, List, Union, Tuple, Any, Callable
 
 from easyshare.logging import get_logger
 from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info, FileType
+from easyshare.utils import lexer
 from easyshare.utils.env import terminal_size, is_unix
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import isorted
@@ -440,6 +441,9 @@ def cp(src: Path, dest: Path):
 
 def run_attached(cmd: str, stderr_redirect: int = None):
     """ Run a command while being attached to this terminal """
+    log.d(f"subprocess.Popen({cmd})")
+    for c in cmd:
+        print(f"{c} = {ord(c)}")
     proc = subprocess.Popen(cmd, shell=True, text=True, stderr=stderr_redirect)
     proc.wait()
     return proc.returncode
@@ -495,14 +499,16 @@ def pty_attached(cmd: str = "/bin/sh") -> int:
     """
     Run a command in a pseudo terminal, while being attached to this terminal.
     """
-    argv = shlex.split(cmd)
+    sh = "/bin/bash"
+    sh_args = [sh, "-c", cmd]
 
     master_read = pty._read
     stdin_read = pty._read
 
     pid, master_fd = pty.fork()
     if pid == pty.CHILD:
-        os.execlp(argv[0], *argv)
+        log.d(f"os.execv({sh}, {sh_args})")
+        os.execv(sh, sh_args)
 
     tty_mode = None
     try:
@@ -534,7 +540,7 @@ def pty_detached(out_hook: Callable[[str], None],
     """
     cols, rows = terminal_size() # use the current terminal size for the pty
 
-    argv = shlex.split(cmd)
+    argv = lexer.split(cmd)
     ptyproc = PtyProcessUnicode.spawn(argv, dimensions=(rows, cols))
 
     def proc_handler():
@@ -554,3 +560,8 @@ def pty_detached(out_hook: Callable[[str], None],
     proc_handler_th.start()
 
     return ptyproc
+
+if __name__ == "__main__":
+    from easyshare.logging import init_logging
+    init_logging()
+    run_attached("cat ~/.esrc")
