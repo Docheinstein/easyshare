@@ -29,6 +29,16 @@ def c_stob(s: str) -> bytes:
     return s.encode("ascii")
 
 
+# void
+
+def call(lib: CDLL, name: str):
+    try:
+        lib[name]()
+    except Exception as e:
+        log.w(f"call failed: {e}")
+        raise CException(e)
+
+
 # int
 
 

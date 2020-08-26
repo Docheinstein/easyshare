@@ -18,6 +18,17 @@ def rl_load():
         log.w("libreadline can't be accessed with ctypes")
 
 
+def _call(name: str):
+    try:
+        return c.call(_libreadline, name)
+    except CException:
+        pass
+
+
+def rl_reset_line_state():
+    _call("rl_reset_line_state")
+
+
 def rl_get_completion_quote_character() -> int:
     """
     /* Set to any quote character readline thinks it finds before any application

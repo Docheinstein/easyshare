@@ -330,6 +330,9 @@ def du(path: Path):
     if not path:
         raise TypeError("found invalid path")
 
+    if not path.exists():
+        raise FileNotFoundError()
+
     log.i(f"DU {path}")
 
     du_sum = 0

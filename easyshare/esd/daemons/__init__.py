@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Callable
 
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.sockets import SocketTcpAcceptor, SocketUdpIn, SocketTcp, SocketTcpIn
+from easyshare.sockets import SocketTcpAcceptor, SocketUdpIn, SocketTcpIn
 from easyshare.ssl import get_ssl_context
 
 log = get_logger(__name__)

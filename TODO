@@ -20,6 +20,12 @@
 - add aliases to autocomplete
 - resolve symbol link (e.g. android)
 
+TEST: ensure that posix=False is not bad
+
+
+==== FIXED
+
+FIXED (IS / IE)
 ➜  easyshare git:(master) ✗ python -m easyshare.es
 /home/stefano/Develop/Python/easyshare> cd /tmp/
 /tmp> touch "Lupo alberto"
@@ -27,10 +33,23 @@ Unknown command: 'touch'
 /tmp> tou  <--- can't erase further
 
 
+
+
+
+OK
+SHOULD BE Not Exits error
+stefano-arch.stefano:/ —— /home/stefano/Develop/Python/easyshare> rdu .bas
+0B /.bas
+
+
+
+
+
+OK ---
 [DEBUG] {easyshare.commands.commands} List on token = '/home/stefano/.'
 [INFO]  {easyshare.commands.commands} ls-ing for suggestions on '/home' <-- should list .
 
-
+OK ---
 /home/stefano/Develop/Python/easyshare> : cat ~/.esrc
 [INFO]  {easyshare.es.client} >> EXEC cat "~/.esrc"
 [DEBUG] {easyshare.utils.os} subprocess.Popen(cat "~/.esrc")
@@ -40,8 +59,7 @@ TEST shell LocalList OK
 
 TEST rls-ing on hiddenfile OK
 
-SHOULD BE Not Exits error
-stefano-arch.stefano:/ —— /home/stefano/Develop/Python/easyshare> rdu .bas
-0B /.bas
+OK = : cat "/tmp/A File"
 
-TOFIX = : cat "/tmp/A File"
+
+

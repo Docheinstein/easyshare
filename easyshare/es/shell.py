@@ -473,7 +473,7 @@ class Shell:
                 log.d(f"BASE user_command: {user_command}")
                 user_command = command_for_prefix(user_command, default=user_command)
                 log.d(f"DETECTED user_command: {user_command}")
-                user_command = self._resolve_alias(user_command, default=user_command)[0]
+                user_command = self._resolve_alias(user_command, default=user_command).split(" ")[0]
                 log.d(f"RESOLVED user_command: {user_command}")
 
                 self._suggestions_intent = SuggestionsIntent([])
@@ -592,13 +592,13 @@ class Shell:
 
         sep = (" " + 2 * self._prompt_local_remote_sep + " ") if remote else ""
 
-        colored = is_styling_enabled()
-        R = ansi.RESET if colored else ""
-        B = ansi.ATTR_BOLD if colored else ""
-        M = ansi.FG_MAGENTA if colored else ""
-        C = ansi.FG_CYAN if colored else ""
-        IS = ansi.RL_PROMPT_START_IGNORE if colored else ""
-        IE = ansi.RL_PROMPT_END_IGNORE if colored else ""
+        styled = is_styling_enabled()
+        R = ansi.RESET if styled else ""
+        B = ansi.ATTR_BOLD if styled else ""
+        M = ansi.FG_MAGENTA if styled else ""
+        C = ansi.FG_CYAN if styled else ""
+        IS = ansi.RL_PROMPT_START_IGNORE if styled else ""
+        IE = ansi.RL_PROMPT_END_IGNORE if styled else ""
 
         # Escape sequence must be wrapped into \001 and \002
         # so that readline can handle those well and deal with terminal/prompt
@@ -608,7 +608,7 @@ class Shell:
         # (won't overwrite the previous prompt since KeyboardInterrupt is captured
         # and prints a new line)
 
-        prompt = ansi.DELETE_EOL + \
+        prompt = IS + ansi.DELETE_EOL + IE + \
             ((IS + B + M + IE + remote + IS + R + IE) if remote else "") + \
             ((IS + B + IE + sep + IS + R + IE) if sep else "") + \
             IS + B + C + IE + local + IS + R + IE + \
