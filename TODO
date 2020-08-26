@@ -16,14 +16,13 @@
 - fix rsh /bin/bhsa -> wrong command
 - why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
 - strange rengeder effect: the | remains printed for 'scan'
-- rexec disabled just returns "Error"
-- add aliases to autocomplete
-- resolve symbol link (e.g. android)
+- Consider whether removing exec/rexec in place of sh, rsh
 
 TEST: ensure that posix=False is not bad
 
 
 ==== FIXED
+- resolve symbol link (e.g. android)
 
 FIXED (IS / IE)
 ➜  easyshare git:(master) ✗ python -m easyshare.es

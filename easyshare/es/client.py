@@ -1053,16 +1053,15 @@ class Client:
 
             if not servers_found:
                 log.i("======================")
-            else:
-                s += "\n"
+            # else:
+            #     s += "\n"
 
             s += bold("{}. {}".format(
                       servers_found + 1,
                       server_info_short_str(server_info_full)))
 
             if show_all_details:
-                s += "\n" + server_info_pretty_str(server_info_full,
-                                                   sharing_details=True) + "\n" + SEP
+                s += "\n" + server_pretty_str(server_info_full) + "\n" + SEP
             else:
                 sharings_str = sharings_pretty_str(
                     server_info_full.get("sharings"),
@@ -1070,11 +1069,13 @@ class Client:
                     indent=2)
 
                 if sharings_str:
+                    # s +=  "\n" + sharings_str
                     s +=  "\n" + sharings_str
                 # else: NONE
 
             # DELETE_EOL for overwrite progress bar render
 
+            # print(ansi.DELETE_EOL + s, flush=True)
             print(ansi.DELETE_EOL + s, flush=True)
 
             servers_found += 1

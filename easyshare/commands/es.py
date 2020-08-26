@@ -1,7 +1,7 @@
 from typing import List, Optional, Callable
 
 from easyshare.args import Option, ArgType, Args, PRESENCE_PARAM, INT_PARAM_OPT, INT_PARAM, \
-    ArgsSpec
+    ArgsSpec, FLOAT_PARAM
 from easyshare.commands import CommandHelp, CommandOptionInfo
 
 _AVAILABLE_COMMANDS_STR = """\
@@ -75,7 +75,7 @@ class Es(CommandHelp, ArgsSpec):
             (self.HELP, PRESENCE_PARAM),
             (self.VERSION, PRESENCE_PARAM),
             (self.DISCOVER_PORT, INT_PARAM),
-            (self.DISCOVER_TIMEOUT, INT_PARAM),
+            (self.DISCOVER_TIMEOUT, FLOAT_PARAM),
             (self.VERBOSE, INT_PARAM_OPT),
             (self.TRACE, INT_PARAM_OPT),
             (self.NO_COLOR, PRESENCE_PARAM),

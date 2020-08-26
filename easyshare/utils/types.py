@@ -15,6 +15,10 @@ def list_wrap(o: Any) -> List[Any]:
 # CHECKERS
 
 
+def is_float(o: object) -> bool:
+    return isinstance(o, float)
+
+
 def is_int(o: object) -> bool:
     return isinstance(o, int)
 
@@ -54,6 +58,26 @@ def is_valid_list(o: object, oftype = None) -> bool:
 # CONVERTERS
 
 
+def to_float(o: Any, default=None, raise_exceptions=False) -> Optional[int]:
+    val = None
+    try:
+        val = float(o)
+    except:
+        pass
+
+    if is_float(val):
+        return val
+
+    if raise_exceptions:
+        try:
+            err = ValueError("Conversion to float failed: {}".format(o))
+        except:
+            err = ValueError("Conversion to float failed")
+        raise err
+
+    return default
+
+
 def to_int(o: Any, default=None, raise_exceptions=False) -> Optional[int]:
     val = None
     try:
@@ -66,9 +90,9 @@ def to_int(o: Any, default=None, raise_exceptions=False) -> Optional[int]:
 
     if raise_exceptions:
         try:
-            err = ValueError("Conversion to integer failed: {}".format(o))
+            err = ValueError("Conversion to int failed: {}".format(o))
         except:
-            err = ValueError("Conversion to integer failed")
+            err = ValueError("Conversion to int failed")
         raise err
 
     return default

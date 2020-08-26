@@ -15,7 +15,7 @@ from easyshare.logging import get_logger
 from easyshare.res.helps import command_usage
 from easyshare.styling import enable_styling
 from easyshare.tracing import TRACING_NONE, TRACING_TEXT, set_tracing_level
-from easyshare.utils import abort, terminate
+from easyshare.utils import abort, terminate, lexer
 from easyshare.utils.env import is_stdout_terminal, are_colors_supported
 from easyshare.utils.net import is_valid_port
 
@@ -270,7 +270,7 @@ def main():
     pargs = args.get_unparsed_args()
 
     if pargs:
-        shell.execute(pargs)
+        shell.execute(lexer.join(pargs, quote_char=None))
 
         # Keep the shell opened only if we performed an 'open'
         # Otherwise close it after the action

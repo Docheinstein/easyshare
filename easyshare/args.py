@@ -8,7 +8,7 @@ from easyshare.logging import get_logger
 from easyshare.utils import lexer
 from easyshare.utils.json import j
 from easyshare.utils.str import unprefix
-from easyshare.utils.types import to_int, list_wrap, is_list, is_str
+from easyshare.utils.types import to_int, list_wrap, is_list, is_str, to_float
 
 log = get_logger(__name__)
 
@@ -461,6 +461,12 @@ class IntParams(OptionParams):
                          lambda ps: [to_int(p, raise_exceptions=True) for p in ps])
 
 
+class FloatParams(OptionParams):
+    def __init__(self, mandatory_count: int, optional_count: int = 0):
+        super().__init__(mandatory_count, optional_count,
+                         lambda ps: [to_float(p, raise_exceptions=True) for p in ps])
+
+
 class StrParams(OptionParams):
     def __init__(self, mandatory_count: int, optional_count: int = 0):
         super().__init__(mandatory_count, optional_count,
@@ -472,6 +478,11 @@ STR_PARAM_OPT = StrParams(0, 1)
 
 INT_PARAM = IntParams(1, 0)
 INT_PARAM_OPT = IntParams(0, 1)
+
+FLOAT_PARAM = FloatParams(1, 0)
+FLOAT_PARAM_OPT = FloatParams(0, 1)
+
+
 
 PRESENCE_PARAM = OptionParams(0, 0, lambda ps: True)
 

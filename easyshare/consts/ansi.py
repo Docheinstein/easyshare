@@ -32,11 +32,12 @@ BG_WHITE =          "\033[47m"
 PROMPT_BLINK_OFF =   "\033[25m"
 
 DELETE_EOL_ANSI =    "\033[K"  # delete until end of line
-DELETE_EOL_VT100 =   "\033[2K"  # delete until end of line
+DELETE_EOL_VT100 =   "\033[2K"  # delete current line
 
-# FIXME : DELETE_EOL_VT100 should work
-# DELETE_EOL = DELETE_EOL_VT100 if is_windows() else DELETE_EOL_ANSI
-DELETE_EOL = "\r" if is_windows() else DELETE_EOL_ANSI
+# The bad effect without DELETE_EOL_VT100 is that if the text on the new
+# line is not long enough to cover the previous line, a part of it remains printed
+# to the screen. But without internal Windows API we cannot do better.
+DELETE_EOL = "\r" if is_windows() else (DELETE_EOL_VT100 + "\r")
 
 # From readline docs
 # declared in `readline.h'
