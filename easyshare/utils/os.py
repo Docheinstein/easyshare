@@ -445,8 +445,6 @@ def cp(src: Path, dest: Path):
 def run_attached(cmd: str, stderr_redirect: int = None):
     """ Run a command while being attached to this terminal """
     log.d(f"subprocess.Popen({cmd})")
-    for c in cmd:
-        print(f"{c} = {ord(c)}")
     proc = subprocess.Popen(cmd, shell=True, text=True, stderr=stderr_redirect)
     proc.wait()
     return proc.returncode
@@ -502,7 +500,7 @@ def pty_attached(cmd: str = "/bin/sh") -> int:
     """
     Run a command in a pseudo terminal, while being attached to this terminal.
     """
-    sh = "/bin/bash"
+    sh = "/bin/sh"
     sh_args = [sh, "-c", cmd]
 
     master_read = pty._read

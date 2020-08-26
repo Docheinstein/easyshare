@@ -106,6 +106,12 @@ class ErrorsStrings:
     WINDOWS_NOT_SUPPORTED = "Not supported for Windows"
     SUPPORTED_ONLY_FOR_UNIX = "Supported only for Unix"
 
+    # TODO beutify
+    INVALID_REQUEST = "INVALID_REQUEST"
+    UNKNOWN_API = "UNKNOWN_API"
+    REXEC_DISABLED = "REXEC_DISABLED"
+    PUT_CHECK_FAILED = "PUT_CHECK_FAILED"
+
 
 
 class SubErrorsStrings:
@@ -158,6 +164,11 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.TRANSFER_SKIPPED: ErrorsStrings.TRANSFER_SKIPPED,
 
     ServerErrors.SUPPORTED_ONLY_FOR_UNIX: ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX,
+
+    ServerErrors.INVALID_REQUEST: ErrorsStrings.INVALID_REQUEST,
+    ServerErrors.UNKNOWN_API: ErrorsStrings.UNKNOWN_API,
+    ServerErrors.REXEC_DISABLED: ErrorsStrings.REXEC_DISABLED,
+    ServerErrors.PUT_CHECK_FAILED: ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX,
 
     ClientErrors.ERR_0: ErrorsStrings.ERR_0,
     ClientErrors.ERR_1: ErrorsStrings.ERR_1,

@@ -1,7 +1,5 @@
-import atexit
 import os
 import re
-import shlex
 import traceback
 from pathlib import Path
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
@@ -19,7 +17,7 @@ from easyshare.commands.commands import Commands, Verbose, Trace
 from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_man
-from easyshare.styling import is_styling_enabled, bold, red
+from easyshare.styling import is_styling_enabled, red
 
 from easyshare.tracing import get_tracing_level, set_tracing_level
 from easyshare.utils import lexer
@@ -29,7 +27,7 @@ from easyshare.utils.obj import values
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
     rl_get_completion_quote_character, rl_set_completion_suppress_quote, rl_set_char_is_quoted_p
 from easyshare.utils.str import isorted
-from easyshare.utils.types import is_bool, is_list
+from easyshare.utils.types import is_bool, is_str
 
 import readline
 
@@ -172,21 +170,8 @@ class Shell:
                     continue
 
                 command_line = command_line.strip()
-
-                try:
-                    command_line_parts = lexer.split(command_line)
-                except ValueError:
-                    log.w("Invalid command line")
-                    print_errors(ClientErrors.COMMAND_NOT_RECOGNIZED)
-                    continue
-
-                if len(command_line_parts) < 1:
-                    print_errors(ClientErrors.COMMAND_NOT_RECOGNIZED)
-                    continue
-
-                log.d("Detected command '%s'", command_line_parts)
-
-                self.execute(command_line_parts)
+                log.d(f"Detected command {command_line}")
+                self.execute(command_line)
 
             except Exception:
                 log.exception("Unexpected exception")
@@ -197,18 +182,18 @@ class Shell:
         """ Returns whether the shell is able to handle 'commad' """
         return command in self._shell_command_dispatcher
 
-    def execute_shell_command(self, command: str, command_args: List[str]) -> Union[int, str, List[str]]:
+    def execute_shell_command(self, command: str, command_suffix: str) -> Union[int, str, List[str]]:
         """ Executes the given 'command' using 'command_args' as arguments """
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 
-        log.i("Handling shell command %s (%s)", command, command_args)
+        log.i(f"Handling shell command {command} {command_suffix}")
 
         parser, executor = self._shell_command_dispatcher[command]
 
         # Parse args using the parsed bound to the command
         try:
-            args = parser.parse(command_args)
+            args = parser.parse(command_suffix)
         except ArgsParseError as err:
             log.e("Command's arguments parse failed: %s", str(err))
             return ClientErrors.INVALID_COMMAND_SYNTAX
@@ -223,15 +208,28 @@ class Shell:
 
         return 0
 
-    def execute(self, cmd: List[str]):
+    def execute(self, cmd: str):
         self._update_history()
 
-        if not is_list(cmd):
+        if not is_str(cmd):
             log.e("Invalid command")
             return
 
-        command_prefix = cmd[0]
-        command_args = cmd[1:]
+        def split_first_space(string, keep_space=False):
+            space = string.find(" ")
+            if space < 0:
+                return string, ""
+            return string[:space], string[space+(0 if keep_space else 1):]
+
+
+        # We cannot split the command line yet, because the actual split
+        # depends on the specific commands (in general its always the same,
+        # apart from the shell commands, e.g. exec, which have to keep the quotes
+        # at the arguments in order to work properly).
+        # For now we only want to detect the command by doing a minimal splitting
+        # (plus alias resolving)
+
+        command_prefix, command_suffix = split_first_space(cmd, keep_space=True)
 
         # Eventually translate the alias
         # DANGER ZONE: the resolution is recursive, this might lead to
@@ -240,14 +238,16 @@ class Shell:
             prev_command_prefix = command_prefix
             command_prefix = self._resolve_alias(command_prefix, default=command_prefix)
 
-            # If the alias produces new args, put those into args
-            x = lexer.split(command_prefix)
-            command_prefix = x[0]
-            command_args = x[1:] + command_args
+            x1, x2 = split_first_space(command_prefix, keep_space=False)
+            # If the alias produces new args, append those to the trailing part
+            # log.d(f"x1: '{x1}'")
+            # log.d(f"x2: '{x2}'")
 
+            command_prefix = x1
+            command_suffix = x2 + command_suffix
 
             log.d(f"CMD: {command_prefix}")
-            log.d(f"CMD args: {command_args}")
+            log.d(f"CMD suffix: {command_suffix}")
 
             if command_prefix == prev_command_prefix:
                 break
@@ -285,9 +285,10 @@ class Shell:
             outcome = ClientErrors.COMMAND_NOT_RECOGNIZED
 
             if self.has_command(command):
-                outcome = self.execute_shell_command(command, command_args)
+                pass
+                outcome = self.execute_shell_command(command, command_suffix)
             elif self._client.has_command(command):
-                outcome = self._client.execute_command(command, command_args)
+                outcome = self._client.execute_command(command, command_suffix)
 
             print_errors(outcome)
         except ConnectionError:
@@ -618,6 +619,8 @@ class Shell:
 
     def _resolve_alias(self, source: str, default=None) -> str:
         target = self._aliases.get(source, default)
+        if source in target:
+            log.d(f"Alias resolved. '{source}' -> '{target}'")
         return target
 
     def _help(self, args: Args) -> NoReturn:

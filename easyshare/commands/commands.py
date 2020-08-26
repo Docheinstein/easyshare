@@ -4,7 +4,7 @@ from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
 from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec, STR_PARAM, \
-    StopParseArgsSpec
+    StopParseArgsSpec, KeepQuotesArgsSpec
 from easyshare.commands import CommandHelp, CommandOptionInfo
 from easyshare.es.ui import StyledString
 from easyshare.logging import get_logger
@@ -1731,7 +1731,7 @@ Usage example:
 # ============ xEXEC ================
 
 
-class Exec(LocalAllFilesSuggestionsCommandInfo, StopParseArgsSpec):
+class Exec(LocalAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotesArgsSpec):
     @classmethod
     def name(cls):
         return "exec"
@@ -1773,7 +1773,7 @@ f1      f2      f3"""
         return """Type "**help** **rexec**" for the remote analogous."""
 
 
-class Rexec(FastServerConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo, StopParseArgsSpec):
+class Rexec(FastServerConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotesArgsSpec):
     def __init__(self, mandatory: int):
         super().__init__(mandatory)
 
@@ -1827,7 +1827,7 @@ f1      f2      f3"""
 
 # ============ xSHELL ===============
 
-class Shell(LocalAllFilesSuggestionsCommandInfo, PosArgsSpec):
+class Shell(LocalAllFilesSuggestionsCommandInfo, PosArgsSpec, KeepQuotesArgsSpec):
     def __init__(self):
         super().__init__(0)
 
@@ -1862,7 +1862,7 @@ Currently supported only if the server is Unix."""
         return """Type "**help** **rshell**" for the remote analogous."""
 
 
-class Rshell(RemoteAllFilesSuggestionsCommandInfo, PosArgsSpec):
+class Rshell(RemoteAllFilesSuggestionsCommandInfo, PosArgsSpec, KeepQuotesArgsSpec):
     def __init__(self, mandatory: int):
         super().__init__(mandatory)
 

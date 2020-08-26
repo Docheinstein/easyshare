@@ -357,13 +357,14 @@ class Client:
     def has_command(self, command: str) -> bool:
         return command in self._command_dispatcher
 
-    def execute_command(self, command: str, command_args: List[str]) -> Union[int, str, List[str]]:
+    # def execute_command(self, command: str, command_args: List[str]) -> Union[int, str, List[str]]:
+    def execute_command(self, command: str, command_suffix: str) -> Union[int, str, List[str]]:
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 
-        command_args_normalized = command_args.copy()
-
-        log.i("Executing %s(%s)", command, command_args_normalized)
+        # command_args_copy = command_args.copy()
+        # log.i("Executing %s(%s)", command, command_args_copy)
+        log.i(f"Executing {command} {command_suffix}")
 
         # Check which parser to use
         # The local Commands and the connected remote Commands use
@@ -375,7 +376,7 @@ class Client:
 
         # Parse args using the parsed bound to the command
         try:
-            args = parser.parse(command_args_normalized)
+            args = parser.parse(command_suffix)
         except ArgsParseError as err:
             log.e("Command's arguments parse failed: %s", str(err))
             return ClientErrors.INVALID_COMMAND_SYNTAX
@@ -641,11 +642,9 @@ class Client:
             raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
 
         exec_args = args.get_unparsed_args(default=[])
-        # " for allow shell substitution in exec (e.g. ~ -> /home/... or $VAR)
-        # exec_cmd = lexer.join(exec_args, quote_char="\"")
         exec_cmd = lexer.join(exec_args, quote_char=None)
 
-        log.i(">> EXEC %s", exec_cmd)
+        log.i(f">> EXEC {exec_cmd}")
 
         retcode = run_attached(exec_cmd)
         if retcode != 0:
@@ -659,7 +658,7 @@ class Client:
 
         shell_args = args.get_unparsed_args(default=[])
         if shell_args:
-            shell_cmd = lexer.join(shell_args, quote_char="\"")
+            shell_cmd = lexer.join(shell_args, quote_char=None)
         else:
             passwd: struct_passwd = user()
             log.i(f"{passwd.pw_uid} {passwd.pw_name} - shell: {passwd.pw_shell}")
@@ -810,7 +809,7 @@ class Client:
     @require_unix
     def rexec(self, args: Args, conn: Connection):
         popen_args = args.get_unparsed_args(default=[])
-        popen_cmd = lexer.join(popen_args, quote_char="\"")
+        popen_cmd = lexer.join(popen_args, quote_char=None)
 
         log.i(">> REXEC %s", popen_cmd)
 
@@ -908,7 +907,7 @@ class Client:
     def rshell(self, args: Args, conn: Connection):
         rshell_args = args.get_unparsed_args(default=[])
         if rshell_args:
-            rshell_cmd = lexer.join(rshell_args, quote_char="\"")
+            rshell_cmd = lexer.join(rshell_args, quote_char=None)
         else:
             rshell_cmd = None
 

@@ -2,7 +2,11 @@ import re
 import shlex
 from typing import List
 
-def split(string: str) -> List[str]:
+from easyshare.logging import get_logger
+
+log = get_logger(__name__)
+
+def split(string: str, keepquotes=False) -> List[str]:
     """
     Parsing Rules
 
@@ -24,9 +28,13 @@ def split(string: str) -> List[str]:
         Quoted empty strings ('') are allowed.
 
     """
+    log.d(f"lexer.split({string}, keepquotes={keepquotes})")
 
-    return shlex.split(string, posix=False)
-    # return shlex.split(string, posix=True)
+    if keepquotes:
+        return shlex.split(string, posix=False)
+
+    return shlex.split(string, posix=True)
+
 
 
 # Taken from shlex, but allowing quote_char overriding

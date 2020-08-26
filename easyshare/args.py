@@ -5,9 +5,10 @@ from enum import Enum
 from typing import List, Any, Optional, Union, Tuple, Callable, Dict
 
 from easyshare.logging import get_logger
+from easyshare.utils import lexer
 from easyshare.utils.json import j
 from easyshare.utils.str import unprefix
-from easyshare.utils.types import to_int, list_wrap
+from easyshare.utils.types import to_int, list_wrap, is_list, is_str
 
 log = get_logger(__name__)
 
@@ -81,7 +82,7 @@ class Args:
         return self.has_option(item)
 
     @staticmethod
-    def parse(args: List[str], *,
+    def parse(args: Union[str, List[str]], *,
               positionals_spec: OptionParams = None,
               options_spec: List[Option] = None,
               continue_parsing_hook: Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]] = None):
@@ -172,11 +173,11 @@ class ArgsParser:
 
     def parse(self) -> Args:
         """
-                Parses the given arguments using the 'positionals_spec' and 'options_spec'
-                for parse positionals and options properly.
-                The 'continue_parsing_hook' is a call that can be used for interrupt
-                the parsing, by returning False
-                """
+        Parses the given arguments using the 'positionals_spec' and 'options_spec'
+        for parse positionals and options properly.
+        The 'continue_parsing_hook' is a call that can be used for interrupt
+        the parsing, by returning False
+        """
         log.d("Starting arguments parsing")
         log.d("Known options: %s", [o[0] for o in self._options_spec])
 
@@ -481,7 +482,13 @@ VARIADIC_PARAMS = StrParams(0, OptionParams.VARIADIC_PARAMETERS_COUNT)
 # =============================================
 
 class ArgsSpec:
-    def parse(self, args: List[str]) -> Optional[Args]:
+    def parse(self, args: Union[str, List[str]]) -> Optional[Args]:
+        if is_str(args):
+            args = self.split_args(args)
+
+        if not is_list(args):
+            raise TypeError("args must be a list")
+
         return Args.parse(
             args=args,
             positionals_spec=self.positionals_spec(),
@@ -497,6 +504,9 @@ class ArgsSpec:
 
     def continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, 'Args', List[str]], bool]]:
         return None
+
+    def split_args(self, args: str) -> List[str]:
+        return lexer.split(args, keepquotes=False)
 
 
 class PosArgsSpec(ArgsSpec):
@@ -537,3 +547,8 @@ class StopParseArgsSpec(ArgsSpec):
 
     def continue_parsing_hook(self) -> Optional[Callable[[str, ArgsSpec, int, 'Args', List[str]], bool]]:
         return lambda arg, argtype, idx, parsedargs, positionals: len(positionals) < self.stop_after
+
+
+class KeepQuotesArgsSpec(ArgsSpec):
+    def split_args(self, args: str) -> List[str]:
+        return lexer.split(args, keepquotes=True)
