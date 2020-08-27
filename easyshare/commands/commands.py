@@ -1827,7 +1827,7 @@ f1      f2      f3"""
 
 # ============ xSHELL ===============
 
-class Shell(LocalAllFilesSuggestionsCommandInfo, PosArgsSpec, KeepQuotesArgsSpec):
+class Shell(LocalAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotesArgsSpec):
     def __init__(self):
         super().__init__(0)
 
@@ -1862,7 +1862,7 @@ Currently supported only if the server is Unix."""
         return """Type "**help** **rshell**" for the remote analogous."""
 
 
-class Rshell(RemoteAllFilesSuggestionsCommandInfo, PosArgsSpec, KeepQuotesArgsSpec):
+class Rshell(RemoteAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotesArgsSpec):
     def __init__(self, mandatory: int):
         super().__init__(mandatory)
 
@@ -2907,10 +2907,3 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.INFO: Info,
     Commands.PING: Ping,
 }
-
-def commands_for_prefix(prefix: str) -> List[str]:
-    return [comm for comm in COMMANDS if comm.startswith(prefix)]
-
-def command_for_prefix(prefix: str, default=None) -> Optional[str]:
-    comms = commands_for_prefix(prefix)
-    return comms[0] if comms else default

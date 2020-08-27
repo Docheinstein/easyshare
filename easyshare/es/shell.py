@@ -2,18 +2,15 @@ import os
 import re
 import traceback
 from pathlib import Path
-from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn
-
-
+from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn, Type
 from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
-from easyshare.commands.commands import commands_for_prefix, command_for_prefix
-from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF
+from easyshare.common import EASYSHARE_HISTORY
 from easyshare.consts import ansi
 from easyshare.es.client import Client
 from easyshare.es.errors import ClientErrors, print_errors
 from easyshare.es.ui import print_tabulated, StyledString
-from easyshare.commands.commands import Commands, Verbose, Trace
+from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo
 from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_man
@@ -67,8 +64,7 @@ class Shell:
     # https://thoughtbot.com/blog/tab-completion-in-gnu-rline
     def __init__(self, client: Client):
         self._aliases: Dict[str, str] = {}
-
-        self._available_commands = COMMANDS_INFO
+        self._available_commands: Dict[str, Type[CommandInfo]] = dict(COMMANDS_INFO)
 
         self._client: Client = client
 
@@ -90,38 +86,6 @@ class Shell:
         self._help_map = None
 
         self._init_rline()
-
-    def add_alias(self, source: str, target: str):
-        log.i(f"Adding alias: '{source}'='{target}'")
-        self._aliases[source] = target
-
-        # Try to retrieve the target CommandInfo of the alias for
-        # treat it as a stock command
-        cur_alias_target_comm = source
-        target_comm = None
-        for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
-            # Is this (the first token) already a valid command?
-            leading = lexer.split(cur_alias_target_comm)[0]
-            target_comm = self._available_commands.get(leading)
-            if target_comm:
-                break
-
-            # Resolve it, for next iter
-            cur_alias_target_comm = self._resolve_alias(leading)
-            log.d(f"cur_alias_target_comm: {cur_alias_target_comm}")
-
-            if not cur_alias_target_comm:
-                # No more substitution to do, alias does not
-                # refer to a valid command
-                log.w(f"Invalid alias detect: {source} (does not lead to a command=")
-                break
-        else:
-            print_errors(f"Infinite alias substitution detected: {source} - "
-                         f"fix {EASYSHARE_ES_CONF} file")
-
-        if target_comm:
-            log.d(f"Valid alias to command resolution {source} -> {target_comm.name()}")
-            self._available_commands[source] = target_comm
 
     def input_loop(self):
         """
@@ -228,48 +192,51 @@ class Shell:
         # at the arguments in order to work properly).
         # For now we only want to detect the command by doing a minimal splitting
         # (plus alias resolving)
-
-        command_prefix, command_suffix = split_first_space(cmd, keep_space=True)
-
-        # Eventually translate the alias
-        # DANGER ZONE: the resolution is recursive, this might lead to
-        # an infinite loop if the alias is cyclic
-        for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
-            prev_command_prefix = command_prefix
-            command_prefix = self._resolve_alias(command_prefix, default=command_prefix)
-
-            x1, x2 = split_first_space(command_prefix, keep_space=False)
-            # If the alias produces new args, append those to the trailing part
-            # log.d(f"x1: '{x1}'")
-            # log.d(f"x2: '{x2}'")
-
-            command_prefix = x1
-            command_suffix = x2 + command_suffix
-
-            log.d(f"CMD: {command_prefix}")
-            log.d(f"CMD suffix: {command_suffix}")
-
-            if command_prefix == prev_command_prefix:
-                break
-        else:
-            print_errors(f"Infinite alias substitution detected - "
-                         f"fix {EASYSHARE_ES_CONF} file")
-
+        #
+        # command_prefix, command_suffix = split_first_space(cmd, keep_space=True)
+        #
+        # # Eventually translate the alias
+        # # DANGER ZONE: the resolution is recursive, this might lead to
+        # # an infinite loop if the alias is cyclic
+        # for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
+        #     prev_command_prefix = command_prefix
+        #     command_prefix = self._resolve_alias(command_prefix, default=command_prefix)
+        #
+        #     x1, x2 = split_first_space(command_prefix, keep_space=False)
+        #     # If the alias produces new args, append those to the trailing part
+        #     # log.d(f"x1: '{x1}'")
+        #     # log.d(f"x2: '{x2}'")
+        #
+        #     command_prefix = x1
+        #     command_suffix = x2 + command_suffix
+        #
+        #     log.d(f"CMD: {command_prefix}")
+        #     log.d(f"CMD suffix: {command_suffix}")
+        #
+        #     if command_prefix == prev_command_prefix:
+        #         break
+        # else:
+        #     print_errors(f"Infinite alias substitution detected - "
+        #                  f"fix {EASYSHARE_ES_CONF} file")
+        #
+        log.d(f"Before alias resolution: {cmd}")
+        resolved_cmd_prefix, resolved_cmd_suffix = self._resolve_alias(cmd, as_string=False)
+        log.d(f"resolved_cmd_prefix: {resolved_cmd_prefix}")
+        log.d(f"resolved_cmd_suffix: {resolved_cmd_suffix}")
         # 'command_prefix' might be partial (unique prefix of a valid command)
-        commands = commands_for_prefix(command_prefix)
-
+        commands = self._commands_for(resolved_cmd_prefix, resolve_alias=False)
         log.d(f"Commands found: {commands}")
 
         # No command
         if len(commands) == 0:
-            print_errors(f"Unknown command: '{command_prefix}'")
+            print_errors(f"Unknown command: '{cmd}'")
             return
 
         # More than a command for this prefix
-        if len(commands) > 1 and command_prefix not in commands:
+        if len(commands) > 1 and resolved_cmd_prefix not in commands:
             print("Available commands: ")
             for comm in isorted(commands):
-                print(red(command_prefix) + comm[len(command_prefix):])
+                print(red(resolved_cmd_prefix) + comm[len(resolved_cmd_prefix):])
             return
 
         if len(commands) == 1:
@@ -277,7 +244,7 @@ class Shell:
             command = commands[0]
         else:
             # More than a command, but one matches exactly
-            command = command_prefix
+            command = resolved_cmd_prefix
 
 
         # Exactly a known command, execute it
@@ -286,9 +253,9 @@ class Shell:
 
             if self.has_command(command):
                 pass
-                outcome = self.execute_shell_command(command, command_suffix)
+                outcome = self.execute_shell_command(command, resolved_cmd_suffix)
             elif self._client.has_command(command):
-                outcome = self._client.execute_command(command, command_suffix)
+                outcome = self._client.execute_command(command, resolved_cmd_suffix)
 
             print_errors(outcome)
         except ConnectionError:
@@ -303,7 +270,7 @@ class Shell:
         except KeyboardInterrupt:
             log.d("\nCTRL+C")
 
-
+    # noinspection PyUnresolvedReferences
     def _init_rline(self):
         log.d("Init GNU readline")
 
@@ -350,7 +317,8 @@ class Shell:
         self._load_history()
 
 
-    def _load_history(self):
+    @staticmethod
+    def _load_history():
         es_history = Path.home() / EASYSHARE_HISTORY
         if not es_history.exists():
             try:
@@ -369,8 +337,8 @@ class Shell:
         else:
             log.w(f"History file not found at: '{es_history}'")
 
-
-    def _update_history(self):
+    @staticmethod
+    def _update_history():
         es_history = Path.home() / EASYSHARE_HISTORY
 
         log.d(f"Saving readline history file at: '{es_history}'")
@@ -379,6 +347,7 @@ class Shell:
         log.d(f"readline.get_history_length() = {readline.get_history_length()}")
 
     # For Windows
+    # noinspection PyUnresolvedReferences
     def _display_suggestions_pyreadline(self, matches):
         """
         Called by GNU pyreadline when suggestions have to be rendered.
@@ -428,6 +397,8 @@ class Shell:
             log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
 
 
+    COMM_SPACE_RE = re.compile(".* ")
+
     def _next_suggestion(self, token: str, count: int):
         """
         Called by GNU readline when new suggestions have to be provided.
@@ -461,55 +432,50 @@ class Shell:
 
                 # Detect the command (first token of the line) by resolving aliases
                 # and figure out if the command is unique for the given prefix
-                log.d(f"Detecting user_command from: '{stripped_current_line}'")
+                log.d(f"Cmd line: '{stripped_current_line}'")
+                resolved_current_line = self._resolve_alias(stripped_current_line, as_string=True)
+                resolved_command = self._command_for(resolved_current_line, resolve_alias=False)
+                log.d(f"resolved_current_line: '{resolved_current_line}'")
+                log.d(f"resolved_command: '{resolved_command}'")
 
-                user_command = stripped_current_line.split(" ")[0]
-                # Cases:
-                # 1 ---------------
-                # alias :=exec
-                # alias cat=: cat
-                #
-                # ca -> treat as exec
-
-                log.d(f"BASE user_command: {user_command}")
-                user_command = command_for_prefix(user_command, default=user_command)
-                log.d(f"DETECTED user_command: {user_command}")
-                user_command = self._resolve_alias(user_command, default=user_command).split(" ")[0]
-                log.d(f"RESOLVED user_command: {user_command}")
 
                 self._suggestions_intent = SuggestionsIntent([])
 
                 for comm_name, comm_info in self._available_commands.items():
-                    if user_command == comm_name:
+                    comm_resolved_name = comm_info.name() # comm_name might be an alias
+
+                    log.d(f" Checking '{comm_name}'")
+                    if resolved_command == comm_name and \
+                            re.match(Shell.COMM_SPACE_RE, resolved_current_line):
                         # Typing a COMPLETE command
-                        # e.g. 'ls '
-                        log.d("Fetching suggestions intent for command '%s'", comm_name)
+                        # e.g. 'ls \t'
+                        log.d("Fetching suggestions INTENT for command '%s'", comm_resolved_name)
 
                         comms_sugg  = comm_info.suggestions(token, self._client)
                         if comms_sugg:
                             # don't let it to be None
                             self._suggestions_intent = comms_sugg
 
-                            log.d("Fetched (%d) suggestions intent for command '%s'",
+                            log.d("Fetched (%d) suggestions INTENT for command '%s'",
                                   len(self._suggestions_intent.suggestions),
                                   comm_name)
 
                         break # nothing more to complete, the command has been found
 
-                    if comm_name.startswith(stripped_current_line):
+                    if comm_name.startswith(resolved_current_line):
                         # Typing an INCOMPLETE command
-                        # e.g. 'clos '
+                        # e.g. 'clos\t'
 
                         # Case 1: complete command
-                        log.d("Fetching suggestions for command completion of '%s'", comm_name)
+                        log.d("Fetching suggestions for COMMAND COMPLETION of '%s'", comm_resolved_name)
                         self._suggestions_intent.suggestions.append(StyledString(comm_name))
 
 
                 findings = None
                 if re.match(Shell.LOCAL_FINDINGS_RE, token):
-                    findings = self._client._get_local_findings(token)
+                    findings = self._client.get_local_findings(token)
                 elif re.match(Shell.REMOTE_FINDINGS_RE, token):
-                    findings = self._client._get_local_findings(token)
+                    findings = self._client.get_remote_findings(token)
 
                 if findings and len(findings) == 1:
                     finding_info = findings[0]
@@ -523,9 +489,9 @@ class Shell:
                     #  custom renderer
                     self._suggestions_intent.suggestions.append(StyledString(""))
 
-                self._suggestions_intent.suggestions = \
-                    sorted(self._suggestions_intent.suggestions,
-                           key=lambda sug: sug.string.lower())
+                self._suggestions_intent.suggestions = sorted(
+                    self._suggestions_intent.suggestions, key=lambda s: s.string.lower()
+                )
 
             if count < len(self._suggestions_intent.suggestions):
                 sug = self._suggestions_intent.suggestions[count].string
@@ -564,7 +530,8 @@ class Shell:
             log.w("Exception occurred while retrieving suggestions\n%s", traceback.format_exc())
             return None
 
-    def _quote_detector(self, text: str, index: int) -> int:
+    @staticmethod
+    def _quote_detector(text: str, index: int) -> int:
         """
         l_char_is_quoted_p callback called from GNU readline
         """
@@ -617,11 +584,132 @@ class Shell:
 
         return prompt
 
-    def _resolve_alias(self, source: str, default=None) -> str:
-        target = self._aliases.get(source, default)
-        if source in target:
-            log.d(f"Alias resolved. '{source}' -> '{target}'")
-        return target
+
+
+    def add_alias(self, source: str, target: str):
+        log.i(f"Adding alias: '{source}'='{target}'")
+        self._aliases[source] = target
+        comm_info = COMMANDS_INFO.get(self._command_for(source))
+        if comm_info:
+            self._available_commands[source] = comm_info
+
+        #
+        # # Try to retrieve the target CommandInfo of the alias for
+        # # treat it as a stock command
+        # cur_alias_target_comm = source
+        # target_comm = None
+        # for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
+        #     # Is this (the first token) already a valid command?
+        #     leading = lexer.split(cur_alias_target_comm)[0]
+        #     target_comm_str = self._command_for_prefix(leading)
+        #     if target_comm_str:
+        #         target_comm = COMMANDS_INFO.get(target_comm_str)
+        #         break
+        #
+        #     # Resolve it, for next iter
+        #     cur_alias_target_comm = self._resolve_alias(leading)
+        #     log.d(f"cur_alias_target_comm: {cur_alias_target_comm}")
+        #
+        #     if not cur_alias_target_comm:
+        #         # No more substitution to do, alias does not
+        #         # refer to a valid command
+        #         log.w(f"Invalid alias detected: {source} (does not lead to a command)")
+        #         break
+        # else:
+        #     print_errors(f"Infinite alias substitution detected: {source} - "
+        #                  f"fix {EASYSHARE_ES_CONF} file")
+        #
+        # if target_comm:
+        #     log.d(f"Valid alias to command resolution {source} -> {target_comm.name()}")
+        #     self._available_commands[source] = target_comm
+
+    # def _commands_for_prefix(self, prefix: str) -> List[CommandInfo]:
+    #     return [comm for (comm_name, comm) in self._available_commands if comm_name.startswith(prefix)]
+    #
+    # def _command_for_prefix(self, prefix: str, default=None) -> Optional[CommandInfo]:
+    #     comms = self._commands_for_prefix(prefix)
+    #     return comms[0] if comms else default
+    #
+
+
+    def _command_for(self, string: str, resolve_alias: bool=True) -> Optional[str]:
+        cmds = self._commands_for(string, resolve_alias=resolve_alias)
+        if not cmds:
+            return None
+        return cmds[0]
+
+    def _commands_for(self, string: str, resolve_alias: bool=True) -> List[str]:
+        """
+        Resolves a string and turns it into a command or a list of commands,
+        based on the longest prefix match, performing alias resolution in the meanwhile.
+        e.g.
+            rsh -> [rshell]
+            p -> [put]
+            s -> [shell, scan]
+
+        ----
+        e.g.
+            alias :=exe
+            alias ::=rex
+            alias cat=: cat
+
+            e -> [exec, exit]
+            : -> [exec, rexec]
+            cat -> [exec]
+        """
+
+        if not string:
+            return []
+
+        if resolve_alias:
+            command, _ = self._resolve_alias(string, as_string=False)
+        else:
+            command = string.split(" ")[0]
+
+        cmds = [c for c in COMMANDS if c.startswith(command)]
+        log.d(f"Commands for '{string}' = {cmds}")
+        return cmds
+
+
+    def _resolve_alias(self,
+                       source: str, default: bool=None,
+                       recursive: bool=True, as_string: bool=True) -> Union[str, Tuple[str, str]]:
+
+        def resolve_alias_strict(source_, default_=None):
+            target = self._aliases.get(source_, default_)
+            if source_ in self._aliases:
+                log.d(f"Alias resolved. '{source_}' -> '{target}'")
+            return target
+
+        def split_first_space(string, keep_space=False):
+            space = string.find(" ")
+            if space < 0:
+                return string, ""
+            return string[:space], string[space+(0 if keep_space else 1):]
+
+        if not recursive:
+            return resolve_alias_strict(source, default)
+
+        leading, trailing = "", ""
+        resolved = source
+
+        for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
+            x1, x2 = split_first_space(resolved, keep_space=True)
+            leading = x1
+            trailing = x2 + trailing
+            log.d(f"Current resolution: comm='{leading}' suffix='{trailing}'")
+
+            resolved = resolve_alias_strict(leading)
+            log.d(f"Resolution: {resolved}")
+
+            if not resolved:
+                break
+
+
+        if not as_string:
+            return leading, trailing
+
+        return f"{leading}{trailing}"
 
     def _help(self, args: Args) -> NoReturn:
         cmd = args.get_positional(default="usage")

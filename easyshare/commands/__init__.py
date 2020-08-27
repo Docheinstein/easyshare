@@ -68,6 +68,9 @@ class CommandUsage(ABC):
     def see_also(cls) -> Optional[str]:
         return None
 
+    def __str__(self):
+        return self.name()
+
 
 class CommandHelp(CommandUsage):
     """ Provide full information of a command, ideal for a man page """

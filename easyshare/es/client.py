@@ -2394,7 +2394,7 @@ class Client:
 
         return self.__paths(
             path_or_finding_pattern,
-            findings_provider=self._get_local_findings,
+            findings_provider=self.get_local_findings,
             path_builder=lambda path, finfo: path / finfo.get("name"),
             path_filter=lambda p: LocalPath(p, default)
         )
@@ -2414,7 +2414,7 @@ class Client:
 
         return self.__paths(
             path_or_finding_pattern,
-            findings_provider=self._get_remote_findings,
+            findings_provider=self.get_remote_findings,
             path_builder=lambda path, finfo: os.path.join(path, finfo.get("name")),
         )
 
@@ -2442,10 +2442,10 @@ class Client:
 
         return paths
 
-    def _get_local_findings(self, pattern: str) -> Optional[Findings]:
+    def get_local_findings(self, pattern: str) -> Optional[Findings]:
         return self._get_findings(self._local_findings, pattern)
 
-    def _get_remote_findings(self, pattern: str) -> Optional[Findings]:
+    def get_remote_findings(self, pattern: str) -> Optional[Findings]:
         return self._get_findings(self._remote_findings, pattern)
 
     @classmethod
