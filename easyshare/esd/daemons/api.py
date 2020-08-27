@@ -462,8 +462,6 @@ class ClientHandler:
         print(f"[{self._client.tag}] rshell '{cmd}' "
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
-        self._send_response(create_success_response())
-
         def out_hook(text: str):
             log.d("> %s", text)
             self._client.stream.write(
@@ -499,21 +497,29 @@ class ClientHandler:
                 else:
                     log.w("Can't handle event of type %d", event_type)
 
-        ptyproc = pty_detached(
-            out_hook=out_hook,
-            end_hook=end_hook,
-            cmd=cmd
-        )
+        try:
+            ptyproc = pty_detached(
+                out_hook=out_hook,
+                end_hook=end_hook,
+                cmd=cmd
+            )
 
-        # Receive stdin from client
-        stdin_th = threading.Thread(target=stdin_receiver, args=(ptyproc, ))
-        stdin_th.start()
+            self._send_response(create_success_response())
 
-        # Wait everybody
-        stdin_th.join()
-        ptyproc.wait()
+            # Receive stdin from client
+            stdin_th = threading.Thread(target=stdin_receiver, args=(ptyproc,))
+            stdin_th.start()
 
-        log.d("RSHELL finished")
+            # Wait everybody
+            stdin_th.join()
+            ptyproc.wait()
+            log.d("RSHELL finished")
+
+        except Exception as ex:
+            log.exception(f"Rshell failed: {ex}")
+            return self._create_error_response(ServerErrors.REXEC_EXECUTION_FAILED)
+            # out_hook("Command execution failed")
+            # end_hook(ServerErrors.REXEC_EXECUTION_FAILED) # return code, just != 0
 
     @require_server_connection
     def _open(self, params: RequestParams):

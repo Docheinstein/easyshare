@@ -17,7 +17,7 @@ def generate_password(pw: str):
     """
     auth = AuthScrypt.new(pw)
     if not auth:
-        abort("Cannot compute password")
+        abort("cannot compute password")
 
     print(auth)
 
@@ -45,7 +45,7 @@ def ask_and_generate_password():
     """
     plain_pass = getpass("Password: ")
     if not plain_pass:
-        abort("Please insert a valid password")
+        abort("please insert a valid password")
     generate_password(plain_pass)
 
 def main():
@@ -57,7 +57,7 @@ def main():
     try:
         args = EsTools().parse(sys.argv[1:])
     except ArgsParseError as err:
-        abort(f"Parse of arguments failed: {str(err)}")
+        abort(f"parse of arguments failed: {str(err)}")
 
 
     # Help?

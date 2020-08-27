@@ -111,6 +111,7 @@ class ErrorsStrings:
     UNKNOWN_API = "UNKNOWN_API"
     REXEC_DISABLED = "REXEC_DISABLED"
     PUT_CHECK_FAILED = "PUT_CHECK_FAILED"
+    REXEC_EXECUTION_FAILED = "REXEC_EXECUTION_FAILED"
 
 
 
@@ -168,7 +169,8 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.INVALID_REQUEST: ErrorsStrings.INVALID_REQUEST,
     ServerErrors.UNKNOWN_API: ErrorsStrings.UNKNOWN_API,
     ServerErrors.REXEC_DISABLED: ErrorsStrings.REXEC_DISABLED,
-    ServerErrors.PUT_CHECK_FAILED: ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX,
+    ServerErrors.PUT_CHECK_FAILED: ErrorsStrings.PUT_CHECK_FAILED,
+    ServerErrors.REXEC_EXECUTION_FAILED: ErrorsStrings.REXEC_EXECUTION_FAILED,
 
     ClientErrors.ERR_0: ErrorsStrings.ERR_0,
     ClientErrors.ERR_1: ErrorsStrings.ERR_1,

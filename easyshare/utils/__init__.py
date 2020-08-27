@@ -17,5 +17,5 @@ def terminate(message = None, exit_code = 0) -> NoReturn:
 def abort(message = None, exit_code = 1) -> NoReturn:
     """ Exit UNGRACEFULLY with the given message and exit code. """
     if message:
-        eprint(message)
+        eprint(f"ERROR: {message}")
     exit(exit_code)

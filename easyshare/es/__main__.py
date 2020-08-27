@@ -89,7 +89,7 @@ def main():
         args = Es().parse(sys.argv[1:])
     except ArgsParseError as err:
         log.exception("Exception occurred while parsing args")
-        abort(f"Parse of arguments failed: {str(err)}")
+        abort(f"parse of arguments failed: {str(err)}")
 
     # Eventually set verbosity before anything else
     # so that the rest of the startup (config parsing, ...)
@@ -143,7 +143,7 @@ def main():
             )
         except ConfParseError as err:
             log.exception(f"Exception occurred while parsing {EASYSHARE_ES_CONF}")
-            abort(f"Parse of {EASYSHARE_ES_CONF} file failed: {err}")
+            abort(f"parse of {EASYSHARE_ES_CONF} file failed: {err}")
 
         if esrc:
             _, global_section = esrc.global_section()
@@ -229,7 +229,7 @@ def main():
     # - ports
 
     if not is_valid_port(discover_port):
-        abort("Invalid port number {}".format(discover_port))
+        abort("invalid port number {}".format(discover_port))
 
     # Logging/Tracing/UI setup
 

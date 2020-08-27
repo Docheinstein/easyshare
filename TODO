@@ -13,52 +13,11 @@
 - rsh is broken... (only zsh?)
 - fix 1000MB might happen => 1 characters of space to keep into account
 - -S does not work
-- fix rsh /bin/bhsa -> wrong command
 - why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
-- strange rengeder effect: the | remains printed for 'scan'
 - Consider whether removing exec/rexec in place of sh, rsh
 
 TEST: ensure that posix=False is not bad
 
+=======
 
-==== FIXED
-- resolve symbol link (e.g. android)
-
-FIXED (IS / IE)
-➜  easyshare git:(master) ✗ python -m easyshare.es
-/home/stefano/Develop/Python/easyshare> cd /tmp/
-/tmp> touch "Lupo alberto"
-Unknown command: 'touch'
-/tmp> tou  <--- can't erase further
-
-
-
-
-
-OK
-SHOULD BE Not Exits error
-stefano-arch.stefano:/ —— /home/stefano/Develop/Python/easyshare> rdu .bas
-0B /.bas
-
-
-
-
-
-OK ---
-[DEBUG] {easyshare.commands.commands} List on token = '/home/stefano/.'
-[INFO]  {easyshare.commands.commands} ls-ing for suggestions on '/home' <-- should list .
-
-OK ---
-/home/stefano/Develop/Python/easyshare> : cat ~/.esrc
-[INFO]  {easyshare.es.client} >> EXEC cat "~/.esrc"
-[DEBUG] {easyshare.utils.os} subprocess.Popen(cat "~/.esrc")
-cat: '~/.esrc': File o directory non esistente                         <-- does not work - OK
-
-TEST shell LocalList OK
-
-TEST rls-ing on hiddenfile OK
-
-OK = : cat "/tmp/A File"
-
-
-
+- fix rsh /bin/bhsa -> wrong command

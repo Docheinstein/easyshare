@@ -52,6 +52,8 @@ class ServerErrors:
 
     PUT_CHECK_FAILED =          233
 
+    REXEC_EXECUTION_FAILED =    234
+
 
 class TransferOutcomes:
     """ Possibles results of outcome() of a 'TransferService' """
