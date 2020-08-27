@@ -1711,99 +1711,99 @@ Usage example:
 
 # ============ xEXEC ================
 
+#
+# class Exec(LocalAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotesArgsSpec):
+#     @classmethod
+#     def name(cls):
+#         return "exec"
+#
+#     @classmethod
+#     def short_description(cls):
+#         return "execute an arbitrary command locally"
+#
+#     @classmethod
+#     def synopsis(cls):
+#         return """\
+# **exec** *COMMAND*\
+# """
+#
+#     @classmethod
+#     def long_description(cls):
+#         return """\
+# Executes an arbitrary *COMMAND* locally.
+#
+# The *COMMAND* is executed via the shell and therefore allows all the shell \
+# features (e.g. variables, glob expansions, redirection).
+#
+# This might be useful for execute commands without exiting the easyshare's shell.
+#
+# Currently supported only for Unix."""
+#
+#     @classmethod
+#     def examples(cls):
+#         return f"""\
+# Usage example:
+#
+# **/tmp>** ls
+# f1      f2
+# **/tmp> exec** _touch f3_
+# f1      f2      f3"""
+#
+#     @classmethod
+#     def see_also(cls):
+#         return """Type "**help** **rexec**" for the remote analogous."""
 
-class Exec(LocalAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotesArgsSpec):
-    @classmethod
-    def name(cls):
-        return "exec"
-
-    @classmethod
-    def short_description(cls):
-        return "execute an arbitrary command locally"
-
-    @classmethod
-    def synopsis(cls):
-        return """\
-**exec** *COMMAND*\
-"""
-
-    @classmethod
-    def long_description(cls):
-        return """\
-Executes an arbitrary *COMMAND* locally.
-
-The *COMMAND* is executed via the shell and therefore allows all the shell \
-features (e.g. variables, glob expansions, redirection).
-
-This might be useful for execute commands without exiting the easyshare's shell.
-
-Currently supported only for Unix."""
-
-    @classmethod
-    def examples(cls):
-        return f"""\
-Usage example:
-
-**/tmp>** ls
-f1      f2
-**/tmp> exec** _touch f3_
-f1      f2      f3"""
-
-    @classmethod
-    def see_also(cls):
-        return """Type "**help** **rexec**" for the remote analogous."""
-
-
-class Rexec(FastServerConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotesArgsSpec):
-    def __init__(self, mandatory: int):
-        super().__init__(mandatory)
-
-    @classmethod
-    def name(cls):
-        return "rexec"
-
-    @classmethod
-    def short_description(cls):
-        return "execute an arbitrary command remotely"
-
-    @classmethod
-    def _synopsis(cls):
-        return """\
-**rexec** *COMMAND*
-
-**rexec** [*SERVER_LOCATION*] *COMMAND*\
-"""
-
-    @classmethod
-    def long_description(cls):
-        return """\
-THE SERVER REJECTS THIS COMMAND BY DEFAULT, UNLESS IT HAS BEEN MANUALLY \
-ENABLED WITH THE SETTING "**rexec=true**"
-
-Executes an arbitrary *COMMAND* remotely.
-
-The *COMMAND* is executed via the shell and therefore allows all the shell \
-features (e.g. variables, glob expansions, redirection).
-
-This might be useful for execute commands remotely, giving the client a \
-kind of easy and plug-and-play shell.
-
-Currently supported only for Unix."""
-
-    @classmethod
-    def examples(cls):
-        return f"""\
-Usage example:
-
-**/tmp>** open music
-**bob-debian.music:/ - /tmp>** rls
-f1      f2
-**bob-debian.music:/ - /tmp> rexec** *touch f3*
-f1      f2      f3"""
-
-    @classmethod
-    def see_also(cls):
-        return """Type "**help** **exec**" for the local analogous."""
+#
+# class Rexec(FastServerConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotesArgsSpec):
+#     def __init__(self, mandatory: int):
+#         super().__init__(mandatory)
+#
+#     @classmethod
+#     def name(cls):
+#         return "rexec"
+#
+#     @classmethod
+#     def short_description(cls):
+#         return "execute an arbitrary command remotely"
+#
+#     @classmethod
+#     def _synopsis(cls):
+#         return """\
+# **rexec** *COMMAND*
+#
+# **rexec** [*SERVER_LOCATION*] *COMMAND*\
+# """
+#
+#     @classmethod
+#     def long_description(cls):
+#         return """\
+# THE SERVER REJECTS THIS COMMAND BY DEFAULT, UNLESS IT HAS BEEN MANUALLY \
+# ENABLED WITH THE SETTING "**rexec=true**"
+#
+# Executes an arbitrary *COMMAND* remotely.
+#
+# The *COMMAND* is executed via the shell and therefore allows all the shell \
+# features (e.g. variables, glob expansions, redirection).
+#
+# This might be useful for execute commands remotely, giving the client a \
+# kind of easy and plug-and-play shell.
+#
+# Currently supported only for Unix."""
+#
+#     @classmethod
+#     def examples(cls):
+#         return f"""\
+# Usage example:
+#
+# **/tmp>** open music
+# **bob-debian.music:/ - /tmp>** rls
+# f1      f2
+# **bob-debian.music:/ - /tmp> rexec** *touch f3*
+# f1      f2      f3"""
+#
+#     @classmethod
+#     def see_also(cls):
+#         return """Type "**help** **exec**" for the local analogous."""
 
 
 # ============ xSHELL ===============
@@ -1818,7 +1818,7 @@ class Shell(LocalAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotesAr
 
     @classmethod
     def short_description(cls):
-        return "start a local shell"
+        return "start a local shell or execute a command"
 
     @classmethod
     def synopsis(cls):
@@ -1834,7 +1834,7 @@ If no *COMMAND* is given, start a local shell using the user's preferred shell.
 Differently from **exec**, this really opens a pseudo terminal (ssh style).
 
 If *COMMAND* is given, it is executed on the pseudo terminal (but you won't \
-get a shell unless *COMMAND* is a command invoking a shell)
+get a shell unless *COMMAND* is a shell itself)
 
 Currently supported only if the server is Unix."""
 
@@ -1843,7 +1843,8 @@ Currently supported only if the server is Unix."""
         return """Type "**help** **rshell**" for the remote analogous."""
 
 
-class Rshell(RemoteAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotesArgsSpec):
+class Rshell(FastSharingConnectionCommandInfo, RemoteAllFilesSuggestionsCommandInfo,
+             StopParseArgsSpec, KeepQuotesArgsSpec):
     def __init__(self, mandatory: int):
         super().__init__(mandatory)
 
@@ -1853,12 +1854,14 @@ class Rshell(RemoteAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotes
 
     @classmethod
     def short_description(cls):
-        return "start a remote shell"
+        return "start a remote shell or execute a command"
 
     @classmethod
-    def synopsis(cls):
+    def _synopsis(cls):
         return """\
-**rshell** [*COMMAND*]\
+**rshell** [*COMMAND]*
+
+**rshell** [*SERVER_LOCATION*] [*COMMAND*]\
 """
 
     @classmethod
@@ -1867,10 +1870,8 @@ class Rshell(RemoteAllFilesSuggestionsCommandInfo, StopParseArgsSpec, KeepQuotes
 If no *COMMAND* is given, start a remote shell using the remote user's \
 preferred shell.
 
-Differently from **rexec**, this really opens a pseudo terminal (ssh style).
-
 If *COMMAND* is given, it is executed on the pseudo terminal (but you won't \
-get a shell unless *COMMAND* is a command invoking a shell)
+get a shell, unless *COMMAND* is a shell itself)
 
 Currently supported only if the server is Unix."""
 
@@ -2858,7 +2859,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_COPY: Cp,
     Commands.LOCAL_MOVE: Mv,
     Commands.LOCAL_REMOVE: Rm,
-    Commands.LOCAL_EXEC: Exec,
+    # Commands.LOCAL_EXEC: Exec,
     Commands.LOCAL_SHELL: Shell,
 
     Commands.REMOTE_CURRENT_DIRECTORY: Rpwd,
@@ -2871,7 +2872,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_COPY: Rcp,
     Commands.REMOTE_MOVE: Rmv,
     Commands.REMOTE_REMOVE: Rrm,
-    Commands.REMOTE_EXEC: Rexec,
+    # Commands.REMOTE_EXEC: Rexec,
     Commands.REMOTE_SHELL: Rshell,
 
     Commands.SCAN: Scan,

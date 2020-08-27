@@ -1,13 +1,14 @@
+import curses
 import mmap
 import os
 import re
 import select
-import shlex
 import signal
 import sys
 import threading
 import time
 import zlib
+from _curses import window
 from collections import OrderedDict
 from getpass import getpass
 from pathlib import Path
@@ -25,11 +26,11 @@ from easyshare.es.connection import Connection, ConnectionMinimal
 from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
-    sharings_pretty_str, server_info_pretty_str, server_info_short_str, file_info_str, StyledString, \
+    sharings_pretty_str, server_info_short_str, file_info_str, StyledString, \
     file_info_pretty_str, server_pretty_str
 from easyshare.commands.commands import Commands, Ls, Scan, Info, Tree, Put, Get, \
-    Ping, Find, Rfind, Du, Rdu, Rls, Cd, Mkdir, Pwd, Rm, Mv, Cp, Exec, Shell, Rcd, Rtree, Rmkdir, \
-    Rpwd, Rrm, Rmv, Rcp, Rexec, Rshell, Connect, Disconnect, Open, Close
+    Ping, Find, Rfind, Du, Rdu, Rls, Cd, Mkdir, Pwd, Rm, Mv, Cp, Shell, Rcd, Rtree, Rmkdir, \
+    Rpwd, Rrm, Rmv, Rcp, Rshell, Connect, Disconnect, Open, Close
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import RequestsParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
@@ -43,7 +44,7 @@ from easyshare.utils import lexer
 from easyshare.utils.env import is_unix
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str, size_str_justify
-from easyshare.utils.os import ls, rm, tree, mv, cp, run_attached, user, pty_attached, os_error_str, \
+from easyshare.utils.os import ls, rm, tree, mv, cp, user, pty_attached, os_error_str, \
     find, du
 from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress import ProgressBarRendererFactory
@@ -54,7 +55,6 @@ from easyshare.utils.types import btos, itob, btoi
 
 
 if is_unix():
-    import fcntl
     import pty
     import tty
     from pwd import struct_passwd
@@ -227,7 +227,8 @@ class CommandExecutionError(Exception):
     def __init__(self, errors: Union[int, str, List[str]] = ClientErrors.ERR_0):
         self.errors = errors
 
-class HandledKeyboardInterrupt(KeyboardInterrupt):
+# class HandledKeyboardInterrupt(KeyboardInterrupt):
+class HandledKeyboardInterrupt(Exception):
     pass
 
 
@@ -323,7 +324,7 @@ class Client:
             Commands.LOCAL_REMOVE: (LOCAL, [Rm()], self.rm),
             Commands.LOCAL_MOVE: (LOCAL, [Mv()], self.mv),
             Commands.LOCAL_COPY: (LOCAL, [Cp()], self.cp),
-            Commands.LOCAL_EXEC: (LOCAL, [Exec()], self.exec),
+            # Commands.LOCAL_EXEC: (LOCAL, [Exec()], self.exec),
             Commands.LOCAL_SHELL: (LOCAL, [Shell()], self.shell),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (SHARING, [Rcd(0), Rcd(1)], self.rcd),
@@ -336,7 +337,7 @@ class Client:
             Commands.REMOTE_REMOVE: (SHARING, [Rrm(1), Rrm(2)], self.rrm),
             Commands.REMOTE_MOVE: (SHARING, [Rmv(2), Rmv(3)], self.rmv),
             Commands.REMOTE_COPY: (SHARING, [Rcp(2), Rcp(3)], self.rcp),
-            Commands.REMOTE_EXEC: (SERVER, [Rexec(0), Rexec(1)], self.rexec),
+            # Commands.REMOTE_EXEC: (SERVER, [Rexec(0), Rexec(1)], self.rexec),
             Commands.REMOTE_SHELL: (SERVER, [Rshell(0), Rshell(1)], self.rshell),
 
             Commands.GET: (SHARING, [Get(0), Get(1)], self.get),
@@ -387,6 +388,9 @@ class Client:
             executor(args, None) # will be provided by decorators
             return ClientErrors.SUCCESS
 
+        except HandledKeyboardInterrupt:
+            return ClientErrors.SUCCESS
+
         except CommandExecutionError as ex:
             # "Expected" fail
             err = ex.errors if ex.errors else ClientErrors.COMMAND_EXECUTION_FAILED
@@ -398,6 +402,7 @@ class Client:
             log.exception("Exception caught while executing command\n%s", ex)
             self.destroy_connection()
             return ClientErrors.COMMAND_EXECUTION_FAILED
+
 
     def is_connected_to_server(self) -> bool:
         return True if self.connection and \
@@ -635,20 +640,20 @@ class Client:
         if errors:
             raise CommandExecutionError(errors)
 
-    @classmethod
-    def exec(cls, args: Args, _):
-        if not is_unix():
-            log.w("exec not supported on this platform")
-            raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
-
-        exec_args = args.get_unparsed_args(default=[])
-        exec_cmd = lexer.join(exec_args, quote_char=None)
-
-        log.i(f">> EXEC {exec_cmd}")
-
-        retcode = run_attached(exec_cmd)
-        if retcode != 0:
-            log.w("Command failed with return code: %d", retcode)
+    # @classmethod
+    # def exec(cls, args: Args, _):
+    #     if not is_unix():
+    #         log.w("exec not supported on this platform")
+    #         raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
+    #
+    #     exec_args = args.get_unparsed_args(default=[])
+    #     exec_cmd = lexer.join(exec_args, quote_char=None)
+    #
+    #     log.i(f">> EXEC {exec_cmd}")
+    #
+    #     retcode = run_attached(exec_cmd)
+    #     if retcode != 0:
+    #         log.w("Command failed with return code: %d", retcode)
 
     @classmethod
     def shell(cls, args: Args, _):
@@ -804,103 +809,103 @@ class Client:
         log.i("Server and sharing connection established")
         self.connection = new_conn
 
-
-    @provide_server_connection
-    @require_unix
-    def rexec(self, args: Args, conn: Connection):
-        popen_args = args.get_unparsed_args(default=[])
-        popen_cmd = lexer.join(popen_args, quote_char=None)
-
-        log.i(">> REXEC %s", popen_cmd)
-
-        rexec_resp = conn.rexec(popen_cmd)
-        ensure_success_response(rexec_resp)
-
-        retcode = None
-
-        # --- STDOUT/STDERR RECEIVER ---
-
-        def rexec_out_receiver():
-            nonlocal retcode
-
-            try:
-                while retcode is None:
-                    in_b = conn.read(trace=True)
-
-                    event_type: int = in_b[0]
-                    log.d("Event type = %d", event_type)
-
-                    if event_type == RexecEventType.TEXT:
-                        text_b = in_b[1:]
-                        log.d("REXEC recv: %s", repr(text_b))
-                        text = btos(text_b)
-
-                        try:
-                            print(text, end="", flush=True)
-                        except OSError as oserr:
-                            # EWOULDBLOCK may arise something...
-                            log.w("Ignoring OSerror: %s", str(oserr))
-                    elif event_type == RexecEventType.EOF:
-                        log.d("EOF from remote")
-                    elif event_type == RexecEventType.RETCODE:
-                        log.d("Remote process finished")
-                        retcode = btoi(in_b[1:])
-                    else:
-                        log.w("Can't handle event of type %d", event_type)
-
-                log.i("REXEC done ; retcode = %d", retcode)
-
-            except Exception:
-                log.exception("Unexpected error occurred on rexec stdout receiver thread")
-                retcode = -1
-
-
-        rexec_out_receiver_th = threading.Thread(
-            target=rexec_out_receiver, daemon=True)
-        rexec_out_receiver_th.start()
-
-        # --- STDIN SENDER ---
-
-        # Read local stdin and send it to server
-        # Put stdin in non-blocking mode so that we can exit the loop
-        # when the proc terminates
-
-        stding_flags = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
-        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags | os.O_NONBLOCK)
-
-        while retcode is None:
-            try:
-                # Do not block so that we can exit when the process finishes
-                # Sleep for a little between each select call
-                rlist, wlist, xlist = select.select([sys.stdin], [], [], 0.04)
-
-                if sys.stdin in rlist:
-                    data_b = sys.stdin.buffer.read()
-
-                    if not data_b:
-                        log.d("Sending EOF")
-                        out_b = RexecEventType.EOF_B
-                    else:
-                        log.d("Sending data: %s", repr(data_b))
-                        out_b = RexecEventType.TEXT_B + data_b
-
-                    conn.write(out_b, trace=True)
-
-            except KeyboardInterrupt:
-                log.d("Sending CTRL+C")
-                conn.write(RexecEventType.KILL_B, trace=True)
-
-        # If we are here, we have retrieved a return code from the remote process
-
-        # Restore stdin in blocking mode
-        fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags)
-
-        # Wait everybody
-        rexec_out_receiver_th.join()
-
-        # Stop the remote stdin receiver by sending a ENDACK
-        log.d("Sending ENDACK to remote")
-        conn.write(RexecEventType.ENDACK_B, trace=True)
+    #
+    # @provide_server_connection
+    # @require_unix
+    # def rexec(self, args: Args, conn: Connection):
+    #     popen_args = args.get_unparsed_args(default=[])
+    #     popen_cmd = lexer.join(popen_args, quote_char=None)
+    #
+    #     log.i(">> REXEC %s", popen_cmd)
+    #
+    #     rexec_resp = conn.rexec(popen_cmd)
+    #     ensure_success_response(rexec_resp)
+    #
+    #     retcode = None
+    #
+    #     # --- STDOUT/STDERR RECEIVER ---
+    #
+    #     def rexec_out_receiver():
+    #         nonlocal retcode
+    #
+    #         try:
+    #             while retcode is None:
+    #                 in_b = conn.read(trace=True)
+    #
+    #                 event_type: int = in_b[0]
+    #                 log.d("Event type = %d", event_type)
+    #
+    #                 if event_type == RexecEventType.TEXT:
+    #                     text_b = in_b[1:]
+    #                     log.d("REXEC recv: %s", repr(text_b))
+    #                     text = btos(text_b)
+    #
+    #                     try:
+    #                         print(text, end="", flush=True)
+    #                     except OSError as oserr:
+    #                         # EWOULDBLOCK may arise something...
+    #                         log.w("Ignoring OSerror: %s", str(oserr))
+    #                 elif event_type == RexecEventType.EOF:
+    #                     log.d("EOF from remote")
+    #                 elif event_type == RexecEventType.RETCODE:
+    #                     log.d("Remote process finished")
+    #                     retcode = btoi(in_b[1:])
+    #                 else:
+    #                     log.w("Can't handle event of type %d", event_type)
+    #
+    #             log.i("REXEC done ; retcode = %d", retcode)
+    #
+    #         except Exception:
+    #             log.exception("Unexpected error occurred on rexec stdout receiver thread")
+    #             retcode = -1
+    #
+    #
+    #     rexec_out_receiver_th = threading.Thread(
+    #         target=rexec_out_receiver, daemon=True)
+    #     rexec_out_receiver_th.start()
+    #
+    #     # --- STDIN SENDER ---
+    #
+    #     # Read local stdin and send it to server
+    #     # Put stdin in non-blocking mode so that we can exit the loop
+    #     # when the proc terminates
+    #
+    #     stding_flags = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
+    #     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags | os.O_NONBLOCK)
+    #
+    #     while retcode is None:
+    #         try:
+    #             # Do not block so that we can exit when the process finishes
+    #             # Sleep for a little between each select call
+    #             rlist, wlist, xlist = select.select([sys.stdin], [], [], 0.04)
+    #
+    #             if sys.stdin in rlist:
+    #                 data_b = sys.stdin.buffer.read()
+    #
+    #                 if not data_b:
+    #                     log.d("Sending EOF")
+    #                     out_b = RexecEventType.EOF_B
+    #                 else:
+    #                     log.d("Sending data: %s", repr(data_b))
+    #                     out_b = RexecEventType.TEXT_B + data_b
+    #
+    #                 conn.write(out_b, trace=True)
+    #
+    #         except KeyboardInterrupt:
+    #             log.d("Sending CTRL+C")
+    #             conn.write(RexecEventType.KILL_B, trace=True)
+    #
+    #     # If we are here, we have retrieved a return code from the remote process
+    #
+    #     # Restore stdin in blocking mode
+    #     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags)
+    #
+    #     # Wait everybody
+    #     rexec_out_receiver_th.join()
+    #
+    #     # Stop the remote stdin receiver by sending a ENDACK
+    #     log.d("Sending ENDACK to remote")
+    #     conn.write(RexecEventType.ENDACK_B, trace=True)
 
     @provide_server_connection
     @require_unix
@@ -950,7 +955,7 @@ class Client:
                         log.w("Can't handle event of type %d", event_type)
 
                 log.i("RSHELL done (%d)", retcode)
-                print()
+                # print()
             except Exception:
                 log.exception("Unexpected error occurred on rshell out receiver thread")
                 retcode = -1
@@ -1075,8 +1080,7 @@ class Client:
 
             # DELETE_EOL for overwrite progress bar render
 
-            # print(ansi.DELETE_EOL + s, flush=True)
-            print(ansi.DELETE_EOL + s, flush=True)
+            print(ansi.RESET_LINE + s, flush=True)
 
             servers_found += 1
 
@@ -3085,9 +3089,18 @@ NNSS  : only if newer OR size is different - to all
                     elif state == DISCOVER_FOUND:
                         # DISCOVER_FOUND is always a success
                         # DELETE_EOL for overwrite the bar
-                        print(ansi.DELETE_EOL, end="", flush=True)
+                        print(ansi.RESET_LINE, end="", flush=True)
                     elif state == DISCOVER_ABORTED:
+
                         # DISCOVER_ABORTED is always an error
+                        # try:
+                        #     print(f"\n\nY={y}\n\nX={x}\n")
+                        # except Exception as ex:
+                        #     print(f"getyx failed {ex}")
+                        #     pass
+                        # print(ansi.UP_LINE + ansi.RESET_LINE, end="", flush=True)
+                        pass
+                        print(ansi.UP_LINE + ansi.RESET_LINE, end="", flush=True)
                         pbar.error() # don't set completed=True, since is aborted in the middle
                     else:
                         log.w("Unexpected new discover state: %d", discover_state)
@@ -3138,6 +3151,7 @@ NNSS  : only if newer OR size is different - to all
             # print an empty line
             nonlocal discover_state
             log.d("SIGINT while discovering")
+
             signal.signal(signal.SIGINT, original_sigint_handler)
 
             stop_pbar(DISCOVER_ABORTED)
@@ -3147,11 +3161,20 @@ NNSS  : only if newer OR size is different - to all
         # Set the custom handler
         signal.signal(signal.SIGINT, custom_sigint_handler)
 
+        def response_handler_fix_update_pbar_after_discover(endpoint, server_info) -> bool:
+            # This wrapper is needed in order to print as soon as possible a new
+            # line with the progress bar after a server is found; so that we can
+            # user LINE_UP + CLEAR_LINE for delete the progress bar in stop_bar()
+            # without clearing a valid last line of text of the discovered server
+            ret = response_handler(endpoint, server_info)
+            pbar.update(pbar.partial, force=True)
+            return ret
+
         timedout = Discoverer(
             discover_addr=discover_addr,
             discover_port=discover_port,
             discover_timeout=discover_timeout,
-            response_handler=response_handler).discover()
+            response_handler=response_handler_fix_update_pbar_after_discover).discover()
 
         # Restore the original handler
         signal.signal(signal.SIGINT, original_sigint_handler)

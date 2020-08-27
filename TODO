@@ -18,7 +18,6 @@
 
 TEST: ensure that posix=False is not bad
 sh vim \t
-shell passthrough
 =======
 
 - fix rsh /bin/bhsa -> wrong command

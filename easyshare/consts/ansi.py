@@ -29,15 +29,21 @@ BG_CYAN =           "\033[46m"
 BG_WHITE =          "\033[47m"
 
 
-PROMPT_BLINK_OFF =   "\033[25m"
+PROMPT_BLINK_OFF =  "\033[25m"
 
-DELETE_EOL_ANSI =    "\033[K"  # delete until end of line
-DELETE_EOL_VT100 =   "\033[2K"  # delete current line
+UP_LINE =           "\033[A"
+DOWN_LINE =         "\033[B"
+RIGHT_LINE =        "\033[C"
+LEFT_LINE =         "\033[D"
+
+DELETE_R_LINE =     "\033[K"  # delete until end of line
+DELETE_LINE =       "\033[2K"  # delete current line
 
 # The bad effect without DELETE_EOL_VT100 is that if the text on the new
 # line is not long enough to cover the previous line, a part of it remains printed
 # to the screen. But without internal Windows API we cannot do better.
-DELETE_EOL = "\r" if is_windows() else (DELETE_EOL_VT100 + "\r")
+# DELETE_EOL = "\r" if is_windows() else (DELETE_EOL_VT100 + "\r")
+RESET_LINE = "\r" if is_windows() else (DELETE_LINE + "\r")
 
 # From readline docs
 # declared in `readline.h'

@@ -442,74 +442,74 @@ def cp(src: Path, dest: Path):
 
 
 
-def run_attached(cmd: str, stderr_redirect: int = None):
-    """ Run a command while being attached to this terminal """
-    log.d(f"subprocess.Popen({cmd})")
-    proc = subprocess.Popen(cmd, shell=True, text=True, stderr=stderr_redirect)
-    proc.wait()
-    return proc.returncode
+# def run_attached(cmd: str, stderr_redirect: int = None):
+#     """ Run a command while being attached to this terminal """
+#     log.d(f"subprocess.Popen({cmd})")
+#     proc = subprocess.Popen(cmd, shell=True, text=True, stderr=stderr_redirect)
+#     proc.wait()
+#     return proc.returncode
 
-
-def run_detached(cmd: str,
-                 stdout_hook: Callable[[str], None],
-                 stderr_hook: Callable[[str], None],
-                 end_hook: Callable[[int], None]) -> Tuple[subprocess.Popen, threading.Thread]:
-    """
-    Run a command, reporting stdout and stderr of the process outside.
-    The stdin can be provided writing on proc.stdin of this subprocess
-    """
-
-    def out_handler(proc: subprocess.Popen):
-        flags = fcntl.fcntl(proc.stdout, fcntl.F_GETFL)
-        fcntl.fcntl(proc.stdout, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-
-        try:
-            while proc.poll() is None:
-                rlist, wlist, xlist = select.select([proc.stdout, proc.stderr], [], [], 0.04)
-
-                if proc.stdout in rlist:
-                    line = proc.stdout.read()
-                    if line:
-                        if stdout_hook:
-                            stdout_hook(line)
-                elif proc.stderr in rlist:
-                    line = proc.stderr.read()
-                    if line:
-                        if stderr_hook:
-                            stderr_hook(line)
-            retcode = proc.returncode
-        except:
-            retcode = -1
-
-        end_hook(retcode) # Consider any exception as a shell failure
-
-        fcntl.fcntl(proc.stdout, fcntl.F_SETFL, flags)
-
-    popen_proc = subprocess.Popen(cmd, shell=True, text=True,
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE,
-                                  stdin=subprocess.PIPE)
-
-    proc_out_handler_th = threading.Thread(
-        target=out_handler, daemon=True, args=(popen_proc, ))
-    proc_out_handler_th.start()
-
-    return popen_proc, proc_out_handler_th
+#
+# def run_detached(cmd: str,
+#                  stdout_hook: Callable[[str], None],
+#                  stderr_hook: Callable[[str], None],
+#                  end_hook: Callable[[int], None]) -> Tuple[subprocess.Popen, threading.Thread]:
+#     """
+#     Run a command, reporting stdout and stderr of the process outside.
+#     The stdin can be provided writing on proc.stdin of this subprocess
+#     """
+#
+#     def out_handler(proc: subprocess.Popen):
+#         flags = fcntl.fcntl(proc.stdout, fcntl.F_GETFL)
+#         fcntl.fcntl(proc.stdout, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+#
+#         try:
+#             while proc.poll() is None:
+#                 rlist, wlist, xlist = select.select([proc.stdout, proc.stderr], [], [], 0.04)
+#
+#                 if proc.stdout in rlist:
+#                     line = proc.stdout.read()
+#                     if line:
+#                         if stdout_hook:
+#                             stdout_hook(line)
+#                 elif proc.stderr in rlist:
+#                     line = proc.stderr.read()
+#                     if line:
+#                         if stderr_hook:
+#                             stderr_hook(line)
+#             retcode = proc.returncode
+#         except:
+#             retcode = -1
+#
+#         end_hook(retcode) # Consider any exception as a shell failure
+#
+#         fcntl.fcntl(proc.stdout, fcntl.F_SETFL, flags)
+#
+#     popen_proc = subprocess.Popen(cmd, shell=True, text=True,
+#                                   stdout=subprocess.PIPE,
+#                                   stderr=subprocess.PIPE,
+#                                   stdin=subprocess.PIPE)
+#
+#     proc_out_handler_th = threading.Thread(
+#         target=out_handler, daemon=True, args=(popen_proc, ))
+#     proc_out_handler_th.start()
+#
+#     return popen_proc, proc_out_handler_th
 
 def pty_attached(cmd: str = "/bin/sh") -> int:
     """
     Run a command in a pseudo terminal, while being attached to this terminal.
     """
-    sh = "/bin/sh"
-    sh_args = [sh, "-c", cmd]
+    exec_bin = "/bin/sh"
+    exec_args = [exec_bin, "-c", cmd]
 
     master_read = pty._read
     stdin_read = pty._read
 
     pid, master_fd = pty.fork()
     if pid == pty.CHILD:
-        log.d(f"os.execv({sh}, {sh_args})")
-        os.execv(sh, sh_args)
+        log.d(f"os.execv({exec_bin}, {exec_args})")
+        os.execv(exec_bin, exec_args)
 
     tty_mode = None
     try:
@@ -541,8 +541,9 @@ def pty_detached(out_hook: Callable[[str], None],
     """
     cols, rows = terminal_size() # use the current terminal size for the pty
 
-    argv = lexer.split(cmd)
-    ptyproc = PtyProcessUnicode.spawn(argv, dimensions=(rows, cols))
+    exec_bin = "/bin/sh"
+    exec_args = [exec_bin, "-c", cmd]
+    ptyproc = PtyProcessUnicode.spawn(exec_args, dimensions=(rows, cols))
 
     def proc_handler():
         retcode = 0
@@ -565,4 +566,4 @@ def pty_detached(out_hook: Callable[[str], None],
 if __name__ == "__main__":
     from easyshare.logging import init_logging
     init_logging()
-    run_attached("cat ~/.esrc")
+    # run_attached("cat ~/.esrc")

@@ -9,7 +9,7 @@ from easyshare.utils.progress import Progressor
 class SimpleProgressor(Progressor):
 
     def _progress_string(self, progress_ratio: float, t: int):
-        cols, rows = terminal_size()
+        cols, rows = self._safe_terminal_size()
         # print("ratio: ", progress_ratio)
         return self._progress_bar_string(
             progress_bar_inner_width=cols - 2,

@@ -2,9 +2,11 @@ import math
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
+from os import get_terminal_size
 from typing import Tuple
 
 from easyshare.common import easyshare_setup
+from easyshare.consts import ansi
 from easyshare.logging import get_logger
 from easyshare.styling import fg
 from easyshare.utils.env import is_unicode_supported
@@ -197,9 +199,8 @@ class Progressor(ABC):
             # The \r at the end is needed if something else is printed during
             # the progress (so that it will overwrite the bar, and we will render
             # it again the next iter)
-            # DELETE_EOL could be used, but \r seems to work as well
-            # (since we write always a full line)
-            print("\r" + progress_line, end="" if inline else "\n", flush=True)
+            # \r should work as well (since we write always a full line)
+            print(ansi.RESET_LINE + progress_line, end="" if inline else "\n", flush=True)
 
     def __enter__(self):
         return self
@@ -247,6 +248,11 @@ class Progressor(ABC):
     @abstractmethod
     def _progress_string(self, progress_ratio: float, t: int):
         pass
+
+    @classmethod
+    def _safe_terminal_size(cls):
+        cols, rows = get_terminal_size()
+        return cols, rows
 
 if __name__ == "__main__":
     easyshare_setup()

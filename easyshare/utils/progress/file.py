@@ -82,7 +82,7 @@ class FileProgressor(Progressor):
         # Retrieve the terminal size for render properly
         percentage = int(100 * progress_ratio)
 
-        cols, rows = terminal_size()
+        cols, rows = self._safe_terminal_size()
 
         D = self._description
 

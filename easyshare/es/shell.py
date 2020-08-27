@@ -7,7 +7,7 @@ from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
 from easyshare.common import EASYSHARE_HISTORY
 from easyshare.consts import ansi
-from easyshare.es.client import Client
+from easyshare.es.client import Client, HandledKeyboardInterrupt
 from easyshare.es.errors import ClientErrors, print_errors
 from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls
@@ -17,7 +17,6 @@ from easyshare.res.helps import command_man
 from easyshare.styling import is_styling_enabled, red
 
 from easyshare.tracing import get_tracing_level, set_tracing_level
-from easyshare.utils import lexer
 from easyshare.utils.env import is_unicode_supported, has_gnureadline, has_pyreadline
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
@@ -148,7 +147,11 @@ class Shell:
         """ Returns whether the shell is able to handle 'commad' """
         return command in self._shell_command_dispatcher
 
-    def execute(self, cmd: str) ->  Union[int, str, List[str]]:
+    def execute(self, cmd: str):
+        outcome = self._execute(cmd)
+        print_errors(outcome)
+
+    def _execute(self, cmd: str) ->  Union[int, str, List[str]]:
         self._update_history()
 
         if not is_str(cmd):
@@ -185,7 +188,6 @@ class Shell:
             # More than a command, but one matches exactly
             command = resolved_cmd_prefix
 
-
         # Exactly a known command, execute it
         try:
             outcome = ClientErrors.COMMAND_NOT_RECOGNIZED
@@ -209,7 +211,6 @@ class Shell:
             exit(0)
         except KeyboardInterrupt:
             log.d("\nCTRL+C")
-
 
     def _execute_shell_command(self, command: str, command_suffix: str) -> Union[int, str, List[str]]:
         """ Executes the given 'command' using 'command_args' as arguments """
@@ -253,6 +254,7 @@ class Shell:
         # Show 'show all possibilities' if there are too many items
         readline.parse_and_bind("set completion-query-items 50")
         readline.parse_and_bind("set completion-ignore-case on")
+        readline.parse_and_bind("set echo-control-characters off")
 
         # Remove '-' from the delimiters for handle suggestions
         # starting with '-' properly and '/' for handle paths
@@ -546,16 +548,16 @@ class Shell:
         # Escape sequence must be wrapped into \001 and \002
         # so that readline can handle those well and deal with terminal/prompt
         # width properly
-
         # use a leading DELETE_EOL for overwrite eventual previously printed ^C
         # (won't overwrite the previous prompt since KeyboardInterrupt is captured
         # and prints a new line)
+        # prompt = IS + ansi.RESET_LINE + IE + \
 
-        prompt = IS + ansi.DELETE_EOL + IE + \
-            ((IS + B + M + IE + remote + IS + R + IE) if remote else "") + \
-            ((IS + B + IE + sep + IS + R + IE) if sep else "") + \
-            IS + B + C + IE + local + IS + R + IE + \
-            IS + B + IE + "> " + IS + R + IE
+        prompt = \
+                 ((IS + B + M + IE + remote + IS + R + IE) if remote else "") + \
+                 ((IS + B + IE + sep + IS + R + IE) if sep else "") + \
+                 IS + B + C + IE + local + IS + R + IE + \
+                 IS + B + IE + "> " + IS + R + IE
 
         return prompt
 
