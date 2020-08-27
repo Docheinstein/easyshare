@@ -17,9 +17,9 @@ sys.path.append(SCRIPT_PARENT_DIR)
 
 from easyshare.commands import CommandHelp, es
 from easyshare.commands.commands import COMMANDS_INFO
-from easyshare.commands.es import Es
-from easyshare.commands.esd import Esd
-from easyshare.commands.estools import EsTools
+from easyshare.commands.es import Es, EsUsage
+from easyshare.commands.esd import Esd, EsdUsage
+from easyshare.commands.estools import EsTools, EsToolsUsage
 from easyshare.utils.str import isorted
 
 
@@ -32,7 +32,7 @@ def section(name: str, content: str, indent: int = 4):
 
 
 def make_hmd(cmd: Type[CommandHelp]):
-    s = f"""
+    s = f"""\
 . =============================================
 . Automatically generated - {datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")}
 . =============================================
@@ -63,6 +63,9 @@ if __name__ == "__main__":
 
     cmds: List[Tuple[str, Type[CommandHelp]]] = \
         [(k, v) for k, v in COMMANDS_INFO.items()] + [
+            (EsUsage.helpname(), EsUsage),
+            (EsdUsage.helpname(), EsdUsage),
+            (EsToolsUsage.helpname(), EsToolsUsage),
             (Es.name(), Es),
             (Esd.name(), Esd),
             (EsTools.name(), EsTools),

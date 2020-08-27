@@ -15,6 +15,9 @@ log = get_logger(__name__)
 
 class ClientErrors:
     """ Client side errors """
+
+    SUCCESS =                         0
+
     ERR_0 =                          97
     ERR_1 =                          98
     ERR_2 =                          99

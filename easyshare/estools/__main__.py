@@ -5,9 +5,9 @@ from getpass import getpass
 
 from easyshare.args import ArgsParseError
 from easyshare.auth import AuthScrypt
+from easyshare.commands.estools import EsToolsUsage, EsTools
 from easyshare.common import APP_INFO, easyshare_setup
-from easyshare.helps.estools import EsTools
-from easyshare.res.helps import get_command_usage
+from easyshare.res.helps import command_usage
 from easyshare.utils import abort, terminate
 
 
@@ -28,6 +28,16 @@ def generate_esd_conf():
     esd_conf_b = pkgutil.get_data("easyshare.res", "esd.conf")
     esd_conf_s = str(esd_conf_b, encoding="UTF-8")
     print(esd_conf_s)
+
+
+def generate_esrc():
+    """
+    Print the default esd configuration file.
+    """
+    esrc_b = pkgutil.get_data("easyshare.res", ".esrc")
+    esrc_s = str(esrc_b, encoding="UTF-8")
+    print(esrc_s)
+
 
 def ask_and_generate_ssl_certificate():
     """
@@ -62,7 +72,8 @@ def main():
 
     # Help?
     if EsTools.HELP in args:
-        terminate(get_command_usage(EsTools.name()))
+        command_usage(EsToolsUsage.helpname())
+        terminate()
 
     # Version?
     if EsTools.VERSION in args:
@@ -75,6 +86,10 @@ def main():
         generate_esd_conf()
         return
 
+    if EsTools.GENERATE_ESRC in args:
+        generate_esrc()
+        return
+
     if EsTools.GENERATE_PASSWORD in args:
         pw = args.get_option_param(EsTools.GENERATE_PASSWORD)
         generate_password(pw)
@@ -83,16 +98,18 @@ def main():
     # If no mode is specified, ask the user what to do
     TOOLS = {
         "1": (ask_and_generate_password, "PASSWORD GENERATOR"),
-        "2": (generate_esd_conf, "ESD CONFIG GENERATOR"),
-        "3": (ask_and_generate_ssl_certificate, "SSL CERTIFICATE GENERATOR")
+        "2": (generate_esd_conf, "esd.conf GENERATOR"),
+        "3": (generate_esrc, ".esrc GENERATOR"),
+        "4": (ask_and_generate_ssl_certificate, "SSL CERTIFICATE GENERATOR")
     }
     try:
         while True:
             choice = input(
                 "What do you want to do?\n"
                 "1. Generate an hash of a password (hash)\n"
-                "2. Generate the default server configuration file\n"
-                "3. Generate a self signed SSL certificate\n"
+                "2. Generate the default server configuration file (esd.conf)\n"
+                "3. Generate the default server configuration file (.esrc)\n"
+                "4. Generate a self signed SSL certificate\n"
             )
             if choice in TOOLS:
                 func, funcname = TOOLS[choice]

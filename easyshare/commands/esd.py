@@ -215,3 +215,19 @@ trace=1
 []
     path="/tmp/afile"\
 """
+
+
+class EsdUsage(Esd):
+    @classmethod
+    def helpname(cls):
+        return cls.name() + ".usage"
+
+    @classmethod
+    def long_description(cls):
+        return f"""\
+**esd** is the server of *easyshare*, a client-server command line application 
+written in Python for transfer files between network hosts."""
+
+    @classmethod
+    def examples(cls):
+        return ""

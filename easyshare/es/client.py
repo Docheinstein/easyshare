@@ -385,7 +385,7 @@ class Client:
 
         try:
             executor(args, None) # will be provided by decorators
-            return 0
+            return ClientErrors.SUCCESS
 
         except CommandExecutionError as ex:
             # "Expected" fail
@@ -2658,8 +2658,9 @@ class Client:
                 except:
                     log.w("Connection cannot be established directly %s SSL",
                           "with" if server_ssl else "without")
-                    # Invalidate connection
-                    server_conn.destroy_connection()
+                    if server_conn:
+                        # Invalidate connection
+                        server_conn.destroy_connection()
                     server_conn = None
 
                 if not server_ssl:

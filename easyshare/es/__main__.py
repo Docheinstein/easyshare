@@ -10,7 +10,7 @@ from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT, APP_VERSION
 from easyshare.conf import Conf, INT_VAL, BOOL_VAL, ConfParseError, STR_VAL
 from easyshare.es.client import Client
 from easyshare.es.shell import Shell
-from easyshare.commands.es import Es
+from easyshare.commands.es import Es, EsUsage
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_usage
 from easyshare.styling import enable_styling
@@ -59,6 +59,7 @@ class EsrcKeys:
     G_NO_COLOR =  "no_color"
     G_DISCOVER_PORT = "discover_port"
     G_DISCOVER_WAIT = "discover_wait"
+    G_SHELL_PASSTHROUGH = "shell"
     G_ALIAS = "alias (\S+)"
 
 
@@ -71,6 +72,8 @@ ESRC_SPEC = {
         EsrcKeys.G_VERBOSE: INT_VAL,
         EsrcKeys.G_TRACE: INT_VAL,
         EsrcKeys.G_NO_COLOR: BOOL_VAL,
+
+        EsrcKeys.G_SHELL_PASSTHROUGH: BOOL_VAL,
 
         EsrcKeys.G_ALIAS: STR_VAL,
     },
@@ -113,6 +116,7 @@ def main():
     verbosity = logging.VERBOSITY_NONE
     tracing = TRACING_NONE
     no_colors = False
+    shell_passthrough = False
     discover_port = DEFAULT_DISCOVER_PORT
     discover_wait = DEFAULT_DISCOVER_TIMEOUT
     aliases: List[Tuple[str, str]] = []
@@ -135,6 +139,7 @@ def main():
             log.w(f"Failed to write default {EASYSHARE_ES_CONF} file")
 
     if esrc_path.exists():
+        esrc = None
         try:
             esrc = Conf.parse(
                 path=str(esrc_path),
@@ -165,6 +170,11 @@ def main():
             no_colors = global_section.get(
                 EsrcKeys.G_NO_COLOR,
                 no_colors
+            )
+
+            shell_passthrough = global_section.get(
+                EsrcKeys.G_SHELL_PASSTHROUGH,
+                shell_passthrough
             )
 
             tracing = global_section.get(
@@ -224,6 +234,12 @@ def main():
         default=discover_wait
     )
 
+    # Shell passthrough
+    shell_passthrough = args.get_option_param(
+        Es.SHELL_PASSTHROUGH,
+        default=shell_passthrough
+    )
+
     # Validation
 
     # - ports
@@ -255,7 +271,7 @@ def main():
                     discover_timeout=discover_wait)
 
     # Initialize the shell as well
-    shell = Shell(client)
+    shell = Shell(client, passthrough=shell_passthrough)
 
     # Add the aliases, if any
     for (source, target) in aliases:
@@ -288,7 +304,7 @@ def main():
 
 def _print_usage_and_quit():
     """ Prints the es usage and exit """
-    command_usage(Es.name())
+    command_usage(EsUsage.helpname())
     terminate()
 
 

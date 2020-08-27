@@ -146,25 +146,6 @@ class CommandInfo(CommandHelp, ABC):
                                  max_columns=1)
 
 
-# dummy
-class CommandAlias(CommandInfo):
-    @classmethod
-    def synopsis(cls) -> str:
-        pass
-
-    @classmethod
-    def short_description(cls) -> str:
-        pass
-
-    @classmethod
-    def long_description(cls) -> str:
-        pass
-
-    @classmethod
-    def name(cls) -> str:
-        pass
-
-
 
 class FilesSuggestionsCommandInfo(CommandInfo):
     """ Base suggestions provided of list of files/directory """

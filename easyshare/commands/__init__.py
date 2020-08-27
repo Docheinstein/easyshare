@@ -45,8 +45,9 @@ class CommandOptionInfo:
         return f"{(aliases + ('  ' if params else '') + params).ljust(justification)}{description}"
 
 
-class CommandUsage(ABC):
-    """ Provide minimal information of a command (name, synopsis, options) """
+class CommandHelp(ABC):
+    """ Provide full information of a command, ideal for a man page """
+
     @classmethod
     @abstractmethod
     def name(cls) -> str:
@@ -63,17 +64,6 @@ class CommandUsage(ABC):
     def options(cls) -> List[CommandOptionInfo]:
         # e.g. [("-c", "--config", "config file"), ...]
         return []
-
-    @classmethod
-    def see_also(cls) -> Optional[str]:
-        return None
-
-    def __str__(self):
-        return self.name()
-
-
-class CommandHelp(CommandUsage):
-    """ Provide full information of a command, ideal for a man page """
 
     @classmethod
     @abstractmethod
@@ -93,9 +83,8 @@ class CommandHelp(CommandUsage):
         return None
 
     @classmethod
-    def custom(cls) -> Optional[str]:
-        """
-        Override for treat this as a custom command for which the other
-        fields don't make sense (e.g. an alias)
-        """
+    def see_also(cls) -> Optional[str]:
         return None
+
+    def __str__(self):
+        return self.name()

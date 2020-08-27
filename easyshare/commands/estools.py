@@ -9,7 +9,8 @@ class EsTools(CommandHelp, ArgsSpec):
     VERSION = ["-V", "--version"]
 
     GENERATE_PASSWORD = ["-p", "--hash-password"]
-    GENERATE_ESD_CONF = ["-c", "--generate-config"]
+    GENERATE_ESD_CONF = ["-s", "--generate-server-config"]
+    GENERATE_ESRC = ["-c", "--generate-client-config"]
 
     def options_spec(self) -> Optional[List[Option]]:
         return [
@@ -17,6 +18,7 @@ class EsTools(CommandHelp, ArgsSpec):
             (self.VERSION, PRESENCE_PARAM),
             (self.GENERATE_PASSWORD, STR_PARAM),
             (self.GENERATE_ESD_CONF, PRESENCE_PARAM),
+            (self.GENERATE_ESRC, PRESENCE_PARAM),
         ]
 
 
@@ -26,7 +28,8 @@ class EsTools(CommandHelp, ArgsSpec):
             CommandOptionInfo(cls.HELP, "show this help"),
             CommandOptionInfo(cls.VERSION, "show the easyshare version"),
             CommandOptionInfo(cls.GENERATE_PASSWORD, "generate an hash of the password", params=["password"]),
-            CommandOptionInfo(cls.GENERATE_ESD_CONF, "generate default esd.conf file"),
+            CommandOptionInfo(cls.GENERATE_ESD_CONF, "generate default esd.conf file (server)"),
+            CommandOptionInfo(cls.GENERATE_ESRC, "generate default .esrc file (client)"),
         ]
 
     @classmethod
@@ -52,7 +55,7 @@ class EsTools(CommandHelp, ArgsSpec):
         return """\
 Collection of tools for administrators of easyshare servers.
 
-If neither **-c** nor **-p** is given, an interactive script is started and you will \
+If neither **-c**, **-s**, nor **-p** is given, an interactive script is started and you will \
 be asked what to do."""
 
     @classmethod
@@ -76,5 +79,16 @@ Usage example:
     **es-tools**
     What do you want to do?
     1. Generate an hash of a password (hash)
-    2. Generate the default server configuration file
-    3. Generate a self signed SSL certificate"""
+    2. Generate the default server configuration file (esd.conf)
+    3. Generate the default server configuration file (.esrc)
+    4. Generate a self signed SSL certificate"""
+
+
+class EsToolsUsage(EsTools):
+    @classmethod
+    def helpname(cls):
+        return cls.name() + ".usage"
+
+    @classmethod
+    def examples(cls):
+        return ""

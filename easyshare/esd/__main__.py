@@ -12,7 +12,7 @@ from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.common import Sharing
 from easyshare.esd.daemons.api import ApiDaemon
 from easyshare.esd.daemons.discover import DiscoverDaemon
-from easyshare.commands.esd import Esd
+from easyshare.commands.esd import Esd, EsdUsage
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.res.helps import command_usage
@@ -638,7 +638,7 @@ Version:            {APP_VERSION}
 
 def _print_usage_and_quit():
     """ Prints the esd usage and exit """
-    command_usage(Esd.name())
+    command_usage(EsdUsage.helpname())
     terminate()
 
 

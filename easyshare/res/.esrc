@@ -1,4 +1,17 @@
+# verbose=0
+# discover_port=12019
+
+# Makes all the shell commands available from easyshare shell
+shell=true
+
+# Aliases
+alias s=scan
+alias t=trace
+
 alias l=ls -la
 alias rl=rls -la
+
 alias :=exec
 alias ::=rexec
+
+alias vv=v 4

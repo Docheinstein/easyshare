@@ -10,7 +10,7 @@ from easyshare.consts import ansi
 from easyshare.es.client import Client
 from easyshare.es.errors import ClientErrors, print_errors
 from easyshare.es.ui import print_tabulated, StyledString
-from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo
+from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls
 from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_man
@@ -62,7 +62,9 @@ class Shell:
 
     # Quoting/Escaping GNU rline tutorial
     # https://thoughtbot.com/blog/tab-completion-in-gnu-rline
-    def __init__(self, client: Client):
+    def __init__(self, client: Client, passthrough: bool=False):
+        log.i(f"Shell passthrough = {passthrough}")
+
         self._aliases: Dict[str, str] = {}
         self._available_commands: Dict[str, Type[CommandInfo]] = dict(COMMANDS_INFO)
 
@@ -83,7 +85,7 @@ class Shell:
 
         self._prompt_local_remote_sep = "\u2014" if is_unicode_supported() else "-"
 
-        self._help_map = None
+        self._passthrough = passthrough
 
         self._init_rline()
 
@@ -146,7 +148,70 @@ class Shell:
         """ Returns whether the shell is able to handle 'commad' """
         return command in self._shell_command_dispatcher
 
-    def execute_shell_command(self, command: str, command_suffix: str) -> Union[int, str, List[str]]:
+    def execute(self, cmd: str) ->  Union[int, str, List[str]]:
+        self._update_history()
+
+        if not is_str(cmd):
+            log.e("Invalid command")
+            return ClientErrors.INVALID_COMMAND_SYNTAX
+
+        log.d(f"Before alias resolution: {cmd}")
+        resolved_cmd_prefix, resolved_cmd_suffix = self._resolve_alias(cmd, as_string=False)
+        log.d(f"resolved_cmd_prefix: {resolved_cmd_prefix}")
+        log.d(f"resolved_cmd_suffix: {resolved_cmd_suffix}")
+        # 'command_prefix' might be partial (unique prefix of a valid command)
+        commands = self._commands_for(resolved_cmd_prefix, resolve_alias=False)
+        log.d(f"Commands found: {commands}")
+
+        # No command
+        if len(commands) == 0:
+            if self._passthrough:
+                log.d("Passing unknown command to underlying shell due to passthrough")
+                return self._client.execute_command(Commands.LOCAL_SHELL, cmd)
+
+            return ClientErrors.COMMAND_NOT_RECOGNIZED
+
+        # More than a command for this prefix
+        if len(commands) > 1 and resolved_cmd_prefix not in commands:
+            print("Available commands: ")
+            for comm in isorted(commands):
+                print(red(resolved_cmd_prefix) + comm[len(resolved_cmd_prefix):])
+            return ClientErrors.SUCCESS
+
+        if len(commands) == 1:
+            # Just 1 command found
+            command = commands[0]
+        else:
+            # More than a command, but one matches exactly
+            command = resolved_cmd_prefix
+
+
+        # Exactly a known command, execute it
+        try:
+            outcome = ClientErrors.COMMAND_NOT_RECOGNIZED
+
+            if self.has_command(command):
+                outcome = self._execute_shell_command(command, resolved_cmd_suffix)
+            elif self._client.has_command(command):
+                outcome = self._client.execute_command(command, resolved_cmd_suffix)
+
+            log.d(f"Command outcome: {outcome}")
+
+            return outcome
+        except ConnectionError:
+            log.exception("Connection error occurred %s")
+            print_errors(ClientErrors.CONNECTION_ERROR)
+            self._client.destroy_connection()
+        except EOFError:
+            log.i("\nCTRL+D: exiting")
+            self._client.destroy_connection()
+            # for consistency with CTRL+D typed while reading command, exit
+            exit(0)
+        except KeyboardInterrupt:
+            log.d("\nCTRL+C")
+
+
+    def _execute_shell_command(self, command: str, command_suffix: str) -> Union[int, str, List[str]]:
         """ Executes the given 'command' using 'command_args' as arguments """
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED
@@ -166,109 +231,10 @@ class Shell:
 
         try:
             executor(args)
+            return ClientErrors.SUCCESS
         except Exception as ex:
             log.exception("Exception caught while executing command\n%s", ex)
             return ClientErrors.COMMAND_EXECUTION_FAILED
-
-        return 0
-
-    def execute(self, cmd: str):
-        self._update_history()
-
-        if not is_str(cmd):
-            log.e("Invalid command")
-            return
-
-        def split_first_space(string, keep_space=False):
-            space = string.find(" ")
-            if space < 0:
-                return string, ""
-            return string[:space], string[space+(0 if keep_space else 1):]
-
-
-        # We cannot split the command line yet, because the actual split
-        # depends on the specific commands (in general its always the same,
-        # apart from the shell commands, e.g. exec, which have to keep the quotes
-        # at the arguments in order to work properly).
-        # For now we only want to detect the command by doing a minimal splitting
-        # (plus alias resolving)
-        #
-        # command_prefix, command_suffix = split_first_space(cmd, keep_space=True)
-        #
-        # # Eventually translate the alias
-        # # DANGER ZONE: the resolution is recursive, this might lead to
-        # # an infinite loop if the alias is cyclic
-        # for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
-        #     prev_command_prefix = command_prefix
-        #     command_prefix = self._resolve_alias(command_prefix, default=command_prefix)
-        #
-        #     x1, x2 = split_first_space(command_prefix, keep_space=False)
-        #     # If the alias produces new args, append those to the trailing part
-        #     # log.d(f"x1: '{x1}'")
-        #     # log.d(f"x2: '{x2}'")
-        #
-        #     command_prefix = x1
-        #     command_suffix = x2 + command_suffix
-        #
-        #     log.d(f"CMD: {command_prefix}")
-        #     log.d(f"CMD suffix: {command_suffix}")
-        #
-        #     if command_prefix == prev_command_prefix:
-        #         break
-        # else:
-        #     print_errors(f"Infinite alias substitution detected - "
-        #                  f"fix {EASYSHARE_ES_CONF} file")
-        #
-        log.d(f"Before alias resolution: {cmd}")
-        resolved_cmd_prefix, resolved_cmd_suffix = self._resolve_alias(cmd, as_string=False)
-        log.d(f"resolved_cmd_prefix: {resolved_cmd_prefix}")
-        log.d(f"resolved_cmd_suffix: {resolved_cmd_suffix}")
-        # 'command_prefix' might be partial (unique prefix of a valid command)
-        commands = self._commands_for(resolved_cmd_prefix, resolve_alias=False)
-        log.d(f"Commands found: {commands}")
-
-        # No command
-        if len(commands) == 0:
-            print_errors(f"Unknown command: '{cmd}'")
-            return
-
-        # More than a command for this prefix
-        if len(commands) > 1 and resolved_cmd_prefix not in commands:
-            print("Available commands: ")
-            for comm in isorted(commands):
-                print(red(resolved_cmd_prefix) + comm[len(resolved_cmd_prefix):])
-            return
-
-        if len(commands) == 1:
-            # Just 1 command found
-            command = commands[0]
-        else:
-            # More than a command, but one matches exactly
-            command = resolved_cmd_prefix
-
-
-        # Exactly a known command, execute it
-        try:
-            outcome = ClientErrors.COMMAND_NOT_RECOGNIZED
-
-            if self.has_command(command):
-                pass
-                outcome = self.execute_shell_command(command, resolved_cmd_suffix)
-            elif self._client.has_command(command):
-                outcome = self._client.execute_command(command, resolved_cmd_suffix)
-
-            print_errors(outcome)
-        except ConnectionError:
-            log.exception("Connection error occurred %s")
-            print_errors(ClientErrors.CONNECTION_ERROR)
-            self._client.destroy_connection()
-        except EOFError:
-            log.i("\nCTRL+D: exiting")
-            self._client.destroy_connection()
-            # for consistency with CTRL+D typed while reading command, exit
-            exit(0)
-        except KeyboardInterrupt:
-            log.d("\nCTRL+C")
 
     # noinspection PyUnresolvedReferences
     def _init_rline(self):
@@ -411,6 +377,7 @@ class Shell:
         def unescape(s: str):
             return s.replace("\\ ", " ")
 
+
         try:
             log.d(f"next_suggestion, token='{token}' | count={count}")
 
@@ -470,6 +437,14 @@ class Shell:
                         log.d("Fetching suggestions for COMMAND COMPLETION of '%s'", comm_resolved_name)
                         self._suggestions_intent.suggestions.append(StyledString(comm_name))
 
+
+                # If there are no suggestions and we are doing shell passthrough
+                # show the local files (probably the user command acts on those)
+                if not self._suggestions_intent.suggestions and self._passthrough:
+                    log.d("Showing local files as suggestions as fallback, "
+                          "since shell passthrough is enabled")
+                    self._suggestions_intent = Ls.suggestions(token, self._client) \
+                                               or self._suggestions_intent
 
                 findings = None
                 if re.match(Shell.LOCAL_FINDINGS_RE, token):
@@ -700,11 +675,15 @@ class Shell:
             log.d(f"Current resolution: comm='{leading}' suffix='{trailing}'")
 
             resolved = resolve_alias_strict(leading)
-            log.d(f"Resolution: {resolved}")
 
             if not resolved:
                 break
 
+            if resolved.startswith(leading + " "):
+                log.w("Stopping resolution since target starts with source")
+                break
+
+            log.d(f"Resolution: {resolved}")
 
         if not as_string:
             return leading, trailing
@@ -737,7 +716,7 @@ class Shell:
         set_tracing_level(level)
 
         print(f"Tracing = {level} ({_TRACING_EXPLANATION_MAP.get(level, '<unknown>')})")
-        return 0
+        return ClientErrors.SUCCESS
 
     @staticmethod
     def _verbose(args: Args) -> Union[int, str]:
@@ -760,4 +739,4 @@ class Shell:
 
         print(f"Verbosity = {verbosity} ({_VERBOSITY_EXPLANATION_MAP.get(verbosity, '<unknown>')})")
 
-        return 0
+        return ClientErrors.SUCCESS
