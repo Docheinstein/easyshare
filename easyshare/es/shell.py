@@ -438,15 +438,14 @@ class Shell:
                         # Case 1: complete command
                         log.d("Fetching suggestions for COMMAND COMPLETION of '%s'", comm_resolved_name)
                         self._suggestions_intent.suggestions.append(StyledString(comm_name))
-
-
                 # If there are no suggestions and we are doing shell passthrough
                 # show the local files (probably the user command acts on those)
-                if not self._suggestions_intent.suggestions and self._passthrough:
-                    log.d("Showing local files as suggestions as fallback, "
-                          "since shell passthrough is enabled")
-                    self._suggestions_intent = Ls.suggestions(token, self._client) \
-                                               or self._suggestions_intent
+                else:
+                    if self._passthrough:
+                        log.d("Showing local files as suggestions as fallback, "
+                              "since shell passthrough is enabled")
+                        self._suggestions_intent = Ls.suggestions(token, self._client) \
+                                                   or self._suggestions_intent
 
                 findings = None
                 if re.match(Shell.LOCAL_FINDINGS_RE, token):
