@@ -498,7 +498,7 @@ class ArgsSpec:
             args = self.split_args(args)
 
         if not is_list(args):
-            raise TypeError("args must be a list")
+            raise TypeError(f"args must be a list, found {type(args)}")
 
         return Args.parse(
             args=args,
@@ -517,7 +517,7 @@ class ArgsSpec:
         return None
 
     def split_args(self, args: str) -> List[str]:
-        return lexer.split(args, keepquotes=False)
+        return lexer.split(args)
 
 
 class PosArgsSpec(ArgsSpec):

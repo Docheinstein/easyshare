@@ -87,39 +87,23 @@ class SharingArgs(VarArgsSpec):
 
     def continue_parsing_hook(self) -> Optional[Callable[[str, ArgType, int, Args, List[str]], bool]]:
         # Usually there is no need to do this kind of check for arguments parsing
-        # but in this way we can break the parsing if we found an unknown option
-        # which enables tricks such as not parsing if a -s (esd option) is found,
-        # therefore allows a chain of -s sharing -s sharing ...
+        # but in this way we can break the parsing if we found a -s while we
+        # have already handled a sharing definition; this allows a chain
+        # of -s sharing -s sharing ...
         def continue_parsing_func(argname, argtype, idx, args, positionals):
-            nonlocal self
-            if argtype == ArgType.OPTION and argname in SharingArgs.SHARING:
-                if SharingArgs.get_sharing_params(args):
-                    log.d("Breaking -s chain, sharing params already found")
-                    return False # break the chain
-                log.d("Found the first -s, the next one will break the chain")
+            # log.d(f"continue_parsing_func of ({argname}, {argtype}, "
+            #       f"{idx}, args={args}, positionals={positionals})")
+
+            if (argtype == ArgType.OPTION and argname in SharingArgs.SHARING) and \
+                (positionals or args.get_option_param(SharingArgs.SHARING)):
+                log.d("Breaking -s chain, sharing definition already found")
+                return False # break the chain
+
+            log.d("First sharing definition, the next one will break the chain")
 
             return True
 
         return continue_parsing_func
-
-    @staticmethod
-    def get_sharing_params(args: Args) -> Optional[List[str]]:
-        if not args:
-            log.w("Can't provide sharings params, args not parsed yet?")
-            return None # not parsed yet
-
-        sharings_params = args.get_option_params(SharingArgs.SHARING) # -s params
-        if sharings_params:
-            log.d("Providing sharing params from -s option")
-            return sharings_params
-
-        sharings_params = args.get_positionals() # positionals, without -s
-        if sharings_params:
-            log.d("Providing sharing params from positionals")
-            return sharings_params
-
-        return None
-
 
 class EsdConfKeys:
     """ Keys of the configuration file of esd (-c config)"""
@@ -435,41 +419,39 @@ def main():
 
 
     # Parse sharing arguments
+    # We have to be careful since we could find the name/path either
+    # in positionals or in the params of "-s"
     # This might come either from
     # 1. Positional arguments (no -s specified), only a sharing can be provided
     # 2. Params of a -s option (multiple sharings can be provided)
 
-    s_unparsed = g_args.get_unparsed_args()
+    s_unparsed = g_args.get_unparsed_args(default=[])
 
-    while s_unparsed:
-        log.d("Found %d unparsed args: considering those sharing args", len(s_unparsed))
-
-        s_args = None
-
-        try:
+    try:
+        while True:
             s_args = SharingArgs().parse(s_unparsed)
-        except ArgsParseError as err:
-            log.exception("Exception occurred while parsing args")
-            abort("parse of sharing arguments failed: {}".format(str(err)))
+            log.d(f"s_args: {s_args}")
+            sharing_params = \
+                s_args.get_option_params(SharingArgs.SHARING) or \
+                s_args.get_positionals()
+            log.d(f"sharing_params: {sharing_params}")
 
-        # We have to be careful since we could find the name/path either
-        # in positionals or in the params of "-s"
-        sharing_params = SharingArgs.get_sharing_params(s_args)
+            if not sharing_params:
+                break
 
-        if sharing_params:
-
-            add_sharing_or_die(
+            add_sharing(
                 path=sharing_params[0],
                 name=sharing_params[1] if len(sharing_params) >= 2 else None,
                 readonly=s_args.get_option_param(SharingArgs.READ_ONLY)
             )
 
-            s_unparsed = s_args.get_unparsed_args() # eventually other -s definitions
-        else:
-            # else - break the chain (discard eventual junk in unparsed args)
-            log.w("No sharing params, discarding trailing junk: %s", s_args.get_unparsed_args())
+            # Parse the unparsed args (other -s sharing definitions)
+            s_unparsed = s_args.get_unparsed_args(default=[])
+            log.d(f"s_unparsed: {s_unparsed}")
 
-
+    except ArgsParseError as err:
+        log.exception("Exception occurred while parsing args")
+        abort("Parse of sharing arguments failed: {}".format(str(err)))
 
     g_args.get_option_params(Esd.SHARING)
 
