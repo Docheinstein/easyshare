@@ -11,5 +11,5 @@ __pycache__
 /.tox/
 .pytest_cache
 /build/
-/easyshare/res/helps
+/easyshare/res/helps/*
 !/easyshare/res/helps/__init__.py
