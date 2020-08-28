@@ -12,3 +12,4 @@ __pycache__
 .pytest_cache
 /build/
 /easyshare/res/helps
+!/easyshare/res/helps/__init__.py

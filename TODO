@@ -13,6 +13,5 @@
 - fix 1000MB might happen => 1 characters of space to keep into account
 - -S does not work
 - why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
-- Consider whether removing exec/rexec in place of sh, rsh
 - GUI?
 - transfer referses order (GET 10 11 12..)
