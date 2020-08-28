@@ -394,7 +394,10 @@ class Client:
             err = ex.errors if ex.errors else ClientErrors.COMMAND_EXECUTION_FAILED
             log.exception("CommandExecutionError: %s", err)
             return err
-
+        except ConnectionError as ex:
+            err = os_error_str(ex) or ClientErrors.COMMAND_EXECUTION_FAILED
+            log.exception("ConnectionError: %s", err)
+            return err
         except Exception as ex:
             # Every other unexpected fail: destroy connection
             log.exception("Exception caught while executing command\n%s", ex)
