@@ -693,7 +693,31 @@ class Shell:
 
     def _help(self, args: Args) -> NoReturn:
         cmd = args.get_positional(default="usage")
-        command_man(cmd)
+        commands = self._commands_for(cmd, resolve_alias=False)
+
+        ok = False
+
+        target = self._resolve_alias(cmd, recursive=False)
+        if target:
+            print(f"'{cmd}' alias for '{target}'")
+            ok = True
+        else:
+            log.w("Neither a command nor an alias: '{cmd}'")
+
+        if not ok:
+            if commands:
+                if len(commands) == 1:
+                    command = commands[0]
+                    log.d(f"{cmd} resolve into known {command}")
+                    ok = command_man(command)
+                elif len(commands) > 1:
+                    print("Available commands: ")
+                    for comm in isorted(commands):
+                        print(red(cmd) + comm[len(cmd):])
+                    ok = True
+
+        if not ok:
+            print(f"Can't provide help for '{cmd}'")
 
     @staticmethod
     def _exit(_: Args) -> NoReturn:

@@ -15,7 +15,7 @@ sys.path.append(SCRIPT_PARENT_DIR)
 
 # Now we can import easyshare stuff
 
-from easyshare.commands import CommandHelp, es
+from easyshare.commands import es, CommandHelp
 from easyshare.commands.commands import COMMANDS_INFO
 from easyshare.commands.es import Es, EsUsage
 from easyshare.commands.esd import Esd, EsdUsage

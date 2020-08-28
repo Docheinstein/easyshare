@@ -3,15 +3,14 @@
 - Handle addresses instead of numeric IPs
 - Info/debug messages re-partition
 - ctr+c while transferring
-- tree error not exists
 - don't throw commexecerror on xls() xtree() xfind()
 - errors refactor
 - don't show "." in put -p
 - s now is -NS not only -N
 - fix get for FILEs which adds \.
-- rsh is broken... (only zsh?)
 - fix 1000MB might happen => 1 characters of space to keep into account
 - -S does not work
 - why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
 - GUI?
 - transfer referses order (GET 10 11 12..)
+- help alias

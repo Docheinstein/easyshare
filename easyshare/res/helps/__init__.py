@@ -13,24 +13,26 @@ _usage_map: Optional[Dict[str, str]] = None
 log = get_logger(__name__)
 
 
-def command_usage(cmd: str) -> Optional[str]:
+def command_usage(cmd: str) -> bool:
     hmd_content = _load_command_content(cmd)
 
     if not hmd_content:
-        print(f"Can't provide help for command '{cmd}'")
-        return None
+        return False
 
     print(HMD(hmd_filter=text_filter).convert(hmd_content))
 
+    return True
 
-def command_man(cmd: Union[str, None]) -> Optional[str]:
+
+def command_man(cmd: Union[str, None]) -> bool:
     hmd_content = _load_command_content(cmd)
 
     if not hmd_content:
-        print(f"Can't provide help for command '{cmd}'")
-        return None
+        return False
 
     HMD(hmd_filter=ansii_filter if is_styling_enabled() else text_filter).render(hmd_content)
+
+    return True
 
 
 def _load_command_content(cmd: str) -> Optional[str]:

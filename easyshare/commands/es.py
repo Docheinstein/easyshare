@@ -29,8 +29,7 @@ cp                  copy files and directories locally
 mv                  move files and directories locally
 rm                  remove files and directories locally
 find                search for local files
-exec                execute an arbitrary command locally
-shell               start a local shell
+shell               start a local shell or execute a local command
 
 rpwd                show the name of current remote working directory
 rls                 list remote directory content
@@ -42,8 +41,7 @@ rcp                 copy files and directories remotely
 rmv                 move files and directories remotely
 rrm                 remove files and directories remotely
 rfind               search for local files
-rexec               execute an arbitrary command remotely
-rshell              start a remote shell
+rshell              start a remote shell or execute a remote command
 
 info                show information about the remote server
 list                list the sharings of the remote server

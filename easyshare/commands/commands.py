@@ -47,7 +47,6 @@ class Commands:
     LOCAL_COPY = "cp"
     LOCAL_MOVE = "mv"
     LOCAL_REMOVE = "rm"
-    LOCAL_EXEC = "exec"
     LOCAL_SHELL = "shell"
 
     REMOTE_CURRENT_DIRECTORY = "rpwd"
@@ -61,7 +60,6 @@ class Commands:
     REMOTE_COPY = "rcp"
     REMOTE_MOVE = "rmv"
     REMOTE_REMOVE = "rrm"
-    REMOTE_EXEC = "rexec"
     REMOTE_SHELL = "rshell"
 
     SCAN = "scan"
@@ -443,14 +441,16 @@ class Help(CommandInfo):
     @classmethod
     def synopsis(cls):
         return """\
-**help** [*COMMAND*]\
+**help** [*COMMAND_OR_ALIAS*]\
 """
 
     @classmethod
     def long_description(cls):
         comms = "\n".join(["    " + comm for comm in sorted(COMMANDS_INFO.keys())])
         return f"""\
-Show the help of *COMMAND* if specified, or show the list of commands if no *COMMAND* is given.
+Show the help of *COMMAND_OR_ALIAS* if specified, or show the list of commands if no *COMMAND* is given.
+
+*COMMAND_OR_ALIAS* can either be a default command or a custom alias (read from .esrc).
 
 Available commands are:
 {comms}"""
