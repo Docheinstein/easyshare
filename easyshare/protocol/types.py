@@ -222,8 +222,8 @@ class PutNextResponse:
 
 
 class RexecEventType:
-    TEXT =      0
-    TEXT_B =    itob(TEXT, length=1)
+    DATA =      0
+    DATA_B =    itob(DATA, length=1)
 
     RETCODE =   1
     RETCODE_B = itob(RETCODE, length=1)

@@ -324,7 +324,6 @@ class Client:
             Commands.LOCAL_REMOVE: (LOCAL, [Rm()], self.rm),
             Commands.LOCAL_MOVE: (LOCAL, [Mv()], self.mv),
             Commands.LOCAL_COPY: (LOCAL, [Cp()], self.cp),
-            # Commands.LOCAL_EXEC: (LOCAL, [Exec()], self.exec),
             Commands.LOCAL_SHELL: (LOCAL, [Shell()], self.shell),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (SHARING, [Rcd(0), Rcd(1)], self.rcd),
@@ -337,7 +336,6 @@ class Client:
             Commands.REMOTE_REMOVE: (SHARING, [Rrm(1), Rrm(2)], self.rrm),
             Commands.REMOTE_MOVE: (SHARING, [Rmv(2), Rmv(3)], self.rmv),
             Commands.REMOTE_COPY: (SHARING, [Rcp(2), Rcp(3)], self.rcp),
-            # Commands.REMOTE_EXEC: (SERVER, [Rexec(0), Rexec(1)], self.rexec),
             Commands.REMOTE_SHELL: (SERVER, [Rshell(0), Rshell(1)], self.rshell),
 
             Commands.GET: (SHARING, [Get(0), Get(1)], self.get),
@@ -640,21 +638,6 @@ class Client:
         if errors:
             raise CommandExecutionError(errors)
 
-    # @classmethod
-    # def exec(cls, args: Args, _):
-    #     if not is_unix():
-    #         log.w("exec not supported on this platform")
-    #         raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
-    #
-    #     exec_args = args.get_unparsed_args(default=[])
-    #     exec_cmd = lexer.join(exec_args, quote_char=None)
-    #
-    #     log.i(f">> EXEC {exec_cmd}")
-    #
-    #     retcode = run_attached(exec_cmd)
-    #     if retcode != 0:
-    #         log.w("Command failed with return code: %d", retcode)
-
     @classmethod
     def shell(cls, args: Args, _):
         if not is_unix():
@@ -809,104 +792,6 @@ class Client:
         log.i("Server and sharing connection established")
         self.connection = new_conn
 
-    #
-    # @provide_server_connection
-    # @require_unix
-    # def rexec(self, args: Args, conn: Connection):
-    #     popen_args = args.get_unparsed_args(default=[])
-    #     popen_cmd = lexer.join(popen_args, quote_char=None)
-    #
-    #     log.i(">> REXEC %s", popen_cmd)
-    #
-    #     rexec_resp = conn.rexec(popen_cmd)
-    #     ensure_success_response(rexec_resp)
-    #
-    #     retcode = None
-    #
-    #     # --- STDOUT/STDERR RECEIVER ---
-    #
-    #     def rexec_out_receiver():
-    #         nonlocal retcode
-    #
-    #         try:
-    #             while retcode is None:
-    #                 in_b = conn.read(trace=True)
-    #
-    #                 event_type: int = in_b[0]
-    #                 log.d("Event type = %d", event_type)
-    #
-    #                 if event_type == RexecEventType.TEXT:
-    #                     text_b = in_b[1:]
-    #                     log.d("REXEC recv: %s", repr(text_b))
-    #                     text = btos(text_b)
-    #
-    #                     try:
-    #                         print(text, end="", flush=True)
-    #                     except OSError as oserr:
-    #                         # EWOULDBLOCK may arise something...
-    #                         log.w("Ignoring OSerror: %s", str(oserr))
-    #                 elif event_type == RexecEventType.EOF:
-    #                     log.d("EOF from remote")
-    #                 elif event_type == RexecEventType.RETCODE:
-    #                     log.d("Remote process finished")
-    #                     retcode = btoi(in_b[1:])
-    #                 else:
-    #                     log.w("Can't handle event of type %d", event_type)
-    #
-    #             log.i("REXEC done ; retcode = %d", retcode)
-    #
-    #         except Exception:
-    #             log.exception("Unexpected error occurred on rexec stdout receiver thread")
-    #             retcode = -1
-    #
-    #
-    #     rexec_out_receiver_th = threading.Thread(
-    #         target=rexec_out_receiver, daemon=True)
-    #     rexec_out_receiver_th.start()
-    #
-    #     # --- STDIN SENDER ---
-    #
-    #     # Read local stdin and send it to server
-    #     # Put stdin in non-blocking mode so that we can exit the loop
-    #     # when the proc terminates
-    #
-    #     stding_flags = fcntl.fcntl(sys.stdin, fcntl.F_GETFL)
-    #     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags | os.O_NONBLOCK)
-    #
-    #     while retcode is None:
-    #         try:
-    #             # Do not block so that we can exit when the process finishes
-    #             # Sleep for a little between each select call
-    #             rlist, wlist, xlist = select.select([sys.stdin], [], [], 0.04)
-    #
-    #             if sys.stdin in rlist:
-    #                 data_b = sys.stdin.buffer.read()
-    #
-    #                 if not data_b:
-    #                     log.d("Sending EOF")
-    #                     out_b = RexecEventType.EOF_B
-    #                 else:
-    #                     log.d("Sending data: %s", repr(data_b))
-    #                     out_b = RexecEventType.TEXT_B + data_b
-    #
-    #                 conn.write(out_b, trace=True)
-    #
-    #         except KeyboardInterrupt:
-    #             log.d("Sending CTRL+C")
-    #             conn.write(RexecEventType.KILL_B, trace=True)
-    #
-    #     # If we are here, we have retrieved a return code from the remote process
-    #
-    #     # Restore stdin in blocking mode
-    #     fcntl.fcntl(sys.stdin, fcntl.F_SETFL, stding_flags)
-    #
-    #     # Wait everybody
-    #     rexec_out_receiver_th.join()
-    #
-    #     # Stop the remote stdin receiver by sending a ENDACK
-    #     log.d("Sending ENDACK to remote")
-    #     conn.write(RexecEventType.ENDACK_B, trace=True)
-
     @provide_server_connection
     @require_unix
     def rshell(self, args: Args, conn: Connection):
@@ -934,15 +819,13 @@ class Client:
                     event_type: int = in_b[0]
                     log.d("Event type = %d", event_type)
 
-                    if event_type == RexecEventType.TEXT:
-                        text_b = in_b[1:]
-                        log.d("RSHELL recv: %s", repr(text_b))
-                        text = btos(text_b)
+                    if event_type == RexecEventType.DATA:
+                        data_b = in_b[1:]
+                        log.d("RSHELL recv: %s", repr(data_b))
 
                         try:
-                            # print(text, end="", flush=True)
-                            sys.stdout.write(text)
-                            sys.stdout.flush()
+                            sys.stdout.buffer.write(data_b)
+                            sys.stdout.buffer.flush()
                         except OSError as oserr:
                             # EWOULDBLOCK may arise something...
                             log.w("Ignoring OSerror: %s", str(oserr))
@@ -973,7 +856,7 @@ class Client:
             tty_mode = tty.tcgetattr(STDIN)
             tty.setraw(STDIN)
         except tty.error:
-            pass
+            log.w("Failed to setraw() mode")
 
         try:
             while retcode is None:
@@ -990,7 +873,7 @@ class Client:
                             out_b = RexecEventType.EOF_B
                         else:
                             log.d("Sending data: %s", repr(data_b))
-                            out_b = RexecEventType.TEXT_B + data_b
+                            out_b = RexecEventType.DATA_B + data_b
 
                         conn.write(out_b, trace=True)
 
@@ -1002,8 +885,11 @@ class Client:
             log.exception("OSError")
         finally:
             # Restore stdin in blocking mode [taken from pty.spawn]
-            if tty_mode:
-                tty.tcsetattr(STDIN, tty.TCSAFLUSH, tty_mode)
+            try:
+                if tty_mode:
+                    tty.tcsetattr(STDIN, tty.TCSAFLUSH, tty_mode)
+            except tty.error:
+                log.w("Failed to restore tty_mode mode")
 
         # Wait everybody
         rshell_out_receiver_th.join()

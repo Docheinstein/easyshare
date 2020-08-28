@@ -374,80 +374,6 @@ class ClientHandler:
 
         return create_success_response("pong")
 
-    #
-    # @require_server_connection
-    # @require_unix
-    # @require_rexec_enabled
-    # def _rexec(self, params: RequestParams):
-    #     cmd = params.get(RequestsParams.REXEC_CMD)
-    #     if not cmd:
-    #         self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-    #
-    #     log.i("<< REXEC %s  |  %s", cmd, self._client)
-    #
-    #     # OK - report it
-    #     print(f"[{self._client.tag}] rexec '{cmd}' "
-    #           f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
-    #
-    #     self._send_response(create_success_response())
-    #
-    #     def out_hook(text: str):
-    #         log.d("> %s", text)
-    #         self._client.stream.write(
-    #             RexecEventType.TEXT_B + stob(text), trace=True
-    #         )
-    #
-    #     def end_hook(retcode: int):
-    #         log.d("END %d", retcode)
-    #         self._client.stream.write(
-    #             RexecEventType.RETCODE_B + itob(retcode % 255, length=1),
-    #             trace=True
-    #         )
-    #
-    #     def stdin_receiver(process: subprocess.Popen):
-    #         while True:
-    #             in_b = self._client.stream.read(trace=True)
-    #             event_type: int = in_b[0]
-    #             log.d("Event type = %d", event_type)
-    #
-    #             if event_type == RexecEventType.TEXT:
-    #                 text = btos(in_b[1:])
-    #                 log.d("< %s", text)
-    #                 process.stdin.write(text)
-    #                 process.stdin.flush()
-    #             elif event_type == RexecEventType.EOF:
-    #                 log.d("< EOF")
-    #                 process.stdin.close()
-    #             elif event_type == RexecEventType.KILL:
-    #                 log.d("< KILL")
-    #                 process.terminate()
-    #             elif event_type == RexecEventType.ENDACK:
-    #                 log.d("< ENDACK")
-    #                 break
-    #             else:
-    #                 log.w("Can't handle event of type %d", event_type)
-    #
-    #     # Bind server stdout/stderr and send those to client
-    #     proc, out_th = run_detached(
-    #         cmd,
-    #         stdout_hook=out_hook,
-    #         stderr_hook=out_hook,
-    #         end_hook=end_hook
-    #     )
-    #
-    #     # Receive stdin from client
-    #     stdin_th = threading.Thread(target=stdin_receiver, args=(proc, ))
-    #     stdin_th.start()
-    #
-    #     # Wait everybody
-    #     stdin_th.join()
-    #     out_th.join()
-    #
-    #     if proc.returncode is not None:
-    #         log.d("REXEC finished with return code = %d", proc.returncode)
-    #     else:
-    #         log.w("REXEC invalid return code")
-
     @require_server_connection
     @require_unix
     @require_rexec_enabled
@@ -462,10 +388,10 @@ class ClientHandler:
         print(f"[{self._client.tag}] rshell '{cmd}' "
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
-        def out_hook(text: str):
-            log.d("> %s", text)
+        def out_hook(data: bytes):
+            log.d(f"{data}")
             self._client.stream.write(
-                RexecEventType.TEXT_B + stob(text), trace=True
+                RexecEventType.DATA_B + data, trace=True
             )
 
         def end_hook(retcode: int):
@@ -481,10 +407,10 @@ class ClientHandler:
                 event_type: int = in_b[0]
                 log.d("Event type = %d", event_type)
 
-                if event_type == RexecEventType.TEXT:
-                    text = btos(in_b[1:])
-                    log.d("< %s", text)
-                    ptyprocess.write(text)
+                if event_type == RexecEventType.DATA:
+                    data = in_b[1:]
+                    log.d(f"< {data}")
+                    ptyprocess.write(data)
                 elif event_type == RexecEventType.EOF:
                     log.d("< EOF")
                     ptyprocess.close()
@@ -518,8 +444,6 @@ class ClientHandler:
         except Exception as ex:
             log.exception(f"Rshell failed: {ex}")
             return self._create_error_response(ServerErrors.REXEC_EXECUTION_FAILED)
-            # out_hook("Command execution failed")
-            # end_hook(ServerErrors.REXEC_EXECUTION_FAILED) # return code, just != 0
 
     @require_server_connection
     def _open(self, params: RequestParams):

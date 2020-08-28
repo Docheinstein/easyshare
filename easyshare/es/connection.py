@@ -1,5 +1,4 @@
 import platform
-from pathlib import Path
 from typing import Union, Optional, cast, List, Dict
 
 from easyshare.common import TransferProtocol, TransferDirection, APP_VERSION
@@ -14,7 +13,6 @@ from easyshare.sockets import SocketTcp, SocketTcpOut
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.streams import TcpStream
 from easyshare.tracing import trace_text, get_tracing_level, TRACING_BIN_PAYLOADS
-from easyshare.utils.env import is_windows, is_unix
 from easyshare.utils.inspection import stacktrace
 from easyshare.utils.json import j, jtob, btoj
 from easyshare.utils.ssl import create_client_ssl_context
@@ -262,13 +260,6 @@ class ConnectionMinimal:
         # else?
 
         return resp
-
-    @handle_connection_response
-    @require_server_connection
-    def rexec(self, cmd: str) -> Response:
-        return self.call(create_request(Requests.REXEC, {
-            RequestsParams.REXEC_CMD: cmd
-        }))
 
     @handle_connection_response
     @require_server_connection
