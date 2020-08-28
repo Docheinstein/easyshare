@@ -2832,8 +2832,10 @@ class Client:
         # (the part after the last / of the sharing location)
         if sharing_location.path:
             log.d("Sharing location contains a path, rcd-ing into it")
-            connection.rcd(sharing_location.path)
+            resp = connection.rcd(sharing_location.path)
 
+            ensure_data_response(resp)
+            log.d("Current rcwd: %s", connection.current_rcwd())
 
     @classmethod
     def server_info_satisfy_server_location(cls,

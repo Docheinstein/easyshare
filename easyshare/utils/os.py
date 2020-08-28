@@ -110,6 +110,7 @@ def ls(path: Path,
 
     if not path.is_dir():
         log.e("Cannot perform ls; invalid path")
+
         raise FileNotFoundError()
 
     # Directory
@@ -154,6 +155,10 @@ def tree(path: Path,
                           list_wrap(sort_by)))
 
     log.i("TREE on {}, sorting by {}{}".format(path, sort_by, " (reverse)" if reverse else ""))
+
+    if not path.exists():
+        log.e("Cannot perform tree; invalid path")
+        raise FileNotFoundError()
 
     root: Any = create_file_info(path,
                                  fetch_size=details, fetch_time=details,
