@@ -484,15 +484,19 @@ def pty_attached(cmd: str = "/bin/sh") -> int:
 
 def pty_detached(out_hook: Callable[[bytes], None],
                  end_hook: Callable[[int], None],
+                 cols: int,
+                 rows: int,
                  cmd: str = "/bin/sh"):  # -> PtyProcess:
     """
     Run a command, reporting stdout and stderr of the process outside (via out_hook).
     The stdin can be provided with ptyproc.write().
     """
-    cols, rows = terminal_size() # use the current terminal size for the pty
 
     exec_bin = "/bin/sh"
     exec_args = [exec_bin, "-c", cmd]
+
+    log.d(f"PtyProcess.spawn({exec_bin}, {exec_args}) - size =({cols}, {rows})")
+
     ptyproc = PtyProcess.spawn(exec_args, dimensions=(rows, cols), echo=False)
 
     def proc_handler():

@@ -379,8 +379,15 @@ class ClientHandler:
     @require_rexec_enabled
     def _rshell(self, params: RequestParams):
         cmd = params.get(RequestsParams.RSHELL_CMD)
+        cols = params.get(RequestsParams.RSHELL_COLS)
+        rows = params.get(RequestsParams.RSHELL_ROWS)
+
         if not cmd:
             cmd = user().pw_shell
+
+        if not cols or not rows:
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
 
         log.i("<< RSHELL %s  |  %s", cmd, self._client)
 
@@ -427,6 +434,8 @@ class ClientHandler:
             ptyproc = pty_detached(
                 out_hook=out_hook,
                 end_hook=end_hook,
+                cols=cols,
+                rows=rows,
                 cmd=cmd
             )
 

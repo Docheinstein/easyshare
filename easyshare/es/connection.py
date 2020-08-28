@@ -263,9 +263,11 @@ class ConnectionMinimal:
 
     @handle_connection_response
     @require_server_connection
-    def rshell(self, cmd: str) -> Response:
+    def rshell(self, cmd: str, cols: int, rows: int) -> Response:
         return self.call(create_request(Requests.RSHELL, {
-            RequestsParams.RSHELL_CMD: cmd
+            RequestsParams.RSHELL_CMD: cmd,
+            RequestsParams.RSHELL_COLS: cols,
+            RequestsParams.RSHELL_ROWS: rows
         }))
 
     # === REAL SHARING FUNCS ===

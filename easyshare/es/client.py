@@ -41,7 +41,7 @@ from easyshare.styling import bold, green, red
 from easyshare.timer import Timer
 from easyshare.tracing import trace_bin_payload
 from easyshare.utils import lexer
-from easyshare.utils.env import is_unix
+from easyshare.utils.env import is_unix, terminal_size
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str, size_str_justify
 from easyshare.utils.os import ls, rm, tree, mv, cp, user, pty_attached, os_error_str, \
@@ -801,9 +801,10 @@ class Client:
         else:
             rshell_cmd = None
 
-        log.i(">> RSHELL %s", rshell_cmd)
+        termsize = terminal_size()
+        log.i(f">> RSHELL {rshell_cmd} (size={termsize})", )
 
-        rshell_resp = conn.rshell(rshell_cmd)
+        rshell_resp = conn.rshell(rshell_cmd, cols=termsize[0], rows=termsize[1])
         ensure_success_response(rshell_resp)
         retcode = None
 

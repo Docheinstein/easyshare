@@ -44,6 +44,8 @@ class RequestsParams:
     REXEC_CMD = "cmd"
 
     RSHELL_CMD = "cmd"
+    RSHELL_COLS = "cols"
+    RSHELL_ROWS = "rows"
 
     RCD_PATH = "path"
 
