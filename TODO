@@ -12,7 +12,9 @@
 - GUI?
 - transfer referses order (GET 10 11 12..)
 - allow -d <dest> for get and put
+- alias supporting multiple commands?
 
-- ctr+c while transferring - check for put
-- s now is -NS not only -N - check for put
-- -S does not work
+OK ctr+c while transferring - check for put
+OK get -sp * -> creates folder 'samples' by itself
+OK - s now is -NS not only -N - check for put
+OK - -S does not work

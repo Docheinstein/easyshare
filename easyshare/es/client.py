@@ -1127,22 +1127,32 @@ class Client:
 
         # Overwrite preference
 
+        # if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
+        #     Get.OVERWRITE_NEWER in args, Get.SYNC in args].count(True) > 1:
+        #     log.e("Only one between -n, -y, -N and -s can be specified")
+        #     raise CommandExecutionError("Only one between -n, -y, -N and -s can be specified")
+
         if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
-            Get.OVERWRITE_NEWER in args, Get.SYNC in args].count(True) > 1:
-            log.e("Only one between -n, -y, -N and -s can be specified")
-            raise CommandExecutionError("Only one between -n, -y, -N and -s can be specified")
+            True if (Get.OVERWRITE_NEWER in args or Get.OVERWRITE_DIFF_SIZE in args) else False,
+            Get.SYNC in args].count(True) > 1:
+            log.e("Only one between -n, -y, -s and (-N and/or -S) can be specified")
+            raise CommandExecutionError("Only one between -n, -y, -s and (-N and/or -S) can be specified")
 
         overwrite_policy = OverwritePolicy.PROMPT
 
-        if Get.OVERWRITE_YES in args:
+        if Get.OVERWRITE_YES in args: # -y
             overwrite_policy = OverwritePolicy.YES
-        elif Get.OVERWRITE_NO in args:
+        elif Get.OVERWRITE_NO in args: # -n
             overwrite_policy = OverwritePolicy.NO
-        elif Get.OVERWRITE_NEWER in args:
+        elif Get.OVERWRITE_NEWER in args and Get.OVERWRITE_DIFF_SIZE in args: # -NS
+            overwrite_policy = OverwritePolicy.NEWER_DIFF_SIZE
+        elif Get.OVERWRITE_NEWER in args: # -N
             overwrite_policy = OverwritePolicy.NEWER
-        elif Get.SYNC in args:
-            # Sync is the same as NEWER but deletes the old files after the transfer
-            overwrite_policy = OverwritePolicy.NEWER
+        elif Get.OVERWRITE_DIFF_SIZE in args: # -S
+            overwrite_policy = OverwritePolicy.DIFF_SIZE
+        elif Get.SYNC in args: # -s
+            # Sync is the same as -NS but deletes the old files after the transfer
+            overwrite_policy = OverwritePolicy.NEWER_DIFF_SIZE
 
         log.i("Overwrite policy: %s", str(overwrite_policy))
 
@@ -1256,11 +1266,11 @@ class Client:
 
             # Case: DIR
             if ftype == FTYPE_DIR:
-                log.i("Creating dirs %s", fname)
-                local_path.mkdir(parents=True, exist_ok=True)
-
                 if preview:
                     print(green(f"+ [{size_str_justify(0)}] {local_path}"))
+                else:
+                    log.i("Creating dirs %s", fname)
+                    local_path.mkdir(parents=True, exist_ok=True)
                 continue  # No FTYPE_FILE => neither skip nor transfer for next()
 
             if ftype != FTYPE_FILE:
@@ -1271,8 +1281,9 @@ class Client:
             local_path_parent = local_path.parent
 
             if local_path_parent:
-                log.i("Creating parent dirs %s", local_path_parent)
-                local_path_parent.mkdir(parents=True, exist_ok=True)
+                if not preview:
+                    log.i("Creating parent dirs %s", local_path_parent)
+                    local_path_parent.mkdir(parents=True, exist_ok=True)
 
             # Check whether it already exists
             if local_path.is_file() and action == RequestsParams.GET_NEXT_ACTION_SEEK:
@@ -1538,7 +1549,7 @@ class Client:
         chunk_size = args.get_option_param(Put.CHUNK_SIZE, BEST_BUFFER_SIZE)
         use_mmap = args.get_option_param(Put.MMAP)
 
-        if sys and len(files) > 1:
+        if sync and len(files) > 1:
             raise CommandExecutionError(ClientErrors.SYNC_ONLY_ONE_PARAMETER)
 
         resp = conn.put(check=do_check, sync=sync, preview=preview)
@@ -1611,8 +1622,8 @@ class Client:
         elif Put.OVERWRITE_DIFF_SIZE in args:
             overwrite_policy = RequestsParams.PUT_NEXT_OVERWRITE_DIFF_SIZE
         elif Put.SYNC in args:
-            # Sync is the same as NEWER but deletes the old files after the transfer
-            overwrite_policy = OverwritePolicy.NEWER
+            # Sync is the same as -NS but deletes the old files after the transfer
+            overwrite_policy = OverwritePolicy.NEWER_DIFF_SIZE
 
         log.i("Overwrite policy: %s", overwrite_policy)
 
@@ -1697,7 +1708,8 @@ class Client:
             if ftype == FTYPE_DIR:
                 log.d("Sent a DIR, nothing else to do")
                 if preview:
-                    print(green(f"+ [{size_str_justify(0)}] {remote_path}"))
+                    if str(remote_path) != ".": # dirty fix, I won't want to see . in the preview
+                        print(green(f"+ [{size_str_justify(0)}] {remote_path}"))
                 return
 
             # Possible responses:

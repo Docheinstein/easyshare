@@ -689,7 +689,7 @@ class ClientHandler:
         find_fpath = self._fpath_joining_rcwd_and_spath(path)
         log.d("Would find into: %s", find_fpath)
 
-        # Check if it's inside the sharing domain
+        # Check if it's inside the sharing domainF
         if not self._is_fpath_allowed(find_fpath):
             return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
 
@@ -1570,8 +1570,9 @@ class ClientHandler:
                 # Check whether is a dir or a file
                 if ftype == FTYPE_DIR:
                     # Handle dir now by creating dirs
-                    log.i("Creating dirs %s", fpath)
-                    fpath.mkdir(parents=True, exist_ok=True)
+                    if not preview:
+                        log.i("Creating dirs %s", fpath)
+                        fpath.mkdir(parents=True, exist_ok=True)
                     self._send_response(create_success_response({
                         ResponsesParams.PUT_NEXT_STATUS:
                             ResponsesParams.PUT_NEXT_STATUS_ACCEPTED
@@ -1587,8 +1588,9 @@ class ClientHandler:
                 if ftype == FTYPE_FILE:
                     fpath_parent = fpath.parent
                     if fpath_parent:
-                        log.i("Creating parent dirs %s", fpath_parent)
-                        fpath_parent.mkdir(parents=True, exist_ok=True)
+                        if not preview:
+                            log.i("Creating parent dirs %s", fpath_parent)
+                            fpath_parent.mkdir(parents=True, exist_ok=True)
 
                 # Check whether it already exists
                 if fpath.is_file():
@@ -1733,7 +1735,7 @@ class ClientHandler:
 
                 log.d("%d/%d (%.2f%%)", cur_pos, incoming_size, cur_pos / incoming_size * 100)
 
-                # time.sleep(0.5)
+                time.sleep(0.5)
 
             log.i("Closing file %s", incoming_fpath)
             local_fd.close()
