@@ -13,6 +13,10 @@
 - transfer referses order (GET 10 11 12..)
 - allow -d <dest> for get and put
 - alias supporting multiple commands?
+- .esrc as execute every line
+- separating commands by \n or ;
+
+- command `set` for set variables
 
 OK ctr+c while transferring - check for put
 OK get -sp * -> creates folder 'samples' by itself

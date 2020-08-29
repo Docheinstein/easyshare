@@ -5,12 +5,12 @@ from pathlib import Path
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn, Type
 from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
-from easyshare.common import EASYSHARE_HISTORY
+from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF, EASYSHARE_RESOURCES_PKG
 from easyshare.consts import ansi
-from easyshare.es.client import Client, HandledKeyboardInterrupt
+from easyshare.es.client import Client
 from easyshare.es.errors import ClientErrors, print_errors
 from easyshare.es.ui import print_tabulated, StyledString
-from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls
+from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias
 from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_man
@@ -20,9 +20,10 @@ from easyshare.tracing import get_tracing_level, set_tracing_level
 from easyshare.utils.env import is_unicode_supported, has_gnureadline, has_pyreadline
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
+from easyshare.utils.resources import read_resource_string
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
     rl_get_completion_quote_character, rl_set_completion_suppress_quote, rl_set_char_is_quoted_p
-from easyshare.utils.str import isorted, rightof
+from easyshare.utils.str import isorted, rightof, leftof
 from easyshare.utils.types import is_bool, is_str
 
 import readline
@@ -72,11 +73,14 @@ class Shell:
         self._suggestions_intent: Optional[SuggestionsIntent] = None
 
         self._shell_command_dispatcher: Dict[str, Tuple[ArgsSpec, Callable[[Args], None]]] = {
-            Commands.TRACE: (OptIntPosArgSpec(), self._trace),
-            Commands.VERBOSE: (OptIntPosArgSpec(), self._verbose),
-            Commands.HELP: (VarArgsSpec(), self._help),
-            Commands.EXIT: (VarArgsSpec(), self._exit),
-            Commands.QUIT: (VarArgsSpec(), self._exit),
+            Commands.HELP: (Help(), self._help),
+            Commands.EXIT: (Exit(), self._exit),
+            Commands.QUIT: (Exit(), self._exit),
+
+            Commands.TRACE: (Trace(), self._trace),
+            Commands.VERBOSE: (Verbose(), self._verbose),
+            Commands.ALIAS: (Alias(), self._alias),
+
         }
 
         self._prompt_local_remote_sep = "\u2014" if is_unicode_supported() else "-"
@@ -84,6 +88,8 @@ class Shell:
         self._passthrough = passthrough
 
         self._init_rline()
+
+        self._parse_esrc()
 
     def input_loop(self):
         """
@@ -147,13 +153,14 @@ class Shell:
     def execute(self, cmd: str):
         # Split the command by ;
         # so that more command can be submitted in one line
-        cmds = cmd.split(";")
-        log.d(f"# commands = {len(cmds)}")
-
-        for a_cmd in cmds:
-            log.i(f"Executing '{a_cmd}'")
-            outcome = self._execute(a_cmd)
-            print_errors(outcome)
+        # TODO multiple commnds
+        # cmds = cmd.split(";")
+        # log.d(f"# commands = {len(cmds)}")
+        #
+        # for a_cmd in cmds:
+        #     log.i(f"Executing '{a_cmd}'")
+        outcome = self._execute(cmd)
+        print_errors(outcome)
 
     def _execute(self, cmd: str) ->  Union[int, str, List[str]]:
         self._update_history()
@@ -167,6 +174,11 @@ class Shell:
         if len(cmd) == 0:
             log.w("Empty command, nothing to do here")
             return ClientErrors.SUCCESS # no problem...
+
+        log.d(f"Will try to execute '{cmd}'")
+        if cmd.startswith("#"):
+            log.d("Ignoring, it's a comment")
+            return ClientErrors.SUCCESS
 
         log.d(f"Before alias resolution: {cmd}")
         resolved_cmd_prefix, resolved_cmd_suffix = self._resolve_alias(cmd, as_string=False)
@@ -296,6 +308,29 @@ class Shell:
 
         self._load_history()
 
+    def _parse_esrc(self, create_if_not_exists: bool = True):
+        esrc_path = Path.home() / EASYSHARE_ES_CONF
+
+        if not esrc_path.exists() and create_if_not_exists:
+            try:
+                log.d(f"Creating default {EASYSHARE_ES_CONF}")
+
+                default_esrc_content = read_resource_string(
+                    EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF)
+
+                log.d(default_esrc_content)
+
+                esrc_path.write_text(default_esrc_content)
+            except Exception:
+                log.w(f"Failed to write default {EASYSHARE_ES_CONF} file")
+
+        if esrc_path.exists():
+            log.i("Parsing .esrc")
+            with esrc_path.open("r") as esrc:
+                for line in esrc:
+                    self.execute(line)
+        else:
+            log.w(f"No .esrc file found (expected at: '{esrc_path.absolute()}')")
 
     @staticmethod
     def _load_history():
@@ -590,15 +625,6 @@ class Shell:
         return prompt
 
 
-
-    def add_alias(self, source: str, target: str):
-        log.i(f"Adding alias: '{source}'='{target}'")
-        self._aliases[source] = target
-        comm_info = COMMANDS_INFO.get(self._command_for(source))
-        if comm_info:
-            self._available_commands[source] = comm_info
-
-
     def _command_for(self, string: str, resolve_alias: bool=True) -> Optional[str]:
         cmds = self._commands_for(string, resolve_alias=resolve_alias)
         if not cmds:
@@ -690,7 +716,7 @@ class Shell:
 
         target = self._resolve_alias(cmd, recursive=False)
         if target:
-            print(f"'{cmd}' alias for '{target}'")
+            print(f"alias {cmd}={target}")
             ok = True
         else:
             log.w("Neither a command nor an alias: '{cmd}'")
@@ -709,6 +735,33 @@ class Shell:
 
         if not ok:
             print(f"Can't provide help for '{cmd}'")
+
+
+    def _alias(self, args: Args) -> Union[int, str]:
+        """ alias - show or create an alias """
+
+        alias_to_create = args.get_unparsed_arg()
+
+        if not alias_to_create:
+            # Show aliases
+            log.d("No alias given, showing current ones")
+            for source, target in self._aliases.items():
+                print(f"alias {source}={target}")
+        else:
+            # Create aliases
+            source, _, target = alias_to_create.partition("=")
+            if source and target:
+                log.i(f"Adding alias: {source}={target}")
+                self._aliases[source] = target
+                comm_info = COMMANDS_INFO.get(self._command_for(source))
+                if comm_info:
+                    self._available_commands[source] = comm_info
+            else:
+                log.w(f"Unable to parse alias: {alias_to_create}")
+                return ClientErrors.INVALID_COMMAND_SYNTAX
+
+        return ClientErrors.SUCCESS
+
 
     @staticmethod
     def _exit(_: Args) -> NoReturn:
@@ -756,3 +809,4 @@ class Shell:
         print(f"Verbosity = {verbosity} ({_VERBOSITY_EXPLANATION_MAP.get(verbosity, '<unknown>')})")
 
         return ClientErrors.SUCCESS
+

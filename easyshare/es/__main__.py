@@ -7,7 +7,6 @@ from easyshare import logging
 from easyshare.args import ArgsParseError
 from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT, APP_VERSION, easyshare_setup, \
     DEFAULT_DISCOVER_TIMEOUT, APP_INFO, EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF
-from easyshare.conf import Conf, INT_VAL, BOOL_VAL, ConfParseError, STR_VAL
 from easyshare.es.client import Client
 from easyshare.es.shell import Shell
 from easyshare.commands.es import Es, EsUsage
@@ -51,36 +50,36 @@ log = get_logger(__name__)
 
 # ==================================================================
 
+#
+# class EsrcKeys:
+#     """ Keys of the .esrc file """
+#     G_VERBOSE =   "verbose"
+#     G_TRACE =     "trace"
+#     G_NO_COLOR =  "no_color"
+#     G_DISCOVER_PORT = "discover_port"
+#     G_DISCOVER_WAIT = "discover_wait"
+#     G_SHELL_PASSTHROUGH = "shell"
+#     G_KEEP_OPEN = "keep_open"
+#     G_ALIAS = "alias (\S+)"
 
-class EsrcKeys:
-    """ Keys of the .esrc file """
-    G_VERBOSE =   "verbose"
-    G_TRACE =     "trace"
-    G_NO_COLOR =  "no_color"
-    G_DISCOVER_PORT = "discover_port"
-    G_DISCOVER_WAIT = "discover_wait"
-    G_SHELL_PASSTHROUGH = "shell"
-    G_KEEP_OPEN = "keep_open"
-    G_ALIAS = "alias (\S+)"
-
-
-ESRC_SPEC = {
-    # global
-    None: {
-        EsrcKeys.G_DISCOVER_PORT: INT_VAL,
-        EsrcKeys.G_DISCOVER_WAIT: INT_VAL,
-
-        EsrcKeys.G_VERBOSE: INT_VAL,
-        EsrcKeys.G_TRACE: INT_VAL,
-        EsrcKeys.G_NO_COLOR: BOOL_VAL,
-
-        EsrcKeys.G_SHELL_PASSTHROUGH: BOOL_VAL,
-        EsrcKeys.G_KEEP_OPEN: BOOL_VAL,
-
-        EsrcKeys.G_ALIAS: STR_VAL,
-    },
-}
-
+#
+# ESRC_SPEC = {
+#     # global
+#     None: {
+#         EsrcKeys.G_DISCOVER_PORT: INT_VAL,
+#         EsrcKeys.G_DISCOVER_WAIT: INT_VAL,
+#
+#         EsrcKeys.G_VERBOSE: INT_VAL,
+#         EsrcKeys.G_TRACE: INT_VAL,
+#         EsrcKeys.G_NO_COLOR: BOOL_VAL,
+#
+#         EsrcKeys.G_SHELL_PASSTHROUGH: BOOL_VAL,
+#         EsrcKeys.G_KEEP_OPEN: BOOL_VAL,
+#
+#         EsrcKeys.G_ALIAS: STR_VAL,
+#     },
+# }
+#
 
 
 def main():
@@ -140,73 +139,73 @@ def main():
             esrc_path.write_text(default_esrc_content)
         except Exception:
             log.w(f"Failed to write default {EASYSHARE_ES_CONF} file")
-
-    if esrc_path.exists():
-        esrc = None
-        try:
-            esrc = Conf.parse(
-                path=str(esrc_path),
-                sections_parsers=ESRC_SPEC,
-                comment_prefixes=["#", ";"]
-            )
-        except ConfParseError as err:
-            log.exception(f"Exception occurred while parsing {EASYSHARE_ES_CONF}")
-            abort(f"parse of {EASYSHARE_ES_CONF} file failed: {err}")
-
-        if esrc:
-            _, global_section = esrc.global_section()
-
-            log.i(f"{EASYSHARE_ES_CONF} file parsed successfully:\n%s", esrc)
-
-            # Globals
-
-            discover_port = global_section.get(
-                EsrcKeys.G_DISCOVER_PORT,
-                discover_port
-            )
-
-            discover_wait = global_section.get(
-                EsrcKeys.G_DISCOVER_WAIT,
-                discover_wait
-            )
-
-            no_colors = global_section.get(
-                EsrcKeys.G_NO_COLOR,
-                no_colors
-            )
-
-            shell_passthrough = global_section.get(
-                EsrcKeys.G_SHELL_PASSTHROUGH,
-                shell_passthrough
-            )
-
-            keep_open = global_section.get(
-                EsrcKeys.G_KEEP_OPEN,
-                keep_open
-            )
-
-            tracing = global_section.get(
-                EsrcKeys.G_TRACE,
-                tracing
-            )
-
-            verbosity = global_section.get(
-                EsrcKeys.G_VERBOSE,
-                verbosity
-            )
-
-            # Aliases
-            for (k, v) in global_section.items():
-                match = re.match(EsrcKeys.G_ALIAS, k)
-                if not match:
-                    continue
-
-                # Found an alias
-                target = match.groups()[0]
-                source = v
-                aliases.append((target, source))
-    else:
-        log.w(f"No config file found (expect at: '{esrc_path.absolute()}')")
+    #
+    # if esrc_path.exists():
+    #     esrc = None
+    #     try:
+    #         esrc = Conf.parse(
+    #             path=str(esrc_path),
+    #             sections_parsers=ESRC_SPEC,
+    #             comment_prefixes=["#", ";"]
+    #         )
+    #     except ConfParseError as err:
+    #         log.exception(f"Exception occurred while parsing {EASYSHARE_ES_CONF}")
+    #         abort(f"parse of {EASYSHARE_ES_CONF} file failed: {err}")
+    #
+    #     if esrc:
+    #         _, global_section = esrc.global_section()
+    #
+    #         log.i(f"{EASYSHARE_ES_CONF} file parsed successfully:\n%s", esrc)
+    #
+    #         # Globals
+    #
+    #         discover_port = global_section.get(
+    #             EsrcKeys.G_DISCOVER_PORT,
+    #             discover_port
+    #         )
+    #
+    #         discover_wait = global_section.get(
+    #             EsrcKeys.G_DISCOVER_WAIT,
+    #             discover_wait
+    #         )
+    #
+    #         no_colors = global_section.get(
+    #             EsrcKeys.G_NO_COLOR,
+    #             no_colors
+    #         )
+    #
+    #         shell_passthrough = global_section.get(
+    #             EsrcKeys.G_SHELL_PASSTHROUGH,
+    #             shell_passthrough
+    #         )
+    #
+    #         keep_open = global_section.get(
+    #             EsrcKeys.G_KEEP_OPEN,
+    #             keep_open
+    #         )
+    #
+    #         tracing = global_section.get(
+    #             EsrcKeys.G_TRACE,
+    #             tracing
+    #         )
+    #
+    #         verbosity = global_section.get(
+    #             EsrcKeys.G_VERBOSE,
+    #             verbosity
+    #         )
+    #
+    #         # Aliases
+    #         for (k, v) in global_section.items():
+    #             match = re.match(EsrcKeys.G_ALIAS, k)
+    #             if not match:
+    #                 continue
+    #
+    #             # Found an alias
+    #             target = match.groups()[0]
+    #             source = v
+    #             aliases.append((target, source))
+    # else:
+    #     log.w(f"No config file found (expect at: '{esrc_path.absolute()}')")
 
     # Colors
     if Es.NO_COLOR in args:
@@ -288,8 +287,8 @@ def main():
     shell = Shell(client, passthrough=shell_passthrough)
 
     # Add the aliases, if any
-    for (source, target) in aliases:
-        shell.add_alias(source, target)
+    # for (source, target) in aliases:
+    #     shell.add_alias(source, target)
 
     # Check whether
     # 1. Run a command directly from the cli

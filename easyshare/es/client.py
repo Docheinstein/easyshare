@@ -696,10 +696,9 @@ class Client:
             log.w("shell not supported on this platform")
             raise CommandExecutionError(ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX)
 
-        shell_args = args.get_unparsed_args(default=[])
-        if shell_args:
-            shell_cmd = lexer.join(shell_args, quote_char=None)
-        else:
+        shell_cmd = args.get_unparsed_arg()
+
+        if not shell_cmd:
             passwd: struct_passwd = user()
             log.i(f"{passwd.pw_uid} {passwd.pw_name} - shell: {passwd.pw_shell}")
             shell_cmd = passwd.pw_shell
@@ -745,11 +744,7 @@ class Client:
     @provide_server_connection
     @require_unix
     def rshell(self, args: Args, conn: Connection):
-        rshell_args = args.get_unparsed_args(default=[])
-        if rshell_args:
-            rshell_cmd = lexer.join(rshell_args, quote_char=None)
-        else:
-            rshell_cmd = None
+        rshell_cmd = args.get_unparsed_arg()
 
         termsize = terminal_size()
         log.i(f">> RSHELL {rshell_cmd} (size={termsize})", )

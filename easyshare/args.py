@@ -143,6 +143,14 @@ class Args:
         """
         return self._unparsed or default
 
+    def get_unparsed_arg(self, default=None) -> Optional[str]:
+        """
+        Returns the unparsed arg by joinining the unparsed args.
+        (there will be unparsed args only if
+        continue_parsing_hook stopped the parsing)
+        """
+        return " ".join(self.get_unparsed_args(default=[])) or default
+
     def clone(self) -> 'Args':
         return Args(
             parsed=copy.deepcopy(self._parsed),

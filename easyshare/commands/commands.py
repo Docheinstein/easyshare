@@ -4,7 +4,7 @@ from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
 from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec, STR_PARAM, \
-    StopParseArgsSpec, KeepQuotesArgsSpec
+    StopParseArgsSpec, KeepQuotesArgsSpec, OptIntPosArgSpec
 from easyshare.commands import CommandHelp, CommandOptionInfo
 from easyshare.es.ui import StyledString
 from easyshare.logging import get_logger
@@ -35,6 +35,8 @@ class Commands:
 
     TRACE = "trace"
     VERBOSE = "verbose"
+
+    ALIAS = "alias"
 
     LOCAL_CURRENT_DIRECTORY = "pwd"
     LOCAL_LIST_DIRECTORY = "ls"
@@ -434,7 +436,9 @@ Type "**help** **connect**" for more information about *SERVER_LOCATION* format.
 
 # ============ HELP ================
 
-class Help(CommandInfo):
+class Help(CommandInfo, PosArgsSpec):
+    def __init__(self):
+        super().__init__(0, 1)
 
     @classmethod
     def name(cls):
@@ -475,8 +479,7 @@ Available commands are:
 
 # ============ EXIT ================
 
-class Exit(CommandInfo):
-
+class Exit(CommandInfo, NoPosArgsSpec):
     @classmethod
     def name(cls):
         return "exit"
@@ -501,7 +504,8 @@ Open connections are automatically closed."""
 
 # ============ TRACE ================
 
-class Trace(CommandInfo):
+class Trace(CommandInfo, OptIntPosArgSpec):
+
     T0 = (["0"], "disabled")
     T1 = (["1"], "text/json")
     T2 = (["2"], "binary")
@@ -596,7 +600,7 @@ Usage example:
 # ============ VERBOSE ================
 
 
-class Verbose(CommandInfo):
+class Verbose(CommandInfo, OptIntPosArgSpec):
     V0 = (["0"], "disabled")
     V1 = (["1"], "error")
     V2 = (["2"], "warning")
@@ -654,6 +658,52 @@ if it exceeds the maximum."""
             completion=False,
             max_columns=1,
         )
+
+
+# ============ ALIAS ================
+
+
+class Alias(CommandInfo, StopParseArgsSpec):
+    @classmethod
+    def name(cls):
+        return "alias"
+
+    @classmethod
+    def short_description(cls):
+        return "show or create new command aliases"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+**alias** [*source*=*target*]\
+"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+If no argument is given, print the current aliases.
+
+An alias can be created using the following syntax:
+    **alias** *source*=*target*\
+"""
+
+    @classmethod
+    def examples(cls):
+        return """\
+
+.A .
+1. Create an alias
+./A
+    **/tmp> alias** *s=scan*
+
+.A .
+2. Show current aliases
+./A
+    **/tmp> alias**
+    alias s=scan
+    alias t=trace
+    alias l=ls -la\
+"""
 
 
 # ============ xPWD ================
@@ -2801,8 +2851,9 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.QUIT: Exit,
 
     Commands.TRACE: Trace,
-
     Commands.VERBOSE: Verbose,
+
+    Commands.ALIAS: Alias,
 
     Commands.LOCAL_CURRENT_DIRECTORY: Pwd,
     Commands.LOCAL_LIST_DIRECTORY: Ls,
