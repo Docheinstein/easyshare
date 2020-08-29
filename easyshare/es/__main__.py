@@ -1,7 +1,5 @@
-import re
 import sys
 from pathlib import Path
-from typing import List, Tuple
 
 from easyshare import logging
 from easyshare.args import ArgsParseError
@@ -121,9 +119,8 @@ def main():
     keep_open = False
     discover_port = DEFAULT_DISCOVER_PORT
     discover_wait = DEFAULT_DISCOVER_TIMEOUT
-    aliases: List[Tuple[str, str]] = []
 
-    # Config file (.esrc)
+    # Create config file (.esrc) if not exists
 
     esrc_path = Path.home() / EASYSHARE_ES_CONF
 
@@ -139,73 +136,6 @@ def main():
             esrc_path.write_text(default_esrc_content)
         except Exception:
             log.w(f"Failed to write default {EASYSHARE_ES_CONF} file")
-    #
-    # if esrc_path.exists():
-    #     esrc = None
-    #     try:
-    #         esrc = Conf.parse(
-    #             path=str(esrc_path),
-    #             sections_parsers=ESRC_SPEC,
-    #             comment_prefixes=["#", ";"]
-    #         )
-    #     except ConfParseError as err:
-    #         log.exception(f"Exception occurred while parsing {EASYSHARE_ES_CONF}")
-    #         abort(f"parse of {EASYSHARE_ES_CONF} file failed: {err}")
-    #
-    #     if esrc:
-    #         _, global_section = esrc.global_section()
-    #
-    #         log.i(f"{EASYSHARE_ES_CONF} file parsed successfully:\n%s", esrc)
-    #
-    #         # Globals
-    #
-    #         discover_port = global_section.get(
-    #             EsrcKeys.G_DISCOVER_PORT,
-    #             discover_port
-    #         )
-    #
-    #         discover_wait = global_section.get(
-    #             EsrcKeys.G_DISCOVER_WAIT,
-    #             discover_wait
-    #         )
-    #
-    #         no_colors = global_section.get(
-    #             EsrcKeys.G_NO_COLOR,
-    #             no_colors
-    #         )
-    #
-    #         shell_passthrough = global_section.get(
-    #             EsrcKeys.G_SHELL_PASSTHROUGH,
-    #             shell_passthrough
-    #         )
-    #
-    #         keep_open = global_section.get(
-    #             EsrcKeys.G_KEEP_OPEN,
-    #             keep_open
-    #         )
-    #
-    #         tracing = global_section.get(
-    #             EsrcKeys.G_TRACE,
-    #             tracing
-    #         )
-    #
-    #         verbosity = global_section.get(
-    #             EsrcKeys.G_VERBOSE,
-    #             verbosity
-    #         )
-    #
-    #         # Aliases
-    #         for (k, v) in global_section.items():
-    #             match = re.match(EsrcKeys.G_ALIAS, k)
-    #             if not match:
-    #                 continue
-    #
-    #             # Found an alias
-    #             target = match.groups()[0]
-    #             source = v
-    #             aliases.append((target, source))
-    # else:
-    #     log.w(f"No config file found (expect at: '{esrc_path.absolute()}')")
 
     # Colors
     if Es.NO_COLOR in args:
@@ -286,10 +216,6 @@ def main():
     # Initialize the shell as well
     shell = Shell(client, passthrough=shell_passthrough)
 
-    # Add the aliases, if any
-    # for (source, target) in aliases:
-    #     shell.add_alias(source, target)
-
     # Check whether
     # 1. Run a command directly from the cli
     # 2. Start an interactive session
@@ -304,6 +230,8 @@ def main():
         # is given.
         # Otherwise close it after the action
         keep_open = keep_open or client.is_connected_to_server()
+    else:
+        keep_open = True
 
     # 2. Start an interactive session ?
     # Actually the shell is started if

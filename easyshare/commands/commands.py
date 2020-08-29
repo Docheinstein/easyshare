@@ -4,7 +4,7 @@ from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
 from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec, STR_PARAM, \
-    StopParseArgsSpec, KeepQuotesArgsSpec, OptIntPosArgSpec
+    StopParseArgsSpec, KeepQuotesArgsSpec, OptIntPosArgSpec, KeyValArgsSpec
 from easyshare.commands import CommandHelp, CommandOptionInfo
 from easyshare.es.ui import StyledString
 from easyshare.logging import get_logger
@@ -37,6 +37,7 @@ class Commands:
     VERBOSE = "verbose"
 
     ALIAS = "alias"
+    SET = "set"
 
     LOCAL_CURRENT_DIRECTORY = "pwd"
     LOCAL_LIST_DIRECTORY = "ls"
@@ -663,7 +664,10 @@ if it exceeds the maximum."""
 # ============ ALIAS ================
 
 
-class Alias(CommandInfo, StopParseArgsSpec):
+class Alias(CommandInfo, KeyValArgsSpec):
+    def __init__(self):
+        super().__init__(optional=True)
+
     @classmethod
     def name(cls):
         return "alias"
@@ -690,6 +694,7 @@ An alias can be created using the following syntax:
     @classmethod
     def examples(cls):
         return """\
+Usage example:
 
 .A .
 1. Create an alias
@@ -703,6 +708,56 @@ An alias can be created using the following syntax:
     alias s=scan
     alias t=trace
     alias l=ls -la\
+"""
+
+
+
+# ============ ALIAS ================
+
+
+class Set(CommandInfo, KeyValArgsSpec):
+    def __init__(self):
+        super().__init__(optional=True)
+
+    @classmethod
+    def name(cls):
+        return "set"
+
+    @classmethod
+    def short_description(cls):
+        return "show or set easyshare settings"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+**set** [*setting*=*value*]\
+"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+If no argument is given, print the current settings.
+
+An value can be set using the following syntax:
+    **set** *setting*=*value*\
+"""
+
+    @classmethod
+    def examples(cls):
+        return """\
+Usage example:
+
+.A .
+1. Set a value
+./A
+    **/tmp> set** *verbose=4*
+
+.A .
+2. Show current settings
+./A
+    **/tmp> set**
+    set verbose=4
+    set trace=0\
 """
 
 
@@ -2854,6 +2909,7 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.VERBOSE: Verbose,
 
     Commands.ALIAS: Alias,
+    Commands.SET: Set,
 
     Commands.LOCAL_CURRENT_DIRECTORY: Pwd,
     Commands.LOCAL_LIST_DIRECTORY: Ls,

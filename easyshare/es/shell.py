@@ -239,7 +239,7 @@ class Shell:
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 
-        log.i(f"Handling shell command {command} {command_suffix}")
+        log.i(f"Handling shell command: '{command}{command_suffix}'")
 
         parser, executor = self._shell_command_dispatcher[command]
 
@@ -308,21 +308,8 @@ class Shell:
 
         self._load_history()
 
-    def _parse_esrc(self, create_if_not_exists: bool = True):
+    def _parse_esrc(self):
         esrc_path = Path.home() / EASYSHARE_ES_CONF
-
-        if not esrc_path.exists() and create_if_not_exists:
-            try:
-                log.d(f"Creating default {EASYSHARE_ES_CONF}")
-
-                default_esrc_content = read_resource_string(
-                    EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF)
-
-                log.d(default_esrc_content)
-
-                esrc_path.write_text(default_esrc_content)
-            except Exception:
-                log.w(f"Failed to write default {EASYSHARE_ES_CONF} file")
 
         if esrc_path.exists():
             log.i("Parsing .esrc")
@@ -740,16 +727,12 @@ class Shell:
     def _alias(self, args: Args) -> Union[int, str]:
         """ alias - show or create an alias """
 
-        alias_to_create = args.get_unparsed_arg()
+        alias_to_create = args.get_positionals()
+        log.d(f"alias_to_create: {alias_to_create}")
 
-        if not alias_to_create:
-            # Show aliases
-            log.d("No alias given, showing current ones")
-            for source, target in self._aliases.items():
-                print(f"alias {source}={target}")
-        else:
+        if alias_to_create and len(alias_to_create) == 2:
             # Create aliases
-            source, _, target = alias_to_create.partition("=")
+            source, target = alias_to_create
             if source and target:
                 log.i(f"Adding alias: {source}={target}")
                 self._aliases[source] = target
@@ -759,6 +742,11 @@ class Shell:
             else:
                 log.w(f"Unable to parse alias: {alias_to_create}")
                 return ClientErrors.INVALID_COMMAND_SYNTAX
+        else:
+            # Show aliases
+            log.d("No alias given, showing current ones")
+            for source, target in self._aliases.items():
+                print(f"alias {source}={target}")
 
         return ClientErrors.SUCCESS
 

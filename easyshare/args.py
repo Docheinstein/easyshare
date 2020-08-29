@@ -424,9 +424,9 @@ class ArgsParser:
             log.i("> %s", "{}".format(val))
             bucket += list_wrap(val)
 
-        except:
+        except Exception as ex:
             log.w("Exception occurred while parsing optional argument; "
-                  "considering it as a different argument")
+                  f"considering it as a different argument: {ex}")
 
             return pre_optionals_param_cursor
 
@@ -466,19 +466,19 @@ class ArgsParser:
 class IntParams(OptionParams):
     def __init__(self, mandatory_count: int, optional_count: int = 0):
         super().__init__(mandatory_count, optional_count,
-                         lambda ps: [to_int(p, raise_exceptions=True) for p in ps])
+                         lambda ps: [to_int(p.strip(), raise_exceptions=True) for p in ps])
 
 
 class FloatParams(OptionParams):
     def __init__(self, mandatory_count: int, optional_count: int = 0):
         super().__init__(mandatory_count, optional_count,
-                         lambda ps: [to_float(p, raise_exceptions=True) for p in ps])
+                         lambda ps: [to_float(p.strip(), raise_exceptions=True) for p in ps])
 
 
 class StrParams(OptionParams):
     def __init__(self, mandatory_count: int, optional_count: int = 0):
         super().__init__(mandatory_count, optional_count,
-                         lambda ps: ps)
+                         lambda ps: [p.strip() for p in ps])
 
 
 STR_PARAM = StrParams(1, 0)
@@ -489,8 +489,6 @@ INT_PARAM_OPT = IntParams(0, 1)
 
 FLOAT_PARAM = FloatParams(1, 0)
 FLOAT_PARAM_OPT = FloatParams(0, 1)
-
-
 
 PRESENCE_PARAM = OptionParams(0, 0, lambda ps: True)
 
@@ -571,3 +569,13 @@ class StopParseArgsSpec(ArgsSpec):
 class KeepQuotesArgsSpec(ArgsSpec):
     def split_args(self, args: str) -> List[str]:
         return lexer.split(args, keepquotes=True)
+
+class KeyValArgsSpec(PosArgsSpec):
+    def __init__(self, optional: bool):
+        super().__init__(
+            0 if optional else 2,
+            2 if optional else 0
+        )
+
+    def split_args(self, args: str) -> List[str]:
+        return args.split("=", maxsplit=1)
