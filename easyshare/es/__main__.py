@@ -60,6 +60,7 @@ class EsrcKeys:
     G_DISCOVER_PORT = "discover_port"
     G_DISCOVER_WAIT = "discover_wait"
     G_SHELL_PASSTHROUGH = "shell"
+    G_KEEP_OPEN = "keep_open"
     G_ALIAS = "alias (\S+)"
 
 
@@ -74,6 +75,7 @@ ESRC_SPEC = {
         EsrcKeys.G_NO_COLOR: BOOL_VAL,
 
         EsrcKeys.G_SHELL_PASSTHROUGH: BOOL_VAL,
+        EsrcKeys.G_KEEP_OPEN: BOOL_VAL,
 
         EsrcKeys.G_ALIAS: STR_VAL,
     },
@@ -117,6 +119,7 @@ def main():
     tracing = TRACING_NONE
     no_colors = False
     shell_passthrough = False
+    keep_open = False
     discover_port = DEFAULT_DISCOVER_PORT
     discover_wait = DEFAULT_DISCOVER_TIMEOUT
     aliases: List[Tuple[str, str]] = []
@@ -175,6 +178,11 @@ def main():
             shell_passthrough = global_section.get(
                 EsrcKeys.G_SHELL_PASSTHROUGH,
                 shell_passthrough
+            )
+
+            keep_open = global_section.get(
+                EsrcKeys.G_KEEP_OPEN,
+                keep_open
             )
 
             tracing = global_section.get(
@@ -240,6 +248,12 @@ def main():
         default=shell_passthrough
     )
 
+    # Keep open
+    keep_open = args.get_option_param(
+        Es.KEEP_OPEN,
+        default=keep_open
+    )
+
     # Validation
 
     # - ports
@@ -280,7 +294,6 @@ def main():
     # Check whether
     # 1. Run a command directly from the cli
     # 2. Start an interactive session
-    start_shell = True
 
     # 1. Run a command directly from the cli ?
     pargs = args.get_unparsed_args()
@@ -288,15 +301,16 @@ def main():
     if pargs:
         shell.execute(lexer.join(pargs, quote_char=None))
 
-        # Keep the shell opened only if we performed an 'open'
+        # Keep the shell opened only if we performed an 'open' or -k (keep_open)
+        # is given.
         # Otherwise close it after the action
-        start_shell = client.is_connected_to_server()
+        keep_open = keep_open or client.is_connected_to_server()
 
     # 2. Start an interactive session ?
     # Actually the shell is started if
     # a) A CLI command opened a connection (open, connect)
     # b) No command has been specified
-    if start_shell:
+    if keep_open:
         # Start the shell
         log.i("Starting interactive shell")
         shell.input_loop()

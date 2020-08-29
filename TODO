@@ -15,3 +15,8 @@
 - GUI?
 - transfer referses order (GET 10 11 12..)
 - allow -d <dest> for get and put
+
+- give <command1>;<command2>
+
+OK autocompletion with get $B fails
+l\t -> does not insert space

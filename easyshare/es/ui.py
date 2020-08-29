@@ -318,7 +318,7 @@ def sharings_pretty_str(sharings: List[SharingInfo],
     def sharing_string(sharing: SharingInfo):
         ss = " " * indent + bullet + " "
 
-        if sharing in highlight_sharings:
+        if highlight_sharings and sharing in highlight_sharings:
             ss += underline(sharing.get("name"))
         else:
             ss += sharing.get("name")

@@ -63,6 +63,7 @@ class Es(CommandHelp, ArgsSpec):
     DISCOVER_PORT = ["-d", "--discover-port"]
     DISCOVER_TIMEOUT = ["-w", "--discover-wait"]
     SHELL_PASSTHROUGH = ["-s", "--shell-passthrough"]
+    KEEP_OPEN = ["-k", "--keep-open"]
 
     VERBOSE = ["-v", "--verbose"]
     TRACE = ["-t", "--trace"]
@@ -76,6 +77,7 @@ class Es(CommandHelp, ArgsSpec):
             (self.DISCOVER_PORT, INT_PARAM),
             (self.DISCOVER_TIMEOUT, FLOAT_PARAM),
             (self.SHELL_PASSTHROUGH, PRESENCE_PARAM),
+            (self.KEEP_OPEN, PRESENCE_PARAM),
             (self.VERBOSE, INT_PARAM_OPT),
             (self.TRACE, INT_PARAM_OPT),
             (self.NO_COLOR, PRESENCE_PARAM),
@@ -92,6 +94,7 @@ class Es(CommandHelp, ArgsSpec):
             CommandOptionInfo(cls.DISCOVER_PORT, "port used for broadcast discovery messages", params=["port"]),
             CommandOptionInfo(cls.DISCOVER_TIMEOUT, "time to wait for discovery responses", params=["seconds"]),
             CommandOptionInfo(cls.SHELL_PASSTHROUGH, "makes all the shell commands available from the easyshare shell"),
+            CommandOptionInfo(cls.KEEP_OPEN, "keep the shell open when even if no connection is established with *COMMAND*"),
             CommandOptionInfo(cls.VERBOSE, "set verbosity level", params=["level"]),
             CommandOptionInfo(cls.TRACE, "enable/disable tracing", params=["0_or_1"]),
             CommandOptionInfo(cls.NO_COLOR, "don't print ANSI escape characters")

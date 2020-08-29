@@ -56,10 +56,8 @@ class Shell:
     LOCAL_FINDINGS_RE = re.compile(r"^\$([a-z]\d+)$")
     REMOTE_FINDINGS_RE = re.compile(r"^\$([A-Z]\d+)$")
 
-    ALIAS_RESOLUTION_MAX_DEPTH = 100
+    ALIAS_RESOLUTION_MAX_DEPTH = 10
 
-    # Quoting/Escaping GNU rline tutorial
-    # https://thoughtbot.com/blog/tab-completion-in-gnu-rline
     def __init__(self, client: Client, passthrough: bool=False):
         log.i(f"Shell passthrough = {passthrough}")
 
@@ -236,6 +234,8 @@ class Shell:
             log.exception("Exception caught while executing command\n%s", ex)
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
+    # Quoting/Escaping GNU rline tutorial
+    # https://thoughtbot.com/blog/tab-completion-in-gnu-rline
     # noinspection PyUnresolvedReferences
     def _init_rline(self):
         log.d("Init GNU readline")
@@ -364,7 +364,7 @@ class Shell:
             log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
 
 
-    COMM_SPACE_RE = re.compile(".* $")
+    COMM_SPACE_RE = re.compile(".* .*")
 
     def _next_suggestion(self, token: str, count: int):
         """
@@ -400,21 +400,21 @@ class Shell:
 
                 # Detect the command (first token of the line) by resolving aliases
                 # and figure out if the command is unique for the given prefix
-                log.d(f"Cmd line: '{line}'")
+                log.d(f"line: '{line}'")
                 resolved_line = self._resolve_alias(line, as_string=True)
                 resolved_command = self._command_for(resolved_line, resolve_alias=False)
                 log.d(f"resolved_line: '{resolved_line}'")
                 log.d(f"resolved_command: '{resolved_command}'")
 
-
+                no_suggestions = True   # keep track, in order to propose local
+                                        # files if shell passthrough is True
                 self._suggestions_intent = SuggestionsIntent([])
 
                 for comm_name, comm_info in self._available_commands.items():
                     comm_resolved_name = comm_info.name() # comm_name might be an alias
 
-                    log.d(f" Checking comm_name='{comm_name}'")
-                    if resolved_command == comm_name and \
-                            re.match(Shell.COMM_SPACE_RE, resolved_line):
+                    log.d(f" > iterating, comm_name='{comm_name}'")
+                    if resolved_command == comm_name and re.match(Shell.COMM_SPACE_RE, line):
                         # Typing a COMPLETE command
                         # e.g. 'ls \t'
                         log.d("Fetching suggestions for COMMAND INTENT '%s'", comm_resolved_name)
@@ -428,6 +428,7 @@ class Shell:
                                   len(self._suggestions_intent.suggestions),
                                   comm_name)
 
+                        no_suggestions = False
                         break # nothing more to complete, the command has been found
 
                     if comm_name.startswith(line):
@@ -437,25 +438,38 @@ class Shell:
                         # Case 1: complete command
                         log.d("Adding suggestion for COMMAND COMPLETION of '%s'", comm_resolved_name)
                         self._suggestions_intent.suggestions.append(StyledString(comm_name))
+                        no_suggestions = False
+
+                # Translate the finding into the real name if the token
+                # is exactly a finding
+                if len(self._suggestions_intent.suggestions) == 1:
+                    log.d("Just a suggestion, checking whether it is a finding pattern")
+
+                    the_suggestion = self._suggestions_intent.suggestions[0]
+                    findings = None
+
+                    if re.match(Shell.LOCAL_FINDINGS_RE, the_suggestion.string):
+                        findings = self._client.get_local_findings(token)
+                    elif re.match(Shell.REMOTE_FINDINGS_RE, the_suggestion.string):
+                        findings = self._client.get_remote_findings(token)
+
+                    if findings and len(findings) == 1:
+                        finding_info = findings[0]
+                        log.d(f"Found single finding for token: {finding_info}")
+                        self._suggestions_intent.suggestions.clear()
+                        self._suggestions_intent.suggestions.append(
+                            StyledString(str(Path(findings.path) / finding_info.get("name")))
+                        )
+                        no_suggestions = False
+
 
                 # If there are no suggestions and we are doing shell passthrough
                 # show the local files (probably the user command acts on those)
-                if len(self._suggestions_intent.suggestions) == 0 and self._passthrough:
+                if no_suggestions and self._passthrough:
                     log.d("Showing local files as suggestions as fallback, "
                           "since shell passthrough is enabled")
                     self._suggestions_intent = Ls.suggestions(token, self._client) \
                                                or self._suggestions_intent
-
-                findings = None
-                if re.match(Shell.LOCAL_FINDINGS_RE, token):
-                    findings = self._client.get_local_findings(token)
-                elif re.match(Shell.REMOTE_FINDINGS_RE, token):
-                    findings = self._client.get_remote_findings(token)
-
-                if findings and len(findings) == 1:
-                    finding_info = findings[0]
-                    log.d(f"Found single finding for token: {finding_info}")
-                    return str(Path(findings.path) / finding_info.get("name"))
 
                 if not self._suggestions_intent.completion:
                     # TODO: find a way for not show the the suggestion inline
@@ -567,44 +581,6 @@ class Shell:
         comm_info = COMMANDS_INFO.get(self._command_for(source))
         if comm_info:
             self._available_commands[source] = comm_info
-
-        #
-        # # Try to retrieve the target CommandInfo of the alias for
-        # # treat it as a stock command
-        # cur_alias_target_comm = source
-        # target_comm = None
-        # for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
-        #     # Is this (the first token) already a valid command?
-        #     leading = lexer.split(cur_alias_target_comm)[0]
-        #     target_comm_str = self._command_for_prefix(leading)
-        #     if target_comm_str:
-        #         target_comm = COMMANDS_INFO.get(target_comm_str)
-        #         break
-        #
-        #     # Resolve it, for next iter
-        #     cur_alias_target_comm = self._resolve_alias(leading)
-        #     log.d(f"cur_alias_target_comm: {cur_alias_target_comm}")
-        #
-        #     if not cur_alias_target_comm:
-        #         # No more substitution to do, alias does not
-        #         # refer to a valid command
-        #         log.w(f"Invalid alias detected: {source} (does not lead to a command)")
-        #         break
-        # else:
-        #     print_errors(f"Infinite alias substitution detected: {source} - "
-        #                  f"fix {EASYSHARE_ES_CONF} file")
-        #
-        # if target_comm:
-        #     log.d(f"Valid alias to command resolution {source} -> {target_comm.name()}")
-        #     self._available_commands[source] = target_comm
-
-    # def _commands_for_prefix(self, prefix: str) -> List[CommandInfo]:
-    #     return [comm for (comm_name, comm) in self._available_commands if comm_name.startswith(prefix)]
-    #
-    # def _command_for_prefix(self, prefix: str, default=None) -> Optional[CommandInfo]:
-    #     comms = self._commands_for_prefix(prefix)
-    #     return comms[0] if comms else default
-    #
 
 
     def _command_for(self, string: str, resolve_alias: bool=True) -> Optional[str]:

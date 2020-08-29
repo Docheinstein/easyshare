@@ -211,8 +211,6 @@ class FilesSuggestionsCommandInfo(CommandInfo):
 # ==================================================
 
 FINDING_RE = re.compile(r"\$([a-zA-Z])?(\d+)?")
-LOCAL_FINDING_RE = re.compile(r"^\$[a-z]\d+?$")
-REMOTE_FINDING_RE = re.compile(r"^\$[A-Z]\d+?$")
 
 class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
     @classmethod
@@ -239,7 +237,10 @@ class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
             log.d(f"n_filter {n_filter}")
 
             findings = []
-            for (letter, findings_for_letter) in cls._provide_findings_dict(token, client).items():
+            all_findings = cls._provide_findings_dict(token, client)
+            # log.d(f"Checking against {all_findings}")
+
+            for (letter, findings_for_letter) in all_findings.items():
                 log.d(f"Checking against letter={letter}")
 
                 # Letter filter?
@@ -264,14 +265,7 @@ class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
     @classmethod
     @abstractmethod
     def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
-        if re.match(LOCAL_FINDING_RE, token):
-            log.d(f"{token} -> local findings")
-            return client._local_findings
-        elif re.match(REMOTE_FINDING_RE, token):
-            log.d(f"{token} -> remote findings")
-            return client._remote_findings
-        log.w(f"Token {token} does not match neither local nor remote finding pattern")
-        return {}
+        pass
 
 # ==================================================
 # =========== LOCAL/REMOTE FILES SUGGESTIONS =======
@@ -311,6 +305,7 @@ class LocalFilesSuggestionsCommandInfo(FilesAndFindingsSuggestionsCommandInfo, A
 
     @classmethod
     def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
+        log.d("_provide_findings_dict: _local_findings")
         return client._local_findings
 
 
@@ -340,6 +335,7 @@ class RemoteFilesSuggestionsCommandInfo(FilesAndFindingsSuggestionsCommandInfo, 
 
     @classmethod
     def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
+        log.d("_provide_findings_dict: _remote_findings")
         return client._remote_findings
 
 # ==================================================
