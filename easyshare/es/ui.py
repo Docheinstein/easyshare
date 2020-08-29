@@ -5,7 +5,7 @@ from easyshare.common import DIR_COLOR, FILE_COLOR
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull, FTYPE_DIR, FileInfo, SharingInfo, FTYPE_FILE
 from easyshare.ssl import get_cached_or_fetch_ssl_certificate_for_endpoint
-from easyshare.styling import fg, bold
+from easyshare.styling import fg, bold, underline
 from easyshare.tree import TreeNodeDict, TreeRenderPreOrder
 from easyshare.utils.env import terminal_size, is_unicode_supported
 from easyshare.utils.json import j
@@ -204,7 +204,7 @@ def server_pretty_str(info: ServerInfoFull,
                       show_ssl_certificate: bool = True,
                       show_sharings: bool = True,
                       show_sharings_details: bool = True,
-                      separators: bool = False) -> str:
+                      highlight_sharings: List[SharingInfo] = None) -> str:
     """ Returns a string representation of a 'ServerInfoFull' """
 
     s = """\
@@ -241,7 +241,10 @@ def server_pretty_str(info: ServerInfoFull,
 
 {bold("SHARINGS")}
 
-{sharings_pretty_str(info.get("sharings"), details=show_sharings_details, indent=2)}
+{sharings_pretty_str(info.get("sharings"), 
+                     details=show_sharings_details, 
+                     indent=2,
+                     highlight_sharings=highlight_sharings)}
 
 ================================"""
 
@@ -299,7 +302,8 @@ Signing:            {"self signed" if ssl_cert.get("self_signed") else "signed"}
 
 def sharings_pretty_str(sharings: List[SharingInfo],
                         details: bool = False,
-                        indent: int = 0) -> str:
+                        indent: int = 0,
+                        highlight_sharings: List[SharingInfo] = None) -> str:
     """ Returns a string representation of a list of 'Sharing' """
 
     if sharings is None:
@@ -312,7 +316,12 @@ def sharings_pretty_str(sharings: List[SharingInfo],
     f_sharings = [sh for sh in sharings if sh.get("ftype") == FTYPE_FILE]
 
     def sharing_string(sharing: SharingInfo):
-        ss = " " * indent + bullet + " " + sharing.get("name")
+        ss = " " * indent + bullet + " "
+
+        if sharing in highlight_sharings:
+            ss += underline(sharing.get("name"))
+        else:
+            ss += sharing.get("name")
 
         if details:
             details_list = []

@@ -81,7 +81,7 @@ def _socket(mode: TransferProtocol, direction: TransferDirection,
         "\tin  no. allowed: %s\n"
         "\tSO_REUSEADDR:    %s\n"
         "\tTCP_NODELAY:     %s\n"
-        "\tSO_BROADCAST:    %s\n",
+        "\tSO_BROADCAST:    %s",
           mode,
           direction,
           "<any>" if address == ADDR_ANY else address,

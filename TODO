@@ -3,6 +3,7 @@
 - Handle addresses instead of numeric IPs
 - Info/debug messages re-partition
 - ctr+c while transferring
+    // {action: abort}
 - don't throw commexecerror on xls() xtree() xfind()
 - errors refactor
 - don't show "." in put -p
@@ -13,4 +14,4 @@
 - why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
 - GUI?
 - transfer referses order (GET 10 11 12..)
-- help alias
+- allow -d <dest> for get and put

@@ -211,7 +211,8 @@ class FilesSuggestionsCommandInfo(CommandInfo):
 # ==================================================
 
 FINDING_RE = re.compile(r"\$([a-zA-Z])?(\d+)?")
-
+LOCAL_FINDING_RE = re.compile(r"^\$[a-z]\d+?$")
+REMOTE_FINDING_RE = re.compile(r"^\$[A-Z]\d+?$")
 
 class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
     @classmethod
@@ -239,6 +240,8 @@ class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
 
             findings = []
             for (letter, findings_for_letter) in cls._provide_findings_dict(token, client).items():
+                log.d(f"Checking against letter={letter}")
+
                 # Letter filter?
                 if letter_filter and letter != letter_filter:
                     continue
@@ -246,7 +249,7 @@ class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
                 # N filter?
                 for i, finding in enumerate(findings_for_letter.infos):
                     idx = i +1
-
+                    log.d(f"Checking against {letter}{idx}")
                     if n_filter and not str(idx).startswith(n_filter):
                         continue
 
@@ -261,7 +264,14 @@ class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
     @classmethod
     @abstractmethod
     def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
-        pass
+        if re.match(LOCAL_FINDING_RE, token):
+            log.d(f"{token} -> local findings")
+            return client._local_findings
+        elif re.match(REMOTE_FINDING_RE, token):
+            log.d(f"{token} -> remote findings")
+            return client._remote_findings
+        log.w(f"Token {token} does not match neither local nor remote finding pattern")
+        return {}
 
 # ==================================================
 # =========== LOCAL/REMOTE FILES SUGGESTIONS =======
@@ -497,9 +507,8 @@ Open connections are automatically closed."""
 
 class Trace(CommandInfo):
     T0 = (["0"], "disabled")
-    T1 = (["1"], "text")
-    T2 = (["2"], "binary payloads")
-    T3 = (["3"], "binary all")
+    T1 = (["1"], "text/json")
+    T2 = (["2"], "binary")
 
     @classmethod
     def name(cls):
@@ -2583,6 +2592,51 @@ and **-S** (overwrite if size is different)."""
 
 
 
+# ============ LIST ================
+
+
+class ListSharings(FastServerConnectionCommandInfo, PosArgsSpec):
+    @classmethod
+    def name(cls):
+        return "list"
+
+    @classmethod
+    def short_description(cls):
+        return "list the sharings of the remote server"
+
+    @classmethod
+    def _synopsis(cls):
+        return """\
+**list**...
+
+**list** [*SERVER_LOCATION*]...\
+"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+List the sharings of the remote server to which the connection is established."""
+
+
+    @classmethod
+    def examples(cls):
+        return f"""\
+Usage example:
+
+**/tmp>** connect alice-arch
+**alice-arch** - **/tmp>** **list**
+DIRECTORIES
+- shared
+- tmp
+
+**/tmp>** open music
+**bob-debian.music:/** - **/tmp>** **list**
+DIRECTORIES
+- music
+FILES
+- README.txt"""
+
+
 # ============ INFO ================
 
 
@@ -2761,7 +2815,6 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.LOCAL_COPY: Cp,
     Commands.LOCAL_MOVE: Mv,
     Commands.LOCAL_REMOVE: Rm,
-    # Commands.LOCAL_EXEC: Exec,
     Commands.LOCAL_SHELL: Shell,
 
     Commands.REMOTE_CURRENT_DIRECTORY: Rpwd,
@@ -2774,7 +2827,6 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.REMOTE_COPY: Rcp,
     Commands.REMOTE_MOVE: Rmv,
     Commands.REMOTE_REMOVE: Rrm,
-    # Commands.REMOTE_EXEC: Rexec,
     Commands.REMOTE_SHELL: Rshell,
 
     Commands.SCAN: Scan,
@@ -2789,5 +2841,6 @@ COMMANDS_INFO: Dict[str, Type[CommandInfo]] = {
     Commands.PUT: Put,
 
     Commands.INFO: Info,
+    Commands.LIST: ListSharings,
     Commands.PING: Ping,
 }

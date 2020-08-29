@@ -7,15 +7,16 @@ from easyshare.consts import ansi
 from easyshare.endpoint import Endpoint
 from easyshare.styling import fg
 from easyshare.utils import eprint
+from easyshare.utils.json import j
 from easyshare.utils.mathematics import rangify
 
 TRACING_NONE = 0
 TRACING_TEXT = 1
-TRACING_BIN_PAYLOADS = 2
-TRACING_BIN_ALL = 3
+TRACING_BIN = 2
+# TRACING_BIN_ALL = 3
 
 TRACING_MIN = 0
-TRACING_MAX = TRACING_BIN_ALL
+TRACING_MAX = TRACING_BIN
 
 _tracing = TRACING_NONE
 
@@ -33,7 +34,7 @@ _tracing = TRACING_NONE
 """
 
 
-""" e.g. TRACING_BIN_PAYLOAD/TRACING_BIN_ALL
+""" e.g. TRACING_BIN
 << ========== IN =============
 << From:     192.168.1.106:10243
 << To:       192.168.1.106:10243
@@ -49,6 +50,11 @@ cc ed 9c 48 b3 1d d6 27  0d ae 77 b4 fe 46 e3 aa  |...H...'..w..F..|
 def get_tracing_level() -> int:
     return _tracing
 
+def is_tracing_text_enabled() -> bool:
+    return get_tracing_level() >= TRACING_TEXT
+
+def is_tracing_bin_enabled() -> bool:
+    return get_tracing_level() >= TRACING_BIN
 
 def set_tracing_level(level: int):
     global _tracing
@@ -56,33 +62,40 @@ def set_tracing_level(level: int):
 
 
 
-def trace_text(what: str, sender: Endpoint, receiver: Endpoint,
-               direction: TransferDirection, protocol: TransferProtocol):
+def trace_json(what: Union[dict, list, tuple], sender: Endpoint, receiver: Endpoint,
+               direction: TransferDirection, protocol: TransferProtocol,
+               trace_type: str = "JSON") -> bool:
     if _tracing < TRACING_TEXT:
-        return
+        return False
 
-    _trace(what, sender, receiver, direction, protocol)
-
-
-def trace_bin_payload(what: Union[bytes, bytearray], sender: Endpoint, receiver: Endpoint,
-                      direction: TransferDirection, protocol: TransferProtocol):
-    if _tracing < TRACING_BIN_PAYLOADS:
-        return
-
-    _trace(_hexdump(what), sender, receiver, direction, protocol, size=len(what))
+    _trace(j(what), sender, receiver, direction, protocol, trace_type=trace_type)
+    return True
 
 
-def trace_bin_all(what: Union[bytes, bytearray], sender: Endpoint, receiver: Endpoint,
-                  direction: TransferDirection, protocol: TransferProtocol):
-    if _tracing < TRACING_BIN_ALL:
-        return
+def trace_text(what: str, sender: Endpoint, receiver: Endpoint,
+               direction: TransferDirection, protocol: TransferProtocol,
+               trace_type: str = "Text") -> bool:
+    if _tracing < TRACING_TEXT:
+        return False
 
-    _trace(_hexdump(what), sender, receiver, direction, protocol, size=len(what))
+    _trace(what, sender, receiver, direction, protocol, trace_type=trace_type)
+    return True
+
+
+def trace_bin(what: Union[bytes, bytearray], sender: Endpoint, receiver: Endpoint,
+              direction: TransferDirection, protocol: TransferProtocol,
+              trace_type: str = "Binary") -> bool:
+    if _tracing < TRACING_BIN:
+        return False
+
+    _trace(_hexdump(what), sender, receiver, direction,
+           protocol, trace_type=trace_type, size=len(what))
+    return True
 
 def _trace(what: str,
            sender: Endpoint, receiver: Endpoint,
            direction: TransferDirection, protocol: TransferProtocol,
-           size: int = -1):
+           trace_type: str = "Unknown", size: int = -1):
 
     if direction == TransferDirection.OUT:
         _1 = ">>"
@@ -104,6 +117,10 @@ def _trace(what: str,
         s += f"""
 {_1} Size:      {size}"""
 
+    if trace_type:
+        s += f"""
+{_1} Type:      {trace_type}"""
+
     s += f"""
 {_1} ------------------------------------------------------------------
 {what}"""
@@ -116,14 +133,16 @@ def _trace(what: str,
         # an exception for this reason
         pass
 
-def _hexdump(what: Union[bytes, bytearray]):
+def _hexdump(what: Union[bytes, bytearray], show_position: bool = True):
     # c6 f2 31 44 5d ca 5d 1d  f0 75 97 f5 85 77 69 3d  |..1D].]..u...wi=|
+    BYTES_PER_LINE = 16
 
     dump = ""
 
     in_line_idx = 0
-    hexs = [""] * 16
-    asciis = [""] * 16
+    hexs = [""] * BYTES_PER_LINE
+    asciis = [""] * BYTES_PER_LINE
+    line_pos = 0
 
     bi = 0
 
@@ -134,11 +153,14 @@ def _hexdump(what: Union[bytes, bytearray]):
         # WTF
         return repr(what)
 
-    def dump_line(count: int = 16):
+    def dump_line(count: int = BYTES_PER_LINE):
         nonlocal dump
 
         if dump:
             dump += "\n"
+
+        if show_position:
+            dump += f"0x{line_pos:0{8}x}  |  "
 
         for i in range(8):
             hexstr = hexs[i] if i <= count else "  "
@@ -169,12 +191,19 @@ def _hexdump(what: Union[bytes, bytearray]):
         asciis[in_line_idx] = chr(byte[0]) if (32 <= byte[0] <= 126) else "." # eg "c"
 
         bi += 1
-        in_line_idx = (in_line_idx + 1) % 16
+        in_line_idx = (in_line_idx + 1) % BYTES_PER_LINE
 
         if in_line_idx == 0:
             dump_line()
+            line_pos += BYTES_PER_LINE
 
     if in_line_idx > 0:
         dump_line(in_line_idx - 1)
 
     return dump
+
+
+if __name__ == "__main__":
+    import easyshare.logging
+    easyshare.logging.init_logging()
+    print(_hexdump(open("/etc/passwd", "rb").read()))

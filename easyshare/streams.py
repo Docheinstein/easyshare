@@ -1,9 +1,7 @@
 from typing import Union
 
-from easyshare.common import TransferDirection, TransferProtocol
 from easyshare.logging import get_logger
 from easyshare.sockets import SocketTcp
-from easyshare.tracing import trace_bin_payload, get_tracing_level, TRACING_BIN_ALL, trace_bin_all
 from easyshare.utils.types import btoi, itob
 
 log = get_logger(__name__)
@@ -25,12 +23,16 @@ class TcpStream:
     def is_open(self):
         return self._is_open
 
-    def read(self, *, trace: bool = True) -> bytearray:
-        do_trace_bin_all = get_tracing_level() == TRACING_BIN_ALL
+    def read(self, *, timeout: float = None, trace: bool = True) -> bytearray:
+        # Eventually set the socket timeout for the read()s
+        prev_timeout = self._socket.get_timeout()
+
+        if timeout:
+            self._socket.set_timeout(timeout)
 
         # recv() the HEADER (2 bytes)
+        header_data = self._socket.recv(4, trace=False) # don't trace the header
 
-        header_data = self._socket.recv(4, tracer=trace_bin_all if trace and do_trace_bin_all else False)
         self._ensure_data(header_data)
 
         header = btoi(header_data)
@@ -44,37 +46,36 @@ class TcpStream:
             return bytearray()
 
         # recv() the PAYLOAD (<header> bytes)
-        payload_data = self._socket.recv(payload_size)
+        payload_data = self._socket.recv(payload_size, trace=trace)
+
         self._ensure_data(header_data)
 
         log.d("stream.recv() - received payload of %d", len(payload_data))
 
-
-        if trace and not do_trace_bin_all:
-            trace_bin_payload(payload_data,
-                          sender=self._socket.remote_endpoint(), receiver=self._socket.endpoint(),
-                          direction=TransferDirection.IN, protocol=TransferProtocol.TCP)
+        if timeout:
+            self._socket.set_timeout(prev_timeout)
 
         return payload_data
 
-    def write(self, payload_data: Union[bytearray, bytes], *, trace: bool = True):
-        do_trace_bin_all = get_tracing_level() == TRACING_BIN_ALL
+    def write(self, payload_data: Union[bytearray, bytes], *,
+              timeout: float = None, trace: bool = True):
+        # Eventually set the socket timeout for the write()s
 
-        payload_size = len(payload_data)
-        header = itob(payload_size, 4)
+        prev_timeout = self._socket.get_timeout()
 
-        data = bytearray()
-        data += header
-        data += payload_data
+        if timeout:
+            self._socket.set_timeout(timeout)
 
-        log.d("stream.send() - sending %s", repr(data))
+        header = itob(len(payload_data), 4)
 
-        if trace and not do_trace_bin_all:
-            trace_bin_payload(payload_data,
-                              sender=self._socket.endpoint(), receiver=self._socket.remote_endpoint(),
-                              direction=TransferDirection.OUT, protocol=TransferProtocol.TCP)
+        self._socket.send(header, trace=False) # don't trace the header
 
-        self._socket.send(data, tracer=trace_bin_all if trace and do_trace_bin_all else False)
+        log.d("stream.send() - sending %s", repr(payload_data))
+
+        self._socket.send(payload_data, trace=trace)
+
+        if timeout:
+            self._socket.set_timeout(prev_timeout)
 
     def close(self):
         self._socket.close()

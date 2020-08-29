@@ -70,6 +70,7 @@ class TcpDaemon(Daemon, ABC):
         while True:
             log.d("Waiting for TCP connections on port %d...", self.port())
             sock = self._acceptor.accept()
+
             remote_endpoint = sock.remote_endpoint()
 
             if not remote_endpoint:

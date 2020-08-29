@@ -12,7 +12,7 @@ from easyshare.protocol.types import ServerInfoFull, ServerInfo, FileType
 from easyshare.sockets import SocketTcp, SocketTcpOut
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.streams import TcpStream
-from easyshare.tracing import trace_text, get_tracing_level, TRACING_BIN_PAYLOADS
+from easyshare.tracing import trace_json
 from easyshare.utils.inspection import stacktrace
 from easyshare.utils.json import j, jtob, btoj
 from easyshare.utils.ssl import create_client_ssl_context
@@ -154,10 +154,15 @@ class ConnectionMinimal:
         """ Current remote working directory (cached) """
         return self._rcwd if self.is_connected_to_sharing() else None
 
-    def destroy_connection(self):
-        log.d("Destroying connection")
-        self.destroy_sharing_connection()
-        self.destroy_server_connection()
+    def destroy_connection(self, clean: bool=True):
+        log.d(f"Destroying connection, clean={clean}")
+
+        if clean:
+            # Clean means to send CLOSE and DISCONNECT as expected
+            self.destroy_sharing_connection()
+            self.destroy_server_connection()
+        # else: just shutdown the socket, although the server won't be happy
+
         self._destroy_stream()
 
 
@@ -412,31 +417,21 @@ class ConnectionMinimal:
         self.write_json(req)
         return self.read_json()
 
-    def write_json(self, req: Dict, trace: bool = True):
-        # Trace OUT
-        trace_bin = get_tracing_level() >= TRACING_BIN_PAYLOADS
+    def write_json(self, req: Dict):
+        trace_json(req,
+                   sender=self._stream.endpoint(), receiver=self._stream.remote_endpoint(),
+                   direction=TransferDirection.OUT, protocol=TransferProtocol.TCP)
 
-        if trace and not trace_bin:
-            trace_text(
-                j(req),
-                sender=self._stream.endpoint(), receiver=self._stream.remote_endpoint(),
-                direction=TransferDirection.OUT, protocol=TransferProtocol.TCP
-            )
+        self.write(jtob(req), trace=False)
 
-        self.write(jtob(req), trace=trace and trace_bin)
+    def read_json(self) -> Dict:
+        resp = btoj(self.read(trace=False))
 
-    def read_json(self, trace: bool = True) -> Dict:
-        trace_bin = get_tracing_level() >= TRACING_BIN_PAYLOADS
-
-        resp = btoj(self.read(trace=trace and trace_bin))
-
-        # Trace IN
-        if trace and not trace_bin:
-            trace_text(
-                j(resp),
-                sender=self._stream.remote_endpoint(), receiver=self._stream.endpoint(),
-                direction=TransferDirection.IN, protocol=TransferProtocol.TCP
-            )
+        trace_json(
+            resp,
+            sender=self._stream.remote_endpoint(), receiver=self._stream.endpoint(),
+            direction=TransferDirection.IN, protocol=TransferProtocol.TCP
+        )
 
         return resp
 
@@ -447,6 +442,12 @@ class ConnectionMinimal:
 
         try:
             self._stream.write(data, trace=trace)
+        except KeyboardInterrupt as kex:
+            # Pass the KeyboardInterrupt above, so that it could be handled
+            # it in a different manner than just shutdown the connection
+            log.w("CTRL+C while writing to socket, "
+                  "it will be probably remain in an inconsistent state")
+            raise kex
         except:
             self._destroy_stream()
             raise ConnectionError("Write failed")
@@ -458,6 +459,12 @@ class ConnectionMinimal:
 
         try:
             return self._stream.read(trace=trace)
+        except KeyboardInterrupt as kex:
+            # Pass the KeyboardInterrupt above, so that it could be handled
+            # it in a different manner than just shutdown the connection
+            log.w("CTRL+C while reading from socket, "
+                  "it will be probably remain in an inconsistent state")
+            raise kex
         except:
             self._destroy_stream()
             raise ConnectionError("Write failed")

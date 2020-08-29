@@ -44,8 +44,7 @@ _VERBOSITY_EXPLANATION_MAP = {
 _TRACING_EXPLANATION_MAP = {
     tracing.TRACING_NONE: Trace.T0[1],
     tracing.TRACING_TEXT: Trace.T1[1],
-    tracing.TRACING_BIN_PAYLOADS: Trace.T2[1],
-    tracing.TRACING_BIN_ALL: Trace.T3[1],
+    tracing.TRACING_BIN: Trace.T2[1],
 }
 
 class Shell:
@@ -365,7 +364,7 @@ class Shell:
             log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
 
 
-    COMM_SPACE_RE = re.compile(".* ")
+    COMM_SPACE_RE = re.compile(".* $")
 
     def _next_suggestion(self, token: str, count: int):
         """
@@ -392,19 +391,19 @@ class Shell:
             if count == 0:
 
                 self._current_line = readline.get_line_buffer()
-                stripped_current_line = self._current_line.lstrip()
+                line = self._current_line.lstrip()
 
                 # Unescape since the token might contain \ we inserted in next_suggestion
                 # for allow spaces in the line
                 token = unescape(token)
-                stripped_current_line = unescape(stripped_current_line)
+                line = unescape(line)
 
                 # Detect the command (first token of the line) by resolving aliases
                 # and figure out if the command is unique for the given prefix
-                log.d(f"Cmd line: '{stripped_current_line}'")
-                resolved_current_line = self._resolve_alias(stripped_current_line, as_string=True)
-                resolved_command = self._command_for(resolved_current_line, resolve_alias=False)
-                log.d(f"resolved_current_line: '{resolved_current_line}'")
+                log.d(f"Cmd line: '{line}'")
+                resolved_line = self._resolve_alias(line, as_string=True)
+                resolved_command = self._command_for(resolved_line, resolve_alias=False)
+                log.d(f"resolved_line: '{resolved_line}'")
                 log.d(f"resolved_command: '{resolved_command}'")
 
 
@@ -413,12 +412,12 @@ class Shell:
                 for comm_name, comm_info in self._available_commands.items():
                     comm_resolved_name = comm_info.name() # comm_name might be an alias
 
-                    log.d(f" Checking '{comm_name}'")
+                    log.d(f" Checking comm_name='{comm_name}'")
                     if resolved_command == comm_name and \
-                            re.match(Shell.COMM_SPACE_RE, resolved_current_line):
+                            re.match(Shell.COMM_SPACE_RE, resolved_line):
                         # Typing a COMPLETE command
                         # e.g. 'ls \t'
-                        log.d("Fetching suggestions INTENT for command '%s'", comm_resolved_name)
+                        log.d("Fetching suggestions for COMMAND INTENT '%s'", comm_resolved_name)
 
                         comms_sugg  = comm_info.suggestions(token, self._client)
                         if comms_sugg:
@@ -431,21 +430,21 @@ class Shell:
 
                         break # nothing more to complete, the command has been found
 
-                    if comm_name.startswith(resolved_current_line):
+                    if comm_name.startswith(line):
                         # Typing an INCOMPLETE command
                         # e.g. 'clos\t'
 
                         # Case 1: complete command
-                        log.d("Fetching suggestions for COMMAND COMPLETION of '%s'", comm_resolved_name)
+                        log.d("Adding suggestion for COMMAND COMPLETION of '%s'", comm_resolved_name)
                         self._suggestions_intent.suggestions.append(StyledString(comm_name))
+
                 # If there are no suggestions and we are doing shell passthrough
                 # show the local files (probably the user command acts on those)
-                else:
-                    if self._passthrough:
-                        log.d("Showing local files as suggestions as fallback, "
-                              "since shell passthrough is enabled")
-                        self._suggestions_intent = Ls.suggestions(token, self._client) \
-                                                   or self._suggestions_intent
+                if len(self._suggestions_intent.suggestions) == 0 and self._passthrough:
+                    log.d("Showing local files as suggestions as fallback, "
+                          "since shell passthrough is enabled")
+                    self._suggestions_intent = Ls.suggestions(token, self._client) \
+                                               or self._suggestions_intent
 
                 findings = None
                 if re.match(Shell.LOCAL_FINDINGS_RE, token):

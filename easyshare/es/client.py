@@ -1,4 +1,3 @@
-import curses
 import mmap
 import os
 import re
@@ -8,7 +7,6 @@ import sys
 import threading
 import time
 import zlib
-from _curses import window
 from collections import OrderedDict
 from getpass import getpass
 from pathlib import Path
@@ -30,7 +28,7 @@ from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     file_info_pretty_str, server_pretty_str
 from easyshare.commands.commands import Commands, Ls, Scan, Info, Tree, Put, Get, \
     Ping, Find, Rfind, Du, Rdu, Rls, Cd, Mkdir, Pwd, Rm, Mv, Cp, Shell, Rcd, Rtree, Rmkdir, \
-    Rpwd, Rrm, Rmv, Rcp, Rshell, Connect, Disconnect, Open, Close
+    Rpwd, Rrm, Rmv, Rcp, Rshell, Connect, Disconnect, Open, Close, ListSharings
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import RequestsParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
@@ -39,7 +37,6 @@ from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode,
     ServerInfo, create_file_info, RexecEventType
 from easyshare.styling import bold, green, red
 from easyshare.timer import Timer
-from easyshare.tracing import trace_bin_payload
 from easyshare.utils import lexer
 from easyshare.utils.env import is_unix, terminal_size
 from easyshare.utils.json import j
@@ -51,7 +48,7 @@ from easyshare.utils.progress import ProgressBarRendererFactory
 from easyshare.utils.progress.file import FileProgressor
 from easyshare.utils.progress.simple import SimpleProgressor
 from easyshare.utils.str import q, chrnext
-from easyshare.utils.types import btos, itob, btoi
+from easyshare.utils.types import itob, btoi
 
 
 if is_unix():
@@ -342,6 +339,7 @@ class Client:
             Commands.PUT: (SHARING, [Put(0), Put(1)], self.put),
 
             Commands.SCAN: (SERVER, [Scan(), Scan()], self.scan),
+            Commands.LIST: (SERVER, [ListSharings(0), ListSharings(1)], self.list),
             Commands.INFO: (SERVER, [Info(0, 1), Info(1, 0)], self.info),
 
             Commands.CONNECT: (SERVER, [Connect(), Connect()], self.connect),
@@ -413,12 +411,12 @@ class Client:
         return True if self.connection and \
                        self.connection.is_connected_to_sharing() else False
 
-    def destroy_connection(self):
+    def destroy_connection(self, clean: bool = True, clear_findings: bool = True):
         """ Destroy an eventual established server connection (and thus sharing conn) """
         try:
             log.d("Destroying connection and invalidating it")
             if self.is_connected_to_server():
-                self.connection.disconnect()
+                self.connection.destroy_connection(clean=clean)
             # Server closes the sharing by itself
             # There's no need to close() the sharing connection
         except:
@@ -426,7 +424,51 @@ class Client:
         finally:
             self.connection = None
 
-        self._clear_remote_findings()
+        if clear_findings:
+            self._clear_remote_findings()
+
+    def renew_connection(self, clean: bool = True):
+        log.i("Renewing connection")
+
+        # Are we actually connected to a server (or a sharing)?
+        if not self.is_connected_to_server():
+            log.w("Cannot renew connection, not connected neither to server nor sharing")
+            return
+
+        # Build the current server location
+        current_server_location = ServerLocation(
+            name=self.connection.server_info.get("name"),
+            ip=self.connection.server_ip(),
+            port=self.connection.server_port()
+        )
+
+        # Build the current sharing location, if possible
+        current_sharing_location = None
+
+        if self.is_connected_to_sharing():
+            current_sharing_location = SharingLocation(
+                sharing_name=self.connection.current_sharing_name(),
+                server_location=current_server_location,
+                path=self.connection.current_rcwd()
+            )
+
+        # Destroy the current connection
+        # Tries to keep the findings, if we are able to establish the
+        # connection again successfully
+        self.destroy_connection(clean=clean, clear_findings=False)
+
+        # Perform a connect()[+ open()] again
+        try:
+            if current_sharing_location:
+                log.d("Renewal: performing open() since was not connected to a sharing")
+                self._open(current_sharing_location)
+            else:
+                log.d("Renewal: performing connect() only since was not connected to a sharing")
+                self._connect(current_server_location)
+        except Exception as ex:
+            log.w(f"Failed to renew the connection: {ex}")
+            # No reason to keep the findings, destroying those
+            self._clear_remote_findings()
 
     # === LOCAL Commands ===
 
@@ -671,32 +713,10 @@ class Client:
 
         server_location = ServerLocation.parse(args.get_positional())
 
-        # Just in case check whether we already connected to the right one
-        if self.is_connected_to_server():
-            if self.server_info_satisfy_server_location(
-                    self.connection.server_info,
-                    server_location):
-                log.w("Current connection already satisfy server location constraints")
-                return
+        if not server_location:
+            raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        # Actually create the connection
-        newconn = self._create_server_connection_from_server_location(
-            ServerLocation.parse(args.get_positional()),
-            connect=True
-        )
-
-        if not newconn or not newconn.is_connected_to_server():
-            raise CommandExecutionError(ClientErrors.SERVER_NOT_FOUND)
-
-        log.i("Server connection established")
-
-        if self.is_connected_to_server():
-            log.i("Disconnecting current server connection before set the new one")
-            # self.server_connection.destroy_connection()
-            # self.server_connection.disconnect()
-            self.destroy_connection()
-
-        self.connection = newconn
+        self._connect(server_location)
 
 
     @provide_server_connection
@@ -708,92 +728,12 @@ class Client:
     def open(self, args: Args, _):
         log.i(">> OPEN")
 
-        new_conn: Optional[Connection] = None
-
-        # Check whether we are connected to a server which owns the
-        # sharing we are looking for, otherwise performs a scan
         sharing_location = SharingLocation.parse(args.get_positional())
 
         if not sharing_location:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        if self.is_connected_to_server():
-
-            # Check whether the sharing is actually among the sharings of
-            # this server
-            if self.server_info_satisfy_sharing_location(
-                    self.connection.server_info,
-                    sharing_location
-            ):
-                # The sharing is among the sharings of this connection
-                log.d("The sharing we are looking for is among the sharings"
-                      " of the already established server connection")
-
-                new_conn = self.connection
-
-                # Check whether we are already connected to it, just in case
-                if self.is_connected_to_sharing() and \
-                    self.connection.current_sharing_name() == sharing_location.name:
-                    log.w("Current sharing connection already satisfy the sharing constraints")
-
-                    # Connection might be down, at least try to ping the remote
-                    ping_resp = None
-
-                    try:
-                        ping_resp = self.connection.ping()
-                    except:
-                        # Will handle an invalid response here below
-                        pass
-
-                    if is_data_response(ping_resp) and ping_resp.get("data") == "pong":
-                        log.d("Received valid response from the server we are already connected to - OK")
-                        return # nothing more to do
-                    else:
-                        log.e("Current connection is broken; destroying it")
-                        self.destroy_connection()
-                else:
-                    # Do an open() with this server connection
-                    # (the sharing should be within its sharings since we checked
-                    # it with server_info_satisfy_sharing_location)
-                    self.create_sharing_connection_from_server_connection(
-                        self.connection,
-                        sharing_location=sharing_location
-                    )
-
-        # Have we found the sharing yet or do we have to perform a scan?
-        if not new_conn or not new_conn.is_connected_to_sharing():
-            # Performs a scan
-            new_conn = self._create_sharing_connection_from_sharing_location(
-                sharing_location
-            )
-
-        if not new_conn or not new_conn.is_connected_to_sharing():
-            log.e("Server or sharing connection establishment failed")
-            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
-
-        # Close current stuff (if the new connections are actually new and different)
-
-        # if self.is_connected_to_server() and new_conn != self.connection:
-        #     log.i("Closing current server connection before set the new one")
-        #     self.connection.disconnect()
-        #
-        # if self.is_connected_to_sharing() and new_conn != self.connection:
-        #     log.d("Closing current sharing connection before set the new one")
-        #     self.connection.close()
-        #     self.close()
-
-        log.i("Closing current server connection before set the new one")
-        if new_conn != self.connection:
-            self.destroy_connection()
-
-
-        # Just mark that the server connection has been created due open()
-        # so that for symmetry close() will do disconnect() too
-        if new_conn != self.connection:
-            setattr(new_conn, "created_with_open", True)
-            
-        log.i("Server and sharing connection established")
-        self.connection = new_conn
+        self._open(sharing_location)
 
     @provide_server_connection
     @require_unix
@@ -987,16 +927,26 @@ class Client:
         log.i("======================")
 
     @provide_connection
-    def info(self, args: Args, conn: Connection):
-        show_only_sharings = Info.SHOW_ONLY_SHARINGS in args
+    def info(self, _: Args, conn: Connection):
+        highlights = [s for s in conn.server_info.get("sharings")
+                      if s.get("name") == conn.current_sharing_name()]
+        print(server_pretty_str(conn.server_info, highlight_sharings=highlights))
 
-        if show_only_sharings:
-            print(server_pretty_str(conn.server_info,
-                                    show_server_info=False,
-                                    show_ssl_certificate=False,
-                                    show_sharings_details=False))
+
+    @provide_connection
+    def list(self, _: Args, conn: Connection):
+        log.i(">> LIST")
+
+        resp = conn.list()
+        ensure_data_response(resp)
+
+        sharings_str = sharings_pretty_str(resp.get("data"),
+                                           details=True)
+
+        if sharings_str:
+            print(sharings_str)
         else:
-            print(server_pretty_str(conn.server_info))
+            log.w("Remote server doesn't have any sharing")
 
 
     # =================================================
@@ -1116,6 +1066,21 @@ class Client:
 
     @provide_sharing_connection
     def get(self, args: Args, conn: Connection):
+        try:
+            self._get(args, conn)
+        except KeyboardInterrupt:
+            # Renew (close and reopen) the connection if CTRL + C is detected
+            # during the transfer
+            # We can't do any better since we only use a socket, and not
+            # a control one like FTP
+            # Renew not in a clean manner: we can't send/receive any message in
+            # this moment since we are in the middle of a transfer, just shutdown
+            # the socket
+            log.w("CTRL+C detected while transferring - renewing connection")
+            self.renew_connection(clean=False)
+
+
+    def _get(self, args: Args, conn: Connection):
         files = []
         for p in args.get_positionals():
             files += self._remote_paths(p)
@@ -1386,8 +1351,7 @@ class Client:
                 recv_size = min(chunk_size or BEST_BUFFER_SIZE, fsize - cur_pos)
                 log.i("Waiting chunk... (expected size: %dB)", recv_size)
 
-                chunk = transfer_socket.recv(recv_size,
-                                             tracer=trace_bin_payload)
+                chunk = transfer_socket.recv(recv_size)
 
                 if not chunk:
                     log.i("END")
@@ -2457,7 +2421,7 @@ class Client:
         if not conn or not conn.is_connected_to_server():
             raise CommandExecutionError(ClientErrors.SERVER_NOT_FOUND)
 
-        self.create_sharing_connection_from_server_connection(
+        self._create_sharing_connection_from_server_connection(
             connection=conn,
             sharing_location=sharing_location,
         )
@@ -2572,7 +2536,7 @@ class Client:
                 # associated with the right server info
 
 
-                if self.server_info_satisfy_constraints(
+                if self._server_info_satisfy_constraints(
                         # DO not check server identity: this is needed for allow servers
                         # behind NAT to be reached without know the real internal IP/port
                         real_server_info,
@@ -2602,7 +2566,7 @@ class Client:
                     sharing_name=sharing_name, sharing_ftype=sharing_ftype
                 )
 
-                if self.server_info_satisfy_constraints_full(
+                if self._server_info_satisfy_constraints_full(
                         real_server_info,
                         server_name=server_name, server_ip=server_ip, server_port=server_port,
                         sharing_name=sharing_name, sharing_ftype=sharing_ftype):
@@ -2678,7 +2642,7 @@ class Client:
 
             log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
 
-            if self.server_info_satisfy_constraints_full(
+            if self._server_info_satisfy_constraints_full(
                 a_server_info,
                 server_ip=server_ip,
                 server_port=server_port,
@@ -2702,8 +2666,127 @@ class Client:
 
         return server_info
 
+
+    def _connect(self, server_location: ServerLocation):
+        if type(server_location) != ServerLocation:
+            raise TypeError(f"expected ServerLocation, found {type(server_location)}")
+
+        # Just in case check whether we already connected to the right one
+        if self.is_connected_to_server():
+            if self._server_info_satisfy_server_location(
+                    self.connection.server_info,
+                    server_location):
+                log.w("Current connection already satisfy server location constraints")
+                return
+
+        # Actually create the connection
+        newconn = self._create_server_connection_from_server_location(
+            server_location,
+            connect=True
+        )
+
+        if not newconn or not newconn.is_connected_to_server():
+            raise CommandExecutionError(ClientErrors.SERVER_NOT_FOUND)
+
+        log.i("Server connection established")
+
+        if self.is_connected_to_server():
+            log.i("Disconnecting current server connection before set the new one")
+            # self.server_connection.destroy_connection()
+            # self.server_connection.disconnect()
+            self.destroy_connection()
+
+        self.connection = newconn
+
+
+    def _open(self, sharing_location: SharingLocation):
+        new_conn: Optional[Connection] = None
+
+        if type(sharing_location) != SharingLocation:
+            raise TypeError(f"expected SharingLocation, found {type(sharing_location)}")
+
+        # Check whether we are connected to a server which owns the
+        # sharing we are looking for, otherwise performs a scan
+
+        if self.is_connected_to_server():
+
+            # Check whether the sharing is actually among the sharings of
+            # this server
+            if self._server_info_satisfy_sharing_location(
+                    self.connection.server_info,
+                    sharing_location
+            ):
+                # The sharing is among the sharings of this connection
+                log.d("The sharing we are looking for is among the sharings"
+                      " of the already established server connection")
+
+                new_conn = self.connection
+
+                # Check whether we are already connected to it, just in case
+                if self.is_connected_to_sharing() and \
+                        self.connection.current_sharing_name() == sharing_location.name:
+                    log.w("Current sharing connection already satisfy the sharing constraints")
+
+                    # Connection might be down, at least try to ping the remote
+                    ping_resp = None
+
+                    try:
+                        ping_resp = self.connection.ping()
+                    except:
+                        # Will handle an invalid response here below
+                        pass
+
+                    if is_data_response(ping_resp) and ping_resp.get("data") == "pong":
+                        log.d("Received valid response from the server we are already connected to - OK")
+                        return  # nothing more to do
+                    else:
+                        log.e("Current connection is broken; destroying it")
+                        self.destroy_connection()
+                else:
+                    # Do an open() with this server connection
+                    # (the sharing should be within its sharings since we checked
+                    # it with server_info_satisfy_sharing_location)
+                    self._create_sharing_connection_from_server_connection(
+                        self.connection,
+                        sharing_location=sharing_location
+                    )
+
+        # Have we found the sharing yet or do we have to perform a scan?
+        if not new_conn or not new_conn.is_connected_to_sharing():
+            # Performs a scan
+            new_conn = self._create_sharing_connection_from_sharing_location(
+                sharing_location
+            )
+
+        if not new_conn or not new_conn.is_connected_to_sharing():
+            log.e("Server or sharing connection establishment failed")
+            raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
+
+        # Close current stuff (if the new connections are actually new and different)
+
+        # if self.is_connected_to_server() and new_conn != self.connection:
+        #     log.i("Closing current server connection before set the new one")
+        #     self.connection.disconnect()
+        #
+        # if self.is_connected_to_sharing() and new_conn != self.connection:
+        #     log.d("Closing current sharing connection before set the new one")
+        #     self.connection.close()
+        #     self.close()
+
+        log.i("Closing current server connection before set the new one")
+        if new_conn != self.connection:
+            self.destroy_connection()
+
+        # Just mark that the server connection has been created due open()
+        # so that for symmetry close() will do disconnect() too
+        if new_conn != self.connection:
+            setattr(new_conn, "created_with_open", True)
+
+        log.i("Server and sharing connection established")
+        self.connection = new_conn
+
     @classmethod
-    def create_sharing_connection_from_server_connection(
+    def _create_sharing_connection_from_server_connection(
             cls, connection: Connection, sharing_location: SharingLocation):
         """
         Given an already valid server connection, tries to establish a sharing
@@ -2728,30 +2811,30 @@ class Client:
             log.d("Current rcwd: %s", connection.current_rcwd())
 
     @classmethod
-    def server_info_satisfy_server_location(cls,
-            server_info: ServerInfo, server_location: ServerLocation):
+    def _server_info_satisfy_server_location(cls,
+                                             server_info: ServerInfo, server_location: ServerLocation):
         """ Whether 'server_info' satisfy 'server_location' """
-        return cls.server_info_satisfy_constraints(
+        return cls._server_info_satisfy_constraints(
                 server_info,
                 server_name=server_location.name)
 
     @classmethod
-    def server_info_satisfy_sharing_location(cls,
-            server_info: ServerInfo, sharing_location: SharingLocation):
+    def _server_info_satisfy_sharing_location(cls,
+                                              server_info: ServerInfo, sharing_location: SharingLocation):
         """ Whether 'server_info' satisfy 'sharing_location' """
 
-        return cls.server_info_satisfy_constraints(
+        return cls._server_info_satisfy_constraints(
                 server_info,
                 server_name=sharing_location.server_name,
                 sharing_name=sharing_location.name,
                 sharing_ftype=FTYPE_DIR)
 
     @classmethod
-    def server_info_satisfy_constraints(cls,
-            server_info: ServerInfo,
-            server_name: str = None,
-            sharing_name: str = None,
-            sharing_ftype: FileType = None) -> bool:
+    def _server_info_satisfy_constraints(cls,
+                                         server_info: ServerInfo,
+                                         server_name: str = None,
+                                         sharing_name: str = None,
+                                         sharing_ftype: FileType = None) -> bool:
         """ Whether 'server_info' satisfy the given filters """
 
         # Make a shallow copy
@@ -2759,29 +2842,29 @@ class Client:
         server_info_full["ip"] = None
         server_info_full["port"] = None
 
-        return cls.server_info_satisfy_constraints_full(
+        return cls._server_info_satisfy_constraints_full(
             server_info_full,
             server_name=server_name,
             sharing_name=sharing_name,
             sharing_ftype=sharing_ftype)
 
     @classmethod
-    def server_info_satisfy_server_location_full(cls,
-            server_info_full: ServerInfoFull, server_location: ServerLocation):
+    def _server_info_satisfy_server_location_full(cls,
+                                                  server_info_full: ServerInfoFull, server_location: ServerLocation):
         """ Whether 'server_info_full' satisfy the given 'server_location' """
 
-        return cls.server_info_satisfy_constraints_full(
+        return cls._server_info_satisfy_constraints_full(
             server_info_full,
             server_name=server_location.name,
             server_ip=server_location.ip,
             server_port=server_location.port)
 
     @classmethod
-    def server_info_satisfy_sharing_location_full(cls,
-            server_info_full: ServerInfoFull, sharing_location: SharingLocation):
+    def _server_info_satisfy_sharing_location_full(cls,
+                                                   server_info_full: ServerInfoFull, sharing_location: SharingLocation):
         """ Whether 'server_info_full' satisfy the given 'sharing_location' """
 
-        return cls.server_info_satisfy_constraints_full(
+        return cls._server_info_satisfy_constraints_full(
             server_info_full,
             server_name=sharing_location.server_name,
             server_ip=sharing_location.server_ip,
@@ -2790,10 +2873,10 @@ class Client:
             sharing_ftype=FTYPE_DIR)
 
     @classmethod
-    def server_info_satisfy_constraints_full(cls,
-            server_info: ServerInfoFull,
-            server_name: str = None, server_ip: str = None, server_port: int = None,
-            sharing_name: str = None, sharing_ftype: FileType = None) -> bool:
+    def _server_info_satisfy_constraints_full(cls,
+                                              server_info: ServerInfoFull,
+                                              server_name: str = None, server_ip: str = None, server_port: int = None,
+                                              sharing_name: str = None, sharing_ftype: FileType = None) -> bool:
         """
         Actually check if the given 'server_info' satisfy the given filters.
         """

@@ -2,13 +2,13 @@ import socket
 import ssl
 
 from abc import ABC
-from typing import Optional, Union, Tuple, Callable
+from typing import Optional, Union, Tuple
 
 from easyshare.common import TransferDirection, TransferProtocol
 from easyshare.consts.net import ADDR_BROADCAST, ADDR_ANY, PORT_ANY
 from easyshare.logging import get_logger
 from easyshare.endpoint import Endpoint
-from easyshare.tracing import trace_bin_all, trace_bin_payload
+from easyshare.tracing import trace_bin
 from easyshare.utils.net import socket_udp_in, socket_udp_out, socket_tcp_out, socket_tcp_in
 from easyshare.utils.ssl import sslify_socket
 
@@ -60,6 +60,13 @@ class Socket(ABC):
             else:
                 log.w("Nothing to close for this socket, invalid params?")
 
+    def set_timeout(self, timeout: float = None):
+        self.sock.settimeout(timeout)
+
+
+    def get_timeout(self) -> float:
+        return self.sock.gettimeout()
+
 
 # ================================================
 # ================ UDP SOCKETS ===================
@@ -71,17 +78,17 @@ class SocketUdp(Socket):
         data, sender = self.sock.recvfrom(length)
 
         if trace:
-            trace_bin_payload(data,
-                          sender=sender, receiver=self.endpoint(),
-                          direction=TransferDirection.IN, protocol=TransferProtocol.UDP)
+            trace_bin(data,
+                      sender=sender, receiver=self.endpoint(),
+                      direction=TransferDirection.IN, protocol=TransferProtocol.UDP)
 
         return data, sender
 
     def send(self, data: bytes, address: str, port: int, trace: bool = True) -> int:
         if trace:
-            trace_bin_payload(data,
-                          sender=self.endpoint(), receiver=(address, port),
-                          direction=TransferDirection.OUT, protocol=TransferProtocol.UDP)
+            trace_bin(data,
+                      sender=self.endpoint(), receiver=(address, port),
+                      direction=TransferDirection.OUT, protocol=TransferProtocol.UDP)
 
         return self.sock.sendto(data, (address, port))
 
@@ -111,15 +118,15 @@ class SocketTcp(Socket):
         super().__init__(sock)
         self._recv_buffer = bytearray()
 
-    def send(self, data: bytes, tracer: Callable = trace_bin_all):
-        if tracer:
-            tracer(data,
+    def send(self, data: bytes, trace: bool = True):
+        if trace:
+            trace_bin(data,
                    sender=self.endpoint(), receiver=self.remote_endpoint(),
                    direction=TransferDirection.OUT, protocol=TransferProtocol.TCP)
 
         self.sock.sendall(data)
 
-    def recv(self, length: int, tracer: Callable = trace_bin_all) -> Optional[bytearray]:
+    def recv(self, length: int, trace: bool = True) -> Optional[bytearray]:
         while True:
             remaining_length = length - len(self._recv_buffer)
             if remaining_length <= 0:
@@ -136,8 +143,8 @@ class SocketTcp(Socket):
         data = self._recv_buffer[0:length]
         self._recv_buffer = self._recv_buffer[length:]  # might have read more
                                                         # than the required length
-        if tracer:
-            tracer(data,
+        if trace:
+            trace_bin(data,
                    sender=self.remote_endpoint(), receiver=self.endpoint(),
                    direction=TransferDirection.IN, protocol=TransferProtocol.TCP)
 
@@ -156,10 +163,10 @@ class SocketTcp(Socket):
     def remote_port(self) -> int:
         return self.remote_endpoint()[1]
 
-
 class SocketTcpIn(SocketTcp):
     def __init__(self,
-                 sock: socket.socket):
+                 sock: socket.socket,
+                 timeout: float = None):
         super().__init__(sock) # already sslified by the acceptor, eventually
 
 

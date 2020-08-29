@@ -8,8 +8,8 @@ from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.sockets import SocketUdpIn, SocketUdpOut
-from easyshare.tracing import trace_text, get_tracing_level, TRACING_TEXT
-from easyshare.utils.json import btoj, j
+from easyshare.tracing import trace_json, trace_text
+from easyshare.utils.json import btoj
 from easyshare.utils.types import itob
 
 log = get_logger(__name__)
@@ -55,15 +55,14 @@ class Discoverer:
               self._discover_addr,
               self._discover_port)
 
-        if get_tracing_level() == TRACING_TEXT: # check for avoid json_pretty_str call
-            trace_text(
-                str(discover_message),
-                sender=out_sock.endpoint(), receiver=(self._discover_addr, self._discover_port),
-                direction=TransferDirection.OUT, protocol=TransferProtocol.UDP
-            )
+        trace_text(
+            str(discover_message),
+            sender=out_sock.endpoint(), receiver=(self._discover_addr, self._discover_port),
+            direction=TransferDirection.OUT, protocol=TransferProtocol.UDP
+        )
 
         out_sock.send(discover_message_b, self._discover_addr, self._discover_port,
-                      trace=get_tracing_level() > TRACING_TEXT)
+                      trace=False)
 
         # Listen
         discover_start_time = datetime.now()
@@ -88,17 +87,16 @@ class Discoverer:
 
             # Ready for recv
             log.d("DISCOVER socket ready for recv")
-            raw_resp, endpoint = in_sock.recv(trace=get_tracing_level() > TRACING_TEXT)
+            raw_resp, endpoint = in_sock.recv(trace=False)
 
             log.i("Received DISCOVER response from: %s", endpoint)
             resp: ServerInfoFull = cast(ServerInfoFull, btoj(raw_resp))
 
-            if get_tracing_level() == TRACING_TEXT:  # check for avoid json_pretty_str call
-                trace_text(
-                    j(resp),
-                    sender=in_sock.endpoint(), receiver=endpoint,
-                    direction=TransferDirection.IN, protocol=TransferProtocol.UDP
-                )
+            trace_json(
+                resp,
+                sender=in_sock.endpoint(), receiver=endpoint,
+                direction=TransferDirection.IN, protocol=TransferProtocol.UDP
+            )
 
             # Dispatch the response and check whether go on on listening
             go_ahead = self._response_handler(endpoint, resp)

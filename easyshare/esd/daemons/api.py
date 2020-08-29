@@ -1,6 +1,5 @@
 import mmap
 import os
-import subprocess
 import threading
 import time
 import zlib
@@ -10,7 +9,8 @@ from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO, Set
 
 
 from easyshare.auth import Auth
-from easyshare.common import TransferDirection, TransferProtocol, BEST_BUFFER_SIZE, APP_VERSION
+from easyshare.common import TransferDirection, TransferProtocol, BEST_BUFFER_SIZE, APP_VERSION, \
+    DEFAULT_TRANSFER_SOCKET_TIMEOUT
 from easyshare.endpoint import Endpoint
 from easyshare.esd.common import Sharing, ClientContext
 from easyshare.esd.daemons import TcpDaemon
@@ -23,14 +23,14 @@ from easyshare.sockets import SocketTcp, SocketTcpIn
 from easyshare.ssl import get_ssl_context
 from easyshare.streams import StreamClosedError
 from easyshare.styling import green, red
-from easyshare.tracing import get_tracing_level, TRACING_TEXT, trace_text
+from easyshare.tracing import trace_json
 from easyshare.utils.env import is_unix
 from easyshare.utils.json import btoj, jtob, j
 from easyshare.utils.os import ls, os_error_str, tree, cp, mv, rm, user, pty_detached, \
     find, du
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import q
-from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, stob, itob, btos, btoi, is_int
+from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, itob, btoi
 
 if is_unix():
     from ptyprocess import PtyProcess
@@ -258,8 +258,9 @@ class ClientHandler:
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})"))
 
 
-    def _recv_json(self) -> Dict:
-        req_payload_data = self._client.stream.read(trace=False)
+    def _recv_json(self, timeout: float=None) -> Dict:
+        # don't trace at byte level
+        req_payload_data = self._client.stream.read(timeout=timeout, trace=False)
         req_payload = None
 
         try:
@@ -268,12 +269,11 @@ class ClientHandler:
             log.exception("Failed to parse payload - discarding it")
 
         # Trace IN
-        if get_tracing_level() == TRACING_TEXT: # check for avoid json_pretty_str call
-            trace_text(
-                j(req_payload),
-                sender=self._client.socket.remote_endpoint(), receiver=self._client.socket.endpoint(),
-                direction=TransferDirection.IN, protocol=TransferProtocol.TCP
-            )
+        trace_json(
+            req_payload,
+            sender=self._client.socket.remote_endpoint(), receiver=self._client.socket.endpoint(),
+            direction=TransferDirection.IN, protocol=TransferProtocol.TCP
+        )
 
         return req_payload
 
@@ -293,15 +293,15 @@ class ClientHandler:
             return
 
         # Trace OUT
-        if get_tracing_level() == TRACING_TEXT: # check for avoid json_pretty_str call
-            trace_text(
-                j(response),
-                sender=self._client.socket.endpoint(), receiver=self._client.socket.remote_endpoint(),
-                direction=TransferDirection.OUT, protocol=TransferProtocol.TCP
-            )
+        trace_json(
+            response,
+            sender=self._client.socket.endpoint(), receiver=self._client.socket.remote_endpoint(),
+            direction=TransferDirection.OUT, protocol=TransferProtocol.TCP
+        )
 
         # Really send it back
-        self._client.stream.write(jtob(response), trace=False) # don't trace at byte level
+        # don't trace at byte level
+        self._client.stream.write(jtob(response), trace=False)
 
 
     # == SERVER COMMANDS ==
@@ -369,8 +369,6 @@ class ClientHandler:
 
         print(f"[{self._client.tag}] ping "
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
-
-        time.sleep(4)
 
         return create_success_response("pong")
 
@@ -1170,7 +1168,7 @@ class ClientHandler:
                 # 1. Receive the request from the client
 
                 # e.g. {skip: False, transfer: True} // client doesn't provide the path
-                req = self._recv_json()
+                req = self._recv_json(timeout=DEFAULT_TRANSFER_SOCKET_TIMEOUT)
 
                 if not req:
                     self._send_response(self._create_error_response(ServerErrors.INVALID_REQUEST))
@@ -1406,6 +1404,8 @@ class ClientHandler:
             crc = 0
 
             # Send file
+
+
             while cur_pos < file_len:
                 readlen = min(file_len - cur_pos, chunk_size)
 
@@ -1428,6 +1428,9 @@ class ClientHandler:
 
                 transfer_socket.send(chunk)
 
+                time.sleep(0.5)
+
+
             log.i("Closing file %s", next_transf_fpath)
             next_transf_f.close()
             if source != next_transf_f:
@@ -1439,6 +1442,7 @@ class ClientHandler:
                 transfer_socket.send(itob(crc, 4))
 
         log.i("GET finished")
+
 
         resp_data = {
             ResponsesParams.GET_OUTCOME: outcome
@@ -1499,7 +1503,8 @@ class ClientHandler:
                 # 1. Receive the request from the client
 
                 # e.g. {file: {name: f1, size: 293}, overwrite: "..."} // client doesn't provide the path
-                req = self._recv_json()
+
+                req = self._recv_json(timeout=DEFAULT_TRANSFER_SOCKET_TIMEOUT)
 
                 # File info
                 finfo = req.get(RequestsParams.PUT_NEXT_FILE)
@@ -1725,6 +1730,8 @@ class ClientHandler:
                 local_fd.write(chunk)
 
                 log.d("%d/%d (%.2f%%)", cur_pos, incoming_size, cur_pos / incoming_size * 100)
+
+                # time.sleep(0.5)
 
             log.i("Closing file %s", incoming_fpath)
             local_fd.close()
