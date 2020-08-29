@@ -22,7 +22,7 @@ from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
     rl_get_completion_quote_character, rl_set_completion_suppress_quote, rl_set_char_is_quoted_p
-from easyshare.utils.str import isorted
+from easyshare.utils.str import isorted, rightof
 from easyshare.utils.types import is_bool, is_str
 
 import readline
@@ -145,8 +145,15 @@ class Shell:
         return command in self._shell_command_dispatcher
 
     def execute(self, cmd: str):
-        outcome = self._execute(cmd)
-        print_errors(outcome)
+        # Split the command by ;
+        # so that more command can be submitted in one line
+        cmds = cmd.split(";")
+        log.d(f"# commands = {len(cmds)}")
+
+        for a_cmd in cmds:
+            log.i(f"Executing '{a_cmd}'")
+            outcome = self._execute(a_cmd)
+            print_errors(outcome)
 
     def _execute(self, cmd: str) ->  Union[int, str, List[str]]:
         self._update_history()
@@ -154,6 +161,8 @@ class Shell:
         if not is_str(cmd):
             log.e("Invalid command")
             return ClientErrors.INVALID_COMMAND_SYNTAX
+
+        cmd = cmd.strip()
 
         log.d(f"Before alias resolution: {cmd}")
         resolved_cmd_prefix, resolved_cmd_suffix = self._resolve_alias(cmd, as_string=False)
@@ -391,7 +400,10 @@ class Shell:
             if count == 0:
 
                 self._current_line = readline.get_line_buffer()
-                line = self._current_line.lstrip()
+
+                # Take out the trailing white spaces, and in case a ;
+                # is found, ignore everything before it (was another command inline)
+                line = rightof(self._current_line, ";", from_end=True).lstrip()
 
                 # Unescape since the token might contain \ we inserted in next_suggestion
                 # for allow spaces in the line

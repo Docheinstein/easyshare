@@ -130,6 +130,9 @@ If no *COMMAND* is given, the interactive console is started. \
 If *COMMAND* is a valid command, it is executed and the process quits \
 unless the command is open.
 
+Multiple commands can be given in a single line, either from the shell or from command line, \
+separating those with ";".
+
 **es** reads ~/.esrc file from the home directory at startup, in which \
 some configuration, such as the startup parameter and aliases, can be specified.
 
@@ -240,27 +243,7 @@ start the interactive shell
         +-- f4
     alice-arch.shared:/ - /tmp> rcd dir
     alice-arch.shared:/dir - /tmp> rls
-    f1      f2      f3      f4
-
-.A.
-- Arbitrary local command execution
-./A.
-    **es**
-
-    >/tmp> cd d
-    /tmp/d> ls
-    f0
-    /tmp> :touch f1
-    f0      f1
-
-.A.
-- Arbitrary remote command execution (DISABLED BY DEFAULT)
-./A
-    **es**
-
-    /tmp> connect alice-arch
-    alice-arch:/ - /tmp> ::whoami
-    alice"""
+    f1      f2      f3      f4"""
 
 class EsUsage(Es):
     @classmethod
