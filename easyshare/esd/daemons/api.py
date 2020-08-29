@@ -672,6 +672,7 @@ class ClientHandler:
         case_sensitive = params.get(RequestsParams.RFIND_CASE_SENSITIVE)
         ftype = params.get(RequestsParams.RFIND_FTYPE)
         details = params.get(RequestsParams.RFIND_DETAILS) or False
+        max_depth = params.get(RequestsParams.RFIND_MAX_DEPTH)
 
         if case_sensitive is None:
             case_sensitive = True
@@ -701,6 +702,7 @@ class ClientHandler:
                                case_sensitive=case_sensitive,
                                ftype=ftype,
                                details=details,
+                               max_depth=max_depth,
                                file_info_name_provider=lambda p: str(self._spath_rel_to_rcwd_of_fpath(p)))
 
             # OK - report it

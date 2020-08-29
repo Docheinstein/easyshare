@@ -937,6 +937,7 @@ class BaseFindCommandInfo(CommandInfo, ABC, PosArgsSpec):
     CASE_INSENSITIVE = ["-i", "--insensitive"]
     TYPE = ["-t", "--type"]
     SHOW_DETAILS = ["-l"]
+    MAX_DEPTH = ["-d", "--depth"]
 
     def options_spec(self) -> Optional[List[Option]]:
         return [
@@ -945,6 +946,7 @@ class BaseFindCommandInfo(CommandInfo, ABC, PosArgsSpec):
             (self.CASE_INSENSITIVE, PRESENCE_PARAM),
             (self.TYPE, STR_PARAM),
             (self.SHOW_DETAILS, PRESENCE_PARAM),
+            (self.MAX_DEPTH, INT_PARAM),
         ]
 
     @classmethod
@@ -958,6 +960,7 @@ class BaseFindCommandInfo(CommandInfo, ABC, PosArgsSpec):
             CommandOptionInfo(cls.TYPE, "filter by file type",
                               params=["ftype"]),
             CommandOptionInfo(cls.SHOW_DETAILS, "show more details"),
+            CommandOptionInfo(cls.MAX_DEPTH, "maximum display depth of tree", params=["depth"])
         ]
 
 class Find(LocalAllFilesSuggestionsCommandInfo, BaseFindCommandInfo):

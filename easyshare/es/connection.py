@@ -327,7 +327,8 @@ class ConnectionMinimal:
     @handle_connection_response
     @require_sharing_connection
     def rfind(self, name: str = None, regex: str = None, case_sensitive: bool = True,
-              ftype: FileType = None, details: bool = False, path: str = None) -> Response:
+              ftype: FileType = None, details: bool = False, path: str = None,
+              max_depth: int = None) -> Response:
 
         return self.call(create_request(Requests.RFIND, {
             RequestsParams.RFIND_PATH: path,
@@ -336,6 +337,7 @@ class ConnectionMinimal:
             RequestsParams.RFIND_CASE_SENSITIVE: case_sensitive,
             RequestsParams.RFIND_FTYPE: ftype,
             RequestsParams.RFIND_DETAILS: details,
+            RequestsParams.RFIND_MAX_DEPTH: max_depth,
         }))
 
     @handle_connection_response

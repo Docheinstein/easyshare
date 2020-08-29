@@ -68,6 +68,7 @@ class RequestsParams:
     RFIND_CASE_SENSITIVE = "case_sensitive"
     RFIND_FTYPE = "ftype"
     RFIND_DETAILS = "details"
+    RFIND_MAX_DEPTH = "max_depth"
 
     RDU_PATH = "path"
 

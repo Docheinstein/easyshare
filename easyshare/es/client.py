@@ -149,7 +149,9 @@ def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
                 log.d("Closing temporary sharing connection")
                 client.close()
                 # conn.close()
-        else:
+        elif conn.is_connected_to_server():
+            # check again since some api might destroy the connection in
+            # the meanwhile (e.g. get/put if CTRL+C is pressed in the meanwhile)
             log.d("Disconnecting temporary server connection")
             conn.disconnect()
 
@@ -416,16 +418,20 @@ class Client:
         try:
             log.d("Destroying connection and invalidating it")
             if self.is_connected_to_server():
+                log.d(f"REMOVE ME [6] _open, connection = {self.connection}")
+
                 self.connection.destroy_connection(clean=clean)
             # Server closes the sharing by itself
             # There's no need to close() the sharing connection
         except:
             log.w("Clean disconnection failed, invalidating connection anyway")
-        finally:
+
+        if self.connection:
+            # Clear findings only if 1) required) 2) the connection was up
             self.connection = None
 
-        if clear_findings:
-            self._clear_remote_findings()
+            if clear_findings:
+                self._clear_remote_findings()
 
     def renew_connection(self, clean: bool = True):
         log.i("Renewing connection")
@@ -545,10 +551,11 @@ class Client:
         self._xtree(args, tree_provider, "TREE")
 
     def find(self, args: Args, _):
+
         def find_provider(path: str, **kwargs):
             p = self._local_path(path)
             kws = {k: v for k, v in kwargs.items() if k in
-                   ["name", "regex", "ftype", "case_sensitive", "details"]}
+                   ["name", "regex", "ftype", "case_sensitive", "details", "max_depth"]}
             try:
                 find_res = find(p, **kws)
             except FileNotFoundError:
@@ -1070,15 +1077,30 @@ class Client:
             self._get(args, conn)
         except KeyboardInterrupt:
             # Renew (close and reopen) the connection if CTRL + C is detected
-            # during the transfer
+            # during the transfer.
             # We can't do any better since we only use a socket, and not
-            # a control one like FTP
+            # a control one like FTP.
             # Renew not in a clean manner: we can't send/receive any message in
             # this moment since we are in the middle of a transfer, just shutdown
-            # the socket
+            # the socket.
             log.w("CTRL+C detected while transferring - renewing connection")
             self.renew_connection(clean=False)
 
+
+    @provide_sharing_connection
+    def put(self, args: Args, conn: Connection):
+        try:
+            self._put(args, conn)
+        except KeyboardInterrupt:
+            # Renew (close and reopen) the connection if CTRL + C is detected
+            # during the transfer.
+            # We can't do any better since we only use a socket, and not
+            # a control one like FTP.
+            # Renew not in a clean manner: we can't send/receive any message in
+            # this moment since we are in the middle of a transfer, just shutdown
+            # the socket.
+            log.w("CTRL+C detected while transferring - renewing connection")
+            self.renew_connection(clean=False)
 
     def _get(self, args: Args, conn: Connection):
         files = []
@@ -1495,9 +1517,7 @@ class Client:
                     print(f"{idx + 1}. {err}")
 
 
-
-    @provide_d_sharing_connection
-    def put(self, args: Args, conn: Connection):
+    def _put(self, args: Args, conn: Connection):
 
         files = []
         for p in args.get_positionals():
@@ -2140,6 +2160,7 @@ class Client:
         insensitive = Find.CASE_INSENSITIVE in args
         ftype = args.get_option_param(Find.TYPE)
         details = Find.SHOW_DETAILS in args
+        max_depth = args.get_option_param(Find.MAX_DEPTH)
 
         if ftype in ["f", FTYPE_FILE]:
             ftype = FTYPE_FILE
@@ -2152,7 +2173,8 @@ class Client:
         find_result = data_provider(path,
                                     name=name, regex=regex,
                                     case_sensitive=not insensitive,
-                                    ftype=ftype, details=details)
+                                    ftype=ftype, details=details,
+                                    max_depth=max_depth)
 
         if find_result is None:
             raise CommandExecutionError()
@@ -2235,6 +2257,7 @@ class Client:
         return letter
 
     def _clear_remote_findings(self):
+        log.d("Clearing remote findings")
         self._remote_findings.clear()
         self._remote_finding_letter = "A"
 
@@ -2707,9 +2730,7 @@ class Client:
 
         # Check whether we are connected to a server which owns the
         # sharing we are looking for, otherwise performs a scan
-
         if self.is_connected_to_server():
-
             # Check whether the sharing is actually among the sharings of
             # this server
             if self._server_info_satisfy_sharing_location(
@@ -2763,15 +2784,6 @@ class Client:
             raise CommandExecutionError(ClientErrors.NOT_CONNECTED)
 
         # Close current stuff (if the new connections are actually new and different)
-
-        # if self.is_connected_to_server() and new_conn != self.connection:
-        #     log.i("Closing current server connection before set the new one")
-        #     self.connection.disconnect()
-        #
-        # if self.is_connected_to_sharing() and new_conn != self.connection:
-        #     log.d("Closing current sharing connection before set the new one")
-        #     self.connection.close()
-        #     self.close()
 
         log.i("Closing current server connection before set the new one")
         if new_conn != self.connection:

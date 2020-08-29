@@ -164,6 +164,10 @@ class Shell:
 
         cmd = cmd.strip()
 
+        if len(cmd) == 0:
+            log.w("Empty command, nothing to do here")
+            return ClientErrors.SUCCESS # no problem...
+
         log.d(f"Before alias resolution: {cmd}")
         resolved_cmd_prefix, resolved_cmd_suffix = self._resolve_alias(cmd, as_string=False)
         log.d(f"resolved_cmd_prefix: {resolved_cmd_prefix}")

@@ -5,6 +5,7 @@ import shlex
 import shutil
 import subprocess
 import threading
+from collections import deque
 from os import PathLike
 from pathlib import Path
 from stat import S_ISREG
@@ -249,6 +250,7 @@ def find(path: Union[Path, PathLike],
          regex: str = None,
          case_sensitive: bool = True,
          ftype: FileType = None,
+         max_depth: int = None,
          details: bool = False,
          file_info_name_provider: Callable[[Path], str] = str) -> Optional[List[FileInfo]]:
 
@@ -260,6 +262,7 @@ def find(path: Union[Path, PathLike],
           f"\tregex={regex}\n"
           f"\tcase_sensitive={case_sensitive}\n"
           f"\tftype={ftype}\n"
+          f"\tmax_depth={max_depth}\n"
           f"\tdetails={details}")
 
     name_filter = None
@@ -287,7 +290,7 @@ def find(path: Union[Path, PathLike],
     if not path.exists():
         return ret
 
-    for f, fstat in walk_preorder(path):
+    for f, fstat in walk_preorder(path, max_depth=max_depth):
         p = Path(f)
         finfo = create_file_info(p,
                                  fstat=fstat,
@@ -350,17 +353,19 @@ def du(path: Path):
     return du_sum
 
 
-def walk_preorder(path: Path):
+def walk_preorder(path: Path, max_depth: int = None):
     root = path
-    log.d("walk_preorder over '%s'", root)
+    log.d(f"walk_preorder over '{root}' - max_depth={max_depth}")
 
-    stack: List[Path] = [root]
+    stack: deque = deque([(root, 0)])
+    # stack: List[Path] = [root]
 
     while stack:
-        cursor = stack.pop(0)
+        cursor_path, cursor_depth = stack.popleft()
+        # cursor = stack.pop(0)
 
         try:
-            fstat = cursor.stat()
+            fstat = cursor_path.stat()
         except OSError as oserr:
             log.w("Can't stat: %s", str(oserr))
             continue
@@ -371,16 +376,21 @@ def walk_preorder(path: Path):
             is_file = False
 
         if is_file:
-            yield cursor, fstat
-        else:
-            if cursor != root:
-                yield cursor, fstat
+            yield cursor_path, fstat
+        else: # probably is_dir
+            if cursor_path != root:
+                yield cursor_path, fstat
 
-            try:
-                children: List = isorted(list(cursor.iterdir()))
-                stack = children + stack
-            except OSError as oserr:
-                log.w("Can't descend: %s", str(oserr))
+            # Descend further, if allowed by max depth
+            if max_depth is None or cursor_depth < max_depth:
+                try:
+                    children: List = [(c, cursor_depth + 1) for c in isorted(list(cursor_path.iterdir()))]
+                    stack.extendleft(reversed(children))
+                    # stack = children + stack
+                except OSError as oserr:
+                    log.w("Can't descend: %s", str(oserr))
+            else:
+                log.d(f"cursor_depth({cursor_depth}) > max_depth({max_depth}) - not descending further")
 
 
 def rm(path: Path, error_callback: Callable[[Exception, Path], None] = None) -> bool:
