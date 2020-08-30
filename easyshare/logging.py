@@ -1,20 +1,14 @@
 import logging
+from typing import Optional
 
+from easyshare.common import VERBOSITY_NONE, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG, \
+    VERBOSITY_MIN, VERBOSITY_MAX
+from easyshare.settings import add_setting_callback, Settings
 from easyshare.styling import green, blue, yellow, red
 from easyshare.utils.mathematics import rangify
 
-ROOT_LOGGER_PATTERN = "__main__"           # the real name of the root logger
-ROOT_LOGGER_DISPLAY_NAME = "easyshare"  # the name we'll use to to render the root logger
-
-VERBOSITY_NONE = 0
-VERBOSITY_ERROR = 1
-VERBOSITY_WARNING = 2
-VERBOSITY_INFO = 3
-VERBOSITY_DEBUG = 4
-
-VERBOSITY_MIN = VERBOSITY_NONE
-VERBOSITY_MAX = VERBOSITY_DEBUG
-VERBOSITY_DEFAULT = VERBOSITY_INFO
+ROOT_LOGGER_PATTERN = "__main__"            # the real name of the root logger
+ROOT_LOGGER_DISPLAY_NAME = "easyshare"      # the name we'll use to to render the root logger
 
 LEVEL_FATAL = logging.FATAL
 LEVEL_ERROR = logging.ERROR
@@ -41,7 +35,7 @@ LEVEL_TO_VERBOSITY = {
 
 _initialized = False
 _default_verbosity = None
-_log_handler = None
+_log_handler: Optional[logging.StreamHandler] = None
 
 
 class Logger(logging.Logger):
@@ -133,11 +127,10 @@ def init_logging(default_verbosity: int = None):
     # We can initialize the root logger at this point
     if _initialized is False:
         get_logger()
+        add_setting_callback(Settings.VERBOSITY, lambda k,v: get_logger().set_verbosity(v))
 
     _initialized = True
     _default_verbosity = default_verbosity
-
-
 
 
 def get_logger(name: str = ROOT_LOGGER_PATTERN,
@@ -147,8 +140,6 @@ def get_logger(name: str = ROOT_LOGGER_PATTERN,
     Get the logger for 'name', eventually add an handler if the logger is a root logger
     (the responsible for print messages, the child only forwards message to it)
     """
-    global _log_handler
-
     # Don't call init_logging() even if is attempting...
     # We have to call it manually after checking the colors support
 

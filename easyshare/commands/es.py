@@ -137,8 +137,8 @@ separating those with ";".
 some configuration, such as the startup parameter and aliases, can be specified.
 
 Configuration file example (.esrc):
-    # discover_port=12019
-    # verbose=2
+    # set discover_port=12019
+    # set verbose=2
     alias l=ls -la
     alias rl=rls -la
     alias s=scan

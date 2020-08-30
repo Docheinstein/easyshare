@@ -7,7 +7,7 @@ from easyshare import logging
 from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, ArgType, Args, StrParams, VarArgsSpec
 from easyshare.auth import AuthFactory
 from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO, \
-    DEFAULT_SERVER_PORT, DEFAULT_DISCOVER_PORT
+    DEFAULT_SERVER_PORT, DEFAULT_DISCOVER_PORT, TRACING_NONE, VERBOSITY_NONE, TRACING_TEXT, VERBOSITY_MAX
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.common import Sharing
 from easyshare.esd.daemons.api import ApiDaemon
@@ -16,9 +16,9 @@ from easyshare.commands.esd import Esd, EsdUsage
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.res.helps import command_usage
+from easyshare.settings import Settings, set_setting
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.styling import enable_styling, bold
-from easyshare.tracing import set_tracing_level, TRACING_NONE, TRACING_TEXT
 from easyshare.utils import terminate, abort
 from easyshare.utils.env import are_colors_supported, is_stdout_terminal
 from easyshare.utils.json import j
@@ -172,8 +172,8 @@ def main():
     # so that the rest of the startup (config parsing, ...)
     # can be logged
     if g_args.has_option(Esd.VERBOSE):
-        log.set_verbosity(g_args.get_option_param(Esd.VERBOSE,
-                                                  default=logging.VERBOSITY_MAX))
+        set_setting(Settings.VERBOSITY,
+                    g_args.get_option_param(Esd.VERBOSE, default=logging.VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_SERVER, APP_VERSION))
     log.i("Starting with arguments\n%s", g_args)
@@ -187,7 +187,7 @@ def main():
         terminate(APP_INFO)
 
     # Default values
-    verbosity = logging.VERBOSITY_NONE
+    verbosity = VERBOSITY_NONE
     tracing = TRACING_NONE
     no_colors = False
 
@@ -396,7 +396,7 @@ def main():
         # if not specified the default is DEBUG
         verbosity = g_args.get_option_param(
             Esd.VERBOSE,
-            default=logging.VERBOSITY_MAX
+            default=VERBOSITY_MAX
         )
 
     # Logging/Tracing/UI setup
@@ -411,11 +411,10 @@ def main():
     enable_styling(are_colors_supported() and not no_colors)
     logging.init_logging() # update colors
 
-    set_tracing_level(tracing)
+    set_setting(Settings.TRACING, tracing)
 
-    # TODO: doesn't work with -c for some reason
     if verbosity:
-        log.set_verbosity(verbosity)
+        set_setting(Settings.VERBOSITY, verbosity)
 
 
     # Parse sharing arguments

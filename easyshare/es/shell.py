@@ -1,33 +1,31 @@
 import os
 import re
+import readline
 import traceback
 from pathlib import Path
-from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn, Type, Any
+from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn, Type
+
 from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, ArgsSpec
-from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF
+from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias, Set
+from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
+from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF, TRACING_NONE, TRACING_TEXT, TRACING_BIN, \
+    VERBOSITY_DEBUG, VERBOSITY_INFO, VERBOSITY_WARNING, VERBOSITY_ERROR, VERBOSITY_NONE, TRACING_MAX, VERBOSITY_MAX
 from easyshare.consts import ansi
 from easyshare.es.client import Client
 from easyshare.es.errors import ClientErrors, print_errors, AnyErrs, AnyErr
 from easyshare.es.ui import print_tabulated, StyledString
-from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias, Set
-from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_man
-from easyshare.settings import set_setting, Settings, add_setting_changed_callback
+from easyshare.settings import set_setting, add_setting_callback, Settings, get_setting, SettingValue
 from easyshare.styling import is_styling_enabled, red
-
-from easyshare.tracing import get_tracing_level, set_tracing_level
 from easyshare.utils.env import is_unicode_supported, has_gnureadline, has_pyreadline
 from easyshare.utils.json import j
-from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
     rl_get_completion_quote_character, rl_set_completion_suppress_quote, rl_set_char_is_quoted_p
-from easyshare.utils.str import isorted, rightof, leftof
-from easyshare.utils.types import is_bool, is_str, to_int
-
-import readline
+from easyshare.utils.str import isorted, rightof
+from easyshare.utils.types import is_str
 
 log = get_logger(__name__)
 
@@ -36,17 +34,17 @@ _SHELL_COMMANDS = values(Commands)
 
 
 _VERBOSITY_EXPLANATION_MAP = {
-    logging.VERBOSITY_NONE: Verbose.V0[1],
-    logging.VERBOSITY_ERROR: Verbose.V1[1],
-    logging.VERBOSITY_WARNING: Verbose.V2[1],
-    logging.VERBOSITY_INFO: Verbose.V3[1],
-    logging.VERBOSITY_DEBUG: Verbose.V4[1],
+    VERBOSITY_NONE: Verbose.V0[1],
+    VERBOSITY_ERROR: Verbose.V1[1],
+    VERBOSITY_WARNING: Verbose.V2[1],
+    VERBOSITY_INFO: Verbose.V3[1],
+    VERBOSITY_DEBUG: Verbose.V4[1],
 }
 
 _TRACING_EXPLANATION_MAP = {
-    tracing.TRACING_NONE: Trace.T0[1],
-    tracing.TRACING_TEXT: Trace.T1[1],
-    tracing.TRACING_BIN: Trace.T2[1],
+    TRACING_NONE: Trace.T0[1],
+    TRACING_TEXT: Trace.T1[1],
+    TRACING_BIN: Trace.T2[1],
 }
 
 class Shell:
@@ -309,7 +307,8 @@ class Shell:
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
     def _init_settings_callbacks(self):
-        add_setting_changed_callback(self._on_trace_changed, cast=int)
+        add_setting_callback(Settings.TRACING, Shell._on_tracing_changed)
+        add_setting_callback(Settings.VERBOSITY, Shell.on_verbosity_changed)
 
     # Quoting/Escaping GNU rline tutorial
     # https://thoughtbot.com/blog/tab-completion-in-gnu-rline
@@ -879,16 +878,13 @@ class Shell:
         """ trace - changes the tracing level """
 
         # Increase tracing level (or disable if is already max)
-
         level = args.get_positional(
-            default=(get_tracing_level() + 1) % (tracing.TRACING_MAX + 1)
+            default=(get_setting(Settings.TRACING) + 1) % (TRACING_MAX + 1)
         )
 
-        level = rangify(level, tracing.TRACING_MIN, tracing.TRACING_MAX)
-
         log.i(">> TRACING (%d)", level)
+        set_setting(Settings.TRACING, level)
 
-        set_tracing_level(level)
         return ClientErrors.SUCCESS
 
     @staticmethod
@@ -896,23 +892,19 @@ class Shell:
         """ verbose - changes the verbosity level """
 
         # Increase verbosity (or disable if is already max)
-        root_log = get_logger()
-
-        current_verbosity = root_log.verbosity
-
         verbosity = args.get_positional(
-            default=(current_verbosity + 1) % (logging.VERBOSITY_MAX + 1)
+            default=(get_setting(Settings.VERBOSITY) + 1) % (VERBOSITY_MAX + 1)
         )
 
-        verbosity = rangify(verbosity, logging.VERBOSITY_MIN, logging.VERBOSITY_MAX)
-
         log.i(">> VERBOSE (%d)", verbosity)
-
-        root_log.set_verbosity(verbosity)
-
-        print(f"Verbosity = {verbosity} ({_VERBOSITY_EXPLANATION_MAP.get(verbosity, '<unknown>')})")
+        set_setting(Settings.VERBOSITY, verbosity)
 
         return ClientErrors.SUCCESS
 
-    def _on_trace_changed(self, key: str, value: int):
+    @staticmethod
+    def _on_tracing_changed(key: str, value: SettingValue):
         print(f"Tracing = {value} ({_TRACING_EXPLANATION_MAP.get(value, '<unknown>')})")
+
+    @staticmethod
+    def on_verbosity_changed(key: str, value: SettingValue):
+        print(f"Verbosity = {value} ({_VERBOSITY_EXPLANATION_MAP.get(value, '<unknown>')})")

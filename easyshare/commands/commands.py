@@ -718,8 +718,8 @@ Usage example:
 
 class Set(CommandInfo, KeyValArgsSpec):
 
-    VERBOSE = ([Settings.VERBOSE], "verbosity (from 0 to 5)")
-    TRACE = ([Settings.TRACE], "tracing (from 0 to 2)")
+    VERBOSE = ([Settings.VERBOSITY], "verbosity (from 0 to 5)")
+    TRACE = ([Settings.TRACING], "tracing (from 0 to 2)")
     DISCOVER_PORT = ([Settings.DISCOVER_PORT], "discover port")
     DISCOVER_WAIT = ([Settings.DISCOVER_WAIT], "discover timeout (in seconds)")
     SHELL_PASSTHROUGH = ([Settings.DISCOVER_PORT], "whether pass commands to underlying shell")

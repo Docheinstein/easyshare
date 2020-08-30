@@ -2,22 +2,13 @@ import time
 from datetime import datetime
 from typing import Union
 
-from easyshare.common import TransferDirection, TransferProtocol
+from easyshare.common import TransferDirection, TransferProtocol, TRACING_TEXT, TRACING_BIN
 from easyshare.consts import ansi
 from easyshare.endpoint import Endpoint
-from easyshare.settings import Settings, get_setting, set_setting, get_setting_int
+from easyshare.settings import Settings, get_setting
 from easyshare.styling import fg
 from easyshare.utils import eprint
 from easyshare.utils.json import j
-from easyshare.utils.mathematics import rangify
-from easyshare.utils.types import is_str, to_int
-
-TRACING_NONE = 0
-TRACING_TEXT = 1
-TRACING_BIN = 2
-
-TRACING_MIN = 0
-TRACING_MAX = TRACING_BIN
 
 """ e.g. TRACING_JSON
 >> ========== OUT ============
@@ -46,19 +37,10 @@ cc ed 9c 48 b3 1d d6 27  0d ae 77 b4 fe 46 e3 aa  |...H...'..w..F..|
 """
 
 
-def get_tracing_level() -> int:
-    return get_setting_int(Settings.TRACE)
-
-def set_tracing_level(level: Union[str, int]):
-    if is_str(level):
-        level = to_int(level)
-    set_setting(Settings.TRACE, rangify(level, TRACING_MIN, TRACING_MAX))
-
-
 def trace_json(what: Union[dict, list, tuple], sender: Endpoint, receiver: Endpoint,
                direction: TransferDirection, protocol: TransferProtocol,
                trace_type: str = "JSON") -> bool:
-    if get_tracing_level() < TRACING_TEXT:
+    if get_setting(Settings.TRACING) < TRACING_TEXT:
         return False
 
     _trace(j(what), sender, receiver, direction, protocol, trace_type=trace_type)
@@ -68,7 +50,7 @@ def trace_json(what: Union[dict, list, tuple], sender: Endpoint, receiver: Endpo
 def trace_text(what: str, sender: Endpoint, receiver: Endpoint,
                direction: TransferDirection, protocol: TransferProtocol,
                trace_type: str = "Text") -> bool:
-    if get_tracing_level() < TRACING_TEXT:
+    if get_setting(Settings.TRACING) < TRACING_TEXT:
         return False
 
     _trace(what, sender, receiver, direction, protocol, trace_type=trace_type)
@@ -78,7 +60,7 @@ def trace_text(what: str, sender: Endpoint, receiver: Endpoint,
 def trace_bin(what: Union[bytes, bytearray], sender: Endpoint, receiver: Endpoint,
               direction: TransferDirection, protocol: TransferProtocol,
               trace_type: str = "Binary") -> bool:
-    if get_tracing_level() < TRACING_BIN:
+    if get_setting(Settings.TRACING) < TRACING_BIN:
         return False
 
     _trace(_hexdump(what), sender, receiver, direction,

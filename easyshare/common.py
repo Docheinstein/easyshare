@@ -4,7 +4,6 @@ import string
 
 from easyshare import logging
 from easyshare.consts import ansi
-from easyshare.logging import get_logger, init_logging
 from easyshare.styling import enable_styling
 from easyshare.utils.env import are_colors_supported
 from easyshare.utils.str import satisfychars
@@ -60,9 +59,32 @@ DEFAULT_SERVER_PORT =   12020   # TCP
 DEFAULT_DISCOVER_WAIT = 2            # sec
 DEFAULT_TRANSFER_SOCKET_TIMEOUT = 120   # sec
 
-# TODO: tests for figure out what's the best buffer size
 BEST_BUFFER_SIZE = 4096
 
+# =====================
+# ====== TRACING ======
+# =====================
+
+TRACING_NONE = 0
+TRACING_TEXT = 1
+TRACING_BIN = 2
+
+TRACING_MIN = 0
+TRACING_MAX = TRACING_BIN
+
+# =====================
+# ===== VERBOSITY =====
+# =====================
+
+VERBOSITY_NONE = 0
+VERBOSITY_ERROR = 1
+VERBOSITY_WARNING = 2
+VERBOSITY_INFO = 3
+VERBOSITY_DEBUG = 4
+
+VERBOSITY_MIN = VERBOSITY_NONE
+VERBOSITY_MAX = VERBOSITY_DEBUG
+VERBOSITY_DEFAULT = VERBOSITY_INFO
 
 class TransferProtocol(enum.Enum):
     TCP = "TCP"
@@ -97,13 +119,15 @@ def easyshare_setup():
     """
     Configures easyshare: initializes the colors and the logging.
     """
+    import easyshare.logging
+
     # disable colors when redirection is involved or if
     # colors are disabled
     colors_disabled = os.getenv('ANSI_COLORS_DISABLED')
     enable_styling(are_colors_supported() and not colors_disabled)
 
     # Init logging manually now, after enable_colors call
-    init_logging()
+    logging.init_logging()
 
     # EASYSHARE_VERBOSITY
     starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
@@ -111,6 +135,6 @@ def easyshare_setup():
                                 raise_exceptions=False,
                                 default=logging.VERBOSITY_NONE)
 
-    root_log = get_logger()
+    root_log = logging.get_logger()
     root_log.set_verbosity(starting_verbosity)
     root_log.d("Starting with verbosity = %d", starting_verbosity)
