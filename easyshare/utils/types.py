@@ -110,6 +110,7 @@ def to_int(o: Any, default=None, raise_exceptions=False) -> Optional[int]:
 
 def to_bool(o: Any, default=None, raise_exceptions=False) -> Optional[bool]:
     val = None
+
     try:
         if is_bool(o):
             val = o

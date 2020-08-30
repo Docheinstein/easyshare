@@ -5,7 +5,7 @@ import traceback
 from pathlib import Path
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn, Type
 
-from easyshare import logging, tracing
+from easyshare import logging, tracing, settings
 from easyshare.args import Args, ArgsParseError, ArgsSpec
 from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias, Set
 from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
@@ -71,7 +71,7 @@ class Shell:
 
         self._suggestions_intent: Optional[SuggestionsIntent] = None
 
-        self._shell_command_dispatcher: Dict[str, Tuple[ArgsSpec, Callable[[Args], None]]] = {
+        self._shell_command_dispatcher: Dict[str, Tuple[ArgsSpec, Callable[[Args], AnyErrs]]] = {
             Commands.HELP: (Help(), self._help),
             Commands.EXIT: (Exit(), self._exit),
             Commands.QUIT: (Exit(), self._exit),
@@ -300,8 +300,7 @@ class Shell:
         log.i("Parsed command arguments\n%s", args)
 
         try:
-            executor(args)
-            return ClientErrors.SUCCESS
+            return executor(args)
         except Exception as ex:
             log.exception("Exception caught while executing command\n%s", ex)
             return ClientErrors.COMMAND_EXECUTION_FAILED
@@ -786,7 +785,7 @@ class Shell:
             return string, ""
         return string[:space], string[space+(0 if keep_space else 1):]
 
-    def _help(self, args: Args) -> NoReturn:
+    def _help(self, args: Args) -> AnyErr:
         cmd = args.get_positional(default="usage")
         commands = self._commands_for(cmd, resolve_alias=False)
 
@@ -797,7 +796,7 @@ class Shell:
             print(f"alias {cmd}={target}")
             ok = True
         else:
-            log.w("Neither a command nor an alias: '{cmd}'")
+            log.w(f"Neither a command nor an alias: '{cmd}'")
 
         if not ok:
             if commands:
@@ -813,6 +812,8 @@ class Shell:
 
         if not ok:
             print(f"Can't provide help for '{cmd}'")
+
+        return ClientErrors.SUCCESS
 
 
     def _alias(self, args: Args) -> AnyErr:
@@ -848,14 +849,16 @@ class Shell:
         setting_to_set = args.get_positionals()
         log.d(f"setting_to_set: {setting_to_set}")
 
-        if setting_to_set:
+        if setting_to_set and len(setting_to_set) == 2:
             key, val = setting_to_set
             log.i(f"set {key}={val}")
 
             if key and val:
-                if not set_setting(key, val):
-                    log.w(f"Unknown setting: {key}")
-                    return ClientErrors.UNKNOWN_SETTING
+                try:
+                    set_setting(key, val)
+                except Exception as ex:
+                    log.w(f"Failed to set: {ex}")
+                    return str(ex)
 
             else:
                 log.w(f"Unable to parse setting: {setting_to_set}")
@@ -863,8 +866,8 @@ class Shell:
         else:
             # Show aliases
             log.d("No setting given, showing current ones")
-            for source, target in self._aliases.items():
-                print(f"alias {source}={target}")
+            for key, val in settings._settings_values.items():
+                print(f"set {key}={val}")
 
         return ClientErrors.SUCCESS
 

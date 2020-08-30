@@ -29,26 +29,28 @@ _settings_values: Dict[str, SettingValue] = {}
 _settings_callbacks: List[Tuple[Callable, List[str]]] = [] # list of (callback, keys_filter, cast)
 
 _SETTINGS_PARSERS: Dict[str, Callable[[SettingValue], SettingValue]] = {
-    Settings.VERBOSITY: lambda o: rangify(to_int(o), VERBOSITY_MIN, VERBOSITY_MAX),
-    Settings.TRACING: lambda o: rangify(to_int(o), TRACING_MIN, TRACING_MAX),
+    Settings.VERBOSITY: lambda o: rangify(to_int(o, raise_exceptions=True), VERBOSITY_MIN, VERBOSITY_MAX),
+    Settings.TRACING: lambda o: rangify(to_int(o, raise_exceptions=True), TRACING_MIN, TRACING_MAX),
     Settings.DISCOVER_PORT: _to_port,
-    Settings.DISCOVER_WAIT: to_float,
-    Settings.SHELL_PASSTHROUGH: to_bool,
-    Settings.COLORS: to_bool,
+    Settings.DISCOVER_WAIT: lambda v: to_float(v, raise_exceptions=True),
+    Settings.SHELL_PASSTHROUGH: lambda v: to_bool(v, raise_exceptions=True),
+    Settings.COLORS: lambda v: to_bool(v, raise_exceptions=True),
 }
 
 
-def set_setting(key: str, value: SettingValue) -> bool:
+def set_setting(key: str, value: SettingValue):
     global _settings_values
 
     parser = _SETTINGS_PARSERS.get(key)
+
     if not parser:
-        return False
+        raise ValueError(f"Unknown key: {key}")
 
-    _settings_values[key] = parser(value)
-    _notify_setting_changed(key, _settings_values[key]) # eventually notify the callbacks
-
-    return True
+    try:
+        _settings_values[key] = parser(value)
+        _notify_setting_changed(key, _settings_values[key])  # eventually notify the callbacks
+    except Exception:
+        raise ValueError(f"Invalid value: {value}")
 
 def get_setting(key: str, default=None) -> Optional[SettingValue]:
     return _settings_values.get(key, default)
