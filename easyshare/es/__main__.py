@@ -4,12 +4,13 @@ from pathlib import Path
 from easyshare import logging
 from easyshare.args import ArgsParseError
 from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT, APP_VERSION, easyshare_setup, \
-    DEFAULT_DISCOVER_TIMEOUT, APP_INFO, EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF
+    DEFAULT_DISCOVER_WAIT, APP_INFO, EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF
 from easyshare.es.client import Client
 from easyshare.es.shell import Shell
 from easyshare.commands.es import Es, EsUsage
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_usage
+from easyshare.settings import set_setting, Settings, get_setting, get_setting_int, get_setting_bool, get_setting_float
 from easyshare.styling import enable_styling
 from easyshare.tracing import TRACING_NONE, TRACING_TEXT, set_tracing_level
 from easyshare.utils import abort, terminate, lexer
@@ -84,6 +85,14 @@ def main():
     # Already called
     # easyshare_setup()
 
+    # Default settings
+    set_setting(Settings.TRACE, TRACING_NONE)
+    set_setting(Settings.VERBOSE, logging.VERBOSITY_NONE)
+    set_setting(Settings.DISCOVER_PORT, DEFAULT_DISCOVER_PORT)
+    set_setting(Settings.DISCOVER_WAIT, DEFAULT_DISCOVER_WAIT)
+    set_setting(Settings.SHELL_PASSTHROUGH, False)
+    set_setting(Settings.COLORS, False)
+
     # Parse arguments
     args = None
 
@@ -112,13 +121,14 @@ def main():
         terminate(APP_INFO)
 
     # Default values
-    verbosity = logging.VERBOSITY_NONE
-    tracing = TRACING_NONE
-    no_colors = False
-    shell_passthrough = False
+    verbosity = get_setting_int(Settings.VERBOSE)
+    tracing = get_setting_int(Settings.TRACE)
+    no_colors = get_setting_bool(Settings.COLORS)
+    shell_passthrough = get_setting_bool(Settings.SHELL_PASSTHROUGH)
+    discover_port = get_setting_int(Settings.DISCOVER_PORT)
+    discover_wait = get_setting_float(Settings.DISCOVER_WAIT)
+
     keep_open = False
-    discover_port = DEFAULT_DISCOVER_PORT
-    discover_wait = DEFAULT_DISCOVER_TIMEOUT
 
     # Create config file (.esrc) if not exists
 

@@ -6,7 +6,7 @@ class CommandOptionInfo:
     """ Provide information of an option (aliases, parameter, description) """
     def __init__(self,
                  aliases: Optional[List[str]],
-                 description: str,
+                 description: str = "",
                  params: Optional[List[str]] = None):
         self.aliases = aliases
         self.description = description
@@ -42,7 +42,7 @@ class CommandOptionInfo:
 
     @staticmethod
     def as_string(aliases: str, params: str, description: str, justification: int) -> str:
-        return f"{(aliases + ('  ' if params else '') + params).ljust(justification)}{description}"
+        return f"{(aliases + ('  ' if (params and aliases) else '') + params).ljust(justification)}{description}"
 
 
 class CommandHelp(ABC):

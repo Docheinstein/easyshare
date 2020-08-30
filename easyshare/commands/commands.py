@@ -11,6 +11,7 @@ from easyshare.logging import get_logger
 from easyshare.common import DIR_COLOR, FILE_COLOR
 from easyshare.protocol.responses import is_data_response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfo
+from easyshare.settings import Settings
 from easyshare.styling import fg
 from easyshare.utils.obj import values
 from easyshare.utils.os import ls
@@ -96,12 +97,12 @@ class SuggestionsIntent:
                  suggestions: List[StyledString],
                  *,
                  completion: bool = True,
-                 space_after_completion: Union[Callable[[str], bool], bool] = True,
+                 insert_after_completion: Union[Callable[[str], str], str] = " ",
                  max_columns: int = None,
                  ):
         self.suggestions: List[StyledString] = suggestions
         self.completion: bool = completion
-        self.space_after_completion: Union[Callable[[str], bool], bool] = space_after_completion
+        self.insert_after_completion: Union[Callable[[str], str], str] = insert_after_completion
         self.max_columns: int = max_columns
 
     def __str__(self):
@@ -206,7 +207,7 @@ class FilesSuggestionsCommandInfo(CommandInfo):
         log.d(f"There will be {len(suggestions)} suggestions")
         return SuggestionsIntent(suggestions,
                                  completion=True,
-                                 space_after_completion=lambda s: not s.endswith("/"))
+                                 insert_after_completion=lambda s: " " if not s.endswith("/") else "")
 
 
 # ==================================================
@@ -475,7 +476,7 @@ Available commands are:
 
         return SuggestionsIntent(suggestions,
                                  completion=True,
-                                 space_after_completion=lambda s: not s.endswith("/"))
+                                 insert_after_completion=lambda s: " " if not s.endswith("/") else "")
 
 
 # ============ EXIT ================
@@ -712,10 +713,19 @@ Usage example:
 
 
 
-# ============ ALIAS ================
+# ============ SET ================
 
 
 class Set(CommandInfo, KeyValArgsSpec):
+
+    VERBOSE = ([Settings.VERBOSE], "verbosity (from 0 to 5)")
+    TRACE = ([Settings.TRACE], "tracing (from 0 to 2)")
+    DISCOVER_PORT = ([Settings.DISCOVER_PORT], "discover port")
+    DISCOVER_WAIT = ([Settings.DISCOVER_WAIT], "discover timeout (in seconds)")
+    SHELL_PASSTHROUGH = ([Settings.DISCOVER_PORT], "whether pass commands to underlying shell")
+    COLORS = ([Settings.COLORS], "whether enable styling and colors")
+
+
     def __init__(self):
         super().__init__(optional=True, keepquotes=False)
 
@@ -739,7 +749,15 @@ class Set(CommandInfo, KeyValArgsSpec):
 If no argument is given, print the current settings.
 
 An value can be set using the following syntax:
-    **set** *setting*=*value*\
+    **set** *setting*=*value*
+    
+The allowed settings are the following:
+    verbose=<int>
+    trace=<int>
+    discover_port=<int>
+    discover_timeout=<float>
+    shell_passthrough=<bool>
+    color=<bool>
 """
 
     @classmethod
@@ -760,6 +778,31 @@ Usage example:
     set trace=0\
 """
 
+    @classmethod
+    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
+        return SuggestionsIntent(
+            [StyledString(info.to_str())
+             for info in [
+                 CommandOptionInfo(None, params=Set.VERBOSE[0]),
+                 CommandOptionInfo(None, params=Set.TRACE[0]),
+                 CommandOptionInfo(None, params=Set.DISCOVER_PORT[0]),
+                 CommandOptionInfo(None, params=Set.DISCOVER_WAIT[0]),
+                 CommandOptionInfo(None, params=Set.SHELL_PASSTHROUGH[0]),
+                 CommandOptionInfo(None, params=Set.COLORS[0]),
+                 # CommandOptionInfo(None, params=Set.VERBOSE[0], description=Set.VERBOSE[1]),
+                 # CommandOptionInfo(None, params=Set.TRACE[0], description=Set.TRACE[1]),
+                 # CommandOptionInfo(None, params=Set.DISCOVER_PORT[0], description=Set.DISCOVER_PORT[1]),
+                 # CommandOptionInfo(None, params=Set.DISCOVER_WAIT[0], description=Set.DISCOVER_WAIT[1]),
+                 # CommandOptionInfo(None, params=Set.SHELL_PASSTHROUGH[0], description=Set.SHELL_PASSTHROUGH[1]),
+                 # CommandOptionInfo(None, params=Set.COLORS[0], description=Set.COLORS[1]),
+
+                # TODO: description breaks autocompletion
+             ] if info.params[0].startswith(token)
+             ],
+            completion=True,
+            max_columns=1,
+            insert_after_completion=lambda s: "="
+        )
 
 # ============ xPWD ================
 

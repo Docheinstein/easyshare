@@ -2,18 +2,19 @@ import os
 import re
 import traceback
 from pathlib import Path
-from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn, Type
+from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn, Type, Any
 from easyshare import logging, tracing
 from easyshare.args import Args, ArgsParseError, ArgsSpec
 from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF
 from easyshare.consts import ansi
 from easyshare.es.client import Client
-from easyshare.es.errors import ClientErrors, print_errors, AnyErrs
+from easyshare.es.errors import ClientErrors, print_errors, AnyErrs, AnyErr
 from easyshare.es.ui import print_tabulated, StyledString
-from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias
+from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias, Set
 from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_man
+from easyshare.settings import set_setting, Settings, add_setting_changed_callback
 from easyshare.styling import is_styling_enabled, red
 
 from easyshare.tracing import get_tracing_level, set_tracing_level
@@ -21,11 +22,10 @@ from easyshare.utils.env import is_unicode_supported, has_gnureadline, has_pyrea
 from easyshare.utils.json import j
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
-from easyshare.utils.resources import read_resource_string
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
     rl_get_completion_quote_character, rl_set_completion_suppress_quote, rl_set_char_is_quoted_p
 from easyshare.utils.str import isorted, rightof, leftof
-from easyshare.utils.types import is_bool, is_str
+from easyshare.utils.types import is_bool, is_str, to_int
 
 import readline
 
@@ -81,12 +81,14 @@ class Shell:
             Commands.TRACE: (Trace(), self._trace),
             Commands.VERBOSE: (Verbose(), self._verbose),
             Commands.ALIAS: (Alias(), self._alias),
-
+            Commands.SET: (Set(), self._set),
         }
 
         self._prompt_local_remote_sep = "\u2014" if is_unicode_supported() else "-"
 
         self._passthrough = passthrough
+
+        self._init_settings_callbacks()
 
         self._init_rline()
 
@@ -305,6 +307,9 @@ class Shell:
         except Exception as ex:
             log.exception("Exception caught while executing command\n%s", ex)
             return ClientErrors.COMMAND_EXECUTION_FAILED
+
+    def _init_settings_callbacks(self):
+        add_setting_changed_callback(self._on_trace_changed, cast=int)
 
     # Quoting/Escaping GNU rline tutorial
     # https://thoughtbot.com/blog/tab-completion-in-gnu-rline
@@ -584,21 +589,22 @@ class Shell:
                 # If there is only a suggestion that begins with
                 # this name, complete the suggestion (and eventually insert a space)
                 if self._suggestions_intent.completion and \
-                        self._suggestions_intent.space_after_completion and \
+                        self._suggestions_intent.insert_after_completion and \
                         len(self._suggestions_intent.suggestions) == 1:
 
 
-                    if is_bool(self._suggestions_intent.space_after_completion):
-                        append_space = self._suggestions_intent.space_after_completion
+                    if is_str(self._suggestions_intent.insert_after_completion):
+                        insert_after = self._suggestions_intent.insert_after_completion
                     else:  # is a hook
-                        append_space = self._suggestions_intent.space_after_completion(sug)
+                        insert_after = self._suggestions_intent.insert_after_completion(sug)
 
-                    if append_space:
-                        log.d("Last command with autocomplete -> adding space required")
-                        if is_quoting:
+                    if insert_after:
+                        log.d("Last command with autocomplete -> adding required string")
+                        if insert_after == " " and is_quoting:
                             # Insert the quote before the space
                             sug += '"'
-                        sug += " "
+
+                        sug += insert_after
 
                 return sug
 
@@ -810,7 +816,7 @@ class Shell:
             print(f"Can't provide help for '{cmd}'")
 
 
-    def _alias(self, args: Args) -> Union[int, str]:
+    def _alias(self, args: Args) -> AnyErr:
         """ alias - show or create an alias """
 
         alias_to_create = args.get_positionals()
@@ -836,7 +842,32 @@ class Shell:
                 print(f"alias {source}={target}")
 
         return ClientErrors.SUCCESS
+    
+    def _set(self, args: Args) -> AnyErr:
+        """ set - show or set a setting """
 
+        setting_to_set = args.get_positionals()
+        log.d(f"setting_to_set: {setting_to_set}")
+
+        if setting_to_set:
+            key, val = setting_to_set
+            log.i(f"set {key}={val}")
+
+            if key and val:
+                if not set_setting(key, val):
+                    log.w(f"Unknown setting: {key}")
+                    return ClientErrors.UNKNOWN_SETTING
+
+            else:
+                log.w(f"Unable to parse setting: {setting_to_set}")
+                return ClientErrors.INVALID_COMMAND_SYNTAX
+        else:
+            # Show aliases
+            log.d("No setting given, showing current ones")
+            for source, target in self._aliases.items():
+                print(f"alias {source}={target}")
+
+        return ClientErrors.SUCCESS
 
     @staticmethod
     def _exit(_: Args) -> NoReturn:
@@ -844,7 +875,7 @@ class Shell:
         exit(0)
 
     @staticmethod
-    def _trace(args: Args) -> Union[int, str]:
+    def _trace(args: Args) -> AnyErr:
         """ trace - changes the tracing level """
 
         # Increase tracing level (or disable if is already max)
@@ -858,12 +889,10 @@ class Shell:
         log.i(">> TRACING (%d)", level)
 
         set_tracing_level(level)
-
-        print(f"Tracing = {level} ({_TRACING_EXPLANATION_MAP.get(level, '<unknown>')})")
         return ClientErrors.SUCCESS
 
     @staticmethod
-    def _verbose(args: Args) -> Union[int, str]:
+    def _verbose(args: Args) -> AnyErr:
         """ verbose - changes the verbosity level """
 
         # Increase verbosity (or disable if is already max)
@@ -885,3 +914,5 @@ class Shell:
 
         return ClientErrors.SUCCESS
 
+    def _on_trace_changed(self, key: str, value: int):
+        print(f"Tracing = {value} ({_TRACING_EXPLANATION_MAP.get(value, '<unknown>')})")

@@ -62,6 +62,8 @@ class ClientErrors:
 
     SUPPORTED_ONLY_FOR_UNIX =       130
 
+    UNKNOWN_SETTING =               131
+
 
 class ErrorsStrings:
     """
@@ -115,6 +117,7 @@ class ErrorsStrings:
     REXEC_DISABLED = "REXEC_DISABLED"
     PUT_CHECK_FAILED = "PUT_CHECK_FAILED"
     REXEC_EXECUTION_FAILED = "REXEC_EXECUTION_FAILED"
+    UNKNOWN_SETTING = "UNKNOWN_SETTING"
 
 
 
@@ -208,7 +211,8 @@ _ERRORS_STRINGS_MAP = {
     ClientErrors.RM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
     ClientErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
 
-    ClientErrors.SUPPORTED_ONLY_FOR_UNIX: ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX
+    ClientErrors.SUPPORTED_ONLY_FOR_UNIX: ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX,
+    ClientErrors.UNKNOWN_SETTING: ErrorsStrings.UNKNOWN_SETTING
 }
 
 _OUTCOMES_STRINGS_MAP = {

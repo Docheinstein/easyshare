@@ -1,4 +1,4 @@
-from typing import Union, Any, Optional, List
+from typing import Union, Any, Optional, List, Type
 
 
 # MISC
@@ -57,6 +57,17 @@ def is_valid_list(o: object, oftype = None) -> bool:
 
 # CONVERTERS
 
+def to_type(o: Any, totype: Type, default=None, raise_exceptions=False):
+    if not totype:
+        return o
+    if totype == str:
+        return to_str(o, default=default, raise_exceptions=raise_exceptions)
+    elif totype == int:
+        return to_int(o, default=default, raise_exceptions=raise_exceptions)
+    elif totype == float:
+        return to_float(o, default=default, raise_exceptions=raise_exceptions)
+    elif totype == bytes:
+        return to_bytes(o, default=default, raise_exceptions=raise_exceptions)
 
 def to_float(o: Any, default=None, raise_exceptions=False) -> Optional[int]:
     val = None
@@ -144,6 +155,29 @@ def to_bytes(o: Any, default=None, raise_exceptions=False) -> Optional[bytes]:
 
     return default
 
+def to_str(o: Any, default=None, raise_exceptions=False) -> Optional[str]:
+    val = None
+    try:
+        if is_str(o):
+            val = o
+        elif is_int(o):
+            val = str(o)
+        elif is_bool(o):
+            val = bool_to_str(o)
+    except:
+        pass
+
+    if is_str(val):
+        return val
+
+    if raise_exceptions:
+        try:
+            err = ValueError("Conversion to str failed: {}".format(o))
+        except:
+            err = ValueError("Conversion to str failed")
+        raise err
+
+    return default
 
 def str_to_bool(s: str, ystrings=None, nstrings=None, default=None) -> Union[bool, None]:
     if not ystrings:

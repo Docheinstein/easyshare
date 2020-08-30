@@ -418,8 +418,6 @@ class Client:
         try:
             log.d("Destroying connection and invalidating it")
             if self.is_connected_to_server():
-                log.d(f"REMOVE ME [6] _open, connection = {self.connection}")
-
                 self.connection.destroy_connection(clean=clean)
             # Server closes the sharing by itself
             # There's no need to close() the sharing connection
