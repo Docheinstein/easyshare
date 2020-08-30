@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Union
 
-from hmd import HMD, text_filter, ansii_filter
+from hmd import HMD, text_filter, ansi_filter
 
 from easyshare.common import EASYSHARE_RESOURCES_PKG
 from easyshare.logging import get_logger
@@ -30,7 +30,7 @@ def command_man(cmd: Union[str, None]) -> bool:
     if not hmd_content:
         return False
 
-    HMD(hmd_filter=ansii_filter if get_setting(Settings.COLORS) else text_filter).render(hmd_content)
+    HMD(hmd_filter=ansi_filter if get_setting(Settings.COLORS) else text_filter).render(hmd_content)
 
     return True
 

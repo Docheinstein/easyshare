@@ -1,6 +1,6 @@
 import ctypes
 from ctypes import c_int, CDLL, c_char_p, c_void_p, cast
-from typing import Callable, Union
+from typing import Union
 
 from easyshare.logging import get_logger
 from easyshare.utils.types import is_bytes, is_str

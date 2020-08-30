@@ -3,7 +3,7 @@ from typing import Optional
 
 from easyshare.common import VERBOSITY_NONE, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG, \
     VERBOSITY_MIN, VERBOSITY_MAX
-from easyshare.settings import add_setting_callback, Settings
+from easyshare.settings import add_setting_callback, Settings, get_setting
 from easyshare.styling import green, blue, yellow, red, is_styling_enabled
 from easyshare.utils.mathematics import rangify
 
@@ -130,10 +130,15 @@ def init_logging(default_verbosity: int = None):
 
     # We can initialize the root logger at this point
     if _initialized is False:
-        get_logger()
+        def on_verbosity_changed(_1, _2):
+            get_logger().set_verbosity(get_setting(Settings.VERBOSITY))
+
+        on_verbosity_changed(None, None)
+
         # Change the logger verbosity
-        add_setting_callback(Settings.VERBOSITY, lambda k,v: get_logger().set_verbosity(v))
-        # Eventually reinitialize the renderers
+        add_setting_callback(Settings.VERBOSITY, on_verbosity_changed)
+
+        # Eventually reinitialize the renderers if the styling setting changes
         add_setting_callback(Settings.COLORS, set_levels_renderers)
 
     _initialized = True
