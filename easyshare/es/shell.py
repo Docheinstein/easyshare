@@ -302,8 +302,8 @@ class Shell:
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
     def _init_settings_callbacks(self):
-        add_setting_callback(Settings.TRACING, Shell._on_tracing_changed)
-        add_setting_callback(Settings.VERBOSITY, Shell.on_verbosity_changed)
+        add_setting_callback(Settings.TRACING, Shell._on_tracing_changed, lazy=False)
+        add_setting_callback(Settings.VERBOSITY, Shell.on_verbosity_changed, lazy=False)
 
     # Quoting/Escaping GNU rline tutorial
     # https://thoughtbot.com/blog/tab-completion-in-gnu-rline

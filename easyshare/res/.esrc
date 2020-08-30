@@ -1,10 +1,16 @@
-# verbose=0
-# discover_port=12019
+# ===== SETTINGS ======
+
+# set verbose=4
+# set tracing=2
+# set discover_port=12019
+# set discover_wait=5
+# set colors=false
 
 # Makes all the shell commands available from easyshare shell
-shell=true
+set shell_passthrough=true
 
-# Aliases
+# ===== ALIASES ======
+
 alias s=scan
 alias t=trace
 

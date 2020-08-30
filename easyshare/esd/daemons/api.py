@@ -3,10 +3,9 @@ import os
 import threading
 import time
 import zlib
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from pathlib import Path
-from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO, Set
-
+from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO, Set, Deque
 
 from easyshare.auth import Auth
 from easyshare.common import TransferDirection, TransferProtocol, BEST_BUFFER_SIZE, APP_VERSION, \
@@ -1080,7 +1079,7 @@ class ClientHandler:
         transfer_socket = self._client.socket
 
         # Next file/directory to serve
-        next_servings: List[Tuple[FPath, FPath, str]] = [] # fpath, basedir, prefix
+        next_servings: Deque[Tuple[FPath, FPath, str]] = deque([]) # fpath, basedir, prefix
 
         errors = []
         outcome = TransferOutcomes.SUCCESS
@@ -1148,7 +1147,7 @@ class ClientHandler:
             # necessary to check it since we can only go deeper
 
             if self._is_fpath_allowed(fpath) and self._is_fpath_allowed(basedir):
-                next_servings.append((fpath, basedir, prefix))
+                next_servings.appendleft((fpath, basedir, prefix))
             else:
                 log.e("Path %s is invalid (out of sharing domain)", f)
                 errors.append(create_error_of_response(ServerErrors.INVALID_PATH,
@@ -1319,7 +1318,7 @@ class ClientHandler:
 
                     # Directory found
                     try:
-                        dir_files: List[FPath] = sorted(list(next_fpath.iterdir()), reverse=True)
+                        dir_files: List[FPath] = sorted(list(next_fpath.iterdir()), reverse=False)
                     except FileNotFoundError:
                         errors.append(create_error_of_response(ServerErrors.NOT_EXISTS,
                                                                q(next_spath_str)))
@@ -1343,7 +1342,7 @@ class ClientHandler:
                         log.i("Found a filled directory: adding all inner files to remaining_files")
                         for file_in_dir in dir_files:
                             log.i("Adding %s", file_in_dir)
-                            next_servings.append((file_in_dir, next_basedir, prefix))
+                            next_servings.appendleft((file_in_dir, next_basedir, prefix))
                     else:
                         log.i("Found an empty directory")
                         log.d("Sending an info for the empty directory")
@@ -1394,8 +1393,8 @@ class ClientHandler:
                     # try to mmap the file to memory
                     source = mmap.mmap(next_transf_f.fileno(), 0,
                                        prot=mmap.PROT_READ)
-                except:
-                    log.w("mmap failed, will read directly from file")
+                except Exception as ex:
+                    log.w(f"mmap failed, will read directly from file for reason: {ex}")
 
             # TODO:
             #  if something about IO goes wrong all the transfer is compromised
@@ -1430,7 +1429,7 @@ class ClientHandler:
 
                 transfer_socket.send(chunk)
 
-                time.sleep(0.5)
+                # time.sleep(0.5)
 
 
             log.i("Closing file %s", next_transf_fpath)
@@ -1735,7 +1734,7 @@ class ClientHandler:
 
                 log.d("%d/%d (%.2f%%)", cur_pos, incoming_size, cur_pos / incoming_size * 100)
 
-                time.sleep(0.5)
+                # time.sleep(0.5)
 
             log.i("Closing file %s", incoming_fpath)
             local_fd.close()

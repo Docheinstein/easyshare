@@ -175,8 +175,6 @@ class FileProgressor(Progressor):
 
 
 if __name__ == "__main__":
-    # enable_styling()
-
     def simulate_file_progression(name: str, tot: int,
                                   delta_b=4096, delta_t=0.001):
 
@@ -202,9 +200,11 @@ if __name__ == "__main__":
 
         prog.done()
 
+    #
+    # for root, dirs, files in os.walk('/home/stefano/Temp/test'):
+    #     for f in files:
+    #         fullpath = os.path.join(root, f)
+    #         size = os.path.getsize(fullpath)
+    #         simulate_file_progression(fullpath, size, delta_b=512, delta_t=0.3)
 
-    for root, dirs, files in os.walk('/home/stefano/Temp/test'):
-        for f in files:
-            fullpath = os.path.join(root, f)
-            size = os.path.getsize(fullpath)
-            simulate_file_progression(fullpath, size, delta_b=512, delta_t=0.3)
+    simulate_file_progression("A file name", 6666666666, delta_b=1024, delta_t=0.00001)

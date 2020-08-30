@@ -7,10 +7,10 @@ import sys
 import threading
 import time
 import zlib
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from getpass import getpass
 from pathlib import Path
-from typing import Optional, Callable, List, Dict, Union, Tuple, cast, Any
+from typing import Optional, Callable, List, Dict, Union, Tuple, cast, Any, Deque
 
 from easyshare.args import Args as Args, ArgsParseError, ArgsSpec
 from easyshare.common import DEFAULT_SERVER_PORT, SUCCESS_COLOR, PROGRESS_COLOR, BEST_BUFFER_SIZE, \
@@ -1523,7 +1523,7 @@ class Client:
         for p in args.get_positionals():
             files += self._local_paths(p)
 
-        sendfiles: List[Tuple[Path, Path]] = []
+        sendfiles: Deque[Tuple[Path, Path]] = deque([])
 
         if len(files) == 0:
             files = [Path(".")]
@@ -1588,7 +1588,7 @@ class Client:
 
             sendfile = (fpath, rpath)
             log.i("Adding sendfile %s", sendfile)
-            sendfiles.append(sendfile)
+            sendfiles.appendleft(sendfile)
 
         # Overwrite preference
 
@@ -1786,8 +1786,8 @@ class Client:
                     # try to mmap the file to memory
                     source = mmap.mmap(local_fd.fileno(), 0,
                                        prot=mmap.PROT_READ)
-                except:
-                    log.w("mmap failed, will read directly from file")
+                except Exception as ex:
+                    log.w(f"mmap failed, will read directly from file for reason: {ex}")
 
             cur_pos = 0
             crc = 0
@@ -1853,7 +1853,7 @@ class Client:
                 log.d("-> is a DIR")
 
                 try:
-                    dir_files: List[Path] = sorted(list(next_file_local.iterdir()), reverse=True)
+                    dir_files: List[Path] = sorted(list(next_file_local.iterdir()), reverse=False)
                 except FileNotFoundError:
                     errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
                                                              q(next_file_local)))
@@ -1886,7 +1886,7 @@ class Client:
                     for file_in_dir in dir_files:
                         sendfile = (file_in_dir, next_file_remote / file_in_dir.name)
                         log.i("Adding sendfile %s", sendfile)
-                        sendfiles.append(sendfile)
+                        sendfiles.appendleft(sendfile)
                 elif not sync: # if sync is True the finfo is already sent
                     log.i("Found an empty directory")
                     log.d("Pushing an info for the empty directory")
@@ -2680,9 +2680,7 @@ class Client:
             return True         # Continue DISCOVER
 
         self._discover(
-            discover_port=self._discover_port,
             discover_addr=server_ip or ADDR_BROADCAST,
-            discover_timeout=self._discover_timeout,
             response_handler=response_handler,
             progress=True,
             success_if_ends=False

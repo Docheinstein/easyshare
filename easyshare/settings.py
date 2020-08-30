@@ -39,7 +39,7 @@ _settings_values: Dict[str, SettingValue] = {
     Settings.COLORS: True,
 }
 
-_settings_callbacks: List[Tuple[Callable, List[str]]] = [] # list of (callback, keys_filter, cast)
+_settings_callbacks: List[Tuple[Callable, List[str], bool]] = [] # list of (callback, keys_filter, lazy)
 
 _SETTINGS_PARSERS: Dict[str, Callable[[SettingValue], SettingValue]] = {
     Settings.VERBOSITY: lambda o: rangify(to_int(o, raise_exceptions=True), VERBOSITY_MIN, VERBOSITY_MAX),
@@ -62,21 +62,21 @@ def set_setting(key: str, value: SettingValue):
     try:
         prev_val = _settings_values[key]
         _settings_values[key] = parser(value)
-        if prev_val != _settings_values[key]:
-            _notify_setting_changed(key, _settings_values[key])  # eventually notify the callbacks
+        _notify_setting_changed(key, _settings_values[key], prev_val)  # eventually notify the callbacks
     except Exception:
         raise ValueError(f"Invalid value: {value}")
 
 def get_setting(key: str, default=None) -> Optional[SettingValue]:
     return _settings_values.get(key, default)
 
-def add_setting_callback(key_filter: str, callback: SettingCallback):
-    add_settings_callback(callback, [key_filter])
+def add_setting_callback(key_filter: str, callback: SettingCallback, lazy: bool=True):
+    add_settings_callback(callback, [key_filter], lazy)
 
-def add_settings_callback(callback: SettingCallback, keys_filter=None):
-    _settings_callbacks.append((callback, keys_filter))
+def add_settings_callback(callback: SettingCallback, keys_filter=None, lazy: bool=True):
+    _settings_callbacks.append((callback, keys_filter, lazy))
 
-def _notify_setting_changed(key: str, value: SettingValue):
-    for cb, keys_filter in _settings_callbacks:
-        if not keys_filter or key in keys_filter:
+def _notify_setting_changed(key: str, value: SettingValue, prev_value: SettingValue):
+    for cb, keys_filter, lazy in _settings_callbacks:
+        if (not keys_filter or key in keys_filter) and \
+            (not lazy or prev_value != value):
             cb(key, value)
