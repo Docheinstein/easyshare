@@ -2,10 +2,8 @@ import enum
 import os
 import string
 
-from easyshare import logging
 from easyshare.consts import ansi
-from easyshare.styling import enable_styling
-from easyshare.utils.env import are_colors_supported
+from easyshare.utils.env import is_styling_supported
 from easyshare.utils.str import satisfychars
 from easyshare.utils.types import to_int
 
@@ -46,6 +44,7 @@ ERROR_COLOR = ansi.FG_RED
 # ==== ENVIRONMENT ====
 # =====================
 
+ENV_ANSI_COLORS_DISABLED = "ANSI_COLORS_DISABLED"
 ENV_EASYSHARE_VERBOSITY = "EASYSHARE_VERBOSITY"
 
 
@@ -119,22 +118,28 @@ def easyshare_setup():
     """
     Configures easyshare: initializes the colors and the logging.
     """
-    import easyshare.logging
+    from easyshare.styling import init_styling
+    from easyshare.logging import init_logging
+    from easyshare.settings import set_setting, Settings
 
     # disable colors when redirection is involved or if
     # colors are disabled
-    colors_disabled = os.getenv('ANSI_COLORS_DISABLED')
-    enable_styling(are_colors_supported() and not colors_disabled)
+    env_ansi_disabled = os.getenv(ENV_ANSI_COLORS_DISABLED)
+    env_starting_verbosity = os.getenv(ENV_EASYSHARE_VERBOSITY)
+
+    init_styling()
+    set_setting(Settings.COLORS, is_styling_supported() and not env_ansi_disabled)
 
     # Init logging manually now, after enable_colors call
-    logging.init_logging()
+    init_logging()
 
-    # EASYSHARE_VERBOSITY
-    starting_verbosity = os.environ.get(ENV_EASYSHARE_VERBOSITY)
-    starting_verbosity = to_int(starting_verbosity,
+    starting_verbosity = to_int(env_starting_verbosity,
                                 raise_exceptions=False,
-                                default=logging.VERBOSITY_NONE)
+                                default=VERBOSITY_NONE)
 
-    root_log = logging.get_logger()
-    root_log.set_verbosity(starting_verbosity)
-    root_log.d("Starting with verbosity = %d", starting_verbosity)
+    set_setting(Settings.VERBOSITY, starting_verbosity)
+
+
+    # root_log = logging.get_logger()
+    # root_log.set_verbosity(starting_verbosity)
+    # root_log.d("Starting with verbosity = %d", starting_verbosity)

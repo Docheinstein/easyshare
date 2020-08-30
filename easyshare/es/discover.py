@@ -7,6 +7,7 @@ from easyshare.consts.net import ADDR_BROADCAST
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
+from easyshare.settings import get_setting, Settings
 from easyshare.sockets import SocketUdpIn, SocketUdpOut
 from easyshare.tracing import trace_json, trace_text
 from easyshare.utils.json import btoj
@@ -23,14 +24,10 @@ class Discoverer:
 
     def __init__(
             self, *,
-            discover_port: int,
-            discover_timeout: int,
             response_handler: Callable[[Endpoint, ServerInfoFull], bool],
             discover_addr: str = ADDR_BROADCAST):
 
         self._discover_addr = discover_addr
-        self._discover_port = discover_port
-        self._discover_timeout = discover_timeout
         self._response_handler = response_handler
 
     def discover(self) -> bool:
@@ -39,6 +36,10 @@ class Discoverer:
         notifying the response_handler in the meanwhile.
         Returns True if the discover finished (timedout) or False if it has been stopped.
         """
+
+        discover_port = get_setting(Settings.DISCOVER_PORT)
+        discover_timeout = get_setting(Settings.DISCOVER_WAIT)
+
         discover_completed = True
 
         # Listening socket
@@ -53,15 +54,15 @@ class Discoverer:
 
         log.i("Sending DISCOVER to %s:%d",
               self._discover_addr,
-              self._discover_port)
+              discover_port)
 
         trace_text(
             str(discover_message),
-            sender=out_sock.endpoint(), receiver=(self._discover_addr, self._discover_port),
+            sender=out_sock.endpoint(), receiver=(self._discover_addr, discover_port),
             direction=TransferDirection.OUT, protocol=TransferProtocol.UDP
         )
 
-        out_sock.send(discover_message_b, self._discover_addr, self._discover_port,
+        out_sock.send(discover_message_b, self._discover_addr, discover_port,
                       trace=False)
 
         # Listen
@@ -70,11 +71,11 @@ class Discoverer:
         while True:
             # Calculate remaining time
             remaining_seconds = \
-                self._discover_timeout - (datetime.now() - discover_start_time).total_seconds()
+                discover_timeout - (datetime.now() - discover_start_time).total_seconds()
 
             if remaining_seconds < 0:
                 # No more time to wait
-                log.i("DISCOVER timeout elapsed (%.3f)", self._discover_timeout)
+                log.i("DISCOVER timeout elapsed (%.3f)", discover_timeout)
                 break
 
             log.i("Waiting for %.3f seconds...", remaining_seconds)

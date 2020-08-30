@@ -1,32 +1,32 @@
-import sys
-
 import colorama
 
 from typing import List, Union, Optional
 from easyshare.consts import ansi
+from easyshare.settings import add_setting_callback, Settings, SettingValue, get_setting
 
-_styling = True
+_styling_cached = None
 
+def init_styling():
+    global _styling_cached
 
-def enable_styling(enabled: bool = True):
-    """ Enables/disables colors and styling of strings """
-    global _styling
-    _styling = enabled
-    if enabled:
-        colorama.init()
+    def on_colors_changed(key: str, val: SettingValue):
+        global _styling_cached
+        _styling_cached = val
+        if _styling_cached:
+            colorama.init()
 
+    _styling_cached = get_setting(Settings.COLORS)
+    add_setting_callback(Settings.COLORS, on_colors_changed)
 
 def is_styling_enabled():
-    """ Returns whether colors are enabled """
-    return _styling
-
+    return _styling_cached
 
 def styled(s: str,
            fg: Optional[str] = None,
            bg: Optional[str] = None,
            attrs: Union[str, List[str]] = ()) -> str:
     """ Styles the string with the given ansi escapes (foreground, background and attributes)"""
-    if not _styling:
+    if not _styling_cached:
         return s
     return _styled(s, fg, bg, *attrs)
 
@@ -127,14 +127,3 @@ def bold(s: str) -> str:
 
 def underline(s: str) -> str:
     return styled(s, attrs=ansi.ATTR_UNDERLINE)
-
-
-if __name__ == "__main__":
-    import os
-    from easyshare.utils.env import are_colors_supported
-
-    colors_disabled = os.getenv('ANSI_COLORS_DISABLED')
-    enable_styling(are_colors_supported() and not colors_disabled)
-
-    print(cyan(f"CYAN on {sys.platform}, does it works?"))
-    print(bold(f"BOLD on {sys.platform}, does it works?"))

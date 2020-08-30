@@ -35,6 +35,7 @@ from easyshare.protocol.responses import is_data_response, is_error_response, is
     create_error_of_response, ResponsesParams, Response
 from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, FTYPE_FILE, \
     ServerInfo, create_file_info, RexecEventType
+from easyshare.settings import get_setting, Settings
 from easyshare.styling import bold, green, red
 from easyshare.timer import Timer
 from easyshare.utils import lexer
@@ -269,11 +270,8 @@ class Finding:
 class Client:
     FINDINGS_RE = re.compile(r"\$([a-zA-Z])(\d+):?(\d+)?")
 
-    def __init__(self, discover_port: int, discover_timeout: int):
+    def __init__(self):
         self.connection: Optional[Connection] = None
-
-        self._discover_port = discover_port
-        self._discover_timeout = discover_timeout
 
         # letter => findings, pwd when find the was performed
         self._local_findings: Dict[str, Findings] = {}
@@ -917,8 +915,6 @@ class Client:
             return True     # Continue DISCOVER
 
         self._discover(
-            discover_port=self._discover_port,
-            discover_timeout=self._discover_timeout,
             response_handler=response_handler,
             progress=True,
             success_if_ends=True
@@ -3015,8 +3011,6 @@ NNSS  : only if newer OR size is different - to all
     @classmethod
     def _discover(
             cls,
-            discover_port: int,
-            discover_timeout: int,
             response_handler: Callable[[Endpoint, ServerInfoFull], bool],
             discover_addr: str = ADDR_BROADCAST,
             progress: bool = False,
@@ -3027,6 +3021,8 @@ NNSS  : only if newer OR size is different - to all
         of the scan in a consistent manner, but otherwise is just a call
         to Discoverer.discover().
         """
+
+        discover_timeout = get_setting(Settings.DISCOVER_WAIT)
 
         discover_start_t = time.monotonic_ns()
 
@@ -3164,9 +3160,8 @@ NNSS  : only if newer OR size is different - to all
 
         timedout = Discoverer(
             discover_addr=discover_addr,
-            discover_port=discover_port,
-            discover_timeout=discover_timeout,
-            response_handler=response_handler_fix_update_pbar_after_discover).discover()
+            response_handler=response_handler_fix_update_pbar_after_discover
+        ).discover()
 
         # Restore the original handler
         signal.signal(signal.SIGINT, original_sigint_handler)

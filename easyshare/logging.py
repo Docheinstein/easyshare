@@ -4,7 +4,7 @@ from typing import Optional
 from easyshare.common import VERBOSITY_NONE, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG, \
     VERBOSITY_MIN, VERBOSITY_MAX
 from easyshare.settings import add_setting_callback, Settings
-from easyshare.styling import green, blue, yellow, red
+from easyshare.styling import green, blue, yellow, red, is_styling_enabled
 from easyshare.utils.mathematics import rangify
 
 ROOT_LOGGER_PATTERN = "__main__"            # the real name of the root logger
@@ -112,22 +112,29 @@ def init_logging(default_verbosity: int = None):
         logger.setLevel(VERBOSITY_TO_LEVEL[verbosity])
         logger.verbosity = verbosity
 
-    # Aliases
-    logging.addLevelName(LEVEL_ERROR, red("[ERROR]"))
-    logging.addLevelName(LEVEL_WARNING, yellow("[WARN] "))
-    logging.addLevelName(LEVEL_INFO, blue("[INFO] "))
-    logging.addLevelName(LEVEL_DEBUG, green("[DEBUG]"))
+    def set_levels_renderers(_1, _2):
+        # print(f"set_levels_renderers, current styling = {is_styling_enabled()}")
+        # Aliases
+        logging.addLevelName(LEVEL_ERROR, red("[ERROR]"))
+        logging.addLevelName(LEVEL_WARNING, yellow("[WARN] "))
+        logging.addLevelName(LEVEL_INFO, blue("[INFO] "))
+        logging.addLevelName(LEVEL_DEBUG, green("[DEBUG]"))
 
+    set_levels_renderers(None, None)
     logging.Logger.e = logging.Logger.error
     logging.Logger.w = logging.Logger.warning
     logging.Logger.i = logging.Logger.info
     logging.Logger.d = logging.Logger.debug
     logging.Logger.set_verbosity = set_verbosity
 
+
     # We can initialize the root logger at this point
     if _initialized is False:
         get_logger()
+        # Change the logger verbosity
         add_setting_callback(Settings.VERBOSITY, lambda k,v: get_logger().set_verbosity(v))
+        # Eventually reinitialize the renderers
+        add_setting_callback(Settings.COLORS, set_levels_renderers)
 
     _initialized = True
     _default_verbosity = default_verbosity

@@ -3,8 +3,6 @@ import time
 import random
 
 from easyshare.logging import get_logger
-from easyshare.styling import enable_styling
-from easyshare.utils.env import terminal_size
 from easyshare.utils.measures import duration_str_human, size_str, speed_str
 from easyshare.utils.progress import Progressor
 
@@ -177,7 +175,7 @@ class FileProgressor(Progressor):
 
 
 if __name__ == "__main__":
-    enable_styling()
+    # enable_styling()
 
     def simulate_file_progression(name: str, tot: int,
                                   delta_b=4096, delta_t=0.001):

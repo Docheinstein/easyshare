@@ -35,7 +35,7 @@ def is_stdout_terminal() -> bool:
     return is_terminal(sys.stdout.fileno())
 
 
-def are_colors_supported() -> bool:
+def is_styling_supported() -> bool:
     """
     Returns true if colors are supported (actually only if
     stdout is bound to a terminal)
@@ -88,4 +88,4 @@ if __name__ == "__main__":
     print(f"Terminal size: {terminal_size()}")
     print("-- TERMINAL SUPPORT --")
     print(f"Supports unicode: {is_unicode_supported()}")
-    print(f"Supports colors: {are_colors_supported()}")
+    print(f"Supports colors: {is_styling_supported()}")

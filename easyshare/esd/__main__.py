@@ -16,11 +16,11 @@ from easyshare.commands.esd import Esd, EsdUsage
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.res.helps import command_usage
-from easyshare.settings import Settings, set_setting
+from easyshare.settings import Settings, set_setting, get_setting
 from easyshare.ssl import get_ssl_context, set_ssl_context
-from easyshare.styling import enable_styling, bold
+from easyshare.styling import bold
 from easyshare.utils import terminate, abort
-from easyshare.utils.env import are_colors_supported, is_stdout_terminal
+from easyshare.utils.env import is_styling_supported, is_stdout_terminal
 from easyshare.utils.json import j
 from easyshare.utils.net import is_valid_port, get_primary_ip
 from easyshare.utils.ssl import create_server_ssl_context
@@ -153,8 +153,7 @@ ESD_CONF_SPEC = {
 # ==================================================================
 
 def main():
-    # Already called
-    # easyshare_setup()
+    # Already called: easyshare_setup()
 
     if len(sys.argv) <= 1:
         _print_usage_and_quit()
@@ -187,9 +186,9 @@ def main():
         terminate(APP_INFO)
 
     # Default values
-    verbosity = VERBOSITY_NONE
-    tracing = TRACING_NONE
-    no_colors = False
+    verbosity = get_setting(Settings.VERBOSITY)
+    tracing = get_setting(Settings.TRACING)
+    colors = get_setting(Settings.COLORS)
 
     server_name = socket.gethostname()
     server_address = None
@@ -303,7 +302,7 @@ def main():
 
             no_colors = global_section.get(
                 EsdConfKeys.G_NO_COLOR,
-                no_colors
+                not colors
             )
 
             tracing = global_section.get(
@@ -379,7 +378,7 @@ def main():
 
     # Colors
     if g_args.has_option(Esd.NO_COLOR):
-        no_colors = True
+        colors = False
 
     # Packet tracing
     if g_args.has_option(Esd.TRACE):
@@ -400,22 +399,17 @@ def main():
         )
 
     # Logging/Tracing/UI setup
-    log.d("Colors: %s", not no_colors)
+    log.d("Colors: %s", colors)
     log.d("Tracing: %s", tracing)
     log.d("Verbosity: %s", verbosity)
 
-    if not no_colors and not is_stdout_terminal():
+    if colors and not is_stdout_terminal():
         log.w("Disabling colors since detected non-terminal output file")
-        no_colors = True
+        colors = False
 
-    enable_styling(are_colors_supported() and not no_colors)
-    logging.init_logging() # update colors
-
+    set_setting(Settings.COLORS, is_styling_supported() and colors)
     set_setting(Settings.TRACING, tracing)
-
-    if verbosity:
-        set_setting(Settings.VERBOSITY, verbosity)
-
+    set_setting(Settings.VERBOSITY, verbosity)
 
     # Parse sharing arguments
     # We have to be careful since we could find the name/path either
@@ -470,7 +464,7 @@ def main():
     # - is a useful server?
     if not sharings and not server_rexec:
         log.e("No sharings found, and rexec disabled; nothing to do")
-        _print_usage_and_quit()
+        abort("provide at least one valid sharing")
 
     if not sharings:
         log.w("No sharings found, it will be an empty esd")

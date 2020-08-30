@@ -3,25 +3,22 @@ from pathlib import Path
 
 from easyshare import logging
 from easyshare.args import ArgsParseError
-from easyshare.common import DEFAULT_DISCOVER_PORT, APP_NAME_CLIENT, APP_VERSION, easyshare_setup, \
-    DEFAULT_DISCOVER_WAIT, APP_INFO, EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF, TRACING_NONE, TRACING_TEXT
+from easyshare.commands.es import Es, EsUsage
+from easyshare.common import APP_NAME_CLIENT, APP_VERSION, easyshare_setup, \
+    APP_INFO, EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF, TRACING_TEXT
 from easyshare.es.client import Client
 from easyshare.es.shell import Shell
-from easyshare.commands.es import Es, EsUsage
 from easyshare.logging import get_logger
 from easyshare.res.helps import command_usage
 from easyshare.settings import set_setting, Settings, get_setting
-from easyshare.styling import enable_styling
 from easyshare.utils import abort, terminate, lexer
-from easyshare.utils.env import is_stdout_terminal, are_colors_supported
+from easyshare.utils.env import is_stdout_terminal, is_styling_supported
 from easyshare.utils.net import is_valid_port
-
-
-# if __name__ == "__main__":
-
 # Call it now before get_logger for enable colors properly
 # and let logger be initialized with/without colors
 from easyshare.utils.resources import read_resource_string
+
+# if __name__ == "__main__":
 
 easyshare_setup()
 
@@ -48,49 +45,8 @@ log = get_logger(__name__)
 
 # ==================================================================
 
-#
-# class EsrcKeys:
-#     """ Keys of the .esrc file """
-#     G_VERBOSE =   "verbose"
-#     G_TRACE =     "trace"
-#     G_NO_COLOR =  "no_color"
-#     G_DISCOVER_PORT = "discover_port"
-#     G_DISCOVER_WAIT = "discover_wait"
-#     G_SHELL_PASSTHROUGH = "shell"
-#     G_KEEP_OPEN = "keep_open"
-#     G_ALIAS = "alias (\S+)"
-
-#
-# ESRC_SPEC = {
-#     # global
-#     None: {
-#         EsrcKeys.G_DISCOVER_PORT: INT_VAL,
-#         EsrcKeys.G_DISCOVER_WAIT: INT_VAL,
-#
-#         EsrcKeys.G_VERBOSE: INT_VAL,
-#         EsrcKeys.G_TRACE: INT_VAL,
-#         EsrcKeys.G_NO_COLOR: BOOL_VAL,
-#
-#         EsrcKeys.G_SHELL_PASSTHROUGH: BOOL_VAL,
-#         EsrcKeys.G_KEEP_OPEN: BOOL_VAL,
-#
-#         EsrcKeys.G_ALIAS: STR_VAL,
-#     },
-# }
-#
-
-
 def main():
-    # Already called
-    # easyshare_setup()
-
-    # Default settings
-    set_setting(Settings.TRACING, TRACING_NONE)
-    set_setting(Settings.VERBOSITY, logging.VERBOSITY_NONE)
-    set_setting(Settings.DISCOVER_PORT, DEFAULT_DISCOVER_PORT)
-    set_setting(Settings.DISCOVER_WAIT, DEFAULT_DISCOVER_WAIT)
-    set_setting(Settings.SHELL_PASSTHROUGH, False)
-    set_setting(Settings.COLORS, False)
+    # Already called: easyshare_setup()
 
     # Parse arguments
     args = None
@@ -122,7 +78,7 @@ def main():
     # Default values
     verbosity = get_setting(Settings.VERBOSITY)
     tracing = get_setting(Settings.TRACING)
-    no_colors = get_setting(Settings.COLORS)
+    colors = get_setting(Settings.COLORS)
     shell_passthrough = get_setting(Settings.SHELL_PASSTHROUGH)
     discover_port = get_setting(Settings.DISCOVER_PORT)
     discover_wait = get_setting(Settings.DISCOVER_WAIT)
@@ -148,7 +104,7 @@ def main():
 
     # Colors
     if Es.NO_COLOR in args:
-        no_colors = True
+        colors = False
 
     # Packet tracing
     if Es.TRACE in args:
@@ -200,29 +156,27 @@ def main():
         abort("invalid port number {}".format(discover_port))
 
     # Logging/Tracing/UI setup
+    if colors and not is_stdout_terminal():
+        log.w("Disabling colors since detected non-terminal output file")
+        colors = False
 
-    log.d("Colors: %s", not no_colors)
+    log.d("Colors: %s", colors)
     log.d("Tracing: %s", tracing)
     log.d("Verbosity: %s", verbosity)
 
-    if not no_colors and not is_stdout_terminal():
-        log.w("Disabling colors since detected non-terminal output file")
-        no_colors = True
-
-    enable_styling(are_colors_supported() and not no_colors)
-    logging.init_logging() # update colors
-
+    # Set settings
+    set_setting(Settings.COLORS, is_styling_supported() and colors)
     set_setting(Settings.TRACING, tracing)
-
-    if verbosity:
-        set_setting(Settings.VERBOSITY, verbosity)
+    set_setting(Settings.VERBOSITY, verbosity)
+    set_setting(Settings.DISCOVER_PORT, discover_port)
+    set_setting(Settings.DISCOVER_WAIT, discover_wait)
+    set_setting(Settings.SHELL_PASSTHROUGH, shell_passthrough)
 
     # Initialize the client
-    client = Client(discover_port=discover_port,
-                    discover_timeout=discover_wait)
+    client = Client()
 
     # Initialize the shell as well
-    shell = Shell(client, passthrough=shell_passthrough)
+    shell = Shell(client)
 
     # Check whether
     # 1. Run a command directly from the cli

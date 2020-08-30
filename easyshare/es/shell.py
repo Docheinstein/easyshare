@@ -5,7 +5,7 @@ import traceback
 from pathlib import Path
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn, Type
 
-from easyshare import logging, tracing, settings
+from easyshare import settings
 from easyshare.args import Args, ArgsParseError, ArgsSpec
 from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias, Set
 from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
@@ -58,9 +58,7 @@ class Shell:
 
     ALIAS_RESOLUTION_MAX_DEPTH = 10
 
-    def __init__(self, client: Client, passthrough: bool=False):
-        log.i(f"Shell passthrough = {passthrough}")
-
+    def __init__(self, client: Client):
         self._aliases: Dict[str, str] = {}
         self._available_commands: Dict[str, Type[CommandInfo]] = dict(COMMANDS_INFO)
 
@@ -83,8 +81,6 @@ class Shell:
         }
 
         self._prompt_local_remote_sep = "\u2014" if is_unicode_supported() else "-"
-
-        self._passthrough = passthrough
 
         self._init_settings_callbacks()
 
@@ -237,7 +233,7 @@ class Shell:
 
         # No command
         if len(commands) == 0:
-            if self._passthrough:
+            if get_setting(Settings.SHELL_PASSTHROUGH):
                 log.d("Passing unknown command to underlying shell due to passthrough")
                 return self._client.execute_command(Commands.LOCAL_SHELL, cmd)
 

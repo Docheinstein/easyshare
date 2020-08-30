@@ -1,6 +1,7 @@
 from typing import Dict, Callable, List, Tuple, Union, Optional
 
-from easyshare.common import TRACING_MIN, TRACING_MAX, VERBOSITY_MIN, VERBOSITY_MAX
+from easyshare.common import TRACING_MIN, TRACING_MAX, VERBOSITY_MIN, VERBOSITY_MAX, VERBOSITY_NONE, \
+    DEFAULT_DISCOVER_PORT, DEFAULT_DISCOVER_WAIT, TRACING_NONE
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.types import to_int, to_float, to_bool
@@ -13,19 +14,31 @@ def _to_port(o):
     raise ValueError("Invalid port number")
 
 SettingValue = Union[str, int, float, bool]
-SettingChangedCallback = Callable[[str, str], None]
+SettingCallback = Callable[[str, str], None]
 
 class Settings:
+    # es/esd
     VERBOSITY = "verbose"
     TRACING = "trace"
+    COLORS = "colors"
+
+    # es only
     DISCOVER_PORT = "discover_port"
     DISCOVER_WAIT = "discover_wait"
     SHELL_PASSTHROUGH = "shell_passthrough"
-    COLORS = "colors"
+
 
 SETTINGS = values(Settings)
 
-_settings_values: Dict[str, SettingValue] = {}
+_settings_values: Dict[str, SettingValue] = {
+    Settings.VERBOSITY: VERBOSITY_NONE,
+    Settings.TRACING: TRACING_NONE,
+    Settings.DISCOVER_PORT: DEFAULT_DISCOVER_PORT,
+    Settings.DISCOVER_WAIT: DEFAULT_DISCOVER_WAIT,
+    Settings.SHELL_PASSTHROUGH: False,
+    Settings.COLORS: True,
+}
+
 _settings_callbacks: List[Tuple[Callable, List[str]]] = [] # list of (callback, keys_filter, cast)
 
 _SETTINGS_PARSERS: Dict[str, Callable[[SettingValue], SettingValue]] = {
@@ -47,18 +60,20 @@ def set_setting(key: str, value: SettingValue):
         raise ValueError(f"Unknown key: {key}")
 
     try:
+        prev_val = _settings_values[key]
         _settings_values[key] = parser(value)
-        _notify_setting_changed(key, _settings_values[key])  # eventually notify the callbacks
+        if prev_val != _settings_values[key]:
+            _notify_setting_changed(key, _settings_values[key])  # eventually notify the callbacks
     except Exception:
         raise ValueError(f"Invalid value: {value}")
 
 def get_setting(key: str, default=None) -> Optional[SettingValue]:
     return _settings_values.get(key, default)
 
-def add_setting_callback(key_filter: str, callback: SettingChangedCallback):
+def add_setting_callback(key_filter: str, callback: SettingCallback):
     add_settings_callback(callback, [key_filter])
 
-def add_settings_callback(callback: SettingChangedCallback, keys_filter=None):
+def add_settings_callback(callback: SettingCallback, keys_filter=None):
     _settings_callbacks.append((callback, keys_filter))
 
 def _notify_setting_changed(key: str, value: SettingValue):
