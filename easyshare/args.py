@@ -570,12 +570,15 @@ class KeepQuotesArgsSpec(ArgsSpec):
     def split_args(self, args: str) -> List[str]:
         return lexer.split(args, keepquotes=True)
 
+
 class KeyValArgsSpec(PosArgsSpec):
-    def __init__(self, optional: bool):
+    def __init__(self, optional: bool, *, keepquotes: bool):
         super().__init__(
             0 if optional else 2,
             2 if optional else 0
         )
+        self._keepquotes = keepquotes
 
     def split_args(self, args: str) -> List[str]:
-        return args.split("=", maxsplit=1)
+        return [(part.strip("\"") if not self._keepquotes else part)
+                for part in args.split("=", maxsplit=1)]

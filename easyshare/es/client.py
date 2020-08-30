@@ -22,7 +22,7 @@ from easyshare.endpoint import Endpoint
 from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connection import Connection, ConnectionMinimal
 from easyshare.es.discover import Discoverer
-from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str
+from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str, AnyErrs
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_pretty_str, server_info_short_str, file_info_str, StyledString, \
     file_info_pretty_str, server_pretty_str
@@ -223,7 +223,7 @@ def require_unix(api):
 # ==================================================================
 
 class CommandExecutionError(Exception):
-    def __init__(self, errors: Union[int, str, List[str]] = ClientErrors.ERR_0):
+    def __init__(self, errors: AnyErrs = ClientErrors.ERR_0):
         self.errors = errors
 
 # class HandledKeyboardInterrupt(KeyboardInterrupt):
@@ -356,8 +356,8 @@ class Client:
     def has_command(self, command: str) -> bool:
         return command in self._command_dispatcher
 
-    # def execute_command(self, command: str, command_args: List[str]) -> Union[int, str, List[str]]:
-    def execute_command(self, command: str, command_suffix: str) -> Union[int, str, List[str]]:
+    # def execute_command(self, command: str, command_args: List[str]) -> AnyErr:
+    def execute_command(self, command: str, command_suffix: str) -> AnyErrs:
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 

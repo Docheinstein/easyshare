@@ -5,7 +5,6 @@
 
 - don't throw commexecerror on xls() xtree() xfind()
 - errors refactor
-- don't show "." in put -p
 - fix get for FILEs which adds \.
 - fix 1000MB might happen => 1 characters of space to keep into account
 - why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
@@ -13,12 +12,15 @@
 - transfer referses order (GET 10 11 12..)
 - allow -d <dest> for get and put
 - alias supporting multiple commands?
-- .esrc as execute every line
 - separating commands by \n or ;
 
 - command `set` for set variables
+- the approach of return an outcome does not make sense with multiple command
+- probably its just better to print directly in the command
 
 OK ctr+c while transferring - check for put
 OK get -sp * -> creates folder 'samples' by itself
 OK - s now is -NS not only -N - check for put
 OK - -S does not work
+OK .esrc as execute every line
+OK don't show "." in put -p

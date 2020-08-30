@@ -236,8 +236,10 @@ def errno_str(errno: int, *formats) -> str:
 def outcome_str(outcomeno: int) -> str:
     return _OUTCOMES_STRINGS_MAP.get(outcomeno, ErrorsStrings.ERROR)
 
+AnyErr = Union[int, str]
+AnyErrs = Union[int, str, List[AnyErr]]
 
-def print_errors(err: Union[int, str, List[Union[int, str]]]):
+def print_errors(err: AnyErrs):
     """
     Prints 'err' if it is a string or the string associated with
     the error 'err' if it is an known errno.
@@ -251,7 +253,7 @@ def print_errors(err: Union[int, str, List[Union[int, str]]]):
         _print_error(err)
 
 
-def _print_error(err: Union[int, str]):
+def _print_error(err: AnyErr):
     if is_int(err):
         if err != 0: # 0 is success
             print(errno_str(err))

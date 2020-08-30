@@ -4,11 +4,11 @@ import traceback
 from pathlib import Path
 from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn, Type
 from easyshare import logging, tracing
-from easyshare.args import Args, ArgsParseError, VarArgsSpec, OptIntPosArgSpec, ArgsSpec
-from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF, EASYSHARE_RESOURCES_PKG
+from easyshare.args import Args, ArgsParseError, ArgsSpec
+from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF
 from easyshare.consts import ansi
 from easyshare.es.client import Client
-from easyshare.es.errors import ClientErrors, print_errors
+from easyshare.es.errors import ClientErrors, print_errors, AnyErrs
 from easyshare.es.ui import print_tabulated, StyledString
 from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias
 from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
@@ -18,6 +18,7 @@ from easyshare.styling import is_styling_enabled, red
 
 from easyshare.tracing import get_tracing_level, set_tracing_level
 from easyshare.utils.env import is_unicode_supported, has_gnureadline, has_pyreadline
+from easyshare.utils.json import j
 from easyshare.utils.mathematics import rangify
 from easyshare.utils.obj import values
 from easyshare.utils.resources import read_resource_string
@@ -151,20 +152,61 @@ class Shell:
         return command in self._shell_command_dispatcher
 
     def execute(self, cmd: str):
-        # Split the command by ;
-        # so that more command can be submitted in one line
-        # TODO multiple commnds
-        # cmds = cmd.split(";")
-        # log.d(f"# commands = {len(cmds)}")
-        #
-        # for a_cmd in cmds:
-        #     log.i(f"Executing '{a_cmd}'")
-        outcome = self._execute(cmd)
-        print_errors(outcome)
-
-    def _execute(self, cmd: str) ->  Union[int, str, List[str]]:
         self._update_history()
+        self._execute_multi(self._split_command(cmd))
 
+    @staticmethod
+    def _split_command(cmd: str) -> List[str]:
+        """
+        Splits 'cmd' into multiple commands by breaking \n and ; (only non quoted).
+        """
+        log.d(f"_split_command: {cmd}")
+
+        cmds = []
+        # Split by \n
+        for a_cmd in cmd.splitlines():
+            log.d(f"a_cmd: {a_cmd}")
+
+            # Split the single command by ;,
+            # but ensure that those are outside quotes
+            quote_on = False
+            semicolons = []
+            i = 0
+            prev_char = None
+            while i < len(a_cmd):
+                char = a_cmd[i]
+                if char == ";" and not quote_on:
+                    semicolons.append(i)
+                if char == "\"" and (not prev_char or prev_char != "\\"):
+                    quote_on = not quote_on
+                prev_char = char
+                i += 1
+            log.d(f"Semicolons found: {semicolons}")
+            delimiters = [-1] + semicolons + [len(a_cmd)]
+            log.d(f"delimiters: {delimiters}")
+
+            # Split by semicolons (non quoted)
+            di = 0
+            while di < len(delimiters) - 1:
+                cmds.append(a_cmd[delimiters[di] + 1:delimiters[di + 1]].strip())
+                di += 1
+
+        log.d(f"Command splitted in the following commands: {j(cmds)}")
+        return cmds
+
+    def _execute_multi(self, cmds: List[str]):
+        for a_cmd in cmds:
+            outcome = self._execute_single(a_cmd)
+            print_errors(outcome)
+
+    def _execute_single(self, cmd: str) -> AnyErrs:
+        targets = self._resolve_alias_multi(cmd)
+        outcomes = []
+        for target in targets:
+            outcomes.append(self._execute_single_real(target))
+        return outcomes
+
+    def _execute_single_real(self, cmd: str) -> AnyErrs:
         if not is_str(cmd):
             log.e("Invalid command")
             return ClientErrors.INVALID_COMMAND_SYNTAX
@@ -181,7 +223,12 @@ class Shell:
             return ClientErrors.SUCCESS
 
         log.d(f"Before alias resolution: {cmd}")
-        resolved_cmd_prefix, resolved_cmd_suffix = self._resolve_alias(cmd, as_string=False)
+        # resolved_cmd_prefix, resolved_cmd_suffix = self._resolve_alias(cmd, as_string=False)
+        resolved_cmd = self._resolve_alias(cmd, as_string=True)
+        # log.d(f"resolved_cmd: {resolved_cmd}")
+        # Resolved cmd can contain multiple command after alias resolution
+        resolved_cmd_prefix, resolved_cmd_suffix = \
+            Shell._split_command_prefix_suffix(resolved_cmd, keep_space=True)
         log.d(f"resolved_cmd_prefix: {resolved_cmd_prefix}")
         log.d(f"resolved_cmd_suffix: {resolved_cmd_suffix}")
         # 'command_prefix' might be partial (unique prefix of a valid command)
@@ -234,7 +281,7 @@ class Shell:
         except KeyboardInterrupt:
             log.d("\nCTRL+C")
 
-    def _execute_shell_command(self, command: str, command_suffix: str) -> Union[int, str, List[str]]:
+    def _execute_shell_command(self, command: str, command_suffix: str) -> AnyErrs:
         """ Executes the given 'command' using 'command_args' as arguments """
         if not self.has_command(command):
             return ClientErrors.COMMAND_NOT_RECOGNIZED
@@ -449,7 +496,7 @@ class Shell:
                 self._suggestions_intent = SuggestionsIntent([])
 
                 for comm_name, comm_info in self._available_commands.items():
-                    comm_resolved_name = comm_info.name() # comm_name might be an alias
+                    comm_resolved_name = comm_info.name() if comm_info else None
 
                     log.d(f" > iterating, comm_name='{comm_name}'")
                     if resolved_command == comm_name and re.match(Shell.COMM_SPACE_RE, line):
@@ -457,14 +504,18 @@ class Shell:
                         # e.g. 'ls \t'
                         log.d("Fetching suggestions for COMMAND INTENT '%s'", comm_resolved_name)
 
-                        comms_sugg  = comm_info.suggestions(token, self._client)
-                        if comms_sugg:
-                            # don't let it to be None
-                            self._suggestions_intent = comms_sugg
+                        if comm_info:
+                            comms_sugg  = comm_info.suggestions(token, self._client)
+                            if comms_sugg:
+                                # don't let it to be None
+                                self._suggestions_intent = comms_sugg
 
-                            log.d("Fetched (%d) suggestions INTENT for command '%s'",
-                                  len(self._suggestions_intent.suggestions),
-                                  comm_name)
+                                log.d("Fetched (%d) suggestions INTENT for command '%s'",
+                                      len(self._suggestions_intent.suggestions),
+                                      comm_name)
+                        else:
+                            log.w("Null comm info, maybe refers to a multi-command?"
+                                  "Not providing suggestions for it")
 
                         no_suggestions = False
                         break # nothing more to complete, the command has been found
@@ -650,22 +701,50 @@ class Shell:
         log.d(f"Commands for '{string}' = {cmds}")
         return cmds
 
+    def _resolve_alias_multi(self, the_source: str) -> List[str]:
+        def resolve_alias_multi_r(source: str) -> Optional[List[str]]:
+            log.d(f"_resolve_alias_multi_r source: {source}")
+            sources = Shell._split_command(source)
+            log.d(f"_resolve_alias_multi_r sources: {sources}")
+            targets = []
+
+            for src in sources:
+                log.d(f"alias src: {src}")
+                target = self._resolve_alias(src, default=None, recursive=False)
+                log.d(f"alias target: {target}")
+
+                if not target:
+                    targets.append(src) # no more resolution [1]
+                if target:
+                    targets += resolve_alias_multi_r(target)
+
+            log.d(f"_resolve_alias_multi_r targets: {targets}")
+            return targets
+
+        out_targets =  resolve_alias_multi_r(the_source)
+        log.d(f"_resolve_alias_multi targets: {out_targets}")
+        return out_targets
 
     def _resolve_alias(self,
-                       source: str, default: bool=None,
+                       source: str, default: str=None,
                        recursive: bool=True, as_string: bool=True) -> Union[str, Tuple[str, str]]:
+        """
+        Resolves 'source' string into a full string if as_string is True, or
+        into two parts, (prefix, suffix) if as_string is False.
+        e.g.
+        // alias l=ls -la
+        // alias s=scan
+        l -> ("ls", "-la")
+        s -> ("scan", "")
+        """
 
         def resolve_alias_strict(source_, default_=None):
             target = self._aliases.get(source_, default_)
             if source_ in self._aliases:
                 log.d(f"Alias resolved. '{source_}' -> '{target}'")
+            else:
+                log.d(f"Alias not resolved: '{source_}'")
             return target
-
-        def split_first_space(string, keep_space=False):
-            space = string.find(" ")
-            if space < 0:
-                return string, ""
-            return string[:space], string[space+(0 if keep_space else 1):]
 
         if not recursive:
             return resolve_alias_strict(source, default)
@@ -674,12 +753,12 @@ class Shell:
         resolved = source
 
         for i in range(Shell.ALIAS_RESOLUTION_MAX_DEPTH):
-            x1, x2 = split_first_space(resolved, keep_space=True)
+            x1, x2 = Shell._split_command_prefix_suffix(resolved, keep_space=True)
             leading = x1
             trailing = x2 + trailing
             log.d(f"Current resolution: comm='{leading}' suffix='{trailing}'")
 
-            resolved = resolve_alias_strict(leading)
+            resolved = resolve_alias_strict(leading, default)
 
             if not resolved:
                 break
@@ -694,6 +773,13 @@ class Shell:
             return leading, trailing
 
         return f"{leading}{trailing}"
+
+    @staticmethod
+    def _split_command_prefix_suffix(string: str, keep_space: bool = False) -> Tuple[str, str]:
+        space = string.find(" ")
+        if space < 0:
+            return string, ""
+        return string[:space], string[space+(0 if keep_space else 1):]
 
     def _help(self, args: Args) -> NoReturn:
         cmd = args.get_positional(default="usage")
@@ -737,8 +823,9 @@ class Shell:
                 log.i(f"Adding alias: {source}={target}")
                 self._aliases[source] = target
                 comm_info = COMMANDS_INFO.get(self._command_for(source))
-                if comm_info:
-                    self._available_commands[source] = comm_info
+                # If comm_info is None, the command is uknown or it is a multiple
+                # command, add as a null comm_info
+                self._available_commands[source] = comm_info
             else:
                 log.w(f"Unable to parse alias: {alias_to_create}")
                 return ClientErrors.INVALID_COMMAND_SYNTAX

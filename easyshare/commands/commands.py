@@ -666,7 +666,7 @@ if it exceeds the maximum."""
 
 class Alias(CommandInfo, KeyValArgsSpec):
     def __init__(self):
-        super().__init__(optional=True)
+        super().__init__(optional=True, keepquotes=False)
 
     @classmethod
     def name(cls):
@@ -717,7 +717,7 @@ Usage example:
 
 class Set(CommandInfo, KeyValArgsSpec):
     def __init__(self):
-        super().__init__(optional=True)
+        super().__init__(optional=True, keepquotes=False)
 
     @classmethod
     def name(cls):
