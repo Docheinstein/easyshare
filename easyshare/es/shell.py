@@ -25,7 +25,7 @@ from easyshare.utils.obj import values
 from easyshare.utils.rl import rl_set_completer_quote_characters, rl_load, \
     rl_get_completion_quote_character, rl_set_completion_suppress_quote, rl_set_char_is_quoted_p
 from easyshare.utils.str import isorted, rightof
-from easyshare.utils.types import is_str
+from easyshare.utils.types import is_str, is_list
 
 log = get_logger(__name__)
 
@@ -199,7 +199,11 @@ class Shell:
         targets = self._resolve_alias_multi(cmd)
         outcomes = []
         for target in targets:
-            outcomes.append(self._execute_single_real(target))
+            _x = self._execute_single_real(target)
+            if is_list(_x):
+                outcomes.extend(_x)
+            else:
+                outcomes.append(_x)
         return outcomes
 
     def _execute_single_real(self, cmd: str) -> AnyErrs:
@@ -504,7 +508,7 @@ class Shell:
                         log.d("Fetching suggestions for COMMAND INTENT '%s'", comm_resolved_name)
 
                         if comm_info:
-                            comms_sugg  = comm_info.suggestions(token, self._client)
+                            comms_sugg  = comm_info.suggestions(line, token, self._client)
                             if comms_sugg:
                                 # don't let it to be None
                                 self._suggestions_intent = comms_sugg
@@ -553,10 +557,10 @@ class Shell:
 
                 # If there are no suggestions and we are doing shell passthrough
                 # show the local files (probably the user command acts on those)
-                if no_suggestions and self._passthrough:
+                if no_suggestions and get_setting(Settings.SHELL_PASSTHROUGH):
                     log.d("Showing local files as suggestions as fallback, "
                           "since shell passthrough is enabled")
-                    self._suggestions_intent = Ls.suggestions(token, self._client) \
+                    self._suggestions_intent = Ls.suggestions(line, token, self._client) \
                                                or self._suggestions_intent
 
                 if not self._suggestions_intent.completion:

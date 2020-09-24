@@ -1096,6 +1096,9 @@ class Client:
         for p in args.get_positionals():
             files += self._remote_paths(p)
 
+        dest = args.get_option_param(Get.DESTINATION)
+        if dest:
+            dest = Path(dest)
         do_check = Get.CHECK in args
         quiet = Get.QUIET in args
         no_hidden = Get.NO_HIDDEN in args
@@ -1111,16 +1114,9 @@ class Client:
                         mmap=use_mmap, chunk_size=chunk_size)
         ensure_success_response(resp)
 
-        # TODO: use a secondary socket?
         transfer_socket = conn._stream._socket
 
         # Overwrite preference
-
-        # if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
-        #     Get.OVERWRITE_NEWER in args, Get.SYNC in args].count(True) > 1:
-        #     log.e("Only one between -n, -y, -N and -s can be specified")
-        #     raise CommandExecutionError("Only one between -n, -y, -N and -s can be specified")
-
         if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
             True if (Get.OVERWRITE_NEWER in args or Get.OVERWRITE_DIFF_SIZE in args) else False,
             Get.SYNC in args].count(True) > 1:
@@ -1168,7 +1164,15 @@ class Client:
             if len(files) > 1:
                 raise CommandExecutionError(ClientErrors.SYNC_ONLY_ONE_PARAMETER)
 
+            # if not dest:
+            #     down_path = Path.cwd()
+            # else:
+            #     down_path = Path.cwd() / dest
+            if dest:
+                raise CommandExecutionError("--dest with sync not supported yet")
             down_path = Path.cwd()
+
+
             trail = ""
 
             if files:
@@ -1237,9 +1241,55 @@ class Client:
             ftype = finfo.get("ftype")
             fmtime = finfo.get("mtime")
 
-            local_path = Path(fname)
+            # --dest handling
+
+            if not dest:
+                local_path = Path(fname)
+            else:
+
+                # if only 1 'src' is transferred                            1
+                #   if 'dest' exists                                        1e
+                #       if 'dest' is a DIR => put 'src' into 'dest'         1e_*2d
+                #       if 'dest' is a FILE                                 1e_?2f
+                #           if 'src' is a FILE => OVERWRITE                 1e_f2f
+                #           [if 'src' is a DIR => ERROR                     1e_d2f]
+                #   if 'dest' does not exists => preserve type of 'src'     1n
+                # if 2+ 'src' are transferred                               2
+                #   if 'dest' exists                                        2e
+                #       if 'dest' is a DIR => put 'src's into 'dest'        2e_*2d
+                #       if 'dest' is a FILE => ERROR                        2e_*2f
+                #   if 'dest' does not exists => ERROR                      2n
+
+                # TODO....
+                log.d(f"Handling destination '{dest}'")
+                if len(files) == 1:                             #1
+                    if dest.exists():                           #1e
+                        if dest.is_dir():                       #1e_*2d
+                            log.d("#1e_*2d")
+                            local_path = dest / Path(fname)
+                        elif dest.is_file():                    #1e_?2f
+                            if ftype == FTYPE_FILE:             #1e_f2f
+                                log.d("#1e_f2f")
+                                local_path = dest
+                            else:                               #1e_d2f
+                                raise CommandExecutionError("Invalid --dest semantic (#1e_d2f)")
+                        else:
+                            raise CommandExecutionError("Invalid --dest semantic (#1e_?)")
+                    else:                                       #1n
+                        log.d("#1n")
+                        local_path = dest
+                else:                                           #2
+                    if dest.exists():                           #2e
+                        if dest.is_dir():                       #2e_*2d
+                            log.d("#2e_*2d")
+                            local_path = dest / Path(fname)
+                        else:                                   #2e_*2f
+                            raise CommandExecutionError("Invalid --dest semantic (#2e_*2f)")
+                    else:                                       #2n
+                        raise CommandExecutionError("Invalid --dest semantic (#2n)")
 
             log.i("NEXT: %s of type %s", fname, ftype)
+            log.d(f"local_path: {local_path}")
 
             # Remove from the SYNC table eventually
             if sync_table:
@@ -1528,6 +1578,7 @@ class Client:
         if len(files) == 0:
             files = [Path(".")]
 
+        dest = args.get_option_param(Get.DESTINATION)
         do_check = Put.CHECK in args
         quiet = Put.QUIET in args
         no_hidden = Put.NO_HIDDEN in args
@@ -1541,10 +1592,22 @@ class Client:
         if sync and len(files) > 1:
             raise CommandExecutionError(ClientErrors.SYNC_ONLY_ONE_PARAMETER)
 
-        resp = conn.put(check=do_check, sync=sync, preview=preview)
+        put_params = {
+            "check": do_check,
+            "sync": sync,
+            "preview": preview
+        }
+
+        if dest:
+            if len(files) == 1:
+                put_params["dest_single"] = dest
+            else:
+                put_params["dest_multiple"] = dest
+
+        resp = conn.put(**put_params)
+
         ensure_success_response(resp)
 
-        # TODO: use a secondary socket?
         transfer_socket = conn._stream._socket
 
         for p in files:

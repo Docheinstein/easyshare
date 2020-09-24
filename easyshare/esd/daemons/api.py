@@ -1075,7 +1075,6 @@ class ClientHandler:
 
         self._send_response(create_success_response())
 
-        # TODO: use a secondary socket?
         transfer_socket = self._client.socket
 
         # Next file/directory to serve
@@ -1463,6 +1462,13 @@ class ClientHandler:
         check = params.get(RequestsParams.PUT_CHECK)
         sync = params.get(RequestsParams.PUT_SYNC)
         preview = params.get(RequestsParams.PUT_PREVIEW)
+        dest_single = params.get(RequestsParams.PUT_DEST_SINGLE)
+        dest_multiple = params.get(RequestsParams.PUT_DEST_MULTIPLE)
+
+        if dest_single and dest_multiple:
+            return self._create_error_response(f"Cannot use both {RequestsParams.PUT_DEST_SINGLE} "
+                                               f"and {RequestsParams.PUT_DEST_MULTIPLE}")
+
 
         # Hidden
 
@@ -1470,7 +1476,6 @@ class ClientHandler:
 
         self._send_response(create_success_response())
 
-        # TODO: use a secondary socket?
         transfer_socket = self._client.socket
 
         errors = []
@@ -1480,6 +1485,10 @@ class ClientHandler:
 
         def compute_sync_table(fpath: FPath, ftype: FileType):
             nonlocal sync_table
+
+            if dest_single or dest_multiple:
+                # TODO handle sync with --dest
+                raise ValueError("--dest with sync not supported yet")
 
             if sync_table:
                 log.e("Sync table already initialized, only a directory/file can be pushed with --sync")
@@ -1534,7 +1543,61 @@ class ClientHandler:
 
                 log.i("<< PUT_NEXT %s", j(finfo))
 
-                fpath = self._fpath_joining_rcwd_and_spath(fname)
+                # --- THIS IS TRUE FOR GET (but the concept is the same) ---
+                # if only 1 'src' is transferred                            1
+                #   if 'dest' exists                                        1e
+                #       if 'dest' is a DIR => put 'src' into 'dest'         1e_*2d
+                #       if 'dest' is a FILE                                 1e_?2f
+                #           if 'src' is a FILE => OVERWRITE                 1e_f2f
+                #           [if 'src' is a DIR => ERROR                     1e_d2f]
+                #   if 'dest' does not exists => preserve type of 'src'     1n
+                # if 2+ 'src' are transferred                               2
+                #   if 'dest' exists                                        2e
+                #       if 'dest' is a DIR => put 'src's into 'dest'        2e_*2d
+                #       if 'dest' is a FILE => ERROR                        2e_*2f
+                #   if 'dest' does not exists => ERROR                      2n
+
+                # We have not the concept of "files" (since we are reading put_next one by one)
+                # So dest must be specified  by the client (either as dest_single or dest_multiple)
+                fpath = None
+
+                if not dest_single and not dest_multiple:
+                    # i.e.
+                    # <rcwd>/<spath>            if spath is relative
+                    # <sharing_path>/<spath>    if spath is absolute ( /... )
+                    fpath = self._fpath_joining_rcwd_and_spath(fname)
+                else:
+                    if dest_single:                                   #1
+                        log.d(f"Handling dest_single '{dest_single}'")
+                        dest_single_path = self._fpath_joining_rcwd_and_spath(dest_single)
+                        if dest_single_path.exists():                 #1e
+                            if dest_single_path.is_dir():             #1e_*2d
+                                log.d("#1e_*2d")
+                                fpath = dest_single_path / fname
+                            elif dest_single_path.is_file():
+                                if ftype == FTYPE_FILE:             #1e_f2f
+                                    log.d("#1e_f2f")
+                                    fpath = dest_single_path
+                                else:                               #1e_d2f
+                                    raise ValueError("Invalid --dest semantic (#1e_d2f)")
+                            else:
+                                raise ValueError("Invalid --dest semantic (#1e_?)")
+                        else:                                           # 1n
+                            log.d("#1n")
+                            fpath = dest_single_path
+                    elif dest_multiple:                                 #2
+                        log.d(f"Handling dest_multiple '{dest_multiple}'")
+                        dest_multiple_path = self._fpath_joining_rcwd_and_spath(dest_multiple)
+                        if dest_multiple_path.exists():                 #2e
+                            if dest_multiple_path.is_dir():             #2e_*2d
+                                log.d("#2e_*2d")
+                                fpath = dest_multiple_path / fname
+                            else:                                       #2e_*2f
+                                raise ValueError("Invalid --dest semantic (#2e_*2f)")
+                        else:                                           #2n
+                            raise ValueError("Invalid --dest semantic (#2n)")
+
+                log.d(f"fpath = {fpath}")
 
                 if not self._is_fpath_allowed(fpath):
                     log.e("Path %s is invalid (out of sharing domain)", fpath)
@@ -1642,7 +1705,7 @@ class ClientHandler:
 
                 if not preview:
                     # If it's just a preview don't try to open the file for real
-                    log.d("Trying to open file before initializing transfer")
+                    log.d(f"Trying to open {fpath} before initializing transfer")
 
                     try:
                         fd = fpath.open("wb")

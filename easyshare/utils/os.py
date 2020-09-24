@@ -1,9 +1,6 @@
 import os
 import re
-import select
-import shlex
 import shutil
-import subprocess
 import threading
 from collections import deque
 from os import PathLike
@@ -13,8 +10,7 @@ from typing import Optional, List, Union, Tuple, Any, Callable
 
 from easyshare.logging import get_logger
 from easyshare.protocol.types import FTYPE_DIR, FileInfoTreeNode, FileInfo, create_file_info, FileType
-from easyshare.utils import lexer
-from easyshare.utils.env import terminal_size, is_unix
+from easyshare.utils.env import is_unix
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import isorted
 from easyshare.utils.types import list_wrap
@@ -36,8 +32,7 @@ _PERM_DIGIT_STR = {
 if is_unix():
     from pwd import getpwuid, struct_passwd
     from grp import getgrgid, struct_group
-    from ptyprocess import PtyProcess, PtyProcessUnicode
-    import fcntl
+    from ptyprocess import PtyProcess
     import tty
     import pty
 

@@ -4,7 +4,7 @@ from abc import abstractmethod, ABC
 from typing import List, Callable, Union, Optional, Dict, Type
 
 from easyshare.args import Option, PRESENCE_PARAM, INT_PARAM, NoPosArgsSpec, PosArgsSpec, VarArgsSpec, STR_PARAM, \
-    StopParseArgsSpec, KeepQuotesArgsSpec, OptIntPosArgSpec, KeyValArgsSpec
+    StopParseArgsSpec, KeepQuotesArgsSpec, OptIntPosArgSpec, KeyValArgsSpec, ArgsSpec
 from easyshare.commands import CommandHelp, CommandOptionInfo
 from easyshare.es.ui import StyledString
 from easyshare.logging import get_logger
@@ -13,6 +13,7 @@ from easyshare.protocol.responses import is_data_response
 from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfo
 from easyshare.settings import Settings
 from easyshare.styling import fg
+from easyshare.utils import lexer
 from easyshare.utils.obj import values
 from easyshare.utils.os import ls
 from easyshare.utils.path import LocalPath
@@ -113,7 +114,11 @@ class SuggestionsIntent:
 class CommandInfo(CommandHelp, ABC):
     """ Provide full information of a command and the suggestions too """
     @classmethod
-    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, line: str, token: str, client) -> Optional[SuggestionsIntent]:
+        # This class handles only the kwargs ('-', '--')
+        # The sub classes can provide something else
+        # Provides suggestions for option completion (-<...>) or for
+        # param of an option
         options = cls.options()
 
         if not options:
@@ -121,33 +126,48 @@ class CommandInfo(CommandHelp, ABC):
             return None
 
         log.i("Token: %s", token)
-        if not token.startswith("-"):
-            # This class handles only the kwargs ('-', '--')
-            # The sub classes can provide something else
-            return None
 
-        log.d("Computing (%d) args suggestions", len(options))
+        if token.startswith("-"):
+            # Option completion
 
-        longest_option_length = max(
-            [len(o.aliases_str()) + len(" ") + len(o.params_str()) for o in options]
-        )
+            log.d("Computing (%d) args suggestions", len(options))
 
-        log.d("longest_option string length: %d", longest_option_length)
+            longest_option_length = max(
+                [len(o.aliases_str()) + len(" ") + len(o.params_str()) for o in options]
+            )
 
-        suggestions = []
+            log.d("longest_option string length: %d", longest_option_length)
 
-        # TODO param
+            suggestions = []
 
-        for opt in options:
-            suggestions.append(StyledString(
-                opt.to_str(justification=longest_option_length + 6)
-            ))
+            # TODO param
 
-        return SuggestionsIntent(suggestions,
-                                 completion=False,
-                                 max_columns=1)
+            for opt in options:
+                suggestions.append(StyledString(
+                    opt.to_str(justification=longest_option_length + 6)
+                ))
 
+            return SuggestionsIntent(suggestions,
+                                     completion=False,
+                                     max_columns=1)
 
+        # TODO # Param of option completion?
+        return None
+
+    #
+    # def param_suggestions(cls, line: str, token: str, client) -> Optional[SuggestionsIntent]:
+    #     log.d("param_suggestions")
+    #     tokens = cls.split_args(line)
+    #     log.d(f"Tokens: {j(tokens)}")
+    #     return None
+
+    @classmethod
+    def _get_last_option(cls, line: str) -> Optional[str]:
+        parts = reversed([p.strip() for p in lexer.split(line)])
+        for p in parts:
+            if p.startswith("-"):
+                return p
+        return None
 
 class FilesSuggestionsCommandInfo(CommandInfo):
     """ Base suggestions provided of list of files/directory """
@@ -159,20 +179,20 @@ class FilesSuggestionsCommandInfo(CommandInfo):
 
     @classmethod
     @abstractmethod
-    def _provide_file_info_list(cls, token: str, client) -> List[FileInfo]:
+    def _provide_file_info_list(cls, line: str, token: str, client) -> List[FileInfo]:
         """ The file list to suggest, after being filtered by '_file_info_filter' """
         pass
 
     @classmethod
-    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, line: str, token: str, client) -> Optional[SuggestionsIntent]:
         log.d("Providing files listing suggestions")
 
-        suggestions_intent = super().suggestions(token, client)
+        suggestions_intent = super().suggestions(line, token, client)
         if suggestions_intent:
             return suggestions_intent
 
         suggestions = []
-        for finfo in cls._provide_file_info_list(token, client):
+        for finfo in cls._provide_file_info_list(line, token, client):
             log.d("Suggestion finfo: %s", finfo)
 
             fname = finfo.get("name")
@@ -218,18 +238,18 @@ FINDING_RE = re.compile(r"\$([a-zA-Z])?(\d+)?")
 
 class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
     @classmethod
-    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
-        findings = cls._provide_findings_list(token, client)
+    def suggestions(cls, line: str, token: str, client) -> Optional[SuggestionsIntent]:
+        findings = cls._provide_findings_list(line, token, client)
         if findings:
             log.d(f"There will be {len(findings)} findings suggestions")
             return SuggestionsIntent([StyledString(finding) for finding in findings],
                                      completion=True)
 
         # No findings, use default suggestions provider
-        return super().suggestions(token, client)
+        return super().suggestions(line, token, client)
 
     @classmethod
-    def _provide_findings_list(cls, token: str, client) -> List[str]:
+    def _provide_findings_list(cls, line: str, token: str, client) -> List[str]:
         match = re.match(FINDING_RE, token)
         if match:
             log.d("Handling valid finding token")
@@ -241,7 +261,7 @@ class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
             log.d(f"n_filter {n_filter}")
 
             findings = []
-            all_findings = cls._provide_findings_dict(token, client)
+            all_findings = cls._provide_findings_dict(line, token, client)
             # log.d(f"Checking against {all_findings}")
 
             for (letter, findings_for_letter) in all_findings.items():
@@ -268,79 +288,130 @@ class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
 
     @classmethod
     @abstractmethod
-    def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
+    def _provide_findings_dict(cls, line: str, token: str, client) -> Dict[str, 'Findings']:
         pass
 
 # ==================================================
 # =========== LOCAL/REMOTE FILES SUGGESTIONS =======
 # ==================================================
 
+def _provide_file_info_list_local(line: str, token: str, client):
+    log.d("List on token = '%s'", token)
+    # token contains only the last part after a /
+    # e.g. /tmp/something => something
+    # we have to use all the path (line)
+
+    # Take the part after the last space
+
+    # Take the parent
+    # path.parent can't be used unconditionally since it returns
+    # the parent dir even if "pattern" ends with a os.path.sep
+
+    # The only (known) strange case occurs in the following case
+    # ls LocalPath(/home/user/.) -> /home/user while i want it to
+    # be /home/user/. literally, for suggests .vimrc, ...
+
+    _, trail = os.path.split(token)
+    listing_hidden_file = trail.startswith(".")
+
+    path = LocalPath(token)
+    log.d(f"=> path = {path}")
+
+    if not token.endswith(os.path.sep) and trail != os.path.sep:
+        path = path.parent
+
+    log.i("ls-ing for suggestions on '%s'", path)
+    return ls(path, details=False, hidden=listing_hidden_file)
+
+
+def _provide_findings_dict_local(line: str, token: str, client):
+    log.d("_provide_findings_dict: _local_findings")
+    return client._local_findings
+
+
+def _provide_file_info_list_remote(line: str, token: str, client):
+    if not client or not client.is_connected_to_sharing():
+        log.w("Cannot list suggestions on a non connected es")
+        return []
+
+    log.i("List remotely on token = '%s'", token)
+    path_dir, path_trail = os.path.split(token)
+    listing_hidden_file = path_trail.startswith(".")
+
+    log.i("rls-ing on %s", token)
+
+    resp = client.connection.rls(sort_by=["name"], hidden=listing_hidden_file,
+                                 path=path_dir)
+
+    if not is_data_response(resp):
+        log.w("Unable to retrieve a valid response for rls")
+        return []
+
+    return resp.get("data")
+
+
+def _provide_findings_dict_remote(line: str, token: str, client):
+    log.d("_provide_findings_dict: _remote_findings")
+    return client._remote_findings
+
+
+class SuggestionLocation:
+    LOCAL = 0
+    REMOTE = 1
+
+class MixedFilesSuggestionsCommandInfo(FilesAndFindingsSuggestionsCommandInfo, ABC):
+    """
+    Files suggestions provider of either local or remote files.
+    Subclasses are responsible for decide the location based on line/token.
+    """
+
+
+    @classmethod
+    def _provide_file_info_list(cls, line: str, token: str, client) -> List[FileInfo]:
+        loc = cls._suggestion_location(line, token, client)
+        if loc == SuggestionLocation.LOCAL:
+            return _provide_file_info_list_local(line, token, client)
+        elif loc == SuggestionLocation.REMOTE:
+            return _provide_file_info_list_remote(line, token, client)
+        log.w(f"Unknown location type: {loc}")
+        return []
+
+    @classmethod
+    def _provide_findings_dict(cls, line, token, client) -> Dict[str, 'Findings']:
+        loc = cls._suggestion_location(line, token, client)
+        if loc == SuggestionLocation.LOCAL:
+            return _provide_findings_dict_local(line, token, client)
+        elif loc == SuggestionLocation.REMOTE:
+            return _provide_findings_dict_remote(line, token, client)
+        log.w(f"Unknown location type: {loc}")
+        return {}
+
+    @classmethod
+    @abstractmethod
+    def _suggestion_location(cls, line: str, token: str, client) -> int:
+        pass
 
 class LocalFilesSuggestionsCommandInfo(FilesAndFindingsSuggestionsCommandInfo, ABC):
     """ Files suggestions provider of local files """
     @classmethod
-    def _provide_file_info_list(cls, token: str, client) -> List[FileInfo]:
-        log.d("List on token = '%s'", token)
-        # token contains only the last part after a /
-        # e.g. /tmp/something => something
-        # we have to use all the path (line)
-
-        # Take the part after the last space
-
-        # Take the parent
-        # path.parent can't be used unconditionally since it returns
-        # the parent dir even if "pattern" ends with a os.path.sep
-
-        # The only (known) strange case occurs in the following case
-        # ls LocalPath(/home/user/.) -> /home/user while i want it to
-        # be /home/user/. literally, for suggests .vimrc, ...
-
-        _, trail = os.path.split(token)
-        listing_hidden_file = trail.startswith(".")
-
-        path = LocalPath(token)
-        log.d(f"=> path = {path}")
-
-        if not token.endswith(os.path.sep) and trail != os.path.sep:
-            path = path.parent
-
-        log.i("ls-ing for suggestions on '%s'", path)
-        return ls(path, details=False, hidden=listing_hidden_file)
+    def _provide_file_info_list(cls, line: str, token: str, client) -> List[FileInfo]:
+        return _provide_file_info_list_local(line, token, client)
 
     @classmethod
-    def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
-        log.d("_provide_findings_dict: _local_findings")
-        return client._local_findings
+    def _provide_findings_dict(cls, line: str, token: str, client) -> Dict[str, 'Findings']:
+        return _provide_findings_dict_local(line, token, client)
 
 
 class RemoteFilesSuggestionsCommandInfo(FilesAndFindingsSuggestionsCommandInfo, ABC):
     """ Files suggestions provider of remote files (performs an rls) """
 
     @classmethod
-    def _provide_file_info_list(cls, token: str, client) -> List[FileInfo]:
-        if not client or not client.is_connected_to_sharing():
-            log.w("Cannot list suggestions on a non connected es")
-            return []
-
-        log.i("List remotely on token = '%s'", token)
-        path_dir, path_trail = os.path.split(token)
-        listing_hidden_file = path_trail.startswith(".")
-
-        log.i("rls-ing on %s", token)
-
-        resp = client.connection.rls(sort_by=["name"], hidden=listing_hidden_file,
-                                     path=path_dir)
-
-        if not is_data_response(resp):
-            log.w("Unable to retrieve a valid response for rls")
-            return []
-
-        return resp.get("data")
+    def _provide_file_info_list(cls, line: str, token: str, client) -> List[FileInfo]:
+        return _provide_file_info_list_remote(line, token, client)
 
     @classmethod
-    def _provide_findings_dict(cls, token, client) -> Dict[str, 'Findings']:
-        log.d("_provide_findings_dict: _remote_findings")
-        return client._remote_findings
+    def _provide_findings_dict(cls, line: str, token: str, client) -> Dict[str, 'Findings']:
+        return _provide_findings_dict_remote(line, token, client)
 
 # ==================================================
 # ================ FILE INFO FILTERS ===============
@@ -373,25 +444,29 @@ class FilesOnlyFilter(FilesSuggestionsCommandInfo, ABC):
 # ==================================================
 
 
-class LocalAllFilesSuggestionsCommandInfo(LocalFilesSuggestionsCommandInfo, AllFilesFilter, ABC):
+class MixedAllFilesSuggestionsCommandInfo(MixedFilesSuggestionsCommandInfo, AllFilesFilter, ABC):
     pass
 
+class MixedDirsOnlySuggestionsCommandInfo(MixedFilesSuggestionsCommandInfo, DirsOnlyFilter, ABC):
+    pass
+
+class MixedFilesOnlySuggestionsCommandInfo(MixedFilesSuggestionsCommandInfo, FilesOnlyFilter, ABC):
+    pass
+
+class LocalAllFilesSuggestionsCommandInfo(LocalFilesSuggestionsCommandInfo, AllFilesFilter, ABC):
+    pass
 
 class LocalDirsOnlySuggestionsCommandInfo(LocalFilesSuggestionsCommandInfo, DirsOnlyFilter, ABC):
     pass
 
-
 class LocalFilesOnlySuggestionsCommandInfo(LocalFilesSuggestionsCommandInfo, FilesOnlyFilter, ABC):
     pass
-
 
 class RemoteAllFilesSuggestionsCommandInfo(RemoteFilesSuggestionsCommandInfo, AllFilesFilter, ABC):
     pass
 
-
 class RemoteDirsOnlySuggestionsCommandInfo(RemoteFilesSuggestionsCommandInfo, DirsOnlyFilter, ABC):
     pass
-
 
 class RemoteFilesOnlySuggestionsCommandInfo(RemoteFilesSuggestionsCommandInfo, FilesOnlyFilter, ABC):
     pass
@@ -468,7 +543,7 @@ Available commands are:
 {comms}"""
 
     @classmethod
-    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, line: str, token: str, client) -> Optional[SuggestionsIntent]:
         log.d("Providing commands suggestions")
 
         suggestions = [StyledString(comm)
@@ -586,7 +661,7 @@ Usage example:
   • stefano"""
 
     @classmethod
-    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, line: str, token: str, client) -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
             [StyledString(info.to_str(justification=15 + 6))
              for info in [
@@ -645,7 +720,7 @@ If no argument is given, increase the verbosity or resets it to *0* \
 if it exceeds the maximum."""
 
     @classmethod
-    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, line: str, token: str, client) -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
             [StyledString(info.to_str(justification=15 + 6))
              for info in [
@@ -779,7 +854,7 @@ Usage example:
 """
 
     @classmethod
-    def suggestions(cls, token: str, client) -> Optional[SuggestionsIntent]:
+    def suggestions(cls, line: str, token: str, client) -> Optional[SuggestionsIntent]:
         return SuggestionsIntent(
             [StyledString(info.to_str())
              for info in [
@@ -2324,7 +2399,8 @@ Usage example:
 # ============ GET ================
 
 
-class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
+class Get(MixedAllFilesSuggestionsCommandInfo, VarArgsSpec):
+    DESTINATION = ["-d", "--dest"]
     OVERWRITE_YES = ["-y", "--overwrite-yes"]
     OVERWRITE_NO = ["-n", "--overwrite-no"]
     OVERWRITE_NEWER = ["-N", "--overwrite-newer"]
@@ -2341,6 +2417,7 @@ class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
 
     def options_spec(self) -> Optional[List[Option]]:
         return [
+            (self.DESTINATION, STR_PARAM),
             (self.OVERWRITE_YES, PRESENCE_PARAM),
             (self.OVERWRITE_NO, PRESENCE_PARAM),
             (self.OVERWRITE_NEWER, PRESENCE_PARAM),
@@ -2354,6 +2431,13 @@ class Get(RemoteAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.MMAP, INT_PARAM),
             (self.CHUNK_SIZE, INT_PARAM),
         ]
+
+    @classmethod
+    def _suggestion_location(cls, line: str, token: str, client) -> int:
+        if cls._get_last_option(line) in cls.DESTINATION:
+            log.d("Detected -d/--dest option, suggesting locally instead")
+            return SuggestionLocation.LOCAL
+        return SuggestionLocation.REMOTE
 
     @classmethod
     def name(cls):
@@ -2424,6 +2508,7 @@ with the options **-y** (yes), **-n** (no), **-N** (overwrite if newer) and **-S
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
         return [
+            CommandOptionInfo(cls.DESTINATION, "specify local destination (filename or directory)"),
             CommandOptionInfo(cls.OVERWRITE_YES, "always overwrite files"),
             CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
             CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
@@ -2548,7 +2633,8 @@ with the options **-y** (yes), **-n** (no), **-N** (overwrite if newer) and **-S
 # ============ PUT ================
 
 
-class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
+class Put(MixedAllFilesSuggestionsCommandInfo, VarArgsSpec):
+    DESTINATION = ["-d", "--dest"]
     OVERWRITE_YES = ["-y", "--overwrite-yes"]
     OVERWRITE_NO = ["-n", "--overwrite-no"]
     OVERWRITE_NEWER = ["-N", "--overwrite-newer"]
@@ -2566,6 +2652,7 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
 
     def options_spec(self) -> Optional[List[Option]]:
         return [
+            (self.DESTINATION, STR_PARAM),
             (self.OVERWRITE_YES, PRESENCE_PARAM),
             (self.OVERWRITE_NO, PRESENCE_PARAM),
             (self.OVERWRITE_NEWER, PRESENCE_PARAM),
@@ -2579,6 +2666,13 @@ class Put(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
             (self.MMAP, INT_PARAM),
             (self.CHUNK_SIZE, INT_PARAM),
         ]
+
+    @classmethod
+    def _suggestion_location(cls, line: str, token: str, client) -> int:
+        if cls._get_last_option(line) in cls.DESTINATION:
+            log.d("Detected -d/--dest option, suggesting remotely instead")
+            return SuggestionLocation.REMOTE
+        return SuggestionLocation.LOCAL
 
     @classmethod
     def name(cls):
@@ -2639,6 +2733,7 @@ and **-S** (overwrite if size is different)."""
     @classmethod
     def options(cls) -> List[CommandOptionInfo]:
         return [
+            CommandOptionInfo(cls.DESTINATION, "specify remote destination (filename or directory)"),
             CommandOptionInfo(cls.OVERWRITE_YES, "always overwrite files"),
             CommandOptionInfo(cls.OVERWRITE_NO, "never overwrite files"),
             CommandOptionInfo(cls.OVERWRITE_NEWER, "overwrite files only if newer"),
