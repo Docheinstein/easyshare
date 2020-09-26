@@ -1543,6 +1543,8 @@ class ClientHandler:
 
                 log.i("<< PUT_NEXT %s", j(finfo))
 
+                # Compute the local path
+
                 # --- THIS IS TRUE FOR GET (but the concept is the same) ---
                 # if only 1 'src' is transferred                            1
                 #   if 'dest' exists                                        1e
@@ -1629,6 +1631,8 @@ class ClientHandler:
                         log.d("Removing from SYNC table: '%s'", incremental_path_str)
                         sync_table.pop(incremental_path_str, None)
 
+                already_exists = fpath.exists()
+
                 # Check whether is a dir or a file
                 if ftype == FTYPE_DIR:
                     # Handle dir now by creating dirs
@@ -1637,7 +1641,8 @@ class ClientHandler:
                         fpath.mkdir(parents=True, exist_ok=True)
                     self._send_response(create_success_response({
                         ResponsesParams.PUT_NEXT_STATUS:
-                            ResponsesParams.PUT_NEXT_STATUS_ACCEPTED
+                            ResponsesParams.PUT_NEXT_STATUS_ACCEPTED,
+                        ResponsesParams.PUT_NEXT_ALREADY_EXISTS: already_exists
                     }))
                     continue
 
@@ -1664,10 +1669,10 @@ class ClientHandler:
                         log.d("Overwrite policy is PROMPT, asking the client whether overwrite")
                         self._send_response(create_success_response({
                             ResponsesParams.PUT_NEXT_STATUS:
-                                ResponsesParams.PUT_NEXT_STATUS_ALREADY_EXISTS,
-                            ResponsesParams.PUT_NEXT_STATUS_FILE_INFO:
-                                create_file_info(fpath, name=str(self._spath_rel_to_root_of_fpath(fpath)))
-
+                                ResponsesParams.PUT_NEXT_STATUS_UNCERTAIN,
+                            ResponsesParams.PUT_NEXT_FILE_INFO:
+                                create_file_info(fpath, name=str(self._spath_rel_to_root_of_fpath(fpath))),
+                            ResponsesParams.PUT_NEXT_ALREADY_EXISTS: already_exists
                         }))
                         continue
 
@@ -1690,7 +1695,8 @@ class ClientHandler:
                         else:
                             self._send_response(create_success_response({
                                 ResponsesParams.PUT_NEXT_STATUS:
-                                    ResponsesParams.PUT_NEXT_STATUS_REFUSED
+                                    ResponsesParams.PUT_NEXT_STATUS_REFUSED,
+                                ResponsesParams.PUT_NEXT_ALREADY_EXISTS: already_exists
                             }))
                             continue
 
@@ -1733,10 +1739,11 @@ class ClientHandler:
 
                 self._send_response(create_success_response({
                     ResponsesParams.PUT_NEXT_STATUS:
-                        ResponsesParams.PUT_NEXT_STATUS_ACCEPTED
+                        ResponsesParams.PUT_NEXT_STATUS_ACCEPTED,
+                    ResponsesParams.PUT_NEXT_ALREADY_EXISTS: already_exists
                 }))
 
-                return fpath, fsize, fd
+                return fpath, fsize, fmtime, fd
 
         while True:
             log.d("Blocking and waiting for a file to handle...")
@@ -1749,7 +1756,7 @@ class ClientHandler:
                 log.i("No more files: transfer completed")
                 break
 
-            incoming_fpath, incoming_size, local_fd = next_incoming
+            incoming_fpath, incoming_size, incoming_mtime, local_fd = next_incoming
 
             if preview:
                 log.i("Just a preview, not transferring file for real")
@@ -1801,6 +1808,11 @@ class ClientHandler:
 
             log.i("Closing file %s", incoming_fpath)
             local_fd.close()
+
+            # Adjust the mtime based on the remote
+            log.d(f"Setting mtime = {incoming_mtime}")
+            os.utime(incoming_fpath,
+                     ns=(time.clock_gettime_ns(time.CLOCK_REALTIME), incoming_mtime))
 
             # Eventually do CRC check
             if check:

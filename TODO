@@ -16,6 +16,8 @@ TODOs
     probably its just better to print directly in the command
 - rm/rrm *
 - provide suggestion/completion even for options? (tough)
+- --sync with GET and PUT
+- don't show already existent folders for put -sp [get -sp]
 
 TO_DEBUGs
 - fix 1000MB might happen => 1 characters of space to keep into account

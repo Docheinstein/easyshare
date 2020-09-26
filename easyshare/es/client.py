@@ -1350,11 +1350,11 @@ class Client:
                     current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
 
                     if current_overwrite_decision in OverwritePolicy.NEWERS:
-                        log.d("Checking whether skip based on mtime")
+                        log.d(f"Checking whether skip based on mtime ({local_stat.st_mtime_ns} vs {fmtime})")
                         will_accept = will_accept or local_stat.st_mtime_ns < fmtime
 
                     if current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
-                        log.d("Checking whether skip based on size")
+                        log.d(f"Checking whether skip based on size ({local_stat.st_size} vs {fsize})")
                         will_accept = will_accept or local_stat.st_size != fsize
 
 
@@ -1454,6 +1454,11 @@ class Client:
             log.d("- crc = %d", expected_crc)
 
             f.close()
+
+            # Adjust the mtime based on the remote
+            log.d(f"Setting mtime = {fmtime}")
+            os.utime(local_path,
+                     ns=(time.clock_gettime_ns(time.CLOCK_REALTIME), fmtime))
 
             # Eventually do CRC check
             if do_check:
@@ -1755,14 +1760,18 @@ class Client:
             if not is_data_response(put_next_resp, ResponsesParams.PUT_NEXT_STATUS):
                 raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
+            status = put_next_resp.get("data").get(ResponsesParams.PUT_NEXT_STATUS)
+            already_exists = put_next_resp.get("data").get(ResponsesParams.PUT_NEXT_ALREADY_EXISTS)
 
             # Case: DIR => no transfer
             if ftype == FTYPE_DIR:
                 log.d("Sent a DIR, nothing else to do")
-                if preview:
+                if preview and not already_exists:
                     if str(remote_path) != ".": # dirty fix, I won't want to see . in the preview
                         print(green(f"+ [{size_str_justify(0)}] {remote_path}"))
                 return
+
+            # Case: FILE
 
             # Possible responses:
             # "accepted" => add the file to the transfer socket
@@ -1773,11 +1782,13 @@ class Client:
 
             # First of all handle the ask_overwrite, and contact the esd
             # again for tell the response
-            status = put_next_resp.get("data").get(ResponsesParams.PUT_NEXT_STATUS)
-            if status == ResponsesParams.PUT_NEXT_STATUS_ALREADY_EXISTS:
+            if status == ResponsesParams.PUT_NEXT_STATUS_UNCERTAIN:
+                if not already_exists:
+                    log.w("WTF the remote is uncertain about, if the file does not exists?")
+
                 # Ask the user what to do
 
-                remote_finfo = put_next_resp.get("data").get(ResponsesParams.PUT_NEXT_STATUS_FILE_INFO)
+                remote_finfo = put_next_resp.get("data").get(ResponsesParams.PUT_NEXT_FILE_INFO)
 
                 timer.stop() # Don't take the user time into account
                 current_overwrite_decision, overwrite_policy = self._ask_overwrite(
