@@ -43,7 +43,7 @@ from easyshare.utils.env import is_unix, terminal_size
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str, size_str_justify
 from easyshare.utils.os import ls, rm, tree, mv, cp, user, pty_attached, os_error_str, \
-    find, du
+    find, du, set_mtime
 from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress import ProgressBarRendererFactory
 from easyshare.utils.progress.file import FileProgressor
@@ -1305,11 +1305,13 @@ class Client:
 
             # Case: DIR
             if ftype == FTYPE_DIR:
-                if preview:
-                    print(green(f"+ [{size_str_justify(0)}] {local_path}"))
-                else:
-                    log.i("Creating dirs %s", fname)
-                    local_path.mkdir(parents=True, exist_ok=True)
+                if not local_path.exists():
+                    if preview:
+                        print(green(f"+ [{size_str_justify(0)}] {local_path}"))
+                    else:
+                        log.i("Creating dirs %s", fname)
+                        local_path.mkdir(parents=True, exist_ok=True)
+
                 continue  # No FTYPE_FILE => neither skip nor transfer for next()
 
             if ftype != FTYPE_FILE:
@@ -1457,8 +1459,7 @@ class Client:
 
             # Adjust the mtime based on the remote
             log.d(f"Setting mtime = {fmtime}")
-            os.utime(local_path,
-                     ns=(time.clock_gettime_ns(time.CLOCK_REALTIME), fmtime))
+            set_mtime(local_path, fmtime)
 
             # Eventually do CRC check
             if do_check:

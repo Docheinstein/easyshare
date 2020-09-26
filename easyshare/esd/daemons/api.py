@@ -26,7 +26,7 @@ from easyshare.tracing import trace_json
 from easyshare.utils.env import is_unix
 from easyshare.utils.json import btoj, jtob, j
 from easyshare.utils.os import ls, os_error_str, tree, cp, mv, rm, user, pty_detached, \
-    find, du
+    find, du, set_mtime
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import q
 from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, itob, btoi
@@ -1811,8 +1811,7 @@ class ClientHandler:
 
             # Adjust the mtime based on the remote
             log.d(f"Setting mtime = {incoming_mtime}")
-            os.utime(incoming_fpath,
-                     ns=(time.clock_gettime_ns(time.CLOCK_REALTIME), incoming_mtime))
+            set_mtime(incoming_fpath, incoming_mtime)
 
             # Eventually do CRC check
             if check:

@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 import threading
+import time
 from collections import deque
 from os import PathLike
 from pathlib import Path
@@ -75,6 +76,10 @@ def perm_str(perm: str):
         _PERM_DIGIT_STR.get(perm[0], "---") + \
         _PERM_DIGIT_STR.get(perm[1], "---") + \
         _PERM_DIGIT_STR.get(perm[2], "---")
+
+
+def set_mtime(f: Union[str, Path], mtime: int):
+    os.utime(f, ns=(time.clock_gettime_ns(time.CLOCK_REALTIME), mtime))
 
 
 def ls(path: Path,
