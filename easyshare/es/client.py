@@ -1103,7 +1103,19 @@ class Client:
             if not dest:
                 return base_
 
-            # --dest handling
+            """
+            --dest handling
+            
+            |   alias  |    SRC    |    DEST    |   ACTION
+                1f2/        file        ----        write file
+                1f2f        file        file        overwrite
+                1f2d        file        dir         put file into directory
+                1d2/        dir         ----        write directory
+                1d2f        dir         file        error
+                1d2d        dir         dir         put directory into directory
+                
+            """
+            #
 
             # if only 1 'src' is transferred                            1
             #   if 'dest' exists                                        1e
