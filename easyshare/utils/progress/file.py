@@ -3,6 +3,7 @@ import time
 import random
 
 from easyshare.logging import get_logger
+from easyshare.utils.env import terminal_size
 from easyshare.utils.measures import duration_str_human, size_str, speed_str
 from easyshare.utils.progress import Progressor
 
@@ -80,7 +81,7 @@ class FileProgressor(Progressor):
         # Retrieve the terminal size for render properly
         percentage = int(100 * progress_ratio)
 
-        cols, rows = self._safe_terminal_size()
+        cols, rows = terminal_size()
 
         D = self._description
 

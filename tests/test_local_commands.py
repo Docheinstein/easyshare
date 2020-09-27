@@ -1,12 +1,10 @@
 import tempfile
-from pathlib import Path
 
-from easyshare import logging
 from easyshare.commands.commands import Commands
 from easyshare.es.client import Client
+from easyshare.es.errors import ClientErrors
 
 from tests.utils import tmpfile, tmpdir
-
 
 client = Client()
 
@@ -120,7 +118,7 @@ def test_mvcp_dir_into_file():
 def test_cp_dir_into_file():
     _test_mvcp_dir_into_file(move=False)
 
-def _test_mv_multiple_file_into_dir(move: bool):
+def _test_mvcp_multiple_file_into_dir(move: bool):
     cmd = Commands.LOCAL_MOVE if move else Commands.LOCAL_COPY
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -136,12 +134,12 @@ def _test_mv_multiple_file_into_dir(move: bool):
         assert (d1 / f2.name).exists()
 
 def test_mv_multiple_file_into_dir():
-    _test_mv_multiple_file_into_dir(move=True)
+    _test_mvcp_multiple_file_into_dir(move=True)
 
 def test_cp_multiple_file_into_dir():
-    _test_mv_multiple_file_into_dir(move=False)
+    _test_mvcp_multiple_file_into_dir(move=False)
 
-def _test_mv_multiple_file_into_file(move: bool): # illegal
+def _test_mvcp_multiple_file_into_file(move: bool): # illegal
     cmd = Commands.LOCAL_MOVE if move else Commands.LOCAL_COPY
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -149,19 +147,16 @@ def _test_mv_multiple_file_into_file(move: bool): # illegal
         f1 = tmpfile(tmp)
         f2 = tmpfile(tmp)
 
-        try:
-            client.execute_command(cmd, f"{f1} {f2} {f0}")
-            assert False
-        except:
-            pass
+        ret = client.execute_command(cmd, f"{f1} {f2} {f0}")
+        assert ret != ClientErrors.SUCCESS
 
 def test_mv_multiple_file_into_file():
-    _test_mv_multiple_file_into_file(move=True)
+    _test_mvcp_multiple_file_into_file(move=True)
 
 def test_cp_multiple_file_into_file():
-    _test_mv_multiple_file_into_file(move=False)
+    _test_mvcp_multiple_file_into_file(move=False)
 
-def _test_mv_multiple_file_into_nothing(move: bool): # illegal
+def _test_mvcp_multiple_file_into_nothing(move: bool): # illegal
     cmd = Commands.LOCAL_MOVE if move else Commands.LOCAL_COPY
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -169,15 +164,12 @@ def _test_mv_multiple_file_into_nothing(move: bool): # illegal
         f1 = tmpfile(tmp)
         f2 = tmpfile(tmp)
 
-        try:
-            client.execute_command(cmd, f"{f1} {f2} {d0}")
-            assert False
-        except:
-            pass
+        ret = client.execute_command(cmd, f"{f1} {f2} {d0}")
+        assert ret != ClientErrors.SUCCESS
 
 def test_mv_multiple_file_into_nothing():
-    _test_mv_multiple_file_into_nothing(move=True)
+    _test_mvcp_multiple_file_into_nothing(move=True)
 
 def test_cp_multiple_file_into_nothing():
-    _test_mv_multiple_file_into_nothing(move=False)
+    _test_mvcp_multiple_file_into_nothing(move=False)
 

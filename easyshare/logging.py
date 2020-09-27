@@ -1,9 +1,10 @@
 import sys
 import traceback
 
-from easyshare.common import easyshare_setup, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO
+from easyshare.common import easyshare_setup, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG
 from easyshare.settings import get_setting, Settings
-from easyshare.styling import yellow, red, green, blue
+from easyshare.styling import yellow, red, green, blue, magenta
+
 
 # TODO: convert %s to format string
 
@@ -24,7 +25,11 @@ class Logger:
                   msg, *args, **kwargs)
 
     def d(self, msg, *args, **kwargs):
-        self._log(VERBOSITY_INFO, green("[DEBUG] "), None,
+        self._log(VERBOSITY_DEBUG, green("[DEBUG] "), None,
+                  msg, *args, **kwargs)
+
+    def x(self, tag, msg, *args, **kwargs):
+        self._log(VERBOSITY_DEBUG, magenta(f"[{tag}] "), None,
                   msg, *args, **kwargs)
 
     def eexception(self, msg, *args, **kwargs):
