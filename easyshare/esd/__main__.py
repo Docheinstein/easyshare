@@ -152,19 +152,19 @@ ESD_CONF_SPEC = {
 
 # ==================================================================
 
-def main():
-    # Already called: easyshare_setup()
+running_sync = threading.Semaphore(0)
+is_running_event = threading.Event()
 
-    if len(sys.argv) <= 1:
-        _print_usage_and_quit()
+def start(args):
+    # Already called: easyshare_setup()
 
     # Parse arguments
     g_args = None
 
     try:
-        g_args = Esd().parse(sys.argv[1:])
+        g_args = Esd().parse(args)
     except ArgsParseError as err:
-        log.exception("Exception occurred while parsing args")
+        log.eexception("Exception occurred while parsing args")
         abort("parse of global arguments failed: {}".format(str(err)))
 
     # Eventually set verbosity before anything else
@@ -172,7 +172,7 @@ def main():
     # can be logged
     if g_args.has_option(Esd.VERBOSE):
         set_setting(Settings.VERBOSITY,
-                    g_args.get_option_param(Esd.VERBOSE, default=logging.VERBOSITY_MAX))
+                    g_args.get_option_param(Esd.VERBOSE, default=VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_SERVER, APP_VERSION))
     log.i("Starting with arguments\n%s", g_args)
@@ -246,7 +246,7 @@ def main():
                 comment_prefixes=["#", ";"]
             )
         except ConfParseError as err:
-            log.exception("Exception occurred while parsing conf")
+            log.eexception("Exception occurred while parsing conf")
             abort(f"parse of config file failed: {err}")
 
         if cfg:
@@ -443,7 +443,7 @@ def main():
             log.d(f"s_unparsed: {s_unparsed}")
 
     except ArgsParseError as err:
-        log.exception("Exception occurred while parsing args")
+        log.eexception("Exception occurred while parsing args")
         abort("Parse of sharing arguments failed: {}".format(str(err)))
 
     g_args.get_option_params(Esd.SHARING)
@@ -600,16 +600,29 @@ Version:            {APP_VERSION}
 
         log.i("Ready to handle requests")
 
-        if th_discover:
-            th_discover.join()
-        th_api.join()
+        is_running_event.set()
+        running_sync.acquire()
+        log.d("Semaphore acquired; quitting")
 
     except KeyboardInterrupt:
         log.d("CTRL+C detected; quitting")
-        # Formally not a clean quit of the threads, but who cares we are exiting...
+
+    # log.i("Killing daemons")
+    # if discover_d:
+    #     discover_d.kill()
+    # api_d.kill()
 
     print("\n" + bold("DONE"))
 
+# Actually called just for internal purposed (tests)
+# The standard way to stop the server is CTRL+C
+def stop():
+    log.d("STOP request")
+    running_sync.release()
+
+def wait_until_start():
+    is_running_event.wait()
+    log.d("EVENT: ESD started")
 
 def _print_usage_and_quit():
     """ Prints the esd usage and exit """
@@ -618,4 +631,6 @@ def _print_usage_and_quit():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) <= 1:
+        _print_usage_and_quit()
+    start(sys.argv[1:])

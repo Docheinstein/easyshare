@@ -28,6 +28,10 @@ class Daemon(ABC):
     def run(self):
         pass
 
+    @abstractmethod
+    def kill(self):
+        pass
+
 
 class UdpDaemon(Daemon, ABC):
     def __init__(self, port: int, trace: bool):
@@ -47,6 +51,12 @@ class UdpDaemon(Daemon, ABC):
 
             log.i("Received UDP request from: %s", client_endpoint)
             self._handle_message(data, client_endpoint)
+
+    def kill(self):
+        try:
+            self._sock.close()
+        except:
+            log.wexception("Kill of daemon was not clean")
 
     @abstractmethod
     def _handle_message(self, data: bytes, client_endpoint: Endpoint):
@@ -79,6 +89,12 @@ class TcpDaemon(Daemon, ABC):
 
             log.d("Received new valid TCP connection from %s", sock.remote_endpoint())
             self._handle_connection(sock)
+
+    def kill(self):
+        try:
+            self._acceptor.close()
+        except:
+            log.wexception("Kill of daemon was not clean")
 
     @abstractmethod
     def _handle_connection(self, sock: SocketTcpIn):

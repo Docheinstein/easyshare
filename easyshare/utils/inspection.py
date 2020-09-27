@@ -20,7 +20,7 @@ def func_args_to_str(vargs: Union[List[Any], Tuple[Any, ...]] = None,
     return ", ".join(vargs_strs + kwargs_strs)
 
 def stacktrace(color: str = None):
-    return fg("\n".join(traceback.format_stack()), color)
+    return fg("".join(traceback.format_stack()), color)
 
 if __name__ == "__main__":
     print(stacktrace())

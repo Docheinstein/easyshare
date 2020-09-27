@@ -114,16 +114,22 @@ def is_server_name(s: str):
 # ======== SETUP ======
 # =====================
 
-def easyshare_setup():
+easyshare_setup_done = False
+
+def easyshare_setup(default_verbosity: int = VERBOSITY_NONE):
     """
     Configures easyshare: initializes the colors and the logging.
     """
+
+    global easyshare_setup_done
+    if easyshare_setup_done:
+        return
+    easyshare_setup_done = True
+
     from easyshare.styling import init_styling
-    from easyshare.logging import init_logging
     from easyshare.settings import set_setting, Settings
 
-    # disable colors when redirection is involved or if
-    # colors are disabled
+    # disable colors when redirection is involved or if colors are disabled
     env_ansi_disabled = os.getenv(ENV_ANSI_COLORS_DISABLED)
     env_starting_verbosity = os.getenv(ENV_EASYSHARE_VERBOSITY)
 
@@ -131,15 +137,8 @@ def easyshare_setup():
     set_setting(Settings.COLORS, is_styling_supported() and not env_ansi_disabled)
 
     # Init logging manually now, after enable_colors call
-    init_logging()
-
     starting_verbosity = to_int(env_starting_verbosity,
                                 raise_exceptions=False,
-                                default=VERBOSITY_NONE)
+                                default=default_verbosity)
 
     set_setting(Settings.VERBOSITY, starting_verbosity)
-
-
-    # root_log = logging.get_logger()
-    # root_log.set_verbosity(starting_verbosity)
-    # root_log.d("Starting with verbosity = %d", starting_verbosity)

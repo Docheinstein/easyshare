@@ -38,7 +38,6 @@ from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode,
 from easyshare.settings import get_setting, Settings
 from easyshare.styling import bold, green, red
 from easyshare.timer import Timer
-from easyshare.utils import lexer
 from easyshare.utils.env import is_unix, terminal_size
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str, size_str_justify
@@ -355,8 +354,9 @@ class Client:
         return command in self._command_dispatcher
 
     # def execute_command(self, command: str, command_args: List[str]) -> AnyErr:
-    def execute_command(self, command: str, command_suffix: str) -> AnyErrs:
+    def execute_command(self, command: str, command_suffix: str = "") -> AnyErrs:
         if not self.has_command(command):
+            log.w(f"Unknown command: {command}")
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 
         # command_args_copy = command_args.copy()
@@ -390,15 +390,15 @@ class Client:
         except CommandExecutionError as ex:
             # "Expected" fail
             err = ex.errors if ex.errors else ClientErrors.COMMAND_EXECUTION_FAILED
-            log.exception("CommandExecutionError: %s", err)
+            log.eexception("CommandExecutionError: %s", err)
             return err
         except ConnectionError as ex:
             err = os_error_str(ex) or ClientErrors.COMMAND_EXECUTION_FAILED
-            log.exception("ConnectionError: %s", err)
+            log.eexception("ConnectionError: %s", err)
             return err
         except Exception as ex:
             # Every other unexpected fail: destroy connection
-            log.exception("Exception caught while executing command\n%s", ex)
+            log.eexception("Exception caught while executing command\n%s", ex)
             self.destroy_connection()
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
@@ -782,7 +782,7 @@ class Client:
                 log.i("RSHELL done (%d)", retcode)
                 # print()
             except Exception:
-                log.exception("Unexpected error occurred on rshell out receiver thread")
+                log.eexception("Unexpected error occurred on rshell out receiver thread")
                 retcode = -1
 
 
@@ -824,7 +824,7 @@ class Client:
                     conn.write(RexecEventType.KILL_B, trace=True)
 
         except OSError:
-            log.exception("OSError")
+            log.eexception("OSError")
         finally:
             # Restore stdin in blocking mode [taken from pty.spawn]
             try:
@@ -1092,6 +1092,91 @@ class Client:
             self.renew_connection(clean=False)
 
     def _get(self, args: Args, conn: Connection):
+        def destpath(base_: Path, dest_: Path,
+                     multiple_srcs_: bool, src_ftype_: FileType) -> Path:
+            """
+            If 'dest_' is not given returns 'base_', otherwise computes the path
+            like mv/cp (treating dest either as the filename or the directory name
+            in which put the file, depending on the file types and the existence
+            of base_ and dest_.
+            """
+            if not dest:
+                return base_
+
+            # --dest handling
+
+            # if only 1 'src' is transferred                            1
+            #   if 'dest' exists                                        1e
+            #       if 'dest' is a DIR => put 'src' into 'dest'         1e_*2d
+            #       if 'dest' is a FILE                                 1e_?2f
+            #           if 'src' is a FILE => OVERWRITE                 1e_f2f
+            #           [if 'src' is a DIR => ERROR                     1e_d2f]
+            #   if 'dest' does not exists => preserve type of 'src'     1n
+            # if 2+ 'src' are transferred                               2
+            #   if 'dest' exists                                        2e
+            #       if 'dest' is a DIR => put 'src's into 'dest'        2e_*2d
+            #       if 'dest' is a FILE => ERROR                        2e_*2f
+            #   if 'dest' does not exists => ERROR                      2n
+
+            log.d(f"Handling destpath(base={base_}, dest={dest_}, "
+                  f"multiple={multiple_srcs_}, ftype={src_ftype_})")
+            if not multiple_srcs_:                           #1
+                if dest_.exists():                           #1e
+                    if dest_.is_dir():                       #1e_*2d
+                        log.d("#1e_*2d")
+                        return dest_ / base_
+                    if dest_.is_file():                      #1e_?2f
+                        if src_ftype_ == FTYPE_FILE:  #1e_f2f
+                            log.d("#1e_f2f")
+                            return dest_
+                        raise CommandExecutionError("Invalid --dest semantic (#1e_d2f)")
+                    raise CommandExecutionError("Invalid --dest semantic (#1e_?)")
+                log.d("#1n")                                 #1n
+                return dest_
+                                                             # 2
+
+            if dest_.exists():                               #2e
+                if dest_.is_dir():                           #2e_*2d
+                    log.d("#2e_*2d")
+                    return dest_ / base_
+                                                            # 2e_*2f
+                raise CommandExecutionError("Invalid --dest semantic (#2e_*2f)")
+                                                            # 2n
+            raise CommandExecutionError("Invalid --dest semantic (#2n)")
+
+        def compute_sync_table(ftype_: FileType):
+            nonlocal sync_table
+
+            down_path = Path.cwd() / destpath(base_=Path("."),
+                                              dest_=dest,
+                                              multiple_srcs_=False,
+                                              src_ftype_=ftype_)
+            log.d("SYNC Down path: '%s'", down_path)
+
+            trail = ""
+            if ftype == FTYPE_DIR:
+                if files:
+                    if not files[0].endswith("*"):
+                        trail = files[0]
+                else:
+                    # No path specified, will get the content wrapped into
+                    # a folder with the rcwd name
+                    trail = conn.current_rcwd()
+                    if not trail or trail == "/":
+                        # No rcwd? we will get the content wrapped into a foler
+                        # with the sharing name
+                        trail = conn.current_sharing_name()
+
+            log.d("SYNC Trail: '%s'", trail)
+            down_path = down_path / trail
+            log.d("SYNC Down path (definitive): '%s'", down_path)
+
+            findings = find(down_path)
+            # Preserve order for perform RM in optimal order (parents first)
+            sync_table = OrderedDict({f_.get("name"): None for f_ in findings})
+            log.d("SYNC computed old_files table\n%s",
+                  "\n".join(sync_table.keys()))
+
         files = []
         for p in args.get_positionals():
             files += self._remote_paths(p)
@@ -1108,6 +1193,10 @@ class Client:
 
         chunk_size = args.get_option_param(Get.CHUNK_SIZE)
         use_mmap = args.get_option_param(Get.MMAP)
+
+        if sync and len(files) > 1:
+            # Ensure that only a path parameter is passed with sync
+            raise CommandExecutionError(ClientErrors.SYNC_ONLY_ONE_PARAMETER)
 
         resp = conn.get(files,
                         check=do_check, no_hidden=no_hidden,
@@ -1159,43 +1248,6 @@ class Client:
         # so that we can remove old files (the one for which no file info
         # is retrieved from the server) after the transfer completes.
         sync_table = None
-        if sync:
-            # Ensure that only a path parameter is passed
-            if len(files) > 1:
-                raise CommandExecutionError(ClientErrors.SYNC_ONLY_ONE_PARAMETER)
-
-            # if not dest:
-            #     down_path = Path.cwd()
-            # else:
-            #     down_path = Path.cwd() / dest
-            if dest:
-                raise CommandExecutionError("--dest with sync not supported yet")
-            down_path = Path.cwd()
-
-
-            trail = ""
-
-            if files:
-                if not files[0].endswith("*"):
-                    trail = files[0]
-            else:
-                # No path specified, will get the content wrapped into
-                # a folder with the rcwd name
-                trail = conn.current_rcwd()
-                if not trail or trail == "/":
-                    # No rcwd? we will get the content wrapped into a folter
-                    # with the sharing name
-                    trail = conn.current_sharing_name()
-
-            log.d("SYNC Trail: '%s'", trail)
-            down_path = down_path / trail
-            log.d("SYNC Down path: '%s'", down_path)
-
-            findings = find(down_path)
-            # Preserve order for perform RM in optimal order (parents first)
-            sync_table = OrderedDict({f.get("name"): None for f in findings})
-            log.d("SYNC computed old_files table\n%s",
-                  "\n".join(sync_table.keys()))
 
         while True:
             log.i("Fetching another file info")
@@ -1241,58 +1293,19 @@ class Client:
             ftype = finfo.get("ftype")
             fmtime = finfo.get("mtime")
 
-            # --dest handling
-
-            if not dest:
-                local_path = Path(fname)
-            else:
-
-                # if only 1 'src' is transferred                            1
-                #   if 'dest' exists                                        1e
-                #       if 'dest' is a DIR => put 'src' into 'dest'         1e_*2d
-                #       if 'dest' is a FILE                                 1e_?2f
-                #           if 'src' is a FILE => OVERWRITE                 1e_f2f
-                #           [if 'src' is a DIR => ERROR                     1e_d2f]
-                #   if 'dest' does not exists => preserve type of 'src'     1n
-                # if 2+ 'src' are transferred                               2
-                #   if 'dest' exists                                        2e
-                #       if 'dest' is a DIR => put 'src's into 'dest'        2e_*2d
-                #       if 'dest' is a FILE => ERROR                        2e_*2f
-                #   if 'dest' does not exists => ERROR                      2n
-
-                # TODO....
-                log.d(f"Handling destination '{dest}'")
-                if len(files) == 1:                             #1
-                    if dest.exists():                           #1e
-                        if dest.is_dir():                       #1e_*2d
-                            log.d("#1e_*2d")
-                            local_path = dest / Path(fname)
-                        elif dest.is_file():                    #1e_?2f
-                            if ftype == FTYPE_FILE:             #1e_f2f
-                                log.d("#1e_f2f")
-                                local_path = dest
-                            else:                               #1e_d2f
-                                raise CommandExecutionError("Invalid --dest semantic (#1e_d2f)")
-                        else:
-                            raise CommandExecutionError("Invalid --dest semantic (#1e_?)")
-                    else:                                       #1n
-                        log.d("#1n")
-                        local_path = dest
-                else:                                           #2
-                    if dest.exists():                           #2e
-                        if dest.is_dir():                       #2e_*2d
-                            log.d("#2e_*2d")
-                            local_path = dest / Path(fname)
-                        else:                                   #2e_*2f
-                            raise CommandExecutionError("Invalid --dest semantic (#2e_*2f)")
-                    else:                                       #2n
-                        raise CommandExecutionError("Invalid --dest semantic (#2n)")
+            local_path = destpath(base_=Path(fname),
+                                  dest_=dest,
+                                  multiple_srcs_=len(files) > 1,
+                                  src_ftype_=ftype)
 
             log.i("NEXT: %s of type %s", fname, ftype)
             log.d(f"local_path: {local_path}")
 
-            # Remove from the SYNC table eventually
-            if sync_table:
+            if sync:
+                if sync_table is None:
+                    compute_sync_table(ftype)
+
+                # Remove from the SYNC table eventually
                 # Do the removal for each possible path within local_path
                 # (so that we won't delete parent folder if the change is
                 # inside the children)

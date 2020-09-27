@@ -40,5 +40,5 @@ def _load_command_content(cmd: str) -> Optional[str]:
         return read_resource_string(EASYSHARE_RESOURCES_PKG,
                                     f"helps/{cmd}.hmd")
     except Exception:
-        log.exception(f"Exception occurred while {cmd} help")
+        log.eexception(f"Exception occurred while {cmd} help")
         return None

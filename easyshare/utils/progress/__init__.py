@@ -2,7 +2,6 @@ import math
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
-from os import get_terminal_size
 from typing import Tuple
 
 from easyshare.common import easyshare_setup
@@ -248,11 +247,6 @@ class Progressor(ABC):
     @abstractmethod
     def _progress_string(self, progress_ratio: float, t: int):
         pass
-
-    @classmethod
-    def _safe_terminal_size(cls):
-        cols, rows = get_terminal_size()
-        return cols, rows
 
 if __name__ == "__main__":
     easyshare_setup()

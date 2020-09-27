@@ -227,7 +227,7 @@ class ClientHandler:
                     try:
                         resp_payload = self._handle_request(req)
                     except:
-                        log.exception("Exception occurred while handling request")
+                        log.eexception("Exception occurred while handling request")
                         resp_payload = self._create_error_response(ServerErrors.COMMAND_EXECUTION_FAILED)
 
                 else:
@@ -238,7 +238,7 @@ class ClientHandler:
             except StreamClosedError:
                 pass # self._client.stream.is_open() will fail next iter
             except:
-                log.exception("Unexpected exception occurred")
+                log.eexception("Unexpected exception occurred")
                 # Maybe we could recover from this point, but
                 # break is probably safer for avoid zombie connections
                 break
@@ -265,7 +265,7 @@ class ClientHandler:
         try:
             req_payload = btoj(req_payload_data)
         except:
-            log.exception("Failed to parse payload - discarding it")
+            log.eexception("Failed to parse payload - discarding it")
 
         # Trace IN
         trace_json(
@@ -448,7 +448,7 @@ class ClientHandler:
             log.d("RSHELL finished")
 
         except Exception as ex:
-            log.exception(f"Rshell failed: {ex}")
+            log.eexception(f"Rshell failed: {ex}")
             return self._create_error_response(ServerErrors.REXEC_EXECUTION_FAILED)
 
     @require_server_connection
@@ -578,20 +578,20 @@ class ClientHandler:
             print(f"[{self._client.tag}] rls '{ls_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
         except FileNotFoundError:
-            log.exception("rls exception occurred")
+            log.eexception("rls exception occurred")
             return self._create_error_response(ServerErrors.NOT_EXISTS,
                                                ls_fpath)
         except PermissionError:
-            log.exception("rls exception occurred")
+            log.eexception("rls exception occurred")
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                ls_fpath)
         except OSError as oserr:
-            log.exception("rls exception occurred")
+            log.eexception("rls exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                os_error_str(oserr),
                                                ls_fpath)
         except Exception as exc:
-            log.exception("rls exception occurred")
+            log.eexception("rls exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                exc,
                                                ls_fpath)
@@ -640,20 +640,20 @@ class ClientHandler:
             print(f"[{self._client.tag}] rtree '{tree_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
         except FileNotFoundError:
-            log.exception("rtree exception occurred")
+            log.eexception("rtree exception occurred")
             return self._create_error_response(ServerErrors.NOT_EXISTS,
                                                tree_fpath)
         except PermissionError:
-            log.exception("rtree exception occurred")
+            log.eexception("rtree exception occurred")
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                tree_fpath)
         except OSError as oserr:
-            log.exception("rtree exception occurred")
+            log.eexception("rtree exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                os_error_str(oserr),
                                                tree_fpath)
         except Exception as exc:
-            log.exception("rtree exception occurred")
+            log.eexception("rtree exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                exc,
                                                tree_fpath)
@@ -709,20 +709,20 @@ class ClientHandler:
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
         except FileNotFoundError:
-            log.exception("rfind exception occurred")
+            log.eexception("rfind exception occurred")
             return self._create_error_response(ServerErrors.NOT_EXISTS,
                                                find_fpath)
         except PermissionError:
-            log.exception("rfind exception occurred")
+            log.eexception("rfind exception occurred")
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                find_fpath)
         except OSError as oserr:
-            log.exception("rfind exception occurred")
+            log.eexception("rfind exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                os_error_str(oserr),
                                                find_fpath)
         except Exception as exc:
-            log.exception("rfind exception occurred")
+            log.eexception("rfind exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                exc,
                                                find_fpath)
@@ -757,20 +757,20 @@ class ClientHandler:
 
             usage = du(rdu_fpath)
         except FileNotFoundError:
-            log.exception("rdu exception occurred")
+            log.eexception("rdu exception occurred")
             return self._create_error_response(ServerErrors.NOT_EXISTS,
                                                rdu_fpath)
         except PermissionError:
-            log.exception("rdu exception occurred")
+            log.eexception("rdu exception occurred")
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                rdu_fpath)
         except OSError as oserr:
-            log.exception("rdu exception occurred")
+            log.eexception("rdu exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                os_error_str(oserr),
                                                rdu_fpath)
         except Exception as exc:
-            log.exception("rdu exception occurred")
+            log.eexception("rdu exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                exc,
                                                rdu_fpath)
@@ -808,20 +808,20 @@ class ClientHandler:
             print(f"[{self._client.tag}] rmkdir '{directory_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
         except PermissionError:
-            log.exception("rmkdir exception occurred")
+            log.eexception("rmkdir exception occurred")
             return self._create_error_response(ServerErrors.PERMISSION_DENIED,
                                                directory_fpath)
         except FileExistsError:
-            log.exception("rmkdir exception occurred")
+            log.eexception("rmkdir exception occurred")
             return self._create_error_response(ServerErrors.DIRECTORY_ALREADY_EXISTS,
                                                directory_fpath)
         except OSError as oserr:
-            log.exception("rmkdir exception occurred")
+            log.eexception("rmkdir exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                os_error_str(oserr),
                                                directory_fpath)
         except Exception as exc:
-            log.exception("rmkdir exception occurred")
+            log.eexception("rmkdir exception occurred")
             return self._create_error_response(ServerErrors.ERR_2,
                                                exc,
                                                directory_fpath)
@@ -911,19 +911,19 @@ class ClientHandler:
 
         def handle_cp_exception(exc: Exception, src: FPath, dst: FPath):
             if isinstance(exc, PermissionError):
-                log.exception("rcp exception occurred")
+                log.eexception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_PERMISSION_DENIED,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, FileNotFoundError):
-                log.exception("rcp exception occurred")
+                log.eexception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_NOT_EXISTS,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, OSError):
-                log.exception("rcp exception occurred")
+                log.eexception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
                                                        os_error_str(exc), *self._qspathify(src, dst)))
             else:
-                log.exception("rcp exception occurred")
+                log.eexception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
                                                        exc, *self._qspathify(src, dst)))
 
@@ -953,19 +953,19 @@ class ClientHandler:
 
         def handle_mv_exception(exc: Exception, src: FPath, dst: FPath):
             if isinstance(exc, PermissionError):
-                log.exception("rmv exception occurred")
+                log.eexception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_PERMISSION_DENIED,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, FileNotFoundError):
-                log.exception("rmv exception occurred")
+                log.eexception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_NOT_EXISTS,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, OSError):
-                log.exception("rmv exception occurred")
+                log.eexception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
                                                        os_error_str(exc), *self._qspathify(src, dst)))
             else:
-                log.exception("rmv exception occurred")
+                log.eexception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
                                                        exc, *self._qspathify(src, dst)))
 

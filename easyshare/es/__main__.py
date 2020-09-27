@@ -5,7 +5,7 @@ from easyshare import logging
 from easyshare.args import ArgsParseError
 from easyshare.commands.es import Es, EsUsage
 from easyshare.common import APP_NAME_CLIENT, APP_VERSION, easyshare_setup, \
-    APP_INFO, EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF, TRACING_TEXT
+    APP_INFO, EASYSHARE_RESOURCES_PKG, EASYSHARE_ES_CONF, TRACING_TEXT, VERBOSITY_MAX
 from easyshare.es.client import Client
 from easyshare.es.shell import Shell
 from easyshare.logging import get_logger
@@ -54,7 +54,7 @@ def main():
     try:
         args = Es().parse(sys.argv[1:])
     except ArgsParseError as err:
-        log.exception("Exception occurred while parsing args")
+        log.eexception("Exception occurred while parsing args")
         abort(f"parse of arguments failed: {str(err)}")
 
     # Eventually set verbosity before anything else
@@ -62,7 +62,7 @@ def main():
     # can be logged
     if args.has_option(Es.VERBOSE):
         set_setting(Settings.VERBOSITY,
-                    args.get_option_param(Es.VERBOSE, default=logging.VERBOSITY_MAX))
+                    args.get_option_param(Es.VERBOSE, default=VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_CLIENT, APP_VERSION))
     log.i("Starting with arguments\n%s", args)
@@ -121,7 +121,7 @@ def main():
         # if not specified the default is DEBUG
         verbosity = args.get_option_param(
             Es.VERBOSE,
-            default=logging.VERBOSITY_MAX
+            default=VERBOSITY_MAX
         )
 
     # Discover port

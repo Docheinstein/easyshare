@@ -139,7 +139,7 @@ class Shell:
                 self.execute(command_line)
 
             except Exception:
-                log.exception("Unexpected exception")
+                log.eexception("Unexpected exception")
                 continue
 
 
@@ -270,7 +270,7 @@ class Shell:
 
             return outcome
         except ConnectionError:
-            log.exception("Connection error occurred %s")
+            log.eexception("Connection error occurred %s")
             print_errors(ClientErrors.CONNECTION_ERROR)
             self._client.destroy_connection()
         except EOFError:
@@ -302,7 +302,7 @@ class Shell:
         try:
             return executor(args)
         except Exception as ex:
-            log.exception("Exception caught while executing command\n%s", ex)
+            log.eexception("Exception caught while executing command\n%s", ex)
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
     def _init_settings_callbacks(self):

@@ -46,7 +46,7 @@ def get_cached_or_parse_ssl_certificate(
         try:
             cert = parse_ssl_certificate(cert_bin)
         except:
-            log.exception("Certificate parsing error occurred")
+            log.eexception("Certificate parsing error occurred")
         _ssl_certs_cache[endpoint] = cert
     else:
         log.d("Found cached SSL cert for %s", endpoint)

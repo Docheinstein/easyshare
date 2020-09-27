@@ -1,8 +1,7 @@
 from easyshare import logging
 from easyshare.args import STR_PARAM, INT_PARAM, Args, ArgsParseError, VARIADIC_PARAMS
-from easyshare.logging import init_logging
+from easyshare.common import VERBOSITY_MAX
 
-init_logging(default_verbosity=logging.VERBOSITY_MAX)
 
 def test_parse_success():
     print("test_parse_success ----------")

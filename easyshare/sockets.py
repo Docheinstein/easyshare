@@ -32,7 +32,7 @@ class Socket(ABC):
         try:
             return self.sock.getsockname()
         except:
-            log.exception("Cannot determinate remote endpoint")
+            log.eexception("Cannot determinate remote endpoint")
             return "0.0.0.0", 0  # fallback
 
     def address(self) -> str:
@@ -154,7 +154,7 @@ class SocketTcp(Socket):
         try:
             return self.sock.getpeername()
         except:
-            log.exception("Cannot determinate remote endpoint")
+            log.eexception("Cannot determinate remote endpoint")
             return "0.0.0.0", 0  # fallback
 
     def remote_address(self) -> str:

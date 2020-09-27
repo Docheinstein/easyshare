@@ -65,7 +65,7 @@ def os_error_str(err: OSError):
     if isinstance(err, OSError):
         if err and err.strerror:
             return err.strerror
-        log.exception("Unknown OS error")
+        log.eexception("Unknown OS error")
         serr = str(err)
         return serr or "Error" # fallback
     return "Error" # fallback

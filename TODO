@@ -17,7 +17,6 @@ TODOs
 - rm/rrm *
 - provide suggestion/completion even for options? (tough)
 - --sync with GET and PUT
-- don't show already existent folders for put -sp [get -sp]
 
 TO_DEBUGs
 - fix 1000MB might happen => 1 characters of space to keep into account
@@ -35,6 +34,7 @@ DONEs
 - -S does not work
 - .esrc as execute every line
 - don't show "." in put -p
+- don't show already existent folders for put -sp [get -sp]
 
 
 
