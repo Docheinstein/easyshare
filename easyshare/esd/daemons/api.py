@@ -17,7 +17,8 @@ from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams, RequestsParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response, \
     create_error_of_response, TransferOutcomes, ResponsesParams
-from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType, create_file_info, FTYPE_FILE, FileType
+from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType, create_file_info, FTYPE_FILE, FileType, \
+    create_file_info_full
 from easyshare.sockets import SocketTcp, SocketTcpIn
 from easyshare.ssl import get_ssl_context
 from easyshare.streams import StreamClosedError
@@ -193,6 +194,7 @@ class ClientHandler:
             Requests.RSHELL: self._rshell,
             Requests.RCD: self._rcd,
             Requests.RPWD: self._rpwd,
+            Requests.RSTAT: self._rstat,
             Requests.RLS: self._rls,
             Requests.RTREE: self._rtree,
             Requests.RFIND: self._rfind,
@@ -541,6 +543,37 @@ class ClientHandler:
 
         return create_success_response(rcwd_spath_str)
 
+    @require_sharing_connection
+    def _rstat(self, params: RequestParams):
+        paths = params.get(RequestsParams.GET_PATHS)
+
+        if not paths:
+            return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
+
+        log.i(f"<< RSTAT  {paths}%s%s  |  {self._client}")
+
+        errors = []
+        infos = {}
+        for p in paths:
+            fpath = self._fpath_joining_rcwd_and_spath(p)
+
+            if self._is_fpath_allowed(fpath):
+                try:
+                    infos[p] = create_file_info_full(fpath, raise_exceptions=True)
+                    # OK - report it
+                    print(f"[{self._client.tag}] rstat '{fpath}' "
+                          f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
+                except:
+                    log.e(f"Failed to stat over {fpath}")
+                    errors.append(create_error_of_response(ServerErrors.INVALID_PATH, q(p)))
+            else:
+                log.e("Path is invalid (out of sharing domain)")
+                errors.append(create_error_of_response(ServerErrors.INVALID_PATH, q(p)))
+
+        if errors:
+            return create_error_response(errors)
+
+        return create_success_response(infos)
 
     @require_sharing_connection
     def _rls(self, params: RequestParams):

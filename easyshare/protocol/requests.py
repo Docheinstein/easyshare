@@ -22,6 +22,7 @@ class Requests:
 
     RPWD = "rpwd"
     RCD = "rcd"
+    RSTAT = "rstat"
     RLS = "rls"
     RTREE = "rtree"
     RFIND = "rfind"
@@ -48,6 +49,8 @@ class RequestsParams:
     RSHELL_ROWS = "rows"
 
     RCD_PATH = "path"
+
+    RSTAT_PATHS = "paths"
 
     RLS_PATH = "path"
     RLS_SORT_BY = "sort_by"

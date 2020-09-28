@@ -42,6 +42,7 @@ class Commands:
     SET = "set"
 
     LOCAL_CURRENT_DIRECTORY = "pwd"
+    LOCAL_STAT = "stat"
     LOCAL_LIST_DIRECTORY = "ls"
     LOCAL_LIST_DIRECTORY_ENHANCED = "l"
     LOCAL_TREE_DIRECTORY = "tree"
@@ -55,6 +56,7 @@ class Commands:
     LOCAL_SHELL = "shell"
 
     REMOTE_CURRENT_DIRECTORY = "rpwd"
+    REMOTE_STAT = "rstat"
     REMOTE_LIST_DIRECTORY = "rls"
     REMOTE_LIST_DIRECTORY_ENHANCED = "rl"
     REMOTE_TREE_DIRECTORY = "rtree"
@@ -936,6 +938,69 @@ The remote working directory can be changed with the command **rcd**."""
     @classmethod
     def see_also(cls):
         return """Type "**help** **pwd**" for the local analogous."""
+
+
+# ============ xSTAT ================
+
+
+class Stat(LocalAllFilesSuggestionsCommandInfo, VarArgsSpec):
+    def __init__(self):
+        super().__init__(1)
+
+    @classmethod
+    def name(cls):
+        return "stat"
+
+    @classmethod
+    def short_description(cls):
+        return "display local file info"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+**stat** [*FILE*]\
+"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Display *FILE* info."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "**help rstat**" for the remote analogous."""
+
+
+class Rstat(RemoteAllFilesSuggestionsCommandInfo, FastSharingConnectionCommandInfo, VarArgsSpec):
+    def __init__(self, mandatory: int):
+        super().__init__(mandatory)
+
+    @classmethod
+    def name(cls):
+        return "rstat"
+
+    @classmethod
+    def short_description(cls):
+        return "display remote file info"
+
+    @classmethod
+    def _synopsis(cls):
+        return """\
+**rstat** [*FILE*]
+
+**rstat** [*SHARING_LOCATION*] [*FILE*]\
+"""
+
+    @classmethod
+    def long_description(cls):
+        return """\
+Display remote *FILE* info."""
+
+    @classmethod
+    def see_also(cls):
+        return """Type "**help stat**" for the local analogous."""
+
+
 
 # ============ xLS ================
 

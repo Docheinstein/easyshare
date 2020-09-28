@@ -39,7 +39,7 @@ except:
     FileType = str  # "file" | "dir"
 
 
-def ftype(path: Path, stat = None) -> Optional[FileType]:
+def ftype_of(path: Path, stat = None) -> Optional[FileType]:
     """
     Helper that returns the ftype associated with the path.
     'stat' can be given for avoid a stat() call.
@@ -93,7 +93,7 @@ def create_file_info(path: Path, *,
         fstat = fstat or path.stat()
         finfo = {
             "name": name or path.name,
-            "ftype": ftype(path, fstat),
+            "ftype": ftype_of(path, fstat),
         }
 
         if fetch_size:
@@ -141,6 +141,21 @@ def create_file_info(path: Path, *,
         if raise_exceptions:
             raise ex
         return None
+
+def create_file_info_full(path: Path, *,
+                     fstat: stat_result = None,
+                     name: str = None,
+                     raise_exceptions: bool = False):
+    return create_file_info(
+        path,
+        fstat=fstat,
+        name=name,
+        fetch_size=True,
+        fetch_time=True,
+        fetch_perm=True,
+        fetch_owner=True,
+        raise_exceptions=raise_exceptions
+    )
 
 # ================================================
 # ================ SHARING INFO  =================

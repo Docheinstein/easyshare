@@ -301,6 +301,13 @@ class ConnectionMinimal:
 
     @handle_connection_response
     @require_sharing_connection
+    def rstat(self, paths: List[str]) -> Response:
+        return self.call(create_request(Requests.RSTAT, {
+            RequestsParams.RSTAT_PATHS: paths
+        }))
+
+    @handle_connection_response
+    @require_sharing_connection
     def rls(self, sort_by: List[str], reverse: bool = False,
             hidden: bool = False, details: bool = False, path: str = None) -> Response:
         return self.call(create_request(Requests.RLS, {

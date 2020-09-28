@@ -14,6 +14,7 @@ from easyshare.utils.os import perm_str
 from easyshare.utils.path import is_hidden
 from easyshare.utils.ssl import SSLCertificate
 from easyshare.utils.str import tf, yn
+from easyshare.utils.time import ns2timestamp
 
 log = get_logger(__name__)
 
@@ -81,23 +82,37 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None,
         print_func(print_row + "\n")
 
 
-def file_info_pretty_str(info: FileInfo):
-    s = f"""\
-File:           {info.get("name")}    
-Type:           {info.get("ftype")}
-Size:           {info.get("size")}
-Last modified:  {info.get("mtime")}"""
-    return s
+def file_info_pretty_str(info: FileInfo, **kwargs):
+    details = []
+    if "name" in info:
+        details.append(f"File:           {info.get('name')}")
+    if "ftype" in info:
+        details.append(f"Type:           {info.get('ftype')}")
+    if "size" in info:
+        details.append(f"Size:           {info.get('size')}")
+    if "mtime" in info:
+        details.append(f"Last modified:  {ns2timestamp(info.get('mtime'))}")
+    if "user" in info:
+        details.append(f"User:           {info.get('user')}")
+    if "group" in info:
+        details.append(f"Group:          {info.get('group')}")
+    if "perm" in info:
+        details.append(f"Permissions:    {info.get('perm')}")
 
-def file_info_str(info: FileInfo,
-                  show_file_type: bool = False,  # -l
-                  show_size: bool = False,  # -S
-                  show_hidden: bool = False,  # -a
-                  show_perm: bool = False, # -l
-                  show_owner: bool = False, # -l
-                  owner_user_justify: int = 0,  # -l
-                  owner_group_justify: int = 0,  # -l
-                  **kwargs) -> Optional[StyledString]:
+    return "\n".join(details)
+
+def file_info_pretty_sstr(info: FileInfo, **kwargs):
+    return StyledString(file_info_pretty_str(info, **kwargs))
+
+def file_info_inline_sstr(info: FileInfo,
+                          show_file_type: bool = False,  # -l
+                          show_size: bool = False,  # -S
+                          show_hidden: bool = False,  # -a
+                          show_perm: bool = False,  # -l
+                          show_owner: bool = False,  # -l
+                          owner_user_justify: int = 0,  # -l
+                          owner_group_justify: int = 0,  # -l
+                          **kwargs) -> Optional[StyledString]:
     fname = info.get("name")
 
     if not show_hidden and is_hidden(fname):
@@ -117,11 +132,21 @@ def file_info_str(info: FileInfo,
         file_str += ftype_short + " "
 
     if show_perm:
-        file_str += perm_str(info.get("perm")) + "  "
+        if "perm" in info:
+            file_str += perm_str(info.get("perm")) + "  "
+        else:
+            log.w("'perm' not found in file info")
 
     if show_owner:
-        file_str += info.get("user").ljust(owner_user_justify) + "  "
-        file_str += info.get("group").ljust(owner_group_justify) + "  "
+        if "user" in info:
+            file_str += info.get("user").ljust(owner_user_justify) + "  "
+        else:
+            log.w("'user' not found in file info")
+
+        if "group" in info:
+            file_str += info.get("group").ljust(owner_group_justify) + "  "
+        else:
+            log.w("'group' not found in file info")
 
     if show_size:
         file_str += size_str_justify(info.get("size")) + "  "
@@ -134,25 +159,24 @@ def file_info_str(info: FileInfo,
 
 
 def print_files_info_list(infos: List[FileInfo],
-                          show_hidden: bool = False,    # -a
-                          show_file_type: bool = False, # -l
-                          show_size: bool = False,      # -S
-                          show_perm: bool = False,      # -l
-                          show_owner: bool = False,     # -l
-                          compact: bool = True,         # not -l
-                          file_info_renderer: Callable[..., StyledString] = file_info_str):
+                          show_hidden: bool = False,  # -a
+                          show_file_type: bool = False,  # -l
+                          show_size: bool = False,  # -S
+                          show_perm: bool = False,  # -l
+                          show_owner: bool = False,  # -l
+                          compact: bool = True,  # not -l
+                          file_info_renderer: Callable[..., StyledString] = file_info_inline_sstr):
     """ Prints a list of 'FileInfo' (ls -l like). """
     if not infos:
         return
-
     # Detect the longest user/group length for render properly
     longest_user = 0
     longest_group = 0
     if show_owner:
         for i in infos:
-            if len(i.get("user")) > longest_user:
+            if "user" in i and len(i.get("user")) > longest_user:
                 longest_user = len(i.get("user"))
-            if len(i.get("group")) > longest_group:
+            if "group" in i and len(i.get("group")) > longest_group:
                 longest_group = len(i.get("group"))
 
     sstrings: List[StyledString] = [ss for ss in (

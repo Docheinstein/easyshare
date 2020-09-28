@@ -24,17 +24,17 @@ from easyshare.es.connection import Connection, ConnectionMinimal
 from easyshare.es.discover import Discoverer
 from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str, AnyErrs
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
-    sharings_pretty_str, server_info_short_str, file_info_str, StyledString, \
-    file_info_pretty_str, server_pretty_str
+    sharings_pretty_str, server_info_short_str, file_info_inline_sstr, StyledString, \
+    file_info_pretty_str, server_pretty_str, file_info_pretty_sstr
 from easyshare.commands.commands import Commands, Ls, Scan, Info, Tree, Put, Get, \
     Ping, Find, Rfind, Du, Rdu, Rls, Cd, Mkdir, Pwd, Rm, Mv, Cp, Shell, Rcd, Rtree, Rmkdir, \
-    Rpwd, Rrm, Rmv, Rcp, Rshell, Connect, Disconnect, Open, Close, ListSharings
+    Rpwd, Rrm, Rmv, Rcp, Rshell, Connect, Disconnect, Open, Close, ListSharings, Stat, Rstat
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import RequestsParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
     create_error_of_response, ResponsesParams, Response
 from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, FTYPE_FILE, \
-    ServerInfo, create_file_info, RexecEventType
+    ServerInfo, create_file_info, RexecEventType, ftype_of, create_file_info_full
 from easyshare.settings import get_setting, Settings
 from easyshare.styling import bold, green, red
 from easyshare.timer import Timer
@@ -311,6 +311,7 @@ class Client:
         ] = {
 
             Commands.LOCAL_CHANGE_DIRECTORY: (LOCAL, [Cd()], self.cd),
+            Commands.LOCAL_STAT: (LOCAL, [Stat()], self.stat),
             Commands.LOCAL_LIST_DIRECTORY: (LOCAL, [Ls()], self.ls),
             Commands.LOCAL_TREE_DIRECTORY: (LOCAL, [Tree()], self.tree),
             Commands.LOCAL_FIND: (LOCAL, [Find()], self.find),
@@ -323,6 +324,7 @@ class Client:
             Commands.LOCAL_SHELL: (LOCAL, [Shell()], self.shell),
 
             Commands.REMOTE_CHANGE_DIRECTORY: (SHARING, [Rcd(0), Rcd(1)], self.rcd),
+            Commands.REMOTE_STAT: (SHARING, [Rstat(1), Rstat(2)], self.rstat),
             Commands.REMOTE_LIST_DIRECTORY: (SHARING, [Rls(0), Rls(1)], self.rls),
             Commands.REMOTE_TREE_DIRECTORY: (SHARING, [Rtree(0), Rtree(1)], self.rtree),
             Commands.REMOTE_FIND: (SHARING, [Rfind(0), Rfind(1)], self.rfind),
@@ -499,6 +501,31 @@ class Client:
         log.i(">> PWD")
 
         print(Path.cwd())
+
+    def stat(self, args: Args, _):
+        def stat_provider(ps: List[str]):
+            paths = []
+            for p in ps:
+                paths += self._local_paths(p)
+
+            finfos = []
+            for p in paths:
+                try:
+                    finfos.append(create_file_info_full(p, raise_exceptions=True))
+                except FileNotFoundError:
+                    raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS,
+                                                          q(p)))
+                except PermissionError:
+                    raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
+                                                          q(p)))
+                except OSError as oserr:
+                    raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
+                                                          os_error_str(oserr),
+                                                          q(p)))
+
+            return finfos
+
+        self._xstat(args, stat_provider)
 
     def ls(self, args: Args, _):
 
@@ -985,6 +1012,16 @@ class Client:
         log.d("Current rcwd: %s", conn.current_rcwd())
 
     @provide_sharing_connection
+    def rstat(self, args: Args, conn: Connection):
+        def rstat_provider(paths: List[str]):
+            resp = conn.rstat(paths)
+            data_dict = ensure_data_response(resp)
+            return data_dict.values()
+
+        self._xstat(args, data_provider=rstat_provider)
+
+
+    @provide_sharing_connection
     def rls(self, args: Args, conn: Connection):
         def rls_provider(f, **kwargs):
             resp = conn.rls(**kwargs, path=self._remote_path(f))
@@ -1091,9 +1128,20 @@ class Client:
             log.w("CTRL+C detected while transferring - renewing connection")
             self.renew_connection(clean=False)
 
+    #
+    # destpath_funcs = {
+    #     "1_file2none": lambda b, d: d / b,
+    #     "1_file2file": lambda b, d: d / b,
+    #     "1_file2dir": lambda b, d: d / b,
+    #     "1_dir2none": lambda b, d: d / b,
+    #     "1_dir2file": lambda b, d: d / b,
+    #     "1_dir2dir": lambda b, d: d / b,
+    #     "2_any2none": lambda b, d: d / b,
+    # }
+
     def _get(self, args: Args, conn: Connection):
-        def destpath(base_: Path, dest_: Path,
-                     multiple_srcs_: bool, src_ftype_: FileType) -> Path:
+        def destpath(fname_: Path, dest_: Path,
+                     multiple_: bool, src_ftype_: FileType) -> Path:
             """
             If 'dest_' is not given returns 'base_', otherwise computes the path
             like mv/cp (treating dest either as the filename or the directory name
@@ -1101,60 +1149,71 @@ class Client:
             of base_ and dest_.
             """
             if not dest:
-                return base_
+                return fname_
 
             """
             --dest handling
             
-            |   alias  |    SRC    |    DEST    |   ACTION
-                1f2/        file        ----        write file
-                1f2f        file        file        overwrite
-                1f2d        file        dir         put file into directory
-                1d2/        dir         ----        write directory
-                1d2f        dir         file        error
-                1d2d        dir         dir         put directory into directory
+            |   alias       |    SRC    |    DEST    |   ACTION
+            --------------------------------------------------------------
+                1_file2none      file        ----        write file
+                1_file2file      file        file        overwrite file
+                1_file2dir       file        dir         put file into dir
+                1_dir2none       dir         ----        write dir
+                1_dir2file       dir         file        ERROR
+                1_dir2dir        dir         dir         put dir into dir
                 
+                2_any2none       any         ----        ERROR
+                2_any2file       any         file        ERROR
+                2_any2dir        any         dir         put files/dirs into dir
             """
-            #
+            src = src_ftype_ or "any"
+            dst = ("file" if dest_.is_file() else "dir") if dest_.exists() else None
+            cardinality = (2 if multiple_ else 1)
 
-            # if only 1 'src' is transferred                            1
-            #   if 'dest' exists                                        1e
-            #       if 'dest' is a DIR => put 'src' into 'dest'         1e_*2d
-            #       if 'dest' is a FILE                                 1e_?2f
-            #           if 'src' is a FILE => OVERWRITE                 1e_f2f
-            #           [if 'src' is a DIR => ERROR                     1e_d2f]
-            #   if 'dest' does not exists => preserve type of 'src'     1n
-            # if 2+ 'src' are transferred                               2
-            #   if 'dest' exists                                        2e
-            #       if 'dest' is a DIR => put 'src's into 'dest'        2e_*2d
-            #       if 'dest' is a FILE => ERROR                        2e_*2f
-            #   if 'dest' does not exists => ERROR                      2n
+            log.d(f"Handling destpath for case {cardinality}_{src}2{dst}")
 
-            log.d(f"Handling destpath(base={base_}, dest={dest_}, "
-                  f"multiple={multiple_srcs_}, ftype={src_ftype_})")
-            if not multiple_srcs_:                           #1
-                if dest_.exists():                           #1e
-                    if dest_.is_dir():                       #1e_*2d
-                        log.d("#1e_*2d")
-                        return dest_ / base_
-                    if dest_.is_file():                      #1e_?2f
-                        if src_ftype_ == FTYPE_FILE:  #1e_f2f
-                            log.d("#1e_f2f")
-                            return dest_
-                        raise CommandExecutionError("Invalid --dest semantic (#1e_d2f)")
-                    raise CommandExecutionError("Invalid --dest semantic (#1e_?)")
-                log.d("#1n")                                 #1n
-                return dest_
-                                                             # 2
+            if cardinality == 1:
+                if src == FTYPE_FILE:
+                    if not dst:
+                        # 1_file2none
+                        output = dest_
+                    elif dst == FTYPE_FILE:
+                        # 1_file2file
+                        output = dest_
+                    elif dst == FTYPE_DIR:
+                        # 1_file2dir
+                        output = dest_ / fname_
+                    else:
+                        raise CommandExecutionError("Invalid --dest semantic")
+                elif src == FTYPE_DIR:
+                    if not dst:
+                        # 1_dir2none
+                        output = dest_
+                    elif dst == FTYPE_FILE:
+                        # 1_dir2file
+                        raise CommandExecutionError("Invalid --dest semantic")
+                    elif dst == FTYPE_DIR:
+                        # 1_dir2dir
+                        output = dest_ / fname_
+                    else:
+                        raise CommandExecutionError("Invalid --dest semantic")
+                else:
+                    raise CommandExecutionError("Invalid --dest semantic")
+            else:
+                if not dst:
+                    # 2_any2none
+                    raise CommandExecutionError("Invalid --dest semantic")
+                elif dst == FTYPE_FILE:
+                    # 2_any2file
+                    raise CommandExecutionError("Invalid --dest semantic")
+                elif dst == FTYPE_DIR:
+                    # 2_any2dir
+                    output = dest_ / fname_
+                else:
+                    raise CommandExecutionError("Invalid --dest semantic")
 
-            if dest_.exists():                               #2e
-                if dest_.is_dir():                           #2e_*2d
-                    log.d("#2e_*2d")
-                    return dest_ / base_
-                                                            # 2e_*2f
-                raise CommandExecutionError("Invalid --dest semantic (#2e_*2f)")
-                                                            # 2n
-            raise CommandExecutionError("Invalid --dest semantic (#2n)")
+            return output
 
         def compute_sync_table(ftype_: FileType):
             nonlocal sync_table
@@ -1189,9 +1248,7 @@ class Client:
             log.d("SYNC computed old_files table\n%s",
                   "\n".join(sync_table.keys()))
 
-        files = []
-        for p in args.get_positionals():
-            files += self._remote_paths(p)
+
 
         dest = args.get_option_param(Get.DESTINATION)
         if dest:
@@ -1205,6 +1262,23 @@ class Client:
 
         chunk_size = args.get_option_param(Get.CHUNK_SIZE)
         use_mmap = args.get_option_param(Get.MMAP)
+        #
+        # files = []
+        # multiple_sources = len(args.get_positional()) > 1
+        # for p in args.get_positionals():
+        #     files += (self._remote_paths(p), destpath(
+        #         fname_=p,
+        #         dest_=dest,
+        #         multiple_=multiple_sources,
+        #         src_ftype_=
+        #     ))
+        files = []
+        for p in args.get_positionals():
+            files += self._remote_paths(p)
+
+        files_rstat = conn.rstat(files)
+        ensure_data_response(files_rstat)
+        log.d(f"files rstats: {j(files_rstat)}")
 
         if sync and len(files) > 1:
             # Ensure that only a path parameter is passed with sync
@@ -1305,9 +1379,9 @@ class Client:
             ftype = finfo.get("ftype")
             fmtime = finfo.get("mtime")
 
-            local_path = destpath(base_=Path(fname),
+            local_path = destpath(fname_=Path(fname),
                                   dest_=dest,
-                                  multiple_srcs_=len(files) > 1,
+                                  multiple_=len(files) > 1,
                                   src_ftype_=ftype)
 
             log.i("NEXT: %s of type %s", fname, ftype)
@@ -2169,6 +2243,29 @@ class Client:
         return error
 
     @classmethod
+    def _xstat(cls,
+             args: Args,
+             data_provider: Callable[..., Optional[List[FileInfo]]]):
+
+        paths = args.get_positionals()
+
+        stat_result = data_provider(paths)
+
+        if stat_result is None:
+            raise CommandExecutionError()
+
+        print_files_info_list(
+            stat_result,
+            show_file_type=True,
+            show_hidden=True,
+            show_size=True,
+            show_perm=True,
+            show_owner=True,
+            compact=False,
+            file_info_renderer=file_info_pretty_sstr
+        )
+
+    @classmethod
     def _xls(cls,
              args: Args,
              data_provider: Callable[..., Optional[List[FileInfo]]],
@@ -2286,7 +2383,7 @@ class Client:
             finding_letter = findings_adder(find_result)
             findings_justify = len(str(len(find_result)))
 
-        def file_info_str_find(
+        def file_info_sstr_find(
                 info: FileInfo,
                 show_file_type: bool = False,
                 show_size: bool = False,
@@ -2297,7 +2394,7 @@ class Client:
                 owner_group_justify: int = 0,  # -l
                 index: int = None) -> Optional[StyledString]:
 
-            finfo_str = file_info_str(
+            finfo_str = file_info_inline_sstr(
                 info,
                 show_file_type=show_file_type,
                 show_size=show_size,
@@ -2324,7 +2421,7 @@ class Client:
             show_owner=details,
             show_file_type=details,
             show_size=details,
-            file_info_renderer=file_info_str_find
+            file_info_renderer=file_info_sstr_find
         )
 
     def _add_local_findings(self, find_result: List[FileInfo]) -> Optional[str]:

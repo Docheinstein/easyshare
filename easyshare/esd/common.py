@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional, Any
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType, ftype
+from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType, ftype_of, ftype_of
 from easyshare.sockets import SocketTcp
 from easyshare.streams import TcpStream
 from easyshare.utils.json import j
@@ -67,7 +67,7 @@ class Sharing:
             log.w("Nothing exists at path %s", path)
             return None
 
-        sh_ftype = ftype(path)
+        sh_ftype = ftype_of(path)
         if sh_ftype != FTYPE_FILE and sh_ftype != FTYPE_DIR:
             log.e("Invalid sharing path")
             return None
