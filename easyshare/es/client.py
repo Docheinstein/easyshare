@@ -1128,20 +1128,12 @@ class Client:
             log.w("CTRL+C detected while transferring - renewing connection")
             self.renew_connection(clean=False)
 
-    #
-    # destpath_funcs = {
-    #     "1_file2none": lambda b, d: d / b,
-    #     "1_file2file": lambda b, d: d / b,
-    #     "1_file2dir": lambda b, d: d / b,
-    #     "1_dir2none": lambda b, d: d / b,
-    #     "1_dir2file": lambda b, d: d / b,
-    #     "1_dir2dir": lambda b, d: d / b,
-    #     "2_any2none": lambda b, d: d / b,
-    # }
-
     def _get(self, args: Args, conn: Connection):
-        def destpath(fname_: Path, dest_: Path,
-                     multiple_: bool, src_ftype_: FileType) -> Path:
+        def destpath(fname_: Path,
+                     dest_: Path,
+                     multiple_: bool,
+                     src_ftype_: FileType,
+                     dst_ftype_: FileType) -> Path:
             """
             If 'dest_' is not given returns 'base_', otherwise computes the path
             like mv/cp (treating dest either as the filename or the directory name
@@ -1167,33 +1159,34 @@ class Client:
                 2_any2file       any         file        ERROR
                 2_any2dir        any         dir         put files/dirs into dir
             """
-            src = src_ftype_ or "any"
-            dst = ("file" if dest_.is_file() else "dir") if dest_.exists() else None
-            cardinality = (2 if multiple_ else 1)
 
-            log.d(f"Handling destpath for case {cardinality}_{src}2{dst}")
+            log.d(f"Handling destpath for case "
+                  f"{(2 if multiple_ else 1)}_{src_ftype_ or 'any'}2{dst_ftype_ or 'none'}")
 
-            if cardinality == 1:
-                if src == FTYPE_FILE:
-                    if not dst:
+            if not multiple_:
+                if src_ftype_ == FTYPE_FILE:
+                    if not dst_ftype_:
                         # 1_file2none
                         output = dest_
-                    elif dst == FTYPE_FILE:
+                    elif dst_ftype_ == FTYPE_FILE:
                         # 1_file2file
                         output = dest_
-                    elif dst == FTYPE_DIR:
+                    elif dst_ftype_ == FTYPE_DIR:
                         # 1_file2dir
                         output = dest_ / fname_
                     else:
                         raise CommandExecutionError("Invalid --dest semantic")
-                elif src == FTYPE_DIR:
-                    if not dst:
+                elif src_ftype_ == FTYPE_DIR:
+                    if not dst_ftype_:
                         # 1_dir2none
-                        output = dest_
-                    elif dst == FTYPE_FILE:
+                        if len(fname_.parts) > 1:
+                            # replace dir name
+                            fname_ = Path(*(fname_.parts[1:]))
+                        output = dest_ / fname_
+                    elif dst_ftype_ == FTYPE_FILE:
                         # 1_dir2file
                         raise CommandExecutionError("Invalid --dest semantic")
-                    elif dst == FTYPE_DIR:
+                    elif dst_ftype_ == FTYPE_DIR:
                         # 1_dir2dir
                         output = dest_ / fname_
                     else:
@@ -1201,13 +1194,13 @@ class Client:
                 else:
                     raise CommandExecutionError("Invalid --dest semantic")
             else:
-                if not dst:
+                if not dst_ftype_:
                     # 2_any2none
                     raise CommandExecutionError("Invalid --dest semantic")
-                elif dst == FTYPE_FILE:
+                elif dst_ftype_ == FTYPE_FILE:
                     # 2_any2file
                     raise CommandExecutionError("Invalid --dest semantic")
-                elif dst == FTYPE_DIR:
+                elif dst_ftype_ == FTYPE_DIR:
                     # 2_any2dir
                     output = dest_ / fname_
                 else:
@@ -1248,9 +1241,8 @@ class Client:
             log.d("SYNC computed old_files table\n%s",
                   "\n".join(sync_table.keys()))
 
-
-
         dest = args.get_option_param(Get.DESTINATION)
+
         if dest:
             dest = Path(dest)
         do_check = Get.CHECK in args
@@ -1272,13 +1264,35 @@ class Client:
         #         multiple_=multiple_sources,
         #         src_ftype_=
         #     ))
+        #
+        # Figure out remote paths (resolving findings)
+        # and fetch the rstat of those, in order to properly
+        # compute the destination (actually needed just in case
+        # of --dest)
         files = []
         for p in args.get_positionals():
             files += self._remote_paths(p)
 
-        files_rstat = conn.rstat(files)
-        ensure_data_response(files_rstat)
-        log.d(f"files rstats: {j(files_rstat)}")
+        if "*" in files and len(files) > 1:
+            # Ensure that only a path parameter is passed with *
+            raise CommandExecutionError(ClientErrors.STAR_ONLY_ONE_PARAMETER)
+
+        files_to_rstat = [f for f in files if f != "*"]
+        files_rstat = None
+        if files_to_rstat:
+            log.d(f"files to rstat: {files_to_rstat}")
+            files_rstat_resp = conn.rstat(files_to_rstat)
+            files_rstat = ensure_data_response(files_rstat_resp)
+            files_rstat = [(f, files_rstat[f]) for f in files]
+            log.d(f"remote files rstats: {j(files_rstat)}")
+
+        dest_ftype = None
+        src_ftype = None
+        if dest:
+            dest_ftype = ftype_of(dest)
+            if len(files_rstat) == 1:
+                src_ftype = files_rstat[0][1].get("ftype")
+
 
         if sync and len(files) > 1:
             # Ensure that only a path parameter is passed with sync
@@ -1379,10 +1393,12 @@ class Client:
             ftype = finfo.get("ftype")
             fmtime = finfo.get("mtime")
 
+            # local_path = Path(fname)
             local_path = destpath(fname_=Path(fname),
                                   dest_=dest,
                                   multiple_=len(files) > 1,
-                                  src_ftype_=ftype)
+                                  src_ftype_=src_ftype,
+                                  dst_ftype_=dest_ftype)
 
             log.i("NEXT: %s of type %s", fname, ftype)
             log.d(f"local_path: {local_path}")

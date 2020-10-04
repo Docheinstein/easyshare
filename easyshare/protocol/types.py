@@ -44,11 +44,14 @@ def ftype_of(path: Path, stat = None) -> Optional[FileType]:
     Helper that returns the ftype associated with the path.
     'stat' can be given for avoid a stat() call.
     """
-    stat = stat or path.stat()
-    if S_ISDIR(stat.st_mode):
-        return FTYPE_DIR
-    elif S_ISREG(stat.st_mode):
-        return FTYPE_FILE
+    try:
+        stat = stat or path.stat()
+        if S_ISDIR(stat.st_mode):
+            return FTYPE_DIR
+        elif S_ISREG(stat.st_mode):
+            return FTYPE_FILE
+    except:
+        pass
     return None
 
 try:

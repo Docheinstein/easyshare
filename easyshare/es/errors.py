@@ -59,10 +59,11 @@ class ClientErrors:
 
 
     SYNC_ONLY_ONE_PARAMETER =       129
+    STAR_ONLY_ONE_PARAMETER =       130
 
-    SUPPORTED_ONLY_FOR_UNIX =       130
+    SUPPORTED_ONLY_FOR_UNIX =       131
 
-    UNKNOWN_SETTING =               131
+    UNKNOWN_SETTING =               132
 
 
 class ErrorsStrings:
