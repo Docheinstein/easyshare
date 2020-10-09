@@ -474,7 +474,7 @@ class ClientHandler:
         self._current_sharing = sharing
         self._current_rcwd_fpath = sharing.path
 
-        return create_success_response()
+        return create_success_response(sharing.info())
 
     # == SHARING COMMANDS ==
 

@@ -7,8 +7,8 @@ from easyshare.es.errors import ClientErrors
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import Requests, create_request, RequestsParams
 from easyshare.protocol.responses import Response, is_success_response, create_error_response, is_error_response, \
-    ServerErrors, create_success_response
-from easyshare.protocol.types import ServerInfoFull, ServerInfo, FileType
+    ServerErrors, create_success_response, ResponsesParams, is_data_response
+from easyshare.protocol.types import ServerInfoFull, ServerInfo, FileType, SharingInfo
 from easyshare.sockets import SocketTcp, SocketTcpOut
 from easyshare.ssl import get_ssl_context, set_ssl_context
 from easyshare.streams import TcpStream
@@ -93,7 +93,7 @@ class ConnectionMinimal:
 
         self._connected_to_server: bool = False
         self._connected_to_sharing: bool = False
-        self._sharing_name: Optional[str] = None
+        self._sharing_info: Optional[SharingInfo] = None
         self._rcwd: Optional[str] = None
 
         # SSL setting
@@ -146,9 +146,13 @@ class ConnectionMinimal:
     def is_connected_to_sharing(self) -> bool:
         return True if self.is_connected_to_server() and self._connected_to_sharing else False
 
+    def current_sharing_info(self) -> Optional[SharingInfo]:
+        """ Current remote sharing info """
+        return self._sharing_info if self.is_connected_to_sharing() else None
+
     def current_sharing_name(self) -> Optional[str]:
         """ Current remote sharing name """
-        return self._sharing_name if self.is_connected_to_sharing() else None
+        return self.current_sharing_info().get("name")
 
     def current_rcwd(self) -> Optional[str]:
         """ Current remote working directory (cached) """
@@ -193,7 +197,7 @@ class ConnectionMinimal:
                       "invaliding it anyway")
 
         self._connected_to_sharing = False
-        self._sharing_name = None
+        self._sharing_info = None
         self._rcwd = None
         return resp
 
@@ -258,9 +262,9 @@ class ConnectionMinimal:
             RequestsParams.OPEN_SHARING: sharing_name
         }))
 
-        if is_success_response(resp):
+        if is_data_response(resp):
             self._connected_to_sharing = True
-            self._sharing_name = sharing_name
+            self._sharing_info = resp["data"]
             self._rcwd = "/"
         # else?
 

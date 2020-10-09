@@ -169,13 +169,13 @@ try:
     # From python 3.8
     from typing import TypedDict
 
-    class SharingInfo(TypedDict):
+    class SharingInfo(TypedDict, total=False):
         """ Information of a sharing """
 
         name: str
         ftype: FileType
         read_only: bool
-        auth: bool
+        # auth: bool
 except:
     SharingInfo = Dict[str, Union[str, FileType, bool]]
 

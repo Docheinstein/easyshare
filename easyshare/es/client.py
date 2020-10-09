@@ -11,7 +11,7 @@ from collections import OrderedDict, deque
 from getpass import getpass
 from pathlib import Path
 from typing import Optional, Callable, List, Dict, Union, Tuple, cast, Any, Deque
-
+from easyshare.utils.progress import ProgressBarRendererFactory
 from easyshare.args import Args as Args, ArgsParseError, ArgsSpec
 from easyshare.common import DEFAULT_SERVER_PORT, SUCCESS_COLOR, PROGRESS_COLOR, BEST_BUFFER_SIZE, \
     ERROR_COLOR, APP_VERSION
@@ -44,7 +44,6 @@ from easyshare.utils.measures import duration_str_human, speed_str, size_str, si
 from easyshare.utils.os import ls, rm, tree, mv, cp, user, pty_attached, os_error_str, \
     find, du, set_mtime
 from easyshare.utils.path import LocalPath, is_hidden
-from easyshare.utils.progress import ProgressBarRendererFactory
 from easyshare.utils.progress.file import FileProgressor
 from easyshare.utils.progress.simple import SimpleProgressor
 from easyshare.utils.str import q, chrnext
@@ -1129,6 +1128,364 @@ class Client:
             self.renew_connection(clean=False)
 
     def _get(self, args: Args, conn: Connection):
+        files = []
+        for p in args.get_positionals():
+            files += self._remote_paths(p)
+        log.i(f"Remote files to GET\n{j(files)}")
+
+        do_check = Get.CHECK in args
+        quiet = Get.QUIET in args
+        no_hidden = Get.NO_HIDDEN in args
+        sync = Get.SYNC in args
+        preview = Get.PREVIEW in args
+        preview_total_size = 0
+
+        chunk_size = args.get_option_param(Get.CHUNK_SIZE)
+        use_mmap = args.get_option_param(Get.MMAP)
+
+        resp = conn.get(files,
+                        check=do_check, no_hidden=no_hidden,
+                        mmap=use_mmap, chunk_size=chunk_size)
+
+        ensure_success_response(resp)
+
+        transfer_socket = conn._stream._socket
+
+        # Overwrite preference
+        if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
+            True if (Get.OVERWRITE_NEWER in args or Get.OVERWRITE_DIFF_SIZE in args) else False,
+            Get.SYNC in args].count(True) > 1:
+            log.e("Only one between -n, -y, -s and (-N and/or -S) can be specified")
+            raise CommandExecutionError("Only one between -n, -y, -s and (-N and/or -S) can be specified")
+
+        overwrite_policy = OverwritePolicy.PROMPT
+
+        if Get.OVERWRITE_YES in args: # -y
+            overwrite_policy = OverwritePolicy.YES
+        elif Get.OVERWRITE_NO in args: # -n
+            overwrite_policy = OverwritePolicy.NO
+        elif Get.OVERWRITE_NEWER in args and Get.OVERWRITE_DIFF_SIZE in args: # -NS
+            overwrite_policy = OverwritePolicy.NEWER_DIFF_SIZE
+        elif Get.OVERWRITE_NEWER in args: # -N
+            overwrite_policy = OverwritePolicy.NEWER
+        elif Get.OVERWRITE_DIFF_SIZE in args: # -S
+            overwrite_policy = OverwritePolicy.DIFF_SIZE
+        elif Get.SYNC in args: # -s
+            # Sync is the same as -NS but deletes the old files after the transfer
+            overwrite_policy = OverwritePolicy.NEWER_DIFF_SIZE
+
+
+        log.i(f"Overwrite policy: {overwrite_policy}")
+
+        # Stats
+        progressor = None
+        timer = Timer(start=True)
+        tot_bytes = 0
+        n_files = 0
+
+        # Errors
+        errors = []
+        outcome_resp = None
+
+        while True:
+            # The first next() fetch never implies a new file to be put
+            # on the transfer socket.
+            # We have to check whether we want to eventually overwrite
+            # the file, and then tell the server next() if
+            # 1. Really transfer the file
+            # 2. Skip the file
+
+            # If OverwritePolicy.YES transfer immediately since we won't
+            # ask to the user whether overwrite or not.
+            # The only exception is if preview is True, in that case we won't
+            # perform the transfer so do a regular seek
+
+            if overwrite_policy == OverwritePolicy.YES and not preview:
+                action = RequestsParams.GET_NEXT_ACTION_TRANSFER
+            else:
+                action = RequestsParams.GET_NEXT_ACTION_SEEK
+
+            log.i(f"Sending '{action}' message")
+
+            get_next_resp = conn.call({
+                RequestsParams.GET_NEXT_ACTION: action
+            })
+
+            ensure_success_response(get_next_resp)
+            data = get_next_resp.get("data")
+
+            finfo: Optional[FileInfo] = None
+
+            if data:
+                finfo = data.get(ResponsesParams.GET_NEXT_FILE)
+
+            if not finfo:
+                log.i("Nothing more to GET")
+                if data and data.get(ResponsesParams.GET_OUTCOME) is not None:
+                    outcome_resp = get_next_resp
+                break
+
+            fname = finfo.get("name")
+            fsize = finfo.get("size")
+            ftype = finfo.get("ftype")
+            fmtime = finfo.get("mtime")
+
+            log.d(f"NEXT: '{fname}' [{ftype}]")
+
+            local_path = Path(fname)
+            # TODO
+            # local_path = destpath(fname_=Path(fname),
+            #                       dest_=dest,
+            #                       multiple_=len(files) > 1,
+            #                       src_ftype_=src_ftype,
+            #                       dst_ftype_=dest_ftype)
+
+            log.d(f"Computed local path: {local_path}")
+
+            # TODO
+            # if sync:
+            #     if sync_table is None:
+            #         compute_sync_table(ftype)
+            #
+            #     # Remove from the SYNC table eventually
+            #     # Do the removal for each possible path within local_path
+            #     # (so that we won't delete parent folder if the change is
+            #     # inside the children)
+            #     incremental_path = Path.cwd()
+            #     for part in local_path.parts:
+            #         incremental_path = incremental_path / part
+            #         incremental_path_str = str(incremental_path)
+            #         log.d("Removing from SYNC table: '%s'", incremental_path_str)
+            #         sync_table.pop(incremental_path_str, None)
+
+            """
+            Write/Overwrite policy
+            
+            |   alias       |    SRC    |    DEST    |   ACTION
+            --------------------------------------------------------------
+                file2none      file        ----        write file
+                file2file      file        file        overwrite file (eventually)
+                file2dir       file        dir         ERROR
+                dir2none       dir         ----        create dir
+                dir2file       dir         file        ERROR
+                dir2dir        dir         dir         no-op
+            """
+
+            log.d(f"Handling GET case: "
+                  f"{ftype}2{ftype_of(local_path)}")
+
+            # Case: DIR
+            if ftype == FTYPE_DIR:
+                if not local_path.exists():
+                    # dir2none => create dir
+                    if not preview:
+                        log.i(f"Creating directory {fname}")
+                        try:
+                            local_path.mkdir(parents=True, exist_ok=True)
+                        except:
+                            log.eexception("Failed to create parent directories; "
+                                           "probably won't be able to write file")
+                            # TODO
+                            # A more clean way would be tell the server that
+                            # we won't be able to receive any file children
+                            # of this one, but for now we will skip when we fail
+                    else:
+                        print(green(f"+ [{size_str_justify(0)}] {local_path}"))
+                elif local_path.is_file():
+                    # dir2file => ERROR
+                    log.w(f"Tried to get a DIR while local FILE exists with the name: {local_path}")
+                # else
+                #   dir2dir => no-op
+
+                continue  # No FTYPE_FILE => neither skip nor transfer for next()
+
+            if ftype != FTYPE_FILE:
+                log.w(f"Cannot handle this ftype: {ftype}")
+                continue  # No FTYPE_FILE => neither skip nor transfer for next()
+
+            # Case: FILE
+            local_path_parent = local_path.parent
+
+            if action == RequestsParams.GET_NEXT_ACTION_SEEK:
+                def skip_transfer():
+                    ensure_success_response(conn.call({
+                        RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_SKIP
+                    }))
+
+                if local_path_parent:
+                    if not preview:
+                        log.i(f"Creating parent directories {local_path_parent}")
+                        try:
+                            local_path_parent.mkdir(parents=True, exist_ok=True)
+                        except:
+                            log.eexception("Failed to create parent directories; "
+                                           "probably won't be able to write file")
+                            skip_transfer()
+                            # TODO
+                            # A more clean way would be tell the server that
+                            # we won't be able to receive any file children
+                            # of this one, but for now we will skip when we fail
+                            continue
+
+                # Check whether the file already exists (and ensure is a file, if exists)
+
+                if local_path.is_dir():
+                    # file2dir => ERROR
+                    log.w(f"Tried to get a FILE while local DIR exists with the name: {local_path}")
+                    skip_transfer()
+                    continue
+
+                if local_path.is_file():
+                    # file2file => overwrite (eventually)
+                    log.w("File already exists, asking whether overwrite it (if needed)")
+
+                    local_stat = local_path.stat()
+
+                    # Overwrite handling
+
+                    timer.stop() # Don't take the user time into account
+                    current_overwrite_decision, overwrite_policy = self._ask_overwrite(
+                        local_info=create_file_info(local_path, fstat=local_stat),
+                        remote_info=finfo,
+                        current_policy=overwrite_policy
+                    )
+                    timer.start()
+
+                    log.d(f"Overwrite decision: {current_overwrite_decision}")
+
+                    will_accept = False
+
+                    if current_overwrite_decision == OverwritePolicy.YES:
+                        will_accept = True
+                    elif current_overwrite_decision in OverwritePolicy.NEWERS or \
+                        current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
+
+                        if current_overwrite_decision in OverwritePolicy.NEWERS:
+                            log.d(f"Checking whether skip based on mtime ({local_stat.st_mtime_ns} vs {fmtime})")
+                            will_accept = will_accept or local_stat.st_mtime_ns < fmtime
+
+                        if current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
+                            log.d(f"Checking whether skip based on size ({local_stat.st_size} vs {fsize})")
+                            will_accept = will_accept or local_stat.st_size != fsize
+
+
+                    if not will_accept:
+                        # We must not overwrite the file due to overwrite policy
+                        log.d(f"Would have seek, have to tell server to skip {fname}")
+                        skip_transfer()
+                        continue
+
+                if preview:
+                    # Don't transfer since it's only a preview
+                    print(green(f"+ [{size_str_justify(fsize)}] {local_path}"))
+                    preview_total_size += fsize
+                    skip_transfer()
+                    continue
+
+                #
+
+                # Regular case, we did a seek and now tell the server to transfer
+                log.d(f"Would have seek, have to tell server to transfer {fname}")
+
+                get_next_resp = conn.call({
+                    RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_TRANSFER
+                })
+
+                # The server may say the transfer can't be done actually (e.g. EPERM)
+                if is_success_response(get_next_resp):
+                    log.d("Transfer can actually begin")
+                elif is_error_response(get_next_resp):
+                    log.w("Transfer cannot be initialized due to remote error")
+
+                    errors += get_next_resp.get("errors")
+
+                    # All the errors will be reported at the end
+                    continue
+                else:
+                    raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
+
+            # else: file already put into the transfer socket
+
+            # At this point the server is sending us the file
+            if not quiet:
+                progressor = FileProgressor(
+                    fsize,
+                    description="GET " + fname,
+                    color_progress=PROGRESS_COLOR,
+                    color_success=SUCCESS_COLOR,
+                    color_error=ERROR_COLOR
+                )
+
+            log.i(f"Will write {local_path}")
+            f = local_path.open("wb")
+
+            cur_pos = 0
+            expected_crc = 0
+
+            while cur_pos < fsize:
+                # Receive next chunk
+                recv_size = min(chunk_size or BEST_BUFFER_SIZE, fsize - cur_pos)
+                log.h("Waiting chunk...")
+
+                chunk = transfer_socket.recv(recv_size)
+
+                if not chunk:
+                    log.i("END OF FILE")
+                    raise CommandExecutionError()
+
+                chunk_len = len(chunk)
+
+                log.h(f"Received chunk of {chunk_len}B")
+                # Write next chunk
+                written_chunk_len = f.write(chunk)
+
+                if chunk_len != written_chunk_len:
+                    log.e("Written less bytes than expected; file will probably be corrupted")
+                    return # Really don't know how to recover from this disaster
+
+                cur_pos += chunk_len
+                tot_bytes += chunk_len
+
+                if do_check:
+                    # Eventually update the CRC
+                    expected_crc = zlib.crc32(chunk, expected_crc)
+
+                if not quiet:
+                    progressor.update(cur_pos)
+
+
+            log.i(f"DONE {fname}")
+            log.d(f"- crc = {expected_crc}")
+
+            f.close()
+
+            # Adjust the mtime based on the remote
+            log.d(f"Setting mtime = {fmtime}")
+            set_mtime(local_path, fmtime)
+
+            # Eventually do CRC check
+            if do_check:
+                # CRC check on the received bytes
+                crc = btoi(transfer_socket.recv(4))
+                if expected_crc != crc:
+                    log.e(f"Wrong CRC; transfer failed. expected={expected_crc} | written={crc}")
+                    return # Really don't know how to recover from this disaster
+                else:
+                    log.d("CRC check: OK")
+
+                # Length check on the written file
+                written_size = local_path.stat().st_size
+                if written_size != fsize:
+                    log.e(f"File length mismatch; transfer failed. expected={fsize} ; written={written_size}")
+                    return # Really don't know how to recover from this disaster
+                else:
+                    log.d("File length check: OK")
+
+            n_files += 1
+            if not quiet:
+                progressor.success()
+
+    def _get2(self, args: Args, conn: Connection):
         def destpath(fname_: Path,
                      dest_: Path,
                      multiple_: bool,
@@ -1211,6 +1568,7 @@ class Client:
         def compute_sync_table(ftype_: FileType):
             nonlocal sync_table
 
+            """ WORKING ON
             down_path = Path.cwd() / destpath(base_=Path("."),
                                               dest_=dest,
                                               multiple_srcs_=False,
@@ -1240,6 +1598,37 @@ class Client:
             sync_table = OrderedDict({f_.get("name"): None for f_ in findings})
             log.d("SYNC computed old_files table\n%s",
                   "\n".join(sync_table.keys()))
+        
+            
+            """
+            sync_path_base = Path.cwd()
+            sync_table_entries = []
+
+            def add_path_to_sync_table(p):
+                nonlocal sync_table_entries
+                log.d(f"Adding '{p}' hierarchy to SYNC table")
+                # Preserve order for perform RM in optimal order (parents first)
+                findings = find(p)
+                if findings:
+                    sync_table_entries += findings
+
+            if files:
+                for f in files:
+                    sync_path_trail = Path(f).parts[-1]
+                    add_path_to_sync_table(sync_path_base / sync_path_trail)
+            else:
+                # No path specified, will get the content wrapped into
+                # a folder with the rcwd name
+                sync_path_trail = conn.current_rcwd()
+                if not sync_path_trail or sync_path_trail == "/":
+                    # No rcwd? we will get the content wrapped into a folder
+                    # with the sharing name
+                    sync_path_trail = conn.current_sharing_name()
+                add_path_to_sync_table(sync_path_base / sync_path_trail)
+
+
+            sync_table = OrderedDict({f.get("name"): None for f in sync_table_entries})
+            log.d("SYNC table\n" + '\n'.join(sync_table.keys()))
 
         dest = args.get_option_param(Get.DESTINATION)
 
@@ -1273,15 +1662,16 @@ class Client:
         for p in args.get_positionals():
             files += self._remote_paths(p)
 
-        if "*" in files and len(files) > 1:
+        # TODO: * not supported for now
+        # if "*" in files and len(files) > 1:
             # Ensure that only a path parameter is passed with *
-            raise CommandExecutionError(ClientErrors.STAR_ONLY_ONE_PARAMETER)
+            # raise CommandExecutionError(ClientErrors.STAR_ONLY_ONE_PARAMETER)
+        # files_to_rstat = [f for f in files if f != "*"]
 
-        files_to_rstat = [f for f in files if f != "*"]
-        files_rstat = None
-        if files_to_rstat:
-            log.d(f"files to rstat: {files_to_rstat}")
-            files_rstat_resp = conn.rstat(files_to_rstat)
+        files_rstat = []
+        if files:
+            log.d(f"files to rstat: {files}")
+            files_rstat_resp = conn.rstat(files)
             files_rstat = ensure_data_response(files_rstat_resp)
             files_rstat = [(f, files_rstat[f]) for f in files]
             log.d(f"remote files rstats: {j(files_rstat)}")
@@ -1290,7 +1680,10 @@ class Client:
         src_ftype = None
         if dest:
             dest_ftype = ftype_of(dest)
-            if len(files_rstat) == 1:
+            if len(files_rstat) == 0:
+                src_ftype = conn.current_sharing_info().get("ftype")
+                log.d(f"Sharing ftype: {src_ftype}")
+            elif len(files_rstat) == 1:
                 src_ftype = files_rstat[0][1].get("ftype")
 
 
@@ -1328,7 +1721,7 @@ class Client:
             # Sync is the same as -NS but deletes the old files after the transfer
             overwrite_policy = OverwritePolicy.NEWER_DIFF_SIZE
 
-        log.i("Overwrite policy: %s", str(overwrite_policy))
+        log.i(f"Overwrite policy: {overwrite_policy}")
 
         # Stats
 
@@ -1394,14 +1787,15 @@ class Client:
             fmtime = finfo.get("mtime")
 
             # local_path = Path(fname)
+            log.d(f"NEXT: '{fname}' [{ftype}]")
+
             local_path = destpath(fname_=Path(fname),
                                   dest_=dest,
                                   multiple_=len(files) > 1,
                                   src_ftype_=src_ftype,
                                   dst_ftype_=dest_ftype)
 
-            log.i("NEXT: %s of type %s", fname, ftype)
-            log.d(f"local_path: {local_path}")
+            log.d(f"Computed local path: {local_path}")
 
             if sync:
                 if sync_table is None:
@@ -1538,7 +1932,7 @@ class Client:
 
             while cur_pos < fsize:
                 recv_size = min(chunk_size or BEST_BUFFER_SIZE, fsize - cur_pos)
-                log.i("Waiting chunk... (expected size: %dB)", recv_size)
+                # log.i("Waiting chunk... (expected size: %dB)",  recv_size)
 
                 chunk = transfer_socket.recv(recv_size)
 
@@ -1548,7 +1942,7 @@ class Client:
 
                 chunk_len = len(chunk)
 
-                log.i("Received chunk of %dB", chunk_len)
+                # log.i("Received chunk of %dB", chunk_len)
 
                 written_chunk_len = f.write(chunk)
 

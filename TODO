@@ -17,10 +17,13 @@ TODOs
 - rm/rrm *
 - provide suggestion/completion even for options? (tough)
 - --sync with GET and PUT
-
+- convert %s -> fstring
+- probably is better to remove * support until is well implemented for
+  all cases (e.g. rm *       mv something/* .       get d0/d2/*)
+- consider adding another logging level
 TO_DEBUGs
 - fix 1000MB might happen => 1 characters of space to keep into account
-
+- testing get/put for single file sharing
 
 DONEs
 - allow -d <dest> for get and put

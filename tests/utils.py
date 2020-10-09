@@ -12,6 +12,7 @@ from easyshare.esd.__main__ import stop as stop_esd
 from easyshare.logging import get_logger
 from easyshare.utils.os import rm
 from easyshare.utils.rand import randstring
+from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfo
 
 log = get_logger(__name__)
 
@@ -33,14 +34,18 @@ def tmpdir(parent, *, create=True, name=("dir-" + randstring(length=4))) -> Path
 class EsdTest:
     def __init__(self, server_name: str = None):
         self.server_name = server_name or ("server-" + randstring(length=4, alphabet=string.ascii_letters))
-        self.sharing_root: Optional[Path] = None
+        self.sharing_root_d: Optional[Path] = None
+        self.sharing_root_f: Optional[Path] = None
         self._daemon = None
 
     def __enter__(self):
-        log.x("TEST", "__enter__ START")
-        self.sharing_root = tmpdir(tempfile.gettempdir())
+        log.x("TEST", f"__enter__ START")
+        self.sharing_root_d = tmpdir(tempfile.gettempdir())
+        self.sharing_root_f = tmpfile(tempfile.gettempdir(), size=1024)
         self._daemon = threading.Thread(target=lambda:
-            start_esd(["-n", self.server_name, str(self.sharing_root)]), daemon=False)
+            start_esd(["-n", self.server_name,
+                       "-s", str(self.sharing_root_d),
+                       "-s", str(self.sharing_root_f)]), daemon=False)
         self._daemon.start()
         log.x("TEST", "__enter__ DONE")
         return self
@@ -48,7 +53,8 @@ class EsdTest:
     def __exit__(self, exc_type, exc_val, exc_tb):
         log.x("TEST", "__exit__ START")
         stop_esd()
-        rm(self.sharing_root)
+        rm(self.sharing_root_d)
+        rm(self.sharing_root_f)
         log.x("TEST", "__exit__ DONE")
         return False
 
@@ -69,8 +75,9 @@ class EsConnectionTest:
 
         if self.cd:
             self.client.execute_command(Commands.LOCAL_CHANGE_DIRECTORY, self.cd)
+        if self.sharing_name:
+            self.client.execute_command(Commands.OPEN, self.sharing_name)
 
-        self.client.execute_command(Commands.OPEN, self.sharing_name)
         return self.client
 
     def __exit__(self, exc_type, exc_val, exc_tb):

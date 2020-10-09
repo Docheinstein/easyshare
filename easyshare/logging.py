@@ -2,10 +2,9 @@ import sys
 import traceback
 
 from easyshare.common import easyshare_setup, VERBOSITY_ERROR, VERBOSITY_WARNING, VERBOSITY_INFO, VERBOSITY_DEBUG, \
-    VERBOSITY_MAX, VERBOSITY_MIN
+    VERBOSITY_MAX, VERBOSITY_MIN, VERBOSITY_HUGE
 from easyshare.settings import get_setting, Settings
-from easyshare.styling import yellow, red, green, blue, magenta
-
+from easyshare.styling import yellow, red, green, blue, magenta, black
 
 # TODO: convert %s to format string
 from easyshare.utils.mathematics import rangify
@@ -37,17 +36,21 @@ class Logger:
         self._log(VERBOSITY_DEBUG, green("[DEBUG] "), None,
                   msg, *args, **kwargs)
 
+    def h(self, msg, *args, **kwargs):
+        self._log(VERBOSITY_HUGE, black("[HUGE] "), None,
+                  msg, *args, **kwargs)
+
     def x(self, tag, msg, *args, **kwargs):
         self._log(VERBOSITY_DEBUG, magenta(f"[{tag}] "), None,
                   msg, *args, **kwargs)
 
     def eexception(self, msg, *args, **kwargs):
         ei = sys.exc_info()
-        self.e(msg + red("".join(traceback.format_exception(ei[0], ei[1], ei[2]))), *args, **kwargs)
+        self.e(msg + "\n" + red("".join(traceback.format_exception(ei[0], ei[1], ei[2]))), *args, **kwargs)
 
     def wexception(self, msg, *args, **kwargs):
         ei = sys.exc_info()
-        self.w(msg + yellow("".join(traceback.format_exception(ei[0], ei[1], ei[2]))), *args, **kwargs)
+        self.w(msg + "\n" + yellow("".join(traceback.format_exception(ei[0], ei[1], ei[2]))), *args, **kwargs)
 
 
     def _log(self, level, prefix, lineno, msg, *args, **kwargs):
