@@ -1685,7 +1685,7 @@ class Client:
 
 
     def _put(self, args: Args, conn: Connection):
-
+        # Compute local paths (replacing findings)
         files = []
         for p in args.get_positionals():
             files += self._local_paths(p)
@@ -1695,6 +1695,7 @@ class Client:
         if len(files) == 0:
             files = [Path(".")]
 
+        # Args parsing
         dest = args.get_option_param(Get.DESTINATION)
         do_check = Put.CHECK in args
         quiet = Put.QUIET in args
@@ -1706,72 +1707,9 @@ class Client:
         chunk_size = args.get_option_param(Put.CHUNK_SIZE, BEST_BUFFER_SIZE)
         use_mmap = args.get_option_param(Put.MMAP)
 
-        if sync and len(files) > 1:
-            raise CommandExecutionError(ClientErrors.SYNC_ONLY_ONE_PARAMETER)
-
-        put_params = {
-            "check": do_check,
-            "sync": sync,
-            "preview": preview
-        }
-
-        if dest:
-            if len(files) == 1:
-                put_params["dest_single"] = dest
-            else:
-                put_params["dest_multiple"] = dest
-
-        resp = conn.put(**put_params)
-
-        ensure_success_response(resp)
-
         transfer_socket = conn._stream._socket
 
-        for p in files:
-            # STANDARD CASE
-            # e.g.  local:      ./to/something      [/tmp/to/something]
-            #       remote:     something
-            # -----------------------------
-            # SPECIAL CASE  .
-            # e.g.  local:      .                   [/tmp]
-            #                   (with content f1, f2)
-            #       remote:     tmp/f1, tmp/f2
-            # -----------------------------
-            # SPECIAL CASE [./././]*
-            # e.g.  local:      ./to/adir/*         [/tmp/to/adir]
-            #                   (with content f1, f2)
-            #       remote:     f1, f2
-            log.d("p = %s", p)
-
-            # p = self._local_path(f)
-
-            take_all_unwrapped = True if (p.parts and p.parts[len(p.parts) - 1]) == "*" else False
-
-            log.d("is * = %s", take_all_unwrapped)
-
-            if take_all_unwrapped:
-                # Consider the path without the last *
-                p = p.parent
-
-
-            log.d("p(f) = %s", p)
-            fpath = p.resolve()
-
-            log.d("fpath(f) = %s", fpath)
-
-            if take_all_unwrapped:
-                rpath = Path("")
-            else:
-                rpath = Path(fpath.name)
-
-            log.d("rpath(f) = %s", rpath)
-
-            sendfile = (fpath, rpath)
-            log.i("Adding sendfile %s", sendfile)
-            sendfiles.appendleft(sendfile)
-
         # Overwrite preference
-
         if [Put.OVERWRITE_YES in args, Put.OVERWRITE_NO in args,
             True if (Put.OVERWRITE_NEWER in args or Put.OVERWRITE_DIFF_SIZE in args) else False,
             Put.SYNC in args].count(True) > 1:
@@ -1794,17 +1732,55 @@ class Client:
             # Sync is the same as -NS but deletes the old files after the transfer
             overwrite_policy = OverwritePolicy.NEWER_DIFF_SIZE
 
-        log.i("Overwrite policy: %s", overwrite_policy)
+        log.i(f"Overwrite policy: {overwrite_policy}")
 
         # Stats
-
         timer = Timer(start=True)
         tot_bytes = 0
         n_files = 0
 
         # Errors
-
         errors = []
+
+        put_params = {
+            "check": do_check,
+            "sync": sync,
+            "preview": preview
+        }
+
+        if dest:
+            put_params["dest_multiple" if len(files) > 1 else "dest_single"] = dest
+
+        resp = conn.put(**put_params)
+        ensure_success_response(resp)
+
+
+        for p in files:
+            # STANDARD CASE
+            # e.g.  local:      ./to/something      [/tmp/to/something]
+            #       remote:     something
+            # -----------------------------
+            # SPECIAL CASE  .
+            # e.g.  local:      .                   [/tmp]
+            #                   (with content f1, f2)
+            #       remote:     tmp/f1, tmp/f2
+            # -----------------------------
+            # SPECIAL CASE [./././]*
+            # e.g.  local:      ./to/adir/*         [/tmp/to/adir]
+            #                   (with content f1, f2)
+            #       remote:     f1, f2
+            # TODO * not supported for now
+
+            fpath = p.resolve()
+            rpath = Path(fpath.name)
+
+            log.d(f"p(f) = {p}")
+
+            log.d(f"rpath(f) = {rpath}")
+
+            sendfile = (fpath, rpath)
+            log.i(f"Adding sendfile {sendfile}")
+            sendfiles.appendleft(sendfile)
 
         def send_file(local_path: Path, remote_path: Path):
             nonlocal overwrite_policy
@@ -1822,7 +1798,7 @@ class Client:
             if not finfo:
                 return
 
-            log.i("send_file finfo: %s", j(finfo))
+            log.i(f"send_file finfo: {j(finfo)}")
             fsize = finfo.get("size")
             ftype = finfo.get("ftype")
 
@@ -1836,7 +1812,7 @@ class Client:
 
                 try:
                     local_fd = local_path.open("rb")
-                    log.d("Able to open file: %s", local_path)
+                    log.d(f"Opened: {local_path}")
                 except FileNotFoundError:
                     errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
                                                              q(next_file_local)))
@@ -1911,7 +1887,7 @@ class Client:
                 timer.start()
 
                 if current_overwrite_decision == OverwritePolicy.NO:
-                    log.i("Skipping %s", remote_path)
+                    log.i(f"Skipping {remote_path}")
                     return
 
                 # If overwrite policy is NEWER or YES we have to tell it
@@ -1941,7 +1917,7 @@ class Client:
             status = resp_data.get(ResponsesParams.PUT_NEXT_STATUS)
 
             if status == ResponsesParams.PUT_NEXT_STATUS_REFUSED:
-                log.i("Skipping %s ", remote_path)
+                log.i(f"Skipping {remote_path}")
                 return
 
             if status != ResponsesParams.PUT_NEXT_STATUS_ACCEPTED:
@@ -1984,14 +1960,14 @@ class Client:
                 chunk = source.read(readlen)
                 chunk_len = len(chunk)
 
-                log.d("Read chunk of %dB", chunk_len)
+                log.h(f"Read chunk of {chunk_len}B")
 
                 # CRC check update
                 if do_check:
                     crc = zlib.crc32(chunk, crc)
 
                 if not chunk:
-                    log.i("Finished %s", local_path)
+                    log.i(f"Finished {local_path}")
                     break
 
                 transfer_socket.send(chunk)
@@ -2001,8 +1977,8 @@ class Client:
                 if not quiet:
                     progressor.update(cur_pos)
 
-            log.i("DONE %s", local_path)
-            log.d("- crc = %d", crc)
+            log.i(f"DONE {local_path}")
+            log.d(f"- crc = {crc}")
 
             if do_check:
                 transfer_socket.send(itob(crc, 4))
@@ -2028,7 +2004,7 @@ class Client:
             next_file_local, next_file_remote = next_file
 
             if no_hidden and is_hidden(next_file_local):
-                log.d("Not sending %s since no_hidden is True", next_file_local)
+                log.d(f"Not sending {next_file_local} since no_hidden is True")
             elif next_file_local.is_file():
                 # Send it directly
                 log.d("-> is a FILE")
@@ -2071,7 +2047,7 @@ class Client:
                     log.i("Found a filled directory: adding all inner files to remaining_files")
                     for file_in_dir in dir_files:
                         sendfile = (file_in_dir, next_file_remote / file_in_dir.name)
-                        log.i("Adding sendfile %s", sendfile)
+                        log.i(f"Adding sendfile {sendfile}")
                         sendfiles.appendleft(sendfile)
                 elif not sync: # if sync is True the finfo is already sent
                     log.i("Found an empty directory")
@@ -2103,7 +2079,7 @@ class Client:
             log.w("Response has errors")
             errors += outcome_errors
 
-        log.i("PUT outcome: %d", outcome)
+        log.i(f"PUT outcome: {outcome}")
 
         if preview:
             if sync:
@@ -2481,7 +2457,7 @@ class Client:
 
     def __local_paths(self, path_or_finding_pattern: str, default: str = "") \
             -> List[Path]:
-        log.i("Computing local path of '%s'", path_or_finding_pattern)
+        log.i(f"Computing local path of '{path_or_finding_pattern}'")
 
         return self.__paths(
             path_or_finding_pattern,
@@ -2501,7 +2477,7 @@ class Client:
 
     def __remote_paths(self, path_or_finding_pattern: str) \
             -> List[str]:
-        log.i("Computing remote path of '%s'", path_or_finding_pattern)
+        log.i(f"Computing remote path of '{path_or_finding_pattern}'")
 
         return self.__paths(
             path_or_finding_pattern,

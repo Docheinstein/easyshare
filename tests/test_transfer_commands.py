@@ -1,7 +1,7 @@
 import tempfile
 from pathlib import Path
 from random import randint
-from typing import Union, Dict, Callable
+from typing import Union, Dict, Callable, Optional
 
 from easyshare.commands.commands import Commands, Get
 from easyshare.common import VERBOSITY_MIN, VERBOSITY_DEBUG
@@ -17,6 +17,7 @@ K = 2 << 10
 M = 2 << 20
 esd = EsdTest()
 
+SERVER_TAGS = "easyshare.esd.__main__"
 CLIENT_TAG = "easyshare.es.client"
 
 def log_on(*tags):
@@ -114,7 +115,8 @@ def create_test_hierarchy(parent):
     dd1 = tmpdir (d1, name="dd1")
     ff1 = tmpfile(d2, name="ff1", size=randint(K, 2 * M))
     ff2 = tmpfile(d2, name="ff2", size=randint(K, 4 * M))
-    return d0
+
+    return parent
 
 D2 = {
     "ff1": assert_file,
@@ -135,14 +137,24 @@ HIERARCHY = {
     "d0": D0
 }
 
+client_hierarchy: Optional[Path] = None
+server_hierarchy: Optional[Path] = None
+
 def test_setup():
+    global client_hierarchy, server_hierarchy
+
     esd.__enter__()
     wait_until_esd_start()
 
-    create_test_hierarchy(esd.sharing_root_d)
+    server_hierarchy = create_test_hierarchy(esd.sharing_root_d)
+    client_hierarchy = create_test_hierarchy(tmpdir(tempfile.gettempdir(), prefix="hierarchy-"))
+
 
 def test_log_on_client():
     log_on(CLIENT_TAG)
+
+def test_log_on_server():
+    log_on(SERVER_TAGS)
 
 def test_get_sharing():
     """
@@ -199,98 +211,6 @@ def test_get_sharing():
             check_hierarchy(Path(local_tmp), {
                 esd.sharing_root_d.name: HIERARCHY
             })
-#
-# def test_get_sharing_content():
-#     """
-#     ===========================
-#     ======== COMMANDS =========
-#     ===========================
-#
-#     > cd client-XXXX
-#     > get *
-#
-#     ===========================
-#     ========== BEFORE =========
-#     ===========================
-#
-#     --------- LOCAL -----------
-#
-#     client-XXXX
-#
-#     --------- REMOTE -----------
-#
-#     dir-YYYY (sharing name: dir-YYYY)
-#     ├── f0
-#     └── d0
-#         ├── d1
-#         │   └── dd1
-#         ├── d2
-#         │   ├── ff1
-#         │   └── ff2
-#         └── f1
-#
-#     ===========================
-#     ======== EXPECTED =========
-#     ===========================
-#
-#     --------- LOCAL -----------
-#
-#     client-XXXX
-#     ├── f0
-#     └── d0
-#         ├── d1
-#         │   └── dd1
-#         ├── d2
-#         │   ├── ff1
-#         │   └── ff2
-#         └── f1
-#     """
-#     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
-#         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
-#             assert_success(
-#                 client.execute_command(Commands.GET, "*")
-#             )
-#             check_hierarchy(Path(local_tmp), TEST_HIERARCHY)
-#
-# def test_get_sharing_content_multiple(): # illegal
-#     """
-#     ===========================
-#     ======== COMMANDS =========
-#     ===========================
-#
-#     > cd client-XXXX
-#     > get * d0
-#
-#     ===========================
-#     ========== BEFORE =========
-#     ===========================
-#
-#     --------- LOCAL -----------
-#
-#     client-XXXX
-#
-#     --------- REMOTE -----------
-#
-#     dir-YYYY (sharing name: dir-YYYY)
-#     ├── f0
-#     └── d0
-#         ├── d1
-#         │   └── dd1
-#         ├── d2
-#         │   ├── ff1
-#         │   └── ff2
-#         └── f1
-#
-#     ===========================
-#     ======== EXPECTED =========
-#     ===========================
-#     (ERROR)
-#     """
-#     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
-#         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
-#             assert_fail(
-#                 client.execute_command(Commands.GET, "* d0")
-#             )
 
 def test_get_fsharing():
     """
@@ -2001,6 +1921,66 @@ def test_get_syncdest_2_any2dir_bis():
 
             assert_file(wontberemoved)
             assert_notexists(willberemoved)
+
+
+def test_put_sharing():
+    """
+    ===========================
+    ======== COMMANDS =========
+    ===========================
+
+    > rcd server-ZZZZ
+    > put
+
+    ===========================
+    ========== BEFORE =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    hierarchy-XXXX
+    ├── f0
+    └── d0
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+        └── f1
+
+    --------- REMOTE -----------
+
+    dir-YYYY
+
+    ===========================
+    ======== EXPECTED =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    dir-YYYY
+    ├── hierarchy-XXXX
+        ├── f0
+        └── d0
+            ├── d1
+            │   └── dd1
+            ├── d2
+            │   ├── ff1
+            │   └── ff2
+            └── f1
+    """
+
+    with tempfile.TemporaryDirectory(prefix="server-", dir=esd.sharing_root_d2) as remote_tmp:
+        with EsConnectionTest(esd.sharing_root_d2.name,
+                              cd=client_hierarchy,
+                              rcd=Path(remote_tmp).name) as client:
+            assert_success(
+                client.execute_command(Commands.PUT)
+            )
+
+            check_hierarchy(Path(remote_tmp), {
+                client_hierarchy.name: HIERARCHY
+            })
 
 
 def test_teardown():
