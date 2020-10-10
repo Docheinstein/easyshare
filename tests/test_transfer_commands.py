@@ -4,11 +4,11 @@ from random import randint
 from typing import Union, Dict, Callable
 
 from easyshare.commands.commands import Commands, Get
-from easyshare.common import VERBOSITY_MAX, VERBOSITY_MIN, VERBOSITY_DEBUG
+from easyshare.common import VERBOSITY_MIN, VERBOSITY_DEBUG
 from easyshare.es.errors import ClientErrors
 from easyshare.es.ui import print_files_info_tree
 from easyshare.logging import get_logger
-from easyshare.styling import red, cyan
+from easyshare.styling import red
 from easyshare.utils.os import tree, rm
 from tests.utils import EsdTest, EsConnectionTest, tmpfile, tmpdir
 from easyshare.esd.__main__ import wait_until_start as wait_until_esd_start
@@ -46,7 +46,7 @@ def logged(*tags):
 
 def print_hierarchy(root: Union[Path, str], styler=lambda s: s):
     print(styler("Hierarchy START -----------------------------------------"))
-    print_files_info_tree(tree(Path(root), details=True), show_size=True)
+    print_files_info_tree(tree(Path(root)))
     print(styler("Hierarchy END -------------------------------------------"))
 
 def check_hierarchy(root: Union[Path, str],
@@ -1445,7 +1445,7 @@ def test_get_dest_2_any2dir():
     ===========================
 
     > cd client-XXXX
-    > mkdir fx.exists
+    > mkdir dx.exists
     > get d0/d2 f0 -d dx.exists
 
     ===========================
@@ -1492,10 +1492,7 @@ def test_get_dest_2_any2dir():
             check_hierarchy(Path(local_tmp), {
                 "dx.exists": {
                     "f0": assert_file,
-                    "d2": {
-                        "ff1": assert_file,
-                        "ff2": assert_file
-                    }
+                    "d2": D2
                 }
             })
 
@@ -1563,66 +1560,6 @@ def test_get_sync_sharing():
             })
 
             assert_file(wontberemoved)
-#
-# def test_get_sync_sharing_content():
-#     """
-#     ===========================
-#     ======== COMMANDS =========
-#     ===========================
-#
-#     > cd client-XXXX
-#     > touch will.be.removed
-#     > get -s *
-#
-#     ===========================
-#     ========== BEFORE =========
-#     ===========================
-#
-#     --------- LOCAL -----------
-#
-#     client-XXXX
-#
-#     --------- REMOTE -----------
-#
-#     dir-YYYY (sharing name: dir-YYYY)
-#     ├── f0
-#     └── d0
-#         ├── d1
-#         │   └── dd1
-#         ├── d2
-#         │   ├── ff1
-#         │   └── ff2
-#         └── f1
-#
-#     ===========================
-#     ======== EXPECTED =========
-#     ===========================
-#
-#     --------- LOCAL -----------
-#     (put the content of the sharing into the current dir, unwrapped)
-#
-#     client-XXXX
-#     ├── f0
-#     └── d0
-#         ├── d1
-#         │   └── dd1
-#         ├── d2
-#         │   ├── ff1
-#         │   └── ff2
-#         └── f1
-#     """
-#     return
-#     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
-#         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
-#             willberemoved = tmpfile(local_tmp, name="will.be.removed", size=K)
-#             assert_file(willberemoved)
-#
-#             assert_success(
-#                 client.execute_command(Commands.GET, f"{Get.SYNC[0]} *")
-#             )
-#
-#             check_hierarchy(Path(local_tmp), TEST_HIERARCHY)
-#             assert_notexists(willberemoved)
 
 def test_get_sync_dir():
     """
@@ -1684,8 +1621,6 @@ def test_get_sync_dir():
             check_hierarchy(Path(local_tmp), {
                 "d2": D2
             })
-
-            print_hierarchy(local_tmp)
 
             assert_notexists(willberemoved)
             assert_file(wontberemoved)
@@ -1832,62 +1767,241 @@ def test_get_sync_file():
             })
 
             assert_file(wontberemoved)
-#
-# def test_get_sync_sharing_dest():
-#     """
-#     ===========================
-#     ======== COMMANDS =========
-#     ===========================
-#
-#     > cd client-XXXX
-#     > touch wont.be.removed
-#     > get -s d0/d2/ff1
-#
-#     ===========================
-#     ========== BEFORE =========
-#     ===========================
-#
-#     --------- LOCAL -----------
-#
-#     client-XXXX
-#
-#     --------- REMOTE -----------
-#
-#     dir-YYYY (sharing name: dir-YYYY)
-#     ├── f0
-#     └── d0
-#         ├── d1
-#         │   └── dd1
-#         ├── d2
-#         │   ├── ff1
-#         │   └── ff2
-#         └── f1
-#
-#     ===========================
-#     ======== EXPECTED =========
-#     ===========================
-#
-#     --------- LOCAL -----------
-#
-#     client-XXXX
-#     ├── wont.be.removed
-#     ├── ff1
-#     """
-#     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
-#         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
-#             wontberemoved = tmpfile(local_tmp, name="wont.be.removed", size=K)
-#
-#             assert_file(wontberemoved)
-#
-#             assert_success(
-#                 client.execute_command(Commands.GET, f"{Get.SYNC[0]} d0/d2/ff1")
-#             )
-#
-#             check_hierarchy(Path(local_tmp), {
-#                 "ff1": assert_file
-#             })
-#
-#             assert_file(wontberemoved)
+
+
+def test_get_syncdest_1_dir2dir():
+    """
+    ===========================
+    ======== COMMANDS =========
+    ===========================
+
+    > cd client-XXXX
+    > mkdir d2.wrapper
+    > touch wont.be.removed
+    > touch d2.wrapper/wont.be.removed2
+    > mkdir d2.wrapper/d2
+    > touch d2.wrapper/d2/will.be.removed
+    > get -s -d d2.wrapper d0/d2
+
+    ===========================
+    ========== BEFORE =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    client-XXXX
+
+    --------- REMOTE -----------
+
+    dir-YYYY (sharing name: dir-YYYY)
+    ├── f0
+    └── d0
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+        └── f1
+
+    ===========================
+    ======== EXPECTED =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    client-XXXX
+    ├── wont.be.removed
+    ├── d2.wrapper
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+    """
+    with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
+        with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
+            """
+            > cd client-XXXX
+            > mkdir d2.wrapper
+            > touch wont.be.removed
+            > touch d2.wrapper/wont.be.removed2
+            > mkdir d2.wrapper/d2
+            > touch d2.wrapper/d2/will.be.removed
+            > get -s d0/d2 -d d2.wrapper
+            """
+
+            d2wrapper = tmpdir(local_tmp, name="d2.wrapper")
+            wontberemoved = tmpfile(local_tmp, name="wont.be.removed", size=K)
+            wontberemoved2 = tmpfile(d2wrapper, name="wont.be.removed2", size=K)
+            d2 = tmpdir(d2wrapper, name="d2")
+            willberemoved = tmpfile(d2, name="will.be.removed", size=K)
+
+            assert_file(willberemoved)
+            assert_file(wontberemoved)
+            assert_file(wontberemoved2)
+
+            assert_success(
+                client.execute_command(Commands.GET,
+                                       f"{Get.DESTINATION[0]} d2.wrapper {Get.SYNC[0]} d0/d2")
+            )
+
+            check_hierarchy(Path(local_tmp), {
+                "d2.wrapper": {
+                    "d2": D2
+                }
+            })
+
+            print_hierarchy(local_tmp)
+
+            assert_notexists(willberemoved)
+            assert_file(wontberemoved2)
+            assert_file(wontberemoved)
+
+
+def test_get_syncdest_2_any2dir():
+    """
+    ===========================
+    ======== COMMANDS =========
+    ===========================
+
+    > cd client-XXXX
+    > mkdir dx.exists
+    > touch dx.exists/wont.be.removed
+    > get d0/d2 f0 -d dx.exists -s
+
+    ===========================
+    ========== BEFORE =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    client-XXXX
+
+    --------- REMOTE -----------
+
+    dir-YYYY (sharing name: dir-YYYY)
+    ├── f0
+    └── d0
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+        └── f1
+
+    ===========================
+    ======== EXPECTED =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    client-XXXX
+    ├── dx.exists
+        ├── wont.be.removed
+        ├── f0
+        └── d2
+            ├── ff1
+            └── ff2
+    """
+    with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
+        with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
+            dxexists = tmpdir(local_tmp, name="dx.exists")
+            wontberemoved = tmpfile(dxexists, name="wont.be.removed", size=666)
+
+            assert_file(wontberemoved)
+
+            assert_success(
+                client.execute_command(Commands.GET, f"{Get.DESTINATION[0]} dx.exists {Get.SYNC[0]} d0/d2 f0")
+            )
+
+            check_hierarchy(Path(local_tmp), {
+                "dx.exists": {
+                    "f0": assert_file,
+                    "d2": D2
+                }
+            })
+
+            assert_file(wontberemoved)
+
+def test_get_syncdest_2_any2dir_bis():
+    """
+    ===========================
+    ======== COMMANDS =========
+    ===========================
+
+    > cd client-XXXX
+    > mkdir dx.exists
+    > mkdir dx.exists/d0
+    > touch dx.exists/d0/will.be.removed
+    > get d0/d2 d0/d1 -d dx.exists -s
+
+    ===========================
+    ========== BEFORE =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    client-XXXX
+
+    --------- REMOTE -----------
+
+    dir-YYYY (sharing name: dir-YYYY)
+    ├── f0
+    └── d0
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+        └── f1
+
+    ===========================
+    ======== EXPECTED =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    client-XXXX
+    ├── dx.exists
+        ├── wont.be.removed
+        ├── d0
+            ├── dd1
+        └── d2
+            ├── ff1
+            └── ff2
+    """
+    with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
+        with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
+            """
+            > cd client-XXXX
+            > mkdir dx.exists
+            > mkdir dx.exists/d1
+            > touch dx.exists/d1/will.be.removed
+            > get d0/d2 d0/d1 -d dx.exists -s
+            """
+
+            dxexists = tmpdir(local_tmp, name="dx.exists")
+            d1 = tmpdir(dxexists, name="d1")
+            wontberemoved = tmpfile(dxexists, name="wont.be.removed", size=666)
+            willberemoved = tmpfile(d1, name="will.be.removed", size=666)
+
+            assert_file(wontberemoved)
+            assert_file(willberemoved)
+
+            assert_success(
+                client.execute_command(Commands.GET, f"{Get.DESTINATION[0]} dx.exists {Get.SYNC[0]} d0/d2 d0/d1")
+            )
+
+            check_hierarchy(Path(local_tmp), {
+                "dx.exists": {
+                    "d1": D1,
+                    "d2": D2
+                }
+            })
+
+            print_hierarchy(local_tmp)
+
+            assert_file(wontberemoved)
+            assert_notexists(willberemoved)
+
 
 def test_teardown():
     esd.__exit__(None, None, None)

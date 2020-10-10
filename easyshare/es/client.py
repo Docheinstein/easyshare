@@ -1197,7 +1197,9 @@ class Client:
         def compute_sync_table():
             nonlocal sync_table
 
-            sync_path_base = Path.cwd()
+            sync_path = dest or Path.cwd()
+            log.d(f"Computing sync table over: {sync_path}")
+
             sync_table_entries = []
 
             def add_path_to_sync_table(p):
@@ -1209,9 +1211,9 @@ class Client:
                     sync_table_entries += findings
 
             if files:
-                for f in files:
-                    sync_path_trail = Path(f).parts[-1]
-                    add_path_to_sync_table(sync_path_base / sync_path_trail)
+                for file in files:
+                    sync_path_trail = Path(file).parts[-1]
+                    add_path_to_sync_table(sync_path / sync_path_trail)
             else:
                 # No path specified, will get the content wrapped into
                 # a folder with the rcwd name
@@ -1220,10 +1222,11 @@ class Client:
                     # No rcwd? we will get the content wrapped into a folder
                     # with the sharing name
                     sync_path_trail = conn.current_sharing_name()
-                add_path_to_sync_table(sync_path_base / sync_path_trail)
+                add_path_to_sync_table(sync_path / sync_path_trail)
 
-            sync_table = OrderedDict({f.get("name"): None for f in sync_table_entries})
-            log.d("SYNC table\n" + '\n'.join(sync_table.keys()))
+            sync_table = OrderedDict({entry.get("name"): None for entry in sync_table_entries})
+            log.d(f"SYNC table computed ({len(sync_table_entries)})\n" +
+                  "\n".join(sync_table.keys()))
 
         def compute_dest_path(finfo_: FileInfo):
             """
@@ -1594,8 +1597,6 @@ class Client:
             if not quiet:
                 progressor.success()
 
-
-        # TODO ensure_data_response ret
         # Wait for completion
         if not outcome_resp:
             outcome_resp = conn.read_json()
