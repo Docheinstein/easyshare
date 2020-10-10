@@ -43,6 +43,7 @@ def logged(*tags):
     return LoggedContext(tags)
 
 
+
 def print_hierarchy(root: Union[Path, str], styler=lambda s: s):
     print(styler("Hierarchy START -----------------------------------------"))
     print_files_info_tree(tree(Path(root)), show_size=True)
@@ -140,7 +141,8 @@ def test_setup():
 
     create_test_hierarchy(esd.sharing_root_d)
 
-
+def test_log_on_client():
+    log_on(CLIENT_TAG)
 
 def test_get_sharing():
     """
@@ -611,6 +613,7 @@ def test_get_dir2file():
     ===========================
 
     --------- LOCAL -----------
+    (ERROR ~ soft)
 
     client-XXXX
     └── f0  // ftype == file
@@ -620,9 +623,8 @@ def test_get_dir2file():
             log_on(CLIENT_TAG)
             d0 = tmpfile(parent=local_tmp, name="d0", size=666)
 
-            assert_success(
-                client.execute_command(Commands.GET, "d0")
-            )
+            # Allow implementation to either fail or success
+            client.execute_command(Commands.GET, "d0")
 
             assert_file(d0, size_checker=lambda s: s == 666)
 
@@ -869,15 +871,19 @@ def test_get_dest_sharing2file():
     ===========================
     ======== EXPECTED =========
     ===========================
-    (ERROR)
+    (ERROR ~ soft)
+
+    client-XXXX
+    └── sharing.file  // ftype == file
     """
     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
-            tmpfile(local_tmp, name="sharing.file")
+            sharingfile = tmpfile(local_tmp, name="sharing.file", size=666)
 
-            assert_fail(
-                client.execute_command(Commands.GET, f"{Get.DESTINATION[0]} sharing.file")
-            )
+            # Allow implementation to either fail or success
+            client.execute_command(Commands.GET, f"{Get.DESTINATION[0]} sharing.file")
+
+            assert_file(sharingfile, size_checker=lambda s: s == 666)
 
 def test_get_dest_sharing2none():
     """
@@ -1029,7 +1035,9 @@ def test_get_dest_1_file2none():
             assert_success(
                 client.execute_command(Commands.GET, f"d0/d2/ff1 {Get.DESTINATION[0]} ff1.renamed")
             )
-            check_hierarchy(Path(local_tmp), {"ff1.renamed": assert_file})
+            check_hierarchy(Path(local_tmp), {
+                "ff1.renamed": assert_file
+            })
 
 def test_get_dest_1_file2file():
     """
@@ -1088,7 +1096,7 @@ def test_get_dest_1_file2dir():
 
     > cd client-XXXX
     > mkdir dx
-    > get d0/d2/ff1 -d dx
+    > get d0/d2/ff2 -d dx
 
     ===========================
     ========== BEFORE =========
@@ -1120,7 +1128,7 @@ def test_get_dest_1_file2dir():
 
     client-XXXX
     ├── dx
-        └── f2
+        └── ff2
     """
     # local_tmp = tempfile.mkdtemp(prefix="client-")
     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
@@ -1173,7 +1181,7 @@ def test_get_dest_1_dir2none():
     (write dir)
 
     client-XXXX
-    ├── d2.renamed
+    ├── d2.notexists
         ├── ff1
         └── ff2
     """
@@ -1184,10 +1192,58 @@ def test_get_dest_1_dir2none():
             )
 
             check_hierarchy(Path(local_tmp), {
-                "d2.notexists": {
-                    "ff1": assert_file,
-                    "ff2": assert_file
-                }
+                "d2.notexists": D2
+            })
+
+def test_get_dest_1_dir2none_empty():
+    """
+    ===========================
+    ======== COMMANDS =========
+    ===========================
+
+    > cd client-XXXX
+    > get d0/d1/dd1 -d d2.notexists
+
+    ===========================
+    ========== BEFORE =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    client-XXXX
+
+    --------- REMOTE -----------
+
+    dir-YYYY (sharing name: dir-YYYY)
+    ├── f0
+    └── d0
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+        └── f1
+
+    ===========================
+    ======== EXPECTED =========
+    ===========================
+
+    --------- LOCAL -----------
+    (write dir)
+
+    client-XXXX
+    ├── d2.notexists
+        ├── ff1
+        └── ff2
+    """
+    with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
+        with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
+            assert_success(
+                client.execute_command(Commands.GET, f"d0/d1/dd1 {Get.DESTINATION[0]} d2.notexists")
+            )
+
+            check_hierarchy(Path(local_tmp), {
+                "d2.notexists": assert_dir
             })
 
 def test_get_dest_1_dir2file(): # illegal
@@ -1223,15 +1279,19 @@ def test_get_dest_1_dir2file(): # illegal
     ===========================
     ======== EXPECTED =========
     ===========================
-    (ERROR)
+    (ERROR ~ soft)
+
+    client-XXXX
+    └── f2.exists  // ftype == file
     """
     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
-            tmpfile(local_tmp, name="f2.exists")
+            f2exists = tmpfile(parent=local_tmp, name="f2.exists", size=666)
 
-            assert_fail(
-                client.execute_command(Commands.GET, f"d0/d2 {Get.DESTINATION[0]} f2.exists")
-            )
+            # Allow implementation to either fail or success
+            client.execute_command(Commands.GET, f"d0/d2 {Get.DESTINATION[0]} f2.exists")
+
+            assert_file(f2exists, size_checker=lambda s: s == 666)
 
 def test_get_dest_1_dir2dir():
     """
@@ -1286,10 +1346,7 @@ def test_get_dest_1_dir2dir():
 
             check_hierarchy(Path(local_tmp), {
                 "d2.exists": {
-                    "d2": {
-                        "ff1": assert_file,
-                        "ff2": assert_file
-                    }
+                    "d2": D2
                 }
             })
 

@@ -1104,6 +1104,7 @@ class Client:
             # Renew (close and reopen) the connection if CTRL + C is detected
             # during the transfer.
             # We can't do any better since we only use a socket, and not
+            # We can't do any better since we only use a socket, and not
             # a control one like FTP.
             # Renew not in a clean manner: we can't send/receive any message in
             # this moment since we are in the middle of a transfer, just shutdown
@@ -1128,11 +1129,142 @@ class Client:
             self.renew_connection(clean=False)
 
     def _get(self, args: Args, conn: Connection):
+        def destpath(fname_: Path,
+                     dest_: Path,
+                     multiple_: bool,
+                     src_ftype_: FileType, # TODO: remove, just for debug purpose
+                     dst_ftype_: FileType,
+                     src_ftype__: FileType) -> Path:
+            """
+            If 'dest_' is not given returns 'base_', otherwise computes the path
+            like mv/cp (treating dest either as the filename or the directory name
+            in which put the file, depending on the file types and the existence
+            of base_ and dest_).
+            """
+            if not dest_:
+                return fname_
+
+            """
+            --dest handling
+
+            |   alias       |    SRC    |    DEST    |   ACTION
+            --------------------------------------------------------------
+                1_file2none      file        ----        write file
+                1_file2file      file        file        overwrite file
+                1_file2dir       file        dir         put file into dir
+                1_dir2none       dir         ----        write dir
+                1_dir2file       dir         file        ERROR
+                1_dir2dir        dir         dir         put dir into dir
+
+                2_any2none       any         ----        ERROR
+                2_any2file       any         file        ERROR
+                2_any2dir        any         dir         put files/dirs into dir
+            """
+
+            src_ftype_computed_ = None
+            if not multiple_:
+                src_ftype_computed_ = FTYPE_DIR if len(fname_.parts) > 1 else src_ftype__
+
+            assert f"{(2 if multiple_ else 1)}_{src_ftype_computed_ or 'any'}2{dst_ftype_ or 'none'}" == \
+                    f"{(2 if multiple_ else 1)}_{src_ftype_ or 'any'}2{dst_ftype_ or 'none'}"
+
+            log.d(f"Handling destpath for case "
+                  f"{(2 if multiple_ else 1)}_{src_ftype_ or 'any'}2{dst_ftype_ or 'none'}")
+
+            log.d(f"Handling destpath for case "
+                  f"{(2 if multiple_ else 1)}_{src_ftype_computed_ or 'any'}2{dst_ftype_ or 'none'} (computed)")
+
+            if not multiple_:
+                if src_ftype_computed_ == FTYPE_FILE:
+                    if not dst_ftype_:
+                        # 1_file2none -> write file
+                        output = dest_
+                    elif dst_ftype_ == FTYPE_FILE:
+                        # 1_file2file -> overwrite file
+                        output = dest_
+                    elif dst_ftype_ == FTYPE_DIR:
+                        # 1_file2dir -> put file into dir
+                        output = dest_ / fname_
+                    else: # WTF
+                        raise CommandExecutionError("Invalid --dest semantic")
+                elif src_ftype_computed_ == FTYPE_DIR:
+                    if not dst_ftype_:
+                        # 1_dir2none -> replace dir name
+                        output = dest_ / Path(*(fname_.parts[1:]))
+                    elif dst_ftype_ == FTYPE_FILE:
+                        # 1_dir2file -> ERROR
+                        raise CommandExecutionError("Invalid --dest semantic: destination must be a directory")
+                    elif dst_ftype_ == FTYPE_DIR:
+                        # 1_dir2dir
+                        output = dest_ / fname_
+                    else: # WTF
+                        raise CommandExecutionError("Invalid --dest semantic")
+                else:
+                    raise CommandExecutionError("Invalid --dest semantic")
+            else:
+                if dst_ftype_ == FTYPE_FILE:
+                    # 2_any2file (ok)
+                    raise CommandExecutionError("Invalid --dest semantic: destination must be a directory")
+                elif dst_ftype_ == FTYPE_DIR:
+                    # 2_any2dir (ok)
+                    output = dest_ / fname_
+                else:
+                    # 2_any2none (ok)
+                    raise CommandExecutionError("Invalid --dest semantic: destination must exists")
+            #
+            #     if src_ftype_ == FTYPE_FILE:
+            #         if not dst_ftype_:
+            #             # 1_file2none
+            #             output = dest_
+            #         elif dst_ftype_ == FTYPE_FILE:
+            #             # 1_file2file
+            #             output = dest_
+            #         elif dst_ftype_ == FTYPE_DIR:
+            #             # 1_file2dir
+            #             output = dest_ / fname_
+            #         else:
+            #             raise CommandExecutionError("Invalid --dest semantic")
+            #     elif src_ftype_ == FTYPE_DIR:
+            #         if not dst_ftype_:
+            #             # 1_dir2none
+            #             if len(fname_.parts) > 1:
+            #                 # replace dir name
+            #                 fname_ = Path(*(fname_.parts[1:]))
+            #             output = dest_ / fname_
+            #         elif dst_ftype_ == FTYPE_FILE:
+            #             # 1_dir2file
+            #             raise CommandExecutionError("Invalid --dest semantic")
+            #         elif dst_ftype_ == FTYPE_DIR:
+            #             # 1_dir2dir
+            #             output = dest_ / fname_
+            #         else:
+            #             raise CommandExecutionError("Invalid --dest semantic")
+            #     else:
+            #         raise CommandExecutionError("Invalid --dest semantic")
+            # else:
+            #     if not dst_ftype_:
+            #         # 2_any2none
+            #         raise CommandExecutionError("Invalid --dest semantic")
+            #     elif dst_ftype_ == FTYPE_FILE:
+            #         # 2_any2file
+            #         raise CommandExecutionError("Invalid --dest semantic")
+            #     elif dst_ftype_ == FTYPE_DIR:
+            #         # 2_any2dir
+            #         output = dest_ / fname_
+            #     else:
+            #         raise CommandExecutionError("Invalid --dest semantic")
+
+            return output
+
         files = []
         for p in args.get_positionals():
             files += self._remote_paths(p)
         log.i(f"Remote files to GET\n{j(files)}")
 
+        dest = args.get_option_param(Get.DESTINATION)
+
+        if dest:
+            dest = Path(dest)
         do_check = Get.CHECK in args
         quiet = Get.QUIET in args
         no_hidden = Get.NO_HIDDEN in args
@@ -1142,6 +1274,27 @@ class Client:
 
         chunk_size = args.get_option_param(Get.CHUNK_SIZE)
         use_mmap = args.get_option_param(Get.MMAP)
+
+        # For dest computation
+        files_rstat = []
+        if files:
+            log.d(f"files to rstat: {files}")
+            files_rstat_resp = conn.rstat(files)
+            files_rstat = ensure_data_response(files_rstat_resp)
+            files_rstat = [(f, files_rstat[f]) for f in files]
+            log.d(f"remote files rstats: {j(files_rstat)}")
+
+        dst_ftype = None
+        src_ftype = None
+        if dest:
+            dst_ftype = ftype_of(dest)
+            if len(files_rstat) == 0:
+                src_ftype = conn.current_sharing_info().get("ftype")
+                log.d(f"Sharing ftype: {src_ftype}")
+            elif len(files_rstat) == 1:
+                src_ftype = files_rstat[0][1].get("ftype")
+
+        # ----
 
         resp = conn.get(files,
                         check=do_check, no_hidden=no_hidden,
@@ -1234,11 +1387,13 @@ class Client:
 
             local_path = Path(fname)
             # TODO
-            # local_path = destpath(fname_=Path(fname),
-            #                       dest_=dest,
-            #                       multiple_=len(files) > 1,
-            #                       src_ftype_=src_ftype,
-            #                       dst_ftype_=dest_ftype)
+
+            local_path = destpath(fname_=Path(fname),
+                                  dest_=dest,
+                                  multiple_=len(files) > 1,
+                                  src_ftype_=src_ftype,
+                                  dst_ftype_=dst_ftype,
+                                  src_ftype__=ftype)
 
             log.d(f"Computed local path: {local_path}")
 
@@ -1265,9 +1420,9 @@ class Client:
             --------------------------------------------------------------
                 file2none      file        ----        write file
                 file2file      file        file        overwrite file (eventually)
-                file2dir       file        dir         ERROR
+                file2dir       file        dir         ERROR (skip)
                 dir2none       dir         ----        create dir
-                dir2file       dir         file        ERROR
+                dir2file       dir         file        ERROR (skip)
                 dir2dir        dir         dir         no-op
             """
 
