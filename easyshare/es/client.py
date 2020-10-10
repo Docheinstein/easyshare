@@ -1129,142 +1129,19 @@ class Client:
             self.renew_connection(clean=False)
 
     def _get(self, args: Args, conn: Connection):
-        def destpath(fname_: Path,
-                     dest_: Path,
-                     multiple_: bool,
-                     src_ftype_: FileType, # TODO: remove, just for debug purpose
-                     dst_ftype_: FileType,
-                     src_ftype__: FileType) -> Path:
-            """
-            If 'dest_' is not given returns 'base_', otherwise computes the path
-            like mv/cp (treating dest either as the filename or the directory name
-            in which put the file, depending on the file types and the existence
-            of base_ and dest_).
-            """
-            if not dest_:
-                return fname_
-
-            """
-            --dest handling
-
-            |   alias       |    SRC    |    DEST    |   ACTION
-            --------------------------------------------------------------
-                1_file2none      file        ----        write file
-                1_file2file      file        file        overwrite file
-                1_file2dir       file        dir         put file into dir
-                1_dir2none       dir         ----        write dir
-                1_dir2file       dir         file        ERROR
-                1_dir2dir        dir         dir         put dir into dir
-
-                2_any2none       any         ----        ERROR
-                2_any2file       any         file        ERROR
-                2_any2dir        any         dir         put files/dirs into dir
-            """
-
-            src_ftype_computed_ = None
-            if not multiple_:
-                src_ftype_computed_ = FTYPE_DIR if len(fname_.parts) > 1 else src_ftype__
-
-            assert f"{(2 if multiple_ else 1)}_{src_ftype_computed_ or 'any'}2{dst_ftype_ or 'none'}" == \
-                    f"{(2 if multiple_ else 1)}_{src_ftype_ or 'any'}2{dst_ftype_ or 'none'}"
-
-            log.d(f"Handling destpath for case "
-                  f"{(2 if multiple_ else 1)}_{src_ftype_ or 'any'}2{dst_ftype_ or 'none'}")
-
-            log.d(f"Handling destpath for case "
-                  f"{(2 if multiple_ else 1)}_{src_ftype_computed_ or 'any'}2{dst_ftype_ or 'none'} (computed)")
-
-            if not multiple_:
-                if src_ftype_computed_ == FTYPE_FILE:
-                    if not dst_ftype_:
-                        # 1_file2none -> write file
-                        output = dest_
-                    elif dst_ftype_ == FTYPE_FILE:
-                        # 1_file2file -> overwrite file
-                        output = dest_
-                    elif dst_ftype_ == FTYPE_DIR:
-                        # 1_file2dir -> put file into dir
-                        output = dest_ / fname_
-                    else: # WTF
-                        raise CommandExecutionError("Invalid --dest semantic")
-                elif src_ftype_computed_ == FTYPE_DIR:
-                    if not dst_ftype_:
-                        # 1_dir2none -> replace dir name
-                        output = dest_ / Path(*(fname_.parts[1:]))
-                    elif dst_ftype_ == FTYPE_FILE:
-                        # 1_dir2file -> ERROR
-                        raise CommandExecutionError("Invalid --dest semantic: destination must be a directory")
-                    elif dst_ftype_ == FTYPE_DIR:
-                        # 1_dir2dir
-                        output = dest_ / fname_
-                    else: # WTF
-                        raise CommandExecutionError("Invalid --dest semantic")
-                else:
-                    raise CommandExecutionError("Invalid --dest semantic")
-            else:
-                if dst_ftype_ == FTYPE_FILE:
-                    # 2_any2file (ok)
-                    raise CommandExecutionError("Invalid --dest semantic: destination must be a directory")
-                elif dst_ftype_ == FTYPE_DIR:
-                    # 2_any2dir (ok)
-                    output = dest_ / fname_
-                else:
-                    # 2_any2none (ok)
-                    raise CommandExecutionError("Invalid --dest semantic: destination must exists")
-            #
-            #     if src_ftype_ == FTYPE_FILE:
-            #         if not dst_ftype_:
-            #             # 1_file2none
-            #             output = dest_
-            #         elif dst_ftype_ == FTYPE_FILE:
-            #             # 1_file2file
-            #             output = dest_
-            #         elif dst_ftype_ == FTYPE_DIR:
-            #             # 1_file2dir
-            #             output = dest_ / fname_
-            #         else:
-            #             raise CommandExecutionError("Invalid --dest semantic")
-            #     elif src_ftype_ == FTYPE_DIR:
-            #         if not dst_ftype_:
-            #             # 1_dir2none
-            #             if len(fname_.parts) > 1:
-            #                 # replace dir name
-            #                 fname_ = Path(*(fname_.parts[1:]))
-            #             output = dest_ / fname_
-            #         elif dst_ftype_ == FTYPE_FILE:
-            #             # 1_dir2file
-            #             raise CommandExecutionError("Invalid --dest semantic")
-            #         elif dst_ftype_ == FTYPE_DIR:
-            #             # 1_dir2dir
-            #             output = dest_ / fname_
-            #         else:
-            #             raise CommandExecutionError("Invalid --dest semantic")
-            #     else:
-            #         raise CommandExecutionError("Invalid --dest semantic")
-            # else:
-            #     if not dst_ftype_:
-            #         # 2_any2none
-            #         raise CommandExecutionError("Invalid --dest semantic")
-            #     elif dst_ftype_ == FTYPE_FILE:
-            #         # 2_any2file
-            #         raise CommandExecutionError("Invalid --dest semantic")
-            #     elif dst_ftype_ == FTYPE_DIR:
-            #         # 2_any2dir
-            #         output = dest_ / fname_
-            #     else:
-            #         raise CommandExecutionError("Invalid --dest semantic")
-
-            return output
-
+        # Compute remote paths (replacing findings)
         files = []
         for p in args.get_positionals():
             files += self._remote_paths(p)
         log.i(f"Remote files to GET\n{j(files)}")
 
+        # Args parsing
         dest = args.get_option_param(Get.DESTINATION)
 
         if dest:
             dest = Path(dest)
+            dest_ftype = ftype_of(dest)
+
         do_check = Get.CHECK in args
         quiet = Get.QUIET in args
         no_hidden = Get.NO_HIDDEN in args
@@ -1274,33 +1151,6 @@ class Client:
 
         chunk_size = args.get_option_param(Get.CHUNK_SIZE)
         use_mmap = args.get_option_param(Get.MMAP)
-
-        # For dest computation
-        files_rstat = []
-        if files:
-            log.d(f"files to rstat: {files}")
-            files_rstat_resp = conn.rstat(files)
-            files_rstat = ensure_data_response(files_rstat_resp)
-            files_rstat = [(f, files_rstat[f]) for f in files]
-            log.d(f"remote files rstats: {j(files_rstat)}")
-
-        dst_ftype = None
-        src_ftype = None
-        if dest:
-            dst_ftype = ftype_of(dest)
-            if len(files_rstat) == 0:
-                src_ftype = conn.current_sharing_info().get("ftype")
-                log.d(f"Sharing ftype: {src_ftype}")
-            elif len(files_rstat) == 1:
-                src_ftype = files_rstat[0][1].get("ftype")
-
-        # ----
-
-        resp = conn.get(files,
-                        check=do_check, no_hidden=no_hidden,
-                        mmap=use_mmap, chunk_size=chunk_size)
-
-        ensure_success_response(resp)
 
         transfer_socket = conn._stream._socket
 
@@ -1327,7 +1177,6 @@ class Client:
             # Sync is the same as -NS but deletes the old files after the transfer
             overwrite_policy = OverwritePolicy.NEWER_DIFF_SIZE
 
-
         log.i(f"Overwrite policy: {overwrite_policy}")
 
         # Stats
@@ -1339,6 +1188,119 @@ class Client:
         # Errors
         errors = []
         outcome_resp = None
+
+        # If sync is True track the files in the current directory
+        # so that we can remove old files (the one for which no file info
+        # is retrieved from the server) after the transfer completes.
+        sync_table = None
+
+        def compute_sync_table():
+            nonlocal sync_table
+
+            sync_path_base = Path.cwd()
+            sync_table_entries = []
+
+            def add_path_to_sync_table(p):
+                nonlocal sync_table_entries
+                log.d(f"Adding '{p}' hierarchy to SYNC table")
+                # Preserve order for perform RM in optimal order (parents first)
+                findings = find(p)
+                if findings:
+                    sync_table_entries += findings
+
+            if files:
+                for f in files:
+                    sync_path_trail = Path(f).parts[-1]
+                    add_path_to_sync_table(sync_path_base / sync_path_trail)
+            else:
+                # No path specified, will get the content wrapped into
+                # a folder with the rcwd name
+                sync_path_trail = conn.current_rcwd()
+                if not sync_path_trail or sync_path_trail == "/":
+                    # No rcwd? we will get the content wrapped into a folder
+                    # with the sharing name
+                    sync_path_trail = conn.current_sharing_name()
+                add_path_to_sync_table(sync_path_base / sync_path_trail)
+
+            sync_table = OrderedDict({f.get("name"): None for f in sync_table_entries})
+            log.d("SYNC table\n" + '\n'.join(sync_table.keys()))
+
+        def compute_dest_path(finfo_: FileInfo):
+            """
+            --dest handling
+
+            |   alias       |    SRC    |    DEST    |   ACTION
+            --------------------------------------------------------------
+                1_file2none      file        ----        write file
+                1_file2file      file        file        overwrite file
+                1_file2dir       file        dir         put file into dir
+                1_dir2none       dir         ----        write dir
+                1_dir2file       dir         file        ERROR
+                1_dir2dir        dir         dir         put dir into dir
+
+                2_any2none       any         ----        ERROR
+                2_any2file       any         file        ERROR
+                2_any2dir        any         dir         put files/dirs into dir
+            """
+            fname_ = Path(finfo_.get("name"))
+
+            if not dest:
+                return fname_
+
+            multiple_ = len(files) > 1
+
+            source_ftype = "any"
+            if not multiple_:
+                source_ftype = FTYPE_DIR if len(fname_.parts) > 1 else finfo_.get("ftype")
+
+            log.d(f"Handling destpath for case "
+                  f"{(2 if multiple_ else 1)}_{source_ftype or 'any'}2{dest_ftype or 'none'}")
+
+            if not multiple_:
+                if source_ftype == FTYPE_FILE:
+                    if not dest_ftype:
+                        # 1_file2none -> write file
+                        output = dest
+                    elif dest_ftype == FTYPE_FILE:
+                        # 1_file2file -> overwrite file
+                        output = dest
+                    elif dest_ftype == FTYPE_DIR:
+                        # 1_file2dir -> put file into dir
+                        output = dest / fname_
+                    else: # WTF
+                        raise CommandExecutionError("Invalid --dest semantic")
+                elif source_ftype == FTYPE_DIR:
+                    if not dest_ftype:
+                        # 1_dir2none -> replace dir name
+                        output = dest / Path(*(fname_.parts[1:]))
+                    elif dest_ftype == FTYPE_FILE:
+                        # 1_dir2file -> ERROR
+                        raise CommandExecutionError("Invalid --dest semantic: destination must be a directory")
+                    elif dest_ftype == FTYPE_DIR:
+                        # 1_dir2dir
+                        output = dest / fname_
+                    else: # WTF
+                        raise CommandExecutionError("Invalid --dest semantic")
+                else:
+                    raise CommandExecutionError("Invalid --dest semantic")
+            else:
+                if dest_ftype == FTYPE_FILE:
+                    # 2_any2file (ok)
+                    raise CommandExecutionError("Invalid --dest semantic: destination must be a directory")
+                elif dest_ftype == FTYPE_DIR:
+                    # 2_any2dir (ok)
+                    output = dest / fname_
+                else:
+                    # 2_any2none (ok)
+                    raise CommandExecutionError("Invalid --dest semantic: destination must exists")
+
+            return output
+
+        # Actual GET request is here
+        resp = conn.get(files,
+                        check=do_check, no_hidden=no_hidden,
+                        mmap=use_mmap, chunk_size=chunk_size)
+        ensure_success_response(resp)
 
         while True:
             # The first next() fetch never implies a new file to be put
@@ -1385,33 +1347,25 @@ class Client:
 
             log.d(f"NEXT: '{fname}' [{ftype}]")
 
-            local_path = Path(fname)
-            # TODO
-
-            local_path = destpath(fname_=Path(fname),
-                                  dest_=dest,
-                                  multiple_=len(files) > 1,
-                                  src_ftype_=src_ftype,
-                                  dst_ftype_=dst_ftype,
-                                  src_ftype__=ftype)
+            local_path = compute_dest_path(finfo)
 
             log.d(f"Computed local path: {local_path}")
 
             # TODO
-            # if sync:
-            #     if sync_table is None:
-            #         compute_sync_table(ftype)
-            #
-            #     # Remove from the SYNC table eventually
-            #     # Do the removal for each possible path within local_path
-            #     # (so that we won't delete parent folder if the change is
-            #     # inside the children)
-            #     incremental_path = Path.cwd()
-            #     for part in local_path.parts:
-            #         incremental_path = incremental_path / part
-            #         incremental_path_str = str(incremental_path)
-            #         log.d("Removing from SYNC table: '%s'", incremental_path_str)
-            #         sync_table.pop(incremental_path_str, None)
+            if sync:
+                if sync_table is None:
+                    compute_sync_table()
+
+                # Remove from the SYNC table eventually
+                # Do the removal for each possible path within local_path
+                # (so that we won't delete parent folder if the change is
+                # inside the children)
+                incremental_path = Path.cwd()
+                for part in local_path.parts:
+                    incremental_path = incremental_path / part
+                    incremental_path_str = str(incremental_path)
+                    log.d(f"Removing from SYNC table: '{incremental_path_str}'")
+                    sync_table.pop(incremental_path_str, None)
 
             """
             Write/Overwrite policy
@@ -1640,514 +1594,6 @@ class Client:
             if not quiet:
                 progressor.success()
 
-    def _get2(self, args: Args, conn: Connection):
-        def destpath(fname_: Path,
-                     dest_: Path,
-                     multiple_: bool,
-                     src_ftype_: FileType,
-                     dst_ftype_: FileType) -> Path:
-            """
-            If 'dest_' is not given returns 'base_', otherwise computes the path
-            like mv/cp (treating dest either as the filename or the directory name
-            in which put the file, depending on the file types and the existence
-            of base_ and dest_.
-            """
-            if not dest:
-                return fname_
-
-            """
-            --dest handling
-            
-            |   alias       |    SRC    |    DEST    |   ACTION
-            --------------------------------------------------------------
-                1_file2none      file        ----        write file
-                1_file2file      file        file        overwrite file
-                1_file2dir       file        dir         put file into dir
-                1_dir2none       dir         ----        write dir
-                1_dir2file       dir         file        ERROR
-                1_dir2dir        dir         dir         put dir into dir
-                
-                2_any2none       any         ----        ERROR
-                2_any2file       any         file        ERROR
-                2_any2dir        any         dir         put files/dirs into dir
-            """
-
-            log.d(f"Handling destpath for case "
-                  f"{(2 if multiple_ else 1)}_{src_ftype_ or 'any'}2{dst_ftype_ or 'none'}")
-
-            if not multiple_:
-                if src_ftype_ == FTYPE_FILE:
-                    if not dst_ftype_:
-                        # 1_file2none
-                        output = dest_
-                    elif dst_ftype_ == FTYPE_FILE:
-                        # 1_file2file
-                        output = dest_
-                    elif dst_ftype_ == FTYPE_DIR:
-                        # 1_file2dir
-                        output = dest_ / fname_
-                    else:
-                        raise CommandExecutionError("Invalid --dest semantic")
-                elif src_ftype_ == FTYPE_DIR:
-                    if not dst_ftype_:
-                        # 1_dir2none
-                        if len(fname_.parts) > 1:
-                            # replace dir name
-                            fname_ = Path(*(fname_.parts[1:]))
-                        output = dest_ / fname_
-                    elif dst_ftype_ == FTYPE_FILE:
-                        # 1_dir2file
-                        raise CommandExecutionError("Invalid --dest semantic")
-                    elif dst_ftype_ == FTYPE_DIR:
-                        # 1_dir2dir
-                        output = dest_ / fname_
-                    else:
-                        raise CommandExecutionError("Invalid --dest semantic")
-                else:
-                    raise CommandExecutionError("Invalid --dest semantic")
-            else:
-                if not dst_ftype_:
-                    # 2_any2none
-                    raise CommandExecutionError("Invalid --dest semantic")
-                elif dst_ftype_ == FTYPE_FILE:
-                    # 2_any2file
-                    raise CommandExecutionError("Invalid --dest semantic")
-                elif dst_ftype_ == FTYPE_DIR:
-                    # 2_any2dir
-                    output = dest_ / fname_
-                else:
-                    raise CommandExecutionError("Invalid --dest semantic")
-
-            return output
-
-        def compute_sync_table(ftype_: FileType):
-            nonlocal sync_table
-
-            """ WORKING ON
-            down_path = Path.cwd() / destpath(base_=Path("."),
-                                              dest_=dest,
-                                              multiple_srcs_=False,
-                                              src_ftype_=ftype_)
-            log.d("SYNC Down path: '%s'", down_path)
-
-            trail = ""
-            if ftype == FTYPE_DIR:
-                if files:
-                    if not files[0].endswith("*"):
-                        trail = files[0]
-                else:
-                    # No path specified, will get the content wrapped into
-                    # a folder with the rcwd name
-                    trail = conn.current_rcwd()
-                    if not trail or trail == "/":
-                        # No rcwd? we will get the content wrapped into a foler
-                        # with the sharing name
-                        trail = conn.current_sharing_name()
-
-            log.d("SYNC Trail: '%s'", trail)
-            down_path = down_path / trail
-            log.d("SYNC Down path (definitive): '%s'", down_path)
-
-            findings = find(down_path)
-            # Preserve order for perform RM in optimal order (parents first)
-            sync_table = OrderedDict({f_.get("name"): None for f_ in findings})
-            log.d("SYNC computed old_files table\n%s",
-                  "\n".join(sync_table.keys()))
-        
-            
-            """
-            sync_path_base = Path.cwd()
-            sync_table_entries = []
-
-            def add_path_to_sync_table(p):
-                nonlocal sync_table_entries
-                log.d(f"Adding '{p}' hierarchy to SYNC table")
-                # Preserve order for perform RM in optimal order (parents first)
-                findings = find(p)
-                if findings:
-                    sync_table_entries += findings
-
-            if files:
-                for f in files:
-                    sync_path_trail = Path(f).parts[-1]
-                    add_path_to_sync_table(sync_path_base / sync_path_trail)
-            else:
-                # No path specified, will get the content wrapped into
-                # a folder with the rcwd name
-                sync_path_trail = conn.current_rcwd()
-                if not sync_path_trail or sync_path_trail == "/":
-                    # No rcwd? we will get the content wrapped into a folder
-                    # with the sharing name
-                    sync_path_trail = conn.current_sharing_name()
-                add_path_to_sync_table(sync_path_base / sync_path_trail)
-
-
-            sync_table = OrderedDict({f.get("name"): None for f in sync_table_entries})
-            log.d("SYNC table\n" + '\n'.join(sync_table.keys()))
-
-        dest = args.get_option_param(Get.DESTINATION)
-
-        if dest:
-            dest = Path(dest)
-        do_check = Get.CHECK in args
-        quiet = Get.QUIET in args
-        no_hidden = Get.NO_HIDDEN in args
-        sync = Get.SYNC in args
-        preview = Get.PREVIEW in args
-        preview_total_size = 0
-
-        chunk_size = args.get_option_param(Get.CHUNK_SIZE)
-        use_mmap = args.get_option_param(Get.MMAP)
-        #
-        # files = []
-        # multiple_sources = len(args.get_positional()) > 1
-        # for p in args.get_positionals():
-        #     files += (self._remote_paths(p), destpath(
-        #         fname_=p,
-        #         dest_=dest,
-        #         multiple_=multiple_sources,
-        #         src_ftype_=
-        #     ))
-        #
-        # Figure out remote paths (resolving findings)
-        # and fetch the rstat of those, in order to properly
-        # compute the destination (actually needed just in case
-        # of --dest)
-        files = []
-        for p in args.get_positionals():
-            files += self._remote_paths(p)
-
-        # TODO: * not supported for now
-        # if "*" in files and len(files) > 1:
-            # Ensure that only a path parameter is passed with *
-            # raise CommandExecutionError(ClientErrors.STAR_ONLY_ONE_PARAMETER)
-        # files_to_rstat = [f for f in files if f != "*"]
-
-        files_rstat = []
-        if files:
-            log.d(f"files to rstat: {files}")
-            files_rstat_resp = conn.rstat(files)
-            files_rstat = ensure_data_response(files_rstat_resp)
-            files_rstat = [(f, files_rstat[f]) for f in files]
-            log.d(f"remote files rstats: {j(files_rstat)}")
-
-        dest_ftype = None
-        src_ftype = None
-        if dest:
-            dest_ftype = ftype_of(dest)
-            if len(files_rstat) == 0:
-                src_ftype = conn.current_sharing_info().get("ftype")
-                log.d(f"Sharing ftype: {src_ftype}")
-            elif len(files_rstat) == 1:
-                src_ftype = files_rstat[0][1].get("ftype")
-
-
-        if sync and len(files) > 1:
-            # Ensure that only a path parameter is passed with sync
-            raise CommandExecutionError(ClientErrors.SYNC_ONLY_ONE_PARAMETER)
-
-        resp = conn.get(files,
-                        check=do_check, no_hidden=no_hidden,
-                        mmap=use_mmap, chunk_size=chunk_size)
-        ensure_success_response(resp)
-
-        transfer_socket = conn._stream._socket
-
-        # Overwrite preference
-        if [Get.OVERWRITE_YES in args, Get.OVERWRITE_NO in args,
-            True if (Get.OVERWRITE_NEWER in args or Get.OVERWRITE_DIFF_SIZE in args) else False,
-            Get.SYNC in args].count(True) > 1:
-            log.e("Only one between -n, -y, -s and (-N and/or -S) can be specified")
-            raise CommandExecutionError("Only one between -n, -y, -s and (-N and/or -S) can be specified")
-
-        overwrite_policy = OverwritePolicy.PROMPT
-
-        if Get.OVERWRITE_YES in args: # -y
-            overwrite_policy = OverwritePolicy.YES
-        elif Get.OVERWRITE_NO in args: # -n
-            overwrite_policy = OverwritePolicy.NO
-        elif Get.OVERWRITE_NEWER in args and Get.OVERWRITE_DIFF_SIZE in args: # -NS
-            overwrite_policy = OverwritePolicy.NEWER_DIFF_SIZE
-        elif Get.OVERWRITE_NEWER in args: # -N
-            overwrite_policy = OverwritePolicy.NEWER
-        elif Get.OVERWRITE_DIFF_SIZE in args: # -S
-            overwrite_policy = OverwritePolicy.DIFF_SIZE
-        elif Get.SYNC in args: # -s
-            # Sync is the same as -NS but deletes the old files after the transfer
-            overwrite_policy = OverwritePolicy.NEWER_DIFF_SIZE
-
-        log.i(f"Overwrite policy: {overwrite_policy}")
-
-        # Stats
-
-        progressor = None
-
-        timer = Timer(start=True)
-        tot_bytes = 0
-        n_files = 0
-
-        # Errors
-
-        errors = []
-
-        outcome_resp = None
-
-        # If sync is True track the files in the current directory
-        # so that we can remove old files (the one for which no file info
-        # is retrieved from the server) after the transfer completes.
-        sync_table = None
-
-        while True:
-            log.i("Fetching another file info")
-            # The first next() fetch never implies a new file to be put
-            # on the transfer socket.
-            # We have to check whether we want to eventually overwrite
-            # the file, and then tell the server next() if
-            # 1. Really transfer the file
-            # 2. Skip the file
-
-            # If OverwritePolicy.YES transfer immediately since we won't
-            # ask to the user whether overwrite or not.
-            # The only exception is if preview is True, in that case we won't
-            # perform the transfer so do a regular seek
-
-            if overwrite_policy == OverwritePolicy.YES and not preview:
-                action = RequestsParams.GET_NEXT_ACTION_TRANSFER
-            else:
-                action = RequestsParams.GET_NEXT_ACTION_SEEK
-
-            log.i("Action: %s", action)
-
-            get_next_resp = conn.call({
-                RequestsParams.GET_NEXT_ACTION: action
-            })
-
-            ensure_success_response(get_next_resp)
-            data = get_next_resp.get("data")
-
-            finfo: Optional[FileInfo] = None
-
-            if data:
-                finfo = data.get(ResponsesParams.GET_NEXT_FILE)
-
-            if not finfo:
-                log.i("Nothing more to GET")
-                if data and data.get(ResponsesParams.GET_OUTCOME) is not None:
-                    outcome_resp = get_next_resp
-                break
-
-            fname = finfo.get("name")
-            fsize = finfo.get("size")
-            ftype = finfo.get("ftype")
-            fmtime = finfo.get("mtime")
-
-            # local_path = Path(fname)
-            log.d(f"NEXT: '{fname}' [{ftype}]")
-
-            local_path = destpath(fname_=Path(fname),
-                                  dest_=dest,
-                                  multiple_=len(files) > 1,
-                                  src_ftype_=src_ftype,
-                                  dst_ftype_=dest_ftype)
-
-            log.d(f"Computed local path: {local_path}")
-
-            if sync:
-                if sync_table is None:
-                    compute_sync_table(ftype)
-
-                # Remove from the SYNC table eventually
-                # Do the removal for each possible path within local_path
-                # (so that we won't delete parent folder if the change is
-                # inside the children)
-                incremental_path = Path.cwd()
-                for part in local_path.parts:
-                    incremental_path = incremental_path / part
-                    incremental_path_str = str(incremental_path)
-                    log.d("Removing from SYNC table: '%s'", incremental_path_str)
-                    sync_table.pop(incremental_path_str, None)
-
-            # Case: DIR
-            if ftype == FTYPE_DIR:
-                if not local_path.exists():
-                    if preview:
-                        print(green(f"+ [{size_str_justify(0)}] {local_path}"))
-                    else:
-                        log.i("Creating dirs %s", fname)
-                        local_path.mkdir(parents=True, exist_ok=True)
-
-                continue  # No FTYPE_FILE => neither skip nor transfer for next()
-
-            if ftype != FTYPE_FILE:
-                log.w("Cannot handle this ftype")
-                continue  # No FTYPE_FILE => neither skip nor transfer for next()
-
-            # Case: FILE
-            local_path_parent = local_path.parent
-
-            if local_path_parent:
-                if not preview:
-                    log.i("Creating parent dirs %s", local_path_parent)
-                    local_path_parent.mkdir(parents=True, exist_ok=True)
-
-            # Check whether it already exists
-            if local_path.is_file() and action == RequestsParams.GET_NEXT_ACTION_SEEK:
-                log.w("File already exists, asking whether overwrite it (if needed)")
-
-                local_stat = local_path.stat()
-
-                # Overwrite handling
-
-                timer.stop() # Don't take the user time into account
-                current_overwrite_decision, overwrite_policy = self._ask_overwrite(
-                    local_info=create_file_info(local_path, fstat=local_stat),
-                    remote_info=finfo,
-                    current_policy=overwrite_policy
-                )
-                timer.start()
-
-                log.d("Overwrite decision: %s", str(current_overwrite_decision))
-
-                will_accept = False
-
-                if current_overwrite_decision == OverwritePolicy.YES:
-                    will_accept = True
-                elif current_overwrite_decision in OverwritePolicy.NEWERS or \
-                    current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
-
-                    if current_overwrite_decision in OverwritePolicy.NEWERS:
-                        log.d(f"Checking whether skip based on mtime ({local_stat.st_mtime_ns} vs {fmtime})")
-                        will_accept = will_accept or local_stat.st_mtime_ns < fmtime
-
-                    if current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
-                        log.d(f"Checking whether skip based on size ({local_stat.st_size} vs {fsize})")
-                        will_accept = will_accept or local_stat.st_size != fsize
-
-
-                if not will_accept:
-                    log.d("Would have seek, have to tell server to skip %s", fname)
-                    ensure_success_response(conn.call({
-                        RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_SKIP
-                    }))
-                    continue
-
-
-            # Eventually tell the server to begin the transfer
-            # We have to call it now because the server can't know
-            # in advance if we want or not overwrite the file
-
-            if action == RequestsParams.GET_NEXT_ACTION_SEEK:
-
-                if preview:
-                    # Don't transfer
-                    print(green(f"+ [{size_str_justify(fsize)}] {local_path}"))
-                    preview_total_size += fsize
-                    ensure_success_response(conn.call({
-                        RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_SKIP
-                    }))
-                    continue
-                else:
-                    # Regular case, we did a seek and now tell the server to transfer
-                    log.d("Would have seek, have to tell server to transfer %s", fname)
-
-                    get_next_resp = conn.call({
-                        RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_TRANSFER
-                    })
-
-                    # The server may say the transfer can't be done actually (e.g. EPERM)
-                    if is_success_response(get_next_resp):
-                        log.d("Transfer can actually begin")
-                    elif is_error_response(get_next_resp):
-                        log.w("Transfer cannot be initialized due to remote error")
-
-                        errors += get_next_resp.get("errors")
-
-                        # All the errors will be reported at the end
-                        continue
-                    else:
-                        raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
-
-            # else: file already put into the transfer socket
-
-            # At this point the server is sending us the file
-            if not quiet:
-                progressor = FileProgressor(
-                    fsize,
-                    description="GET " + fname,
-                    color_progress=PROGRESS_COLOR,
-                    color_success=SUCCESS_COLOR,
-                    color_error=ERROR_COLOR
-                )
-
-            log.i("Opening %s locally", fname)
-            f = local_path.open("wb")
-
-            cur_pos = 0
-            expected_crc = 0
-
-            while cur_pos < fsize:
-                recv_size = min(chunk_size or BEST_BUFFER_SIZE, fsize - cur_pos)
-                # log.i("Waiting chunk... (expected size: %dB)",  recv_size)
-
-                chunk = transfer_socket.recv(recv_size)
-
-                if not chunk:
-                    log.i("END")
-                    raise CommandExecutionError()
-
-                chunk_len = len(chunk)
-
-                # log.i("Received chunk of %dB", chunk_len)
-
-                written_chunk_len = f.write(chunk)
-
-                if chunk_len != written_chunk_len:
-                    log.e("Written less bytes than expected; file will probably be corrupted")
-                    return # Really don't know how to recover from this disaster
-
-                cur_pos += chunk_len
-                tot_bytes += chunk_len
-
-                if do_check:
-                    # Eventually update the CRC
-                    expected_crc = zlib.crc32(chunk, expected_crc)
-
-                if not quiet:
-                    progressor.update(cur_pos)
-
-
-            log.i("DONE %s", fname)
-            log.d("- crc = %d", expected_crc)
-
-            f.close()
-
-            # Adjust the mtime based on the remote
-            log.d(f"Setting mtime = {fmtime}")
-            set_mtime(local_path, fmtime)
-
-            # Eventually do CRC check
-            if do_check:
-                # CRC check on the received bytes
-                crc = btoi(transfer_socket.recv(4))
-                if expected_crc != crc:
-                    log.e("Wrong CRC; transfer failed. expected=%d | written=%d",
-                          expected_crc, crc)
-                    return # Really don't know how to recover from this disaster
-                else:
-                    log.d("CRC check: OK")
-
-                # Length check on the written file
-                written_size = local_path.stat().st_size
-                if written_size != fsize:
-                    log.e("File length mismatch; transfer failed. expected=%s ; written=%d",
-                          fsize, written_size)
-                    return # Really don't know how to recover from this disaster
-                else:
-                    log.d("File length check: OK")
-
-            n_files += 1
-            if not quiet:
-                progressor.success()
 
         # TODO ensure_data_response ret
         # Wait for completion
@@ -2173,7 +1619,7 @@ class Client:
 
         if sync:
             # Check if there are old files to removes
-            log.i("Detected %d removal to do due to sync", len(sync_table))
+            log.i(f"Will do {len(sync_table)} removal due to sync")
 
             # We can avoid some rm if we are deleting a parent folder
             # and sync_table contains the children.
@@ -2183,10 +1629,10 @@ class Client:
             cur_del_path_str = None
             for path_str in sync_table.keys():
                 if cur_del_path_str and path_str.startswith(cur_del_path_str):
-                    log.d("Should remove '%s' but skipping, already deleting parent", path_str)
+                    log.d(f"Should remove '{path_str}' but skipping, already deleting parent")
                     continue
                 # We actually have to delete this
-                log.i("Will remove '%s'", path_str)
+                log.i(f"Will remove '{path_str}'")
 
                 if preview:
                     print(red(f"- {path_str}"))
@@ -2201,7 +1647,7 @@ class Client:
 
                     cur_del_path_str = path_str
 
-        log.i("GET outcome: %d", outcome)
+        log.i(f"GET outcome: {outcome}")
 
         if preview:
             print(f"Download size: {size_str(preview_total_size)}")

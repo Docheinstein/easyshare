@@ -46,7 +46,7 @@ def logged(*tags):
 
 def print_hierarchy(root: Union[Path, str], styler=lambda s: s):
     print(styler("Hierarchy START -----------------------------------------"))
-    print_files_info_tree(tree(Path(root)), show_size=True)
+    print_files_info_tree(tree(Path(root), details=True), show_size=True)
     print(styler("Hierarchy END -------------------------------------------"))
 
 def check_hierarchy(root: Union[Path, str],
@@ -1682,11 +1682,10 @@ def test_get_sync_dir():
             )
 
             check_hierarchy(Path(local_tmp), {
-                "d2": {
-                    "ff1": assert_file,
-                    "ff2": assert_file
-                }
+                "d2": D2
             })
+
+            print_hierarchy(local_tmp)
 
             assert_notexists(willberemoved)
             assert_file(wontberemoved)
