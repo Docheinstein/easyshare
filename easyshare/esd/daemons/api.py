@@ -18,7 +18,7 @@ from easyshare.protocol.requests import Request, is_request, Requests, RequestPa
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response, \
     create_error_of_response, TransferOutcomes, ResponsesParams
 from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType, create_file_info, FTYPE_FILE, FileType, \
-    create_file_info_full
+    create_file_info_full, FileInfo, ftype_of
 from easyshare.sockets import SocketTcp, SocketTcpIn
 from easyshare.ssl import get_ssl_context
 from easyshare.streams import StreamClosedError
@@ -1495,13 +1495,8 @@ class ClientHandler:
         check = params.get(RequestsParams.PUT_CHECK)
         sync = params.get(RequestsParams.PUT_SYNC)
         preview = params.get(RequestsParams.PUT_PREVIEW)
-        dest_single = params.get(RequestsParams.PUT_DEST_SINGLE)
-        dest_multiple = params.get(RequestsParams.PUT_DEST_MULTIPLE)
-
-        if dest_single and dest_multiple:
-            return self._create_error_response(f"Cannot use both {RequestsParams.PUT_DEST_SINGLE} "
-                                               f"and {RequestsParams.PUT_DEST_MULTIPLE}")
-
+        dest = params.get(RequestsParams.PUT_DEST)
+        is_multiple = params.get(RequestsParams.PUT_IS_MULTIPLE)
 
         # Hidden
 
@@ -1516,10 +1511,86 @@ class ClientHandler:
 
         sync_table: Optional[Dict[str, None]] = None
 
+        def compute_dest_path(finfo_: FileInfo):
+            """
+            --dest handling
+
+            |   alias       |    SRC    |    DEST    |   ACTION
+            --------------------------------------------------------------
+                1_file2none      file        ----        write file
+                1_file2file      file        file        overwrite file
+                1_file2dir       file        dir         put file into dir
+                1_dir2none       dir         ----        write dir
+                1_dir2file       dir         file        ERROR
+                1_dir2dir        dir         dir         put dir into dir
+
+                2_any2none       any         ----        ERROR
+                2_any2file       any         file        ERROR
+                2_any2dir        any         dir         put files/dirs into dir
+            """
+            fname_ = Path(finfo_.get("name"))
+
+            if not dest:
+                # i.e.
+                # <rcwd>/<spath>            if spath is relative
+                # <sharing_path>/<spath>    if spath is absolute ( /... )
+                return self._fpath_joining_rcwd_and_spath(fname_)
+
+            source_ftype = "any"
+            if not is_multiple:
+                source_ftype = FTYPE_DIR if len(Path(fname_).parts) > 1 else finfo_.get("ftype")
+
+
+            dest_ftype = ftype_of(self._fpath_joining_rcwd_and_spath(dest))
+
+            log.d(f"Handling destpath for case "
+                  f"{(2 if is_multiple else 1)}_{source_ftype or 'any'}2{dest_ftype or 'none'}")
+
+            if not is_multiple:
+                if source_ftype == FTYPE_FILE:
+                    if not dest_ftype:
+                        # 1_file2none -> write file
+                        output = dest
+                    elif dest_ftype == FTYPE_FILE:
+                        # 1_file2file -> overwrite file
+                        output = dest
+                    elif dest_ftype == FTYPE_DIR:
+                        # 1_file2dir -> put file into dir
+                        output = dest / fname_
+                    else: # WTF
+                        raise ValueError("Invalid --dest semantic")
+                elif source_ftype == FTYPE_DIR:
+                    if not dest_ftype:
+                        # 1_dir2none -> replace dir name
+                        output = dest / Path(*(fname_.parts[1:]))
+                    elif dest_ftype == FTYPE_FILE:
+                        # 1_dir2file -> ERROR
+                        raise ValueError("Invalid --dest semantic: destination must be a directory")
+                    elif dest_ftype == FTYPE_DIR:
+                        # 1_dir2dir
+                        output = dest / fname_
+                    else: # WTF
+                        raise ValueError("Invalid --dest semantic")
+                else:
+                    raise ValueError("Invalid --dest semantic")
+            else:
+                if dest_ftype == FTYPE_FILE:
+                    # 2_any2file (ok)
+                    raise ValueError("Invalid --dest semantic: destination must be a directory")
+                elif dest_ftype == FTYPE_DIR:
+                    # 2_any2dir (ok)
+                    output = dest / fname_
+                else:
+                    # 2_any2none (ok)
+                    raise ValueError("Invalid --dest semantic: destination must exists")
+
+            return self._fpath_joining_rcwd_and_spath(output)
+
         def compute_sync_table(fpath: FPath, ftype: FileType):
             nonlocal sync_table
+            raise ValueError("NOT IMPLEMENTED YET")
 
-            if dest_single or dest_multiple:
+            if dest:
                 # TODO handle sync with --dest
                 raise ValueError("--dest with sync not supported yet")
 
@@ -1576,66 +1647,13 @@ class ClientHandler:
 
                 log.i(f"<< PUT_NEXT {j(finfo)}")
 
-                # Compute the local path
-
-                # --- THIS IS TRUE FOR GET (but the concept is the same) ---
-                # if only 1 'src' is transferred                            1
-                #   if 'dest' exists                                        1e
-                #       if 'dest' is a DIR => put 'src' into 'dest'         1e_*2d
-                #       if 'dest' is a FILE                                 1e_?2f
-                #           if 'src' is a FILE => OVERWRITE                 1e_f2f
-                #           [if 'src' is a DIR => ERROR                     1e_d2f]
-                #   if 'dest' does not exists => preserve type of 'src'     1n
-                # if 2+ 'src' are transferred                               2
-                #   if 'dest' exists                                        2e
-                #       if 'dest' is a DIR => put 'src's into 'dest'        2e_*2d
-                #       if 'dest' is a FILE => ERROR                        2e_*2f
-                #   if 'dest' does not exists => ERROR                      2n
-
-                # We have not the concept of "files" (since we are reading put_next one by one)
-                # So dest must be specified  by the client (either as dest_single or dest_multiple)
-                fpath = None
-
-                if not dest_single and not dest_multiple:
-                    # i.e.
-                    # <rcwd>/<spath>            if spath is relative
-                    # <sharing_path>/<spath>    if spath is absolute ( /... )
-                    fpath = self._fpath_joining_rcwd_and_spath(fname)
-                else:
-                    if dest_single:                                   #1
-                        log.d(f"Handling dest_single '{dest_single}'")
-                        dest_single_path = self._fpath_joining_rcwd_and_spath(dest_single)
-                        if dest_single_path.exists():                 #1e
-                            if dest_single_path.is_dir():             #1e_*2d
-                                log.d("#1e_*2d")
-                                fpath = dest_single_path / fname
-                            elif dest_single_path.is_file():
-                                if ftype == FTYPE_FILE:             #1e_f2f
-                                    log.d("#1e_f2f")
-                                    fpath = dest_single_path
-                                else:                               #1e_d2f
-                                    raise ValueError("Invalid --dest semantic (#1e_d2f)")
-                            else:
-                                raise ValueError("Invalid --dest semantic (#1e_?)")
-                        else:                                           # 1n
-                            log.d("#1n")
-                            fpath = dest_single_path
-                    elif dest_multiple:                                 #2
-                        log.d(f"Handling dest_multiple '{dest_multiple}'")
-                        dest_multiple_path = self._fpath_joining_rcwd_and_spath(dest_multiple)
-                        if dest_multiple_path.exists():                 #2e
-                            if dest_multiple_path.is_dir():             #2e_*2d
-                                log.d("#2e_*2d")
-                                fpath = dest_multiple_path / fname
-                            else:                                       #2e_*2f
-                                raise ValueError("Invalid --dest semantic (#2e_*2f)")
-                        else:                                           #2n
-                            raise ValueError("Invalid --dest semantic (#2n)")
+                # Compute local path, taking dest into account
+                fpath = compute_dest_path(finfo)
 
                 log.d(f"fpath = {fpath}")
 
                 if not self._is_fpath_allowed(fpath):
-                    log.e("Path %s is invalid (out of sharing domain)", fpath)
+                    log.e(f"Path '{fpath}' is invalid (out of sharing domain)")
                     self._send_response(self._create_error_response(
                         ServerErrors.INVALID_PATH, q(fname))
                     )
@@ -2001,7 +2019,7 @@ class ClientHandler:
         """
         log.d("spath_of_fpath_rel_to_root for p: %s", p)
         fp = self._as_path(p)
-        log.d("-> fp: %s", fp)
+        log.d(f"-> fp: {fp}")
 
         if self._current_sharing.ftype == FTYPE_FILE:
             if fp != self._current_sharing.path:
@@ -2021,10 +2039,10 @@ class ClientHandler:
         """
         try:
             spath_from_root = self._spath_rel_to_root_of_fpath(p)
-            log.d("Path is allowed for this sharing. spath is: %s", spath_from_root)
+            log.d(f"Path is allowed for this sharing. spath is: {spath_from_root}")
             return True
         except:
-            log.d("Path is not allowed for this sharing: %s", p)
+            log.wexception(f"Path is not allowed for this sharing: {p}")
             return False
 
 

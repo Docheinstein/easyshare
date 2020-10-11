@@ -30,7 +30,7 @@ from easyshare.commands.commands import Commands, Ls, Scan, Info, Tree, Put, Get
     Ping, Find, Rfind, Du, Rdu, Rls, Cd, Mkdir, Pwd, Rm, Mv, Cp, Shell, Rcd, Rtree, Rmkdir, \
     Rpwd, Rrm, Rmv, Rcp, Rshell, Connect, Disconnect, Open, Close, ListSharings, Stat, Rstat
 from easyshare.logging import get_logger
-from easyshare.protocol.requests import RequestsParams
+from easyshare.protocol.requests import RequestsParams, RequestParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
     create_error_of_response, ResponsesParams, Response
 from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, FTYPE_FILE, \
@@ -1742,16 +1742,8 @@ class Client:
         # Errors
         errors = []
 
-        put_params = {
-            "check": do_check,
-            "sync": sync,
-            "preview": preview
-        }
-
-        if dest:
-            put_params["dest_multiple" if len(files) > 1 else "dest_single"] = dest
-
-        resp = conn.put(**put_params)
+        resp = conn.put(check=do_check, sync=sync, preview=preview,
+                        dest=dest, is_multiple= True if len(files) > 1 else False)
         ensure_success_response(resp)
 
 
