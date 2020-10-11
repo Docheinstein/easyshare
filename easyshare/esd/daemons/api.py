@@ -1574,7 +1574,7 @@ class ClientHandler:
                     log.w("Unspecified overwrite, using PROMPT")
                     overwrite = RequestsParams.PUT_NEXT_OVERWRITE_PROMPT
 
-                log.i("<< PUT_NEXT %s", j(finfo))
+                log.i(f"<< PUT_NEXT {j(finfo)}")
 
                 # Compute the local path
 
@@ -1661,7 +1661,7 @@ class ClientHandler:
                     for part in fpath.parts:
                         incremental_path = incremental_path / part
                         incremental_path_str = str(incremental_path)
-                        log.d("Removing from SYNC table: '%s'", incremental_path_str)
+                        log.d(f"Removing from SYNC table: '{incremental_path_str}'")
                         sync_table.pop(incremental_path_str, None)
 
                 already_exists = fpath.exists()
@@ -1670,7 +1670,7 @@ class ClientHandler:
                 if ftype == FTYPE_DIR:
                     # Handle dir now by creating dirs
                     if not preview:
-                        log.i("Creating dirs %s", fpath)
+                        log.i(f"Creating dirs {fpath}")
                         fpath.mkdir(parents=True, exist_ok=True)
                     self._send_response(create_success_response({
                         ResponsesParams.PUT_NEXT_STATUS:
@@ -1689,13 +1689,19 @@ class ClientHandler:
                     fpath_parent = fpath.parent
                     if fpath_parent:
                         if not preview:
-                            log.i("Creating parent dirs %s", fpath_parent)
+                            log.i(f"Creating parent dirs {fpath_parent}")
                             fpath_parent.mkdir(parents=True, exist_ok=True)
 
                 # Check whether it already exists
                 if fpath.is_file():
-                    log.w("File already exists; deciding what to do based on overwrite policy: %s",
-                          overwrite)
+                    def skip_transfer():
+                        self._send_response(create_success_response({
+                            ResponsesParams.PUT_NEXT_STATUS:
+                                ResponsesParams.PUT_NEXT_STATUS_REFUSED,
+                            ResponsesParams.PUT_NEXT_ALREADY_EXISTS: already_exists
+                        }))
+
+                    log.w(f"File already exists; deciding what to do based on overwrite policy: {overwrite}")
 
                     # Take a decision based on the overwrite policy
                     if overwrite == RequestsParams.PUT_NEXT_OVERWRITE_PROMPT:
@@ -1726,15 +1732,16 @@ class ClientHandler:
                         if will_accept:
                             log.d("Will accept file")
                         else:
-                            self._send_response(create_success_response({
-                                ResponsesParams.PUT_NEXT_STATUS:
-                                    ResponsesParams.PUT_NEXT_STATUS_REFUSED,
-                                ResponsesParams.PUT_NEXT_ALREADY_EXISTS: already_exists
-                            }))
+                            skip_transfer()
                             continue
 
                     elif overwrite == RequestsParams.PUT_NEXT_OVERWRITE_YES:
                         log.d("Overwrite policy is YES, overwriting it unconditionally")
+
+                    elif overwrite == RequestsParams.PUT_NEXT_OVERWRITE_NO:
+                        log.d("Overwrite policy is NO, skipping it")
+                        skip_transfer()
+                        continue
 
                 # Before accept it for real, try to open the file.
                 # At least we are able to detect any error (e.g. perm denied)
@@ -1818,7 +1825,7 @@ class ClientHandler:
                 readlen = min(incoming_size - cur_pos, BEST_BUFFER_SIZE)
 
                 # Read from the remote
-                log.d("Waiting a chunk of %dB", readlen)
+                log.h(f"Waiting a chunk of {readlen}B")
                 chunk = transfer_socket.recv(readlen)
 
                 if not chunk:
@@ -1826,7 +1833,7 @@ class ClientHandler:
                     log.i("Finished to handle: %s", incoming_fpath)
                     break
 
-                log.d("Received chunk of %dB", len(chunk))
+                log.h(f"Received chunk of {len(chunk)}B")
                 cur_pos += len(chunk)
 
                 if check:
@@ -1835,11 +1842,11 @@ class ClientHandler:
 
                 local_fd.write(chunk)
 
-                log.d("%d/%d (%.2f%%)", cur_pos, incoming_size, cur_pos / incoming_size * 100)
+                log.h(f"{cur_pos}/{incoming_size}")
 
                 # time.sleep(0.5)
 
-            log.i("Closing file %s", incoming_fpath)
+            log.i(f"Closing file {incoming_fpath}")
             local_fd.close()
 
             # Adjust the mtime based on the remote
@@ -1851,8 +1858,7 @@ class ClientHandler:
                 # CRC check on the received bytes
                 expected_crc = btoi(transfer_socket.recv(4))
                 if expected_crc != crc:
-                    log.e("Wrong CRC; transfer failed. expected=%d | written=%d",
-                          expected_crc, crc)
+                    log.e(f"Wrong CRC; transfer failed. expected={expected_crc} | written={crc}")
                     errors.append(create_error_of_response(ServerErrors.PUT_CHECK_FAILED,
                                                            *self._qspathify(incoming_fpath)))
                     break
@@ -1888,10 +1894,10 @@ class ClientHandler:
             cur_del_path_str = None
             for path_str in sync_table.keys():
                 if cur_del_path_str and path_str.startswith(cur_del_path_str):
-                    log.d("Should remove '%s' but skipping, already deleting parent", path_str)
+                    log.d(f"Should remove '{path_str}' but skipping, already deleting parent")
                     continue
                 # We actually have to delete this
-                log.i("Will remove '%s'", path_str)
+                log.i(f"Will remove '{path_str}'")
 
                 p = Path(path_str)
 

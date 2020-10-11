@@ -29,19 +29,19 @@ class Logger:
                   msg, *args, **kwargs)
 
     def i(self, msg, *args, **kwargs):
-        self._log(VERBOSITY_INFO, blue("[INFO]  "), None,
+        self._log(VERBOSITY_INFO, blue("[INFO]  "), sys._getframe(1).f_lineno,
                   msg, *args, **kwargs)
 
     def d(self, msg, *args, **kwargs):
-        self._log(VERBOSITY_DEBUG, green("[DEBUG] "), None,
+        self._log(VERBOSITY_DEBUG, green("[DEBUG] "), sys._getframe(1).f_lineno,
                   msg, *args, **kwargs)
 
     def h(self, msg, *args, **kwargs):
-        self._log(VERBOSITY_HUGE, black("[HUGE] "), None,
+        self._log(VERBOSITY_HUGE, black("[HUGE] "), sys._getframe(1).f_lineno,
                   msg, *args, **kwargs)
 
     def x(self, tag, msg, *args, **kwargs):
-        self._log(VERBOSITY_DEBUG, magenta(f"[{tag}] "), None,
+        self._log(VERBOSITY_DEBUG, magenta(f"[{tag}] "), sys._getframe(1).f_lineno,
                   msg, *args, **kwargs)
 
     def eexception(self, msg, *args, **kwargs):
@@ -60,7 +60,7 @@ class Logger:
             return
 
         if lineno is not None:
-            print(prefix + "{" + self._tag + f":{sys._getframe(1).f_lineno}" + "}", msg, *args, **kwargs)
+            print(prefix + "{" + self._tag + f":{lineno}" + "}", msg, *args, **kwargs)
         else:
             print(prefix + "{" + self._tag + "}", msg, *args, **kwargs)
 
