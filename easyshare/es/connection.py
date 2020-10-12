@@ -415,12 +415,11 @@ class ConnectionMinimal:
 
     @handle_connection_response
     @require_sharing_connection
-    def put(self, check: bool, sync: bool, preview: bool,
+    def put(self, check: bool, preview: bool,
             dest: Optional[str] = None,
             is_multiple: Optional[bool] = None) -> Response:
         return self.call(create_request(Requests.PUT, {
             RequestsParams.PUT_CHECK: check,
-            RequestsParams.PUT_SYNC: sync,
             RequestsParams.PUT_PREVIEW: preview,
             RequestsParams.PUT_DEST: dest,
             RequestsParams.PUT_IS_MULTIPLE: is_multiple,

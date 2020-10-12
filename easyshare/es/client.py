@@ -1192,7 +1192,7 @@ class Client:
         # If sync is True track the files in the current directory
         # so that we can remove old files (the one for which no file info
         # is retrieved from the server) after the transfer completes.
-        sync_table = None
+        sync_table: Optional[Dict] = None
 
         def compute_sync_table():
             nonlocal sync_table
@@ -1224,6 +1224,7 @@ class Client:
                     sync_path_trail = conn.current_sharing_name()
                 add_path_to_sync_table(sync_path / sync_path_trail)
 
+            # Preserve order for perform RM in optimal order (parents first)
             sync_table = OrderedDict({entry.get("name"): None for entry in sync_table_entries})
             log.d(f"SYNC table computed ({len(sync_table_entries)})\n" +
                   "\n".join(sync_table.keys()))
@@ -1354,7 +1355,6 @@ class Client:
 
             log.d(f"Computed local path: {local_path}")
 
-            # TODO
             if sync:
                 if sync_table is None:
                     compute_sync_table()
@@ -1690,7 +1690,13 @@ class Client:
         for p in args.get_positionals():
             files += self._local_paths(p)
 
-        sendfiles: Deque[Tuple[Path, Path]] = deque([])
+        class SendFile:
+            def __init__(self, local_path: Path, remote_path: Path, do_sync: bool):
+                self.local_path = local_path
+                self.remote_path = remote_path
+                self.do_sync = do_sync
+
+        sendfiles: Deque[SendFile] = deque([])
 
         if len(files) == 0:
             files = [Path(".")]
@@ -1742,7 +1748,7 @@ class Client:
         # Errors
         errors = []
 
-        resp = conn.put(check=do_check, sync=sync, preview=preview,
+        resp = conn.put(check=do_check, preview=preview,
                         dest=dest, is_multiple= True if len(files) > 1 else False)
         ensure_success_response(resp)
 
@@ -1767,14 +1773,13 @@ class Client:
             rpath = Path(fpath.name)
 
             log.d(f"p(f) = {p}")
-
             log.d(f"rpath(f) = {rpath}")
 
-            sendfile = (fpath, rpath)
+            sendfile = SendFile(local_path=fpath, remote_path=rpath, do_sync=sync)
             log.i(f"Adding sendfile {sendfile}")
             sendfiles.appendleft(sendfile)
 
-        def send_file(local_path: Path, remote_path: Path):
+        def send_file(sendfile: SendFile):
             nonlocal overwrite_policy
             nonlocal tot_bytes
             nonlocal n_files
@@ -1785,7 +1790,7 @@ class Client:
 
             # Create the file info for the local file, but set the
             # remote path as name
-            finfo = create_file_info(local_path, name=str(remote_path))
+            finfo = create_file_info(sendfile.local_path, name=str(sendfile.remote_path))
 
             if not finfo:
                 return
@@ -1803,32 +1808,33 @@ class Client:
                 log.d("Trying to open file before initializing transfer")
 
                 try:
-                    local_fd = local_path.open("rb")
-                    log.d(f"Opened: {local_path}")
+                    local_fd = sendfile.local_path.open("rb")
+                    log.d(f"Opened: {sendfile.local_path}")
                 except FileNotFoundError:
                     errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
-                                                             q(next_file_local)))
+                                                             q(sendfile.local_path)))
                     return
                 except PermissionError:
                     errors.append(create_error_of_response(ClientErrors.PERMISSION_DENIED,
-                                                             q(next_file_local)))
+                                                             q(sendfile.local_path)))
                     return
                 except OSError as oserr:
                     errors.append(create_error_of_response(ClientErrors.ERR_2,
                                                            os_error_str(oserr),
-                                                            q(next_file_local)))
+                                                            q(sendfile.local_path)))
                     return
                 except Exception as exc:
                     errors.append(create_error_of_response(ClientErrors.ERR_2,
                                                            exc,
-                                                           q(next_file_local)))
+                                                           q(sendfile.local_path)))
                     return
 
             log.d("doing a put_next")
 
             put_next_resp = conn.call({
                 RequestsParams.PUT_NEXT_FILE: finfo,
-                RequestsParams.PUT_NEXT_OVERWRITE: overwrite_policy
+                RequestsParams.PUT_NEXT_OVERWRITE: overwrite_policy,
+                RequestsParams.PUT_NEXT_SYNC: sendfile.do_sync
             })
 
             if is_error_response(put_next_resp):
@@ -1847,8 +1853,8 @@ class Client:
             if ftype == FTYPE_DIR:
                 log.d("Sent a DIR, nothing else to do")
                 if preview and not already_exists:
-                    if str(remote_path) != ".": # dirty fix, I won't want to see . in the preview
-                        print(green(f"+ [{size_str_justify(0)}] {remote_path}"))
+                    if str(sendfile.remote_path) != ".": # dirty fix, I won't want to see . in the preview
+                        print(green(f"+ [{size_str_justify(0)}] {sendfile.remote_path}"))
                 return
 
             # Case: FILE
@@ -1879,7 +1885,7 @@ class Client:
                 timer.start()
 
                 if current_overwrite_decision == OverwritePolicy.NO:
-                    log.i(f"Skipping {remote_path}")
+                    log.i(f"Skipping {sendfile.remote_path}")
                     return
 
                 # If overwrite policy is NEWER or YES we have to tell it
@@ -1909,7 +1915,7 @@ class Client:
             status = resp_data.get(ResponsesParams.PUT_NEXT_STATUS)
 
             if status == ResponsesParams.PUT_NEXT_STATUS_REFUSED:
-                log.i(f"Skipping {remote_path}")
+                log.i(f"Skipping {sendfile.remote_path}")
                 return
 
             if status != ResponsesParams.PUT_NEXT_STATUS_ACCEPTED:
@@ -1919,14 +1925,14 @@ class Client:
 
             if preview:
                 # Just a preview, nothing to transfer
-                print(green(f"+ [{size_str_justify(fsize)}] {remote_path}"))
+                print(green(f"+ [{size_str_justify(fsize)}] {sendfile.remote_path}"))
                 preview_total_size += fsize
                 return
 
             if not quiet:
                 progressor = FileProgressor(
                     fsize,
-                    description="PUT " + str(remote_path),
+                    description="PUT " + str(sendfile.remote_path),
                     color_progress=PROGRESS_COLOR,
                     color_success=SUCCESS_COLOR,
                     color_error=ERROR_COLOR
@@ -1959,7 +1965,7 @@ class Client:
                     crc = zlib.crc32(chunk, crc)
 
                 if not chunk:
-                    log.i(f"Finished {local_path}")
+                    log.i(f"Finished {sendfile.local_path}")
                     break
 
                 transfer_socket.send(chunk)
@@ -1969,7 +1975,7 @@ class Client:
                 if not quiet:
                     progressor.update(cur_pos)
 
-            log.i(f"DONE {local_path}")
+            log.i(f"DONE {sendfile.local_path}")
             log.d(f"- crc = {crc}")
 
             if do_check:
@@ -1986,67 +1992,67 @@ class Client:
 
         while sendfiles:
             log.i("Putting another file info")
-            next_file = sendfiles.pop()
+            next_sendfile = sendfiles.pop()
 
             # Check what is this
             # 1. Non existing: skip
             # 2. Hidden: skip if is_hidden = True
             # 2. A file: send it directly (parent dirs won't be replicated)
             # 3. A dir: send it recursively
-            next_file_local, next_file_remote = next_file
 
-            if no_hidden and is_hidden(next_file_local):
-                log.d(f"Not sending {next_file_local} since no_hidden is True")
-            elif next_file_local.is_file():
+            if no_hidden and is_hidden(next_sendfile.local_path):
+                log.d(f"Not sending {next_sendfile.local_path} since no_hidden is True")
+            elif next_sendfile.local_path.is_file():
                 # Send it directly
                 log.d("-> is a FILE")
-                send_file(next_file_local, next_file_remote)
-            elif next_file_local.is_dir():
+                send_file(next_sendfile)
+            elif next_sendfile.local_path.is_dir():
                 # Send it recursively
 
                 log.d("-> is a DIR")
 
                 try:
-                    dir_files: List[Path] = sorted(list(next_file_local.iterdir()), reverse=False)
+                    dir_files: List[Path] = sorted(list(next_sendfile.local_path.iterdir()),
+                                                   reverse=False)
                 except FileNotFoundError:
                     errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
-                                                             q(next_file_local)))
+                                                             q(next_sendfile.local_path)))
                     continue
                 except PermissionError:
                     errors.append(create_error_of_response(ClientErrors.PERMISSION_DENIED,
-                                                             q(next_file_local)))
+                                                             q(next_sendfile.local_path)))
                     continue
                 except OSError as oserr:
                     errors.append(create_error_of_response(ClientErrors.ERR_2,
                                                            os_error_str(oserr),
-                                                            q(next_file_local)))
+                                                            q(next_sendfile.local_path)))
                     continue
                 except Exception as exc:
                     errors.append(create_error_of_response(ClientErrors.ERR_2,
                                                            exc,
-                                                           q(next_file_local)))
+                                                           q(next_sendfile.local_path)))
                     continue
 
 
                 # Directory found
-
-                if sync:
-                    log.d("Sending the directory finfo as first since sync is True")
-                    send_file(next_file_local, next_file_remote)
+                if next_sendfile.do_sync or not dir_files:
+                    log.d(f"Sending the directory finfo anyway since "
+                          f"{'sync is True' if next_sendfile.do_sync else ' directory is empty'}")
+                    send_file(next_sendfile)
 
                 if dir_files:
                     # standard case
                     log.i("Found a filled directory: adding all inner files to remaining_files")
                     for file_in_dir in dir_files:
-                        sendfile = (file_in_dir, next_file_remote / file_in_dir.name)
-                        log.i(f"Adding sendfile {sendfile}")
-                        sendfiles.appendleft(sendfile)
-                elif not sync: # if sync is True the finfo is already sent
-                    log.i("Found an empty directory")
-                    log.d("Pushing an info for the empty directory")
-                    send_file(next_file_local, next_file_remote)
+                        # do_sync is always False, only the top directory has it = True
+                        child_sendfile = SendFile(
+                            local_path=file_in_dir,
+                            remote_path=next_sendfile.remote_path / file_in_dir.name,
+                            do_sync=False)
+                        log.i(f"Adding sendfile {child_sendfile}")
+                        sendfiles.appendleft(child_sendfile)
             else:
-                log.w(f"Failed to send '{next_file_local}': unknown file type, doing nothing")
+                log.w(f"Failed to send '{next_sendfile.local_path}': unknown file type, doing nothing")
 
         log.i("Sending DONE")
 
@@ -2099,8 +2105,8 @@ class Client:
 
         # SYNC stats
         if sync:
-            outcome_sync_rm_oks = outcome_resp_data.get("sync_oks")
-            outcome_sync_rm_errors = outcome_resp_data.get("sync_errors")
+            outcome_sync_rm_oks = outcome_resp_data.get("sync_oks") or []
+            outcome_sync_rm_errors = outcome_resp_data.get("sync_errors") or []
 
             print("=======================")
             print(f"SYNC removed: {len(outcome_sync_rm_oks)}")

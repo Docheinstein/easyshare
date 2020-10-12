@@ -98,12 +98,12 @@ class RequestsParams:
     GET_NEXT_ACTIONS = [GET_NEXT_ACTION_SEEK, GET_NEXT_ACTION_TRANSFER, GET_NEXT_ACTION_SKIP]
 
     PUT_CHECK = "check"
-    PUT_SYNC = "sync"
     PUT_PREVIEW = "preview"
     PUT_DEST = "dest"
     PUT_IS_MULTIPLE = "is_multiple"
 
     PUT_NEXT_FILE = "file"
+    PUT_NEXT_SYNC = "sync"
     PUT_NEXT_OVERWRITE = "overwrite"
     PUT_NEXT_OVERWRITE_PROMPT = "prompt"
     PUT_NEXT_OVERWRITE_YES = "yes"

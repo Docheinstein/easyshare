@@ -1493,7 +1493,6 @@ class ClientHandler:
     @require_write_permission
     def _put(self, params: RequestParams):
         check = params.get(RequestsParams.PUT_CHECK)
-        sync = params.get(RequestsParams.PUT_SYNC)
         preview = params.get(RequestsParams.PUT_PREVIEW)
         dest = params.get(RequestsParams.PUT_DEST)
         is_multiple = params.get(RequestsParams.PUT_IS_MULTIPLE)
@@ -1510,6 +1509,7 @@ class ClientHandler:
         outcome = TransferOutcomes.SUCCESS
 
         sync_table: Optional[Dict[str, None]] = None
+        sync_table_entries = []
 
         def compute_dest_path(finfo_: FileInfo):
             """
@@ -1586,29 +1586,25 @@ class ClientHandler:
 
             return self._fpath_joining_rcwd_and_spath(output)
 
-        def compute_sync_table(fpath: FPath, ftype: FileType):
+        def add_to_sync_table(fpath: FPath, ftype: FileType):
+            nonlocal sync_table_entries
+
+            # sync_path = fpath if ftype == FTYPE_DIR else fpath.parent
+            log.d(f"Sync path: '{fpath}'")
+
+            findings = find(fpath)
+            sync_table_entries += findings
+
+            log.d(f"# sync table entries = {len(sync_table_entries)}")
+            log.d(f"{j(sync_table_entries)}")
+
+        def compute_sync_table():
             nonlocal sync_table
-            raise ValueError("NOT IMPLEMENTED YET")
 
-            if dest:
-                # TODO handle sync with --dest
-                raise ValueError("--dest with sync not supported yet")
-
-            if sync_table:
-                log.e("Sync table already initialized, only a directory/file can be pushed with --sync")
-                # TODO: raise exception known (instead of command exec failed)...
-                raise ValueError("Sync table already initialized, "
-                                 "only a directory/file can be pushed with --sync")
-
-            up_path = fpath if ftype == FTYPE_DIR else fpath.parent
-            log.d("SYNC Up path: '%s'", up_path)
-
-            findings = find(up_path)
             # Preserve order for perform RM in optimal order (parents first)
-            sync_table = OrderedDict({f.get("name"): None for f in findings})
-            log.d("SYNC computed old_files table\n%s",
+            sync_table = OrderedDict({entry.get("name"): None for entry in sync_table_entries})
+            log.d(f"SYNC table computed ({len(sync_table_entries)})\n" +
                   "\n".join(sync_table.keys()))
-
 
         def put_next():
             while True:
@@ -1622,6 +1618,7 @@ class ClientHandler:
 
                 # File info
                 finfo = req.get(RequestsParams.PUT_NEXT_FILE)
+                do_sync = req.get(RequestsParams.PUT_NEXT_SYNC)
 
                 if not finfo:
                     log.i("<< PUT_NEXT DONE")
@@ -1661,26 +1658,30 @@ class ClientHandler:
 
                 log.d("Sharing domain check OK")
 
-                # If sync is True track the files in the current directory
+                # If sync is True track the files in the directory
                 # so that we can remove old files (the one for which no file info
                 # is retrieved from the server) after the transfer completes.
-                if sync:
-                    # Only the first push determines the directory the be pushed
-                    # (Therefore the client have to send the finfo of the root folder first)
+                if do_sync:
                     if sync_table is None:  # check is None because if the dir is new
                                             # sync table could be already initialized but empty
-                        compute_sync_table(fpath, ftype)
+                        add_to_sync_table(fpath, finfo)
 
                     # Remove from the SYNC table eventually
                     # Do the removal for each possible path within local_path
                     # (so that we won't delete parent folder if the change is
                     # inside the children)
+
+                if sync_table_entries:
                     incremental_path = Path.cwd()
                     for part in fpath.parts:
                         incremental_path = incremental_path / part
                         incremental_path_str = str(incremental_path)
                         log.d(f"Removing from SYNC table: '{incremental_path_str}'")
-                        sync_table.pop(incremental_path_str, None)
+                        try:
+                            sync_table_entries.remove(incremental_path_str)
+                            log.d(f"Actually removed, len is now = {len(sync_table_entries)}")
+                        except:
+                            pass
 
                 already_exists = fpath.exists()
 
@@ -1897,12 +1898,14 @@ class ClientHandler:
 
         log.i("PUT finished")
 
+        compute_sync_table()
+
         sync_rm_oks = []
         sync_rm_errs = []
 
-        if sync and sync_table:
+        if sync_table:
             # Check if there are old files to removes
-            log.i("Detected %d removal to do due to sync", len(sync_table))
+            log.i(f"Will do {len(sync_table)} removal due to sync")
 
             # We can avoid some rm if we are deleting a parent folder
             # and sync_table contains the children.
@@ -1940,7 +1943,7 @@ class ClientHandler:
         if errors:
             resp_data[ResponsesParams.PUT_ERRORS] = errors
 
-        if sync:
+        if sync_table:
             resp_data[ResponsesParams.PUT_SYNC_OKS] = sync_rm_oks
             resp_data[ResponsesParams.PUT_SYNC_ERRORS] = sync_rm_errs
 
