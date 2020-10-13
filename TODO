@@ -1,31 +1,27 @@
-IMPOSSIBLEs
-
+TODOs HARD
 - test on windows - create an exe
-- Add more unit tests
-- Handle addresses instead of numeric IPs
-- Info/debug messages re-partition
+- handle addresses instead of numeric IPs
+- info/debug messages re-partition
 - GUI?
+- implement * for rm/get/put
 
 TODOs
-
-- don't throw commexecerror on xls() xtree() xfind()
+- convert %s -> fstring
 - errors refactor
-- fix get for FILEs which adds \.
-- why after transfer some files to SD, put -S tries to overwrite all (mtime problem)?
 - the approach of return an outcome does not make sense with multiple command
     probably its just better to print directly in the command
-- rm/rrm *
-- provide suggestion/completion even for options? (tough)
-- --sync with GET and PUT
-- convert %s -> fstring
-- probably is better to remove * support until is well implemented for
-  all cases (e.g. rm *       mv something/* .       get d0/d2/*)
-- consider adding another logging level
+
 TO_DEBUGs
+- why after transfer some files to SD (using USB), put -S tries to overwrite all (mtime problem)?
+- don't throw commexecerror on xls() xtree() xfind()    (WTF?)
+- fix get for FILEs which adds \.                       (cant remember what this means)
 - fix 1000MB might happen => 1 characters of space to keep into account
 - testing get/put for single file sharing
 
 DONEs
+- provide suggestion/completion even for options?
+- consider adding another logging level
+- --sync with GET and PUT
 - allow -d <dest> for get and put
 - transfer reverses order (GET 10 11 12..)
 - alias supporting multiple commands?
