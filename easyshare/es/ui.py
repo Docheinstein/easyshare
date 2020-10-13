@@ -43,28 +43,28 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None,
     if not strings:
         return
 
-    log.d("print_tabulated - len(strings) %d", len(strings))
+    log.d(f"print_tabulated - len(strings) {len(strings)}")
 
     term_cols, _ = terminal_size()
-    log.d("print_tabulated - term_cols %d", term_cols)
+    log.d(f"print_tabulated - term_cols {term_cols}")
 
     longest_string_length = len(str(max(strings, key=lambda ss: len(str(ss)))))
-    log.d("print_tabulated - longest_match_length %d", longest_string_length)
+    log.d(f"print_tabulated - longest_match_length {longest_string_length}")
 
     min_col_width = longest_string_length + 2
-    log.d("print_tabulated - min_col_width %d", min_col_width)
+    log.d(f"print_tabulated - min_col_width {min_col_width}")
 
     max_allowed_cols = max_columns if max_columns else 50
-    log.d("print_tabulated - max_allowed_cols %d", max_allowed_cols)
+    log.d(f"print_tabulated - max_allowed_cols {max_allowed_cols}")
 
     max_fillable_cols = term_cols // min_col_width
-    log.d("print_tabulated - max_fillable_cols %d", max_fillable_cols)
+    log.d(f"print_tabulated - max_fillable_cols {max_fillable_cols}")
 
     display_cols = max(1, min(max_allowed_cols, max_fillable_cols))
-    log.d("print_tabulated - display_cols %d", display_cols)
+    log.d(f"print_tabulated - display_cols {display_cols}")
 
     display_rows = ceil(len(strings) / display_cols)
-    log.d("print_tabulated - display_rows %d", display_rows)
+    log.d(f"print_tabulated - display_rows {display_rows}")
 
     for r in range(0, display_rows):
         print_row = ""
@@ -116,7 +116,7 @@ def file_info_inline_sstr(info: FileInfo,
     fname = info.get("name")
 
     if not show_hidden and is_hidden(fname):
-        log.d("Not showing hidden files: %s", fname)
+        log.d(f"Not showing hidden files: {fname}")
         return None
 
     if info.get("ftype") == FTYPE_DIR:
@@ -206,12 +206,12 @@ def print_files_info_tree(root: TreeNodeDict,
     """ Traverse the 'TreeNodeDict' and prints the 'FileInfo' as a tree (tree like). """
 
     for prefix, node, depth in TreeRenderPreOrder(root, depth=max_depth):
-        log.d("TreeRenderPostOrder over %s", j(node))
+        log.d(f"TreeRenderPostOrder over {j(node)}")
 
         name = node.get("name")
 
         if not show_hidden and is_hidden(name):
-            log.d("Not showing hidden file: %s", name)
+            log.d(f"Not showing hidden file: {name}")
             continue
 
         ftype = node.get("ftype")

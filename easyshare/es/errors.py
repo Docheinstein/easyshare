@@ -265,5 +265,5 @@ def _print_error(err: AnyErr):
     elif is_str(err):
         print(err)
     else:
-        log.w("err expected of type int or str, found %s", type(err))
+        log.w(f"err expected of type int or str, found {type(err)}")
         log.w(stacktrace(color=ansi.FG_YELLOW))

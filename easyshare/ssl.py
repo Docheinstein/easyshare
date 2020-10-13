@@ -18,7 +18,7 @@ _ssl_certs_cache: Dict[Endpoint, dict] = {}
 
 def get_ssl_context() -> Optional[ssl.SSLContext]:
     """ Get the global SSLContext """
-    log.d("get_ssl_context (%s)", "enabled" if _ssl_context else "disabled")
+    log.d(f"get_ssl_context ({'enabled' if _ssl_context else 'disabled'})")
     return _ssl_context
 
 
@@ -28,7 +28,7 @@ def set_ssl_context(ssl_context: Optional[ssl.SSLContext]):
     global _ssl_context
     _ssl_context = ssl_context
 
-    log.i("SSL: %s", "enabled" if _ssl_context else "disabled")
+    log.i(f"SSL: {'enabled' if _ssl_context else 'disabled'}")
 
 
 def get_cached_or_parse_ssl_certificate(
@@ -40,7 +40,7 @@ def get_cached_or_parse_ssl_certificate(
     """
 
     if endpoint not in _ssl_certs_cache:
-        log.d("No cached SSL cert found for %s, fetching and parsing now", endpoint)
+        log.d(f"No cached SSL cert found for {endpoint}, fetching and parsing now")
         cert_bin = peercert_provider()
         cert = None
         try:
@@ -49,7 +49,7 @@ def get_cached_or_parse_ssl_certificate(
             log.eexception("Certificate parsing error occurred")
         _ssl_certs_cache[endpoint] = cert
     else:
-        log.d("Found cached SSL cert for %s", endpoint)
+        log.d(f"Found cached SSL cert for {endpoint}")
 
     return _ssl_certs_cache[endpoint]
 

@@ -70,7 +70,7 @@ class ServerLocation:
             server_port = None
 
         if not server_name and not server_ip:
-            log.w("Invalid server location for '%s'", location)
+            log.w(f"Invalid server location for '{location}'")
             return None
 
         server_location = ServerLocation(
@@ -79,7 +79,7 @@ class ServerLocation:
             port=server_port
         )
 
-        log.d("ServerLocation.parse() -> %s", str(server_location))
+        log.d(f"ServerLocation.parse() -> {server_location}")
 
         return server_location
 
@@ -141,7 +141,7 @@ class SharingLocation:
         server_location = ServerLocation.parse(server_locator)
 
         if not sharing_name:
-            log.w("Invalid sharing location for '%s'", location)
+            log.w(f"Invalid sharing location for '{location}'")
             return None
 
         sharing_location = SharingLocation(
@@ -150,6 +150,6 @@ class SharingLocation:
             path=sharing_path
         )
 
-        log.d("SharingLocation.parse() -> %s", str(sharing_location))
+        log.d(f"SharingLocation.parse() -> {sharing_location}")
 
         return sharing_location

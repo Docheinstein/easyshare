@@ -65,7 +65,7 @@ class Conf:
 
             cfg = open(path, "r")
 
-            log.i("Parsing config file %s", path)
+            log.i(f"Parsing config file {path}")
 
             current_keys_parsers = sections_parsers.get(None)
 
@@ -83,7 +83,7 @@ class Conf:
 
                 line = line.strip()
 
-                log.i(">> %s", line)
+                log.i(f">> {line}")
 
                 # Skip comment
                 if is_comment(line):
@@ -103,7 +103,7 @@ class Conf:
                             break
 
                 if new_section_found:
-                    log.i("Adding new section: '%s'", current_section_name)
+                    log.i(f"Adding new section: '{current_section_name}'")
                     # Add the section to the parsed sections
                     current_section = {}
                     parsed.append((current_section_name, current_section))
@@ -115,7 +115,7 @@ class Conf:
 
                 if key == line:
                     if line:
-                        log.w("Skipping unrecognized line: '%s'", line)
+                        log.w(f"Skipping unrecognized line: '{line}'")
                     continue
 
                 # Found a line with <key>=<value>
@@ -123,14 +123,14 @@ class Conf:
 
                 key = key.strip()  # just in case
                 val = val.strip()  # just in case
-                log.d("%s=%s", key, val)
+                log.d(f"{key}={val}")
 
                 parser_found = False
 
                 # Pass the key,val to the right parser
                 for parser_key, parser_func in current_keys_parsers.items():
                     if re.match(parser_key, key):
-                        log.d("Passing '%s' to known parser", key)
+                        log.d(f"Passing '{key}' to known parser")
                         parsed_val = parser_func(current_section_name, key, val)
                         current_section[key] = parsed_val
                         parser_found = True
@@ -139,7 +139,7 @@ class Conf:
                         log.d(f"Handler '{parser_key}' cannot handle key '{key}'")
 
                 if not parser_found:
-                    log.w("No parser found for key '%s' inside section '%s'", key, current_section)
+                    log.w(f"No parser found for key '{key}' inside section '{current_section}'")
 
 
             log.i("Parsing finished")

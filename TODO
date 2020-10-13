@@ -6,12 +6,12 @@ TODOs HARD
 - implement * for rm/get/put
 
 TODOs
-- convert %s -> fstring
 - errors refactor
 - the approach of return an outcome does not make sense with multiple command
     probably its just better to print directly in the command
 
 TO_DEBUGs
+- convert %s -> fstring
 - why after transfer some files to SD (using USB), put -S tries to overwrite all (mtime problem)?
 - don't throw commexecerror on xls() xtree() xfind()    (WTF?)
 - fix get for FILEs which adds \.                       (cant remember what this means)

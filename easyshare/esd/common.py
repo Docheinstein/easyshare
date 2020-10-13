@@ -64,7 +64,7 @@ class Sharing:
         path = LocalPath(path)
 
         if not path.exists():
-            log.w("Nothing exists at path %s", path)
+            log.w(f"Nothing exists at path {path}")
             return None
 
         sh_ftype = ftype_of(path)
@@ -76,7 +76,7 @@ class Sharing:
 
         sh_name = name if name else path.name
         if not name:
-            log.w("Name of sharing not provided, generating a default from path '%s' => '%s'", path, sh_name)
+            log.w(f"Name of sharing not provided, generating a default from path '{path}' => '{sh_name}'")
 
         sh = Sharing(
             name=sh_name,
@@ -85,7 +85,7 @@ class Sharing:
             read_only=True if read_only else False,
         )
 
-        log.i("Created sharing: %s", j(sh._info_internal()))
+        log.i(f"Created sharing: {j(sh._info_internal())}")
 
         return sh
 

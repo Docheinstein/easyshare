@@ -34,12 +34,12 @@ class DiscoverDaemon(UdpDaemon):
             direction=TransferDirection.IN, protocol=TransferProtocol.UDP
         )
 
-        log.i("<< DISCOVER %s", client_endpoint)
-        log.i("Handling discover %s", str(data))
+        log.i(f"<< DISCOVER {client_endpoint}")
+        log.i(f"Handling discover {data}")
 
         response = self.server_info
 
-        log.d("Will send response %s", response)
+        log.d(f"Will send response {response}")
 
         client_discover_response_port = btoi(data)
 
@@ -47,14 +47,13 @@ class DiscoverDaemon(UdpDaemon):
             log.w("Invalid DISCOVER message received, ignoring it")
             return False  # not handled
 
-        log.i("Client response port is %d", client_discover_response_port)
+        log.i(f"Client response port is {client_discover_response_port}")
 
         # Respond to the port the client says in the paylod
         # (not necessary the one from which the request come)
         sock = SocketUdpOut()
 
-        log.d("Sending DISCOVER response back to %s:%d",
-              client_endpoint[0], client_discover_response_port)
+        log.d(f"Sending DISCOVER response back to {client_endpoint[0]}:{client_discover_response_port}")
 
         trace_json(
             response,

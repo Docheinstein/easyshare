@@ -73,24 +73,15 @@ def _socket(mode: TransferProtocol, direction: TransferDirection,
     """ Utility for create a socket for the given parameters """
 
     log.d("Creating raw_socket\n"
-        "\tmode:            %s\n"
-        "\tdirection:       %s\n"
-        "\taddress:         %s\n"
-        "\tport:            %s\n"  
-        "\ttimeout:         %s\n"
-        "\tin  no. allowed: %s\n"
-        "\tSO_REUSEADDR:    %s\n"
-        "\tTCP_NODELAY:     %s\n"
-        "\tSO_BROADCAST:    %s",
-          mode,
-          direction,
-          "<any>" if address == ADDR_ANY else address,
-          "<any>" if port == PORT_ANY else port,
-          timeout,
-          str(pending_connections),
-          reuse_addr,
-          no_delay,
-          broadcast,
+        f"\tmode:            {mode}\n"
+        f"\tdirection:       {direction}\n"
+        f"\taddress:         {'<any>' if address == ADDR_ANY else address}\n"
+        f"\tport:            {'<any>' if port == PORT_ANY else port}\n"  
+        f"\ttimeout:         {timeout}\n"
+        f"\tin  no. allowed: {pending_connections}\n"
+        f"\tSO_REUSEADDR:    {reuse_addr}\n"
+        f"\tTCP_NODELAY:     {no_delay}\n"
+        f"\tSO_BROADCAST:    {broadcast}"
     )
 
     if mode == TransferProtocol.TCP:

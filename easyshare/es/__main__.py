@@ -65,7 +65,7 @@ def main():
                     args.get_option_param(Es.VERBOSE, default=VERBOSITY_MAX))
 
     log.i("{} v. {}".format(APP_NAME_CLIENT, APP_VERSION))
-    log.i("Starting with arguments\n%s", args)
+    log.i(f"Starting with arguments\n{args}")
 
     # Help?
     if Es.HELP in args:
@@ -160,9 +160,9 @@ def main():
         log.w("Disabling colors since detected non-terminal output file")
         colors = False
 
-    log.d("Colors: %s", colors)
-    log.d("Tracing: %s", tracing)
-    log.d("Verbosity: %s", verbosity)
+    log.d(f"Colors: {colors}")
+    log.d(f"Tracing: {tracing}")
+    log.d(f"Verbosity: {verbosity}")
 
     # Set settings
     set_setting(Settings.COLORS, is_styling_supported() and colors)

@@ -27,12 +27,12 @@ def require_server_connection(api):
     Raises a NOT_CONNECTED if is_connected() is False.
     """
     def require_server_connection_wrapper(conn: 'ConnectionMinimal', *vargs, **kwargs) -> Response:
-        log.d("require_server_connection check before invoking '%s'", api.__name__)
+        log.d(f"require_server_connection check before invoking '{api.__name__}'")
         if not conn.is_connected_to_server():
             log.w("require_server_connection: FAILED")
             log.w(stacktrace(color=ansi.FG_YELLOW))
             return create_error_response(ClientErrors.NOT_CONNECTED)
-        log.d("require_connected_connection: OK - invoking '%s'", api.__name__)
+        log.d(f"require_connected_connection: OK - invoking '{api.__name__}'")
         return api(conn, *vargs, **kwargs)
 
     return require_server_connection_wrapper
@@ -45,12 +45,12 @@ def require_sharing_connection(api):
     Raises a NOT_CONNECTED if is_connected() is False.
     """
     def require_sharing_connection_wrapper(conn: 'ConnectionMinimal', *vargs, **kwargs) -> Response:
-        log.d("require_sharing_connection check before invoking '%s'", api.__name__)
+        log.d(f"require_sharing_connection check before invoking '{api.__name__}'")
         if not conn.is_connected_to_sharing():
             log.w("require_sharing_connection: FAILED")
             log.w(stacktrace(color=ansi.FG_YELLOW))
             return create_error_response(ClientErrors.NOT_CONNECTED)
-        log.d("require_sharing_connection: OK - invoking '%s'", api.__name__)
+        log.d(f"require_sharing_connection: OK - invoking '{api.__name__}'")
         return api(conn, *vargs, **kwargs)
 
     return require_sharing_connection_wrapper
@@ -63,9 +63,9 @@ def handle_connection_response(api):
     """
 
     def handle_connection_response_wrapper(conn: 'ConnectionMinimal', *vargs, **kwargs) -> Response:
-        log.d("Invoking '%s' and handling response", api.__name__)
+        log.d(f"Invoking '{api.__name__}' and handling response")
         resp = api(conn, *vargs, **kwargs)
-        log.d("Handling '%s' response", api.__name__)
+        log.d(f"Handling '{api.__name__}' response")
         if is_error_response(resp, ServerErrors.NOT_CONNECTED):
             log.e("Detected NOT_CONNECTED response, destroying connection")
             conn.destroy_connection()
@@ -83,9 +83,8 @@ class ConnectionMinimal:
                  server_ip: str, server_port: int, server_ssl: bool,
                  server_alias: str = None, socket: SocketTcp = None):
         # Might throw ConnectionRefusedError
-        log.i("Initializing new ServerConnection %s:%d%s (SSL=%s)",
-              server_ip, server_port, "(" + server_alias + ")" if server_alias else "",
-              server_ssl)
+        log.i(f"Initializing new ServerConnection {server_ip}:{server_port}"
+              f"{'(' + server_alias + ')' if server_alias else ''} (SSL={server_ssl})")
 
         self._server_ip = server_ip
         self._server_port = server_port
@@ -512,4 +511,4 @@ class Connection(ConnectionMinimal):
         self.server_info["ip"] = server_ip
         self.server_info["port"] = server_port
 
-        log.d("Server connection info: \n%s", j(self.server_info))
+        log.d(f"Server connection info: \n{j(self.server_info)}")

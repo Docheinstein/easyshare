@@ -96,19 +96,17 @@ class Shell:
         """
         while True:
             try:
-                log.d("Connected to server : %s%s",
-                      self._client.is_connected_to_server(),
-                      " ({}:{} {})".format(
-                          self._client.connection.server_info.get("ip"),
-                          self._client.connection.server_info.get("port"),
-                          self._client.connection.server_info.get("name") or ""
-                      ) if self._client.is_connected_to_server() else "")
+                s = " ({}:{} {})".format(
+                    self._client.connection.server_info.get("ip"),
+                    self._client.connection.server_info.get("port"),
+                    self._client.connection.server_info.get("name") or ""
+                  ) if self._client.is_connected_to_server() else ""
+                log.d(f"Connected to server : {self._client.is_connected_to_server()}{s}")
 
-                log.d("Connected to sharing: %s%s",
-                      self._client.is_connected_to_sharing(),
-                      " ({})".format(
-                          self._client.connection.current_sharing_name()
-                      ) if self._client.is_connected_to_sharing() else "")
+                s = " ({})".format(
+                    self._client.connection.current_sharing_name()
+                ) if self._client.is_connected_to_sharing() else ""
+                log.d(f"Connected to sharing: {self._client.is_connected_to_sharing()}{s}")
 
                 try:
                     self._prompt = self._build_prompt_string()
@@ -270,7 +268,7 @@ class Shell:
 
             return outcome
         except ConnectionError:
-            log.eexception("Connection error occurred %s")
+            log.eexception("Connection error occurred")
             print_errors(ClientErrors.CONNECTION_ERROR)
             self._client.destroy_connection()
         except EOFError:
@@ -294,15 +292,15 @@ class Shell:
         try:
             args = parser.parse(command_suffix)
         except ArgsParseError as err:
-            log.e("Command's arguments parse failed: %s", str(err))
+            log.e(f"Command's arguments parse failed: {err}")
             return ClientErrors.INVALID_COMMAND_SYNTAX
 
-        log.i("Parsed command arguments\n%s", args)
+        log.i(f"Parsed command arguments\n{args}")
 
         try:
             return executor(args)
         except Exception as ex:
-            log.eexception("Exception caught while executing command\n%s", ex)
+            log.eexception(f"Exception caught while executing command\n{ex}")
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
     def _init_settings_callbacks(self):
@@ -419,7 +417,7 @@ class Shell:
             readline.rl.mode._print_prompt()
 
         except:
-            log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
+            log.w(f"Exception occurred while displaying suggestions\n{traceback.format_exc()}")
 
     # For Unix
     def _display_suggestions_gnureadline(self, substitution_help, matches, longest_match_length):
@@ -446,7 +444,7 @@ class Shell:
             # Manually print what was displayed (prompt plus content)
             print(self._prompt + self._current_line, end="", flush=True)
         except:
-            log.w("Exception occurred while displaying suggestions\n%s", traceback.format_exc())
+            log.w(f"Exception occurred while displaying suggestions\n{traceback.format_exc()}")
 
 
     COMM_SPACE_RE = re.compile(".* .*")
@@ -505,7 +503,7 @@ class Shell:
                     if resolved_command == comm_name and re.match(Shell.COMM_SPACE_RE, line):
                         # Typing a COMPLETE command
                         # e.g. 'ls \t'
-                        log.d("Fetching suggestions for COMMAND INTENT '%s'", comm_resolved_name)
+                        log.d(f"Fetching suggestions for COMMAND INTENT '{comm_resolved_name}'")
 
                         if comm_info:
                             comms_sugg  = comm_info.suggestions(line, token, self._client)
@@ -513,9 +511,8 @@ class Shell:
                                 # don't let it to be None
                                 self._suggestions_intent = comms_sugg
 
-                                log.d("Fetched (%d) suggestions INTENT for command '%s'",
-                                      len(self._suggestions_intent.suggestions),
-                                      comm_name)
+                                log.d(f"Fetched ({len(self._suggestions_intent.suggestions)}) "
+                                      f"suggestions INTENT for command '{comm_name}'")
                         else:
                             log.w("Null comm info, maybe refers to a multi-command?"
                                   "Not providing suggestions for it")
@@ -528,7 +525,7 @@ class Shell:
                         # e.g. 'clos\t'
 
                         # Case 1: complete command
-                        log.d("Adding suggestion for COMMAND COMPLETION of '%s'", comm_resolved_name)
+                        log.d(f"Adding suggestion for COMMAND COMPLETION of '{comm_resolved_name}'")
                         self._suggestions_intent.suggestions.append(StyledString(comm_name))
                         no_suggestions = False
 
@@ -581,8 +578,8 @@ class Shell:
                 if not is_quoting:
                     sug = escape(sug)
 
-                log.d("Returning suggestion %d: %s", count, sug)
-                log.d("Completion is enabled = %s", self._suggestions_intent.completion)
+                log.d(f"Returning suggestion {count}: {sug}")
+                log.d(f"Completion is enabled = {self._suggestions_intent.completion}")
 
                 # If there is only a suggestion that begins with
                 # this name, complete the suggestion (and eventually insert a space)
@@ -609,7 +606,7 @@ class Shell:
             log.d("END OF suggestions")
             return None
         except:
-            log.w("Exception occurred while retrieving suggestions\n%s", traceback.format_exc())
+            log.w(f"Exception occurred while retrieving suggestions\n{traceback.format_exc()}")
             return None
 
     @staticmethod
@@ -885,7 +882,7 @@ class Shell:
             default=(get_setting(Settings.TRACING) + 1) % (TRACING_MAX + 1)
         )
 
-        log.i(">> TRACING (%d)", level)
+        log.i(f">> TRACING ({level})")
         set_setting(Settings.TRACING, level)
 
         return ClientErrors.SUCCESS
@@ -899,7 +896,7 @@ class Shell:
             default=(get_setting(Settings.VERBOSITY) + 1) % (VERBOSITY_MAX + 1)
         )
 
-        log.i(">> VERBOSE (%d)", verbosity)
+        log.i(f">> VERBOSE ({verbosity})")
         set_setting(Settings.VERBOSITY, verbosity)
 
         return ClientErrors.SUCCESS

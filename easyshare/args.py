@@ -187,7 +187,7 @@ class ArgsParser:
         the parsing, by returning False
         """
         log.d("Starting arguments parsing")
-        log.d("Known options: %s", [o[0] for o in self._options_spec])
+        log.d(f"Known options: {[o[0] for o in self._options_spec]}")
 
         # For keep idempotent
         self._cursor = 0
@@ -201,7 +201,7 @@ class ArgsParser:
             while self._cursor < len(self._args):
                 arg = self._args[self._cursor]
 
-                log.d("Inspecting argument %s", arg)
+                log.d(f"Inspecting argument {arg}")
 
                 # Check whether we can go further
                 if ArgsParser._is_option(arg):
@@ -211,7 +211,7 @@ class ArgsParser:
 
                 if self._continue_parsing_hook:
                     cont = self._continue_parsing_hook(arg, argtype, self._cursor, ret, self._positionals)
-                    log.d("continue: %s", cont)
+                    log.d(f"continue: {cont}")
 
                     if not cont:
                         log.i("Parsed stopped by the continue hook")
@@ -253,7 +253,7 @@ class ArgsParser:
                         chain_idx += 1
                 else:
                     # Positional parg
-                    log.d("Considering '%s' as positional parameter", arg)
+                    log.d(f"Considering '{arg}' as positional parameter")
                     # Add as it is (non parsed) for now,
                     # will parse all the positionals at the end
                     self._positionals.append(arg)
@@ -261,8 +261,8 @@ class ArgsParser:
                 self._cursor += 1
 
             # Parse positionals
-            log.d("%d unparsed args w/o positional: %s", len(self._unparsed), self._unparsed)
-            log.d("%d positional arguments: %s", len(self._positionals), self._positionals)
+            log.d(f"{len(self._unparsed)} unparsed args w/o positional: {self._unparsed}")
+            log.d(f"{len(self._positionals)} positional arguments: {self._positionals}")
 
             # Create the positionals bucket (None), parse the positionals
             # using the positions_spec and add to the bucket
@@ -279,7 +279,7 @@ class ArgsParser:
 
             # Eventually add the remaining to the unparsed
             self._unparsed += self._positionals[parsed_positionals_count:]
-            log.d("%d unparsed args: %s", len(self._unparsed), self._unparsed)
+            log.d(f"{len(self._unparsed)} unparsed args: {self._unparsed}")
             return ret
 
         except Exception as err:
@@ -292,15 +292,15 @@ class ArgsParser:
         associated with an option alias in 'opt_alias'
         """
 
-        log.d("get_bucket (%s)", opt_alias)
+        log.d(f"get_bucket ({opt_alias})")
 
         for option_spec in self._options_spec:
             opt_aliases, opt_params = option_spec
-            log.d("Inspecting aliases: %s", opt_aliases)
+            log.d(f"Inspecting aliases: {opt_aliases}")
             if opt_alias in opt_aliases:
 
                 # Found an alias that matches the argument name
-                log.i("%s", opt_alias)
+                log.i(f"{opt_alias}")
 
                 # Check whether this option was already found,
                 # if not, allocate a new list using this opt_alias
@@ -316,7 +316,7 @@ class ArgsParser:
                     bck = []
                     self._parsed[opt_alias] = bck
 
-                log.d("Returning bucket for %s", opt_alias)
+                log.d(f"Returning bucket for {opt_alias}")
 
                 return bck, option_spec
 
@@ -342,7 +342,7 @@ class ArgsParser:
                 param_ok_hook=param_ok_hook)
             return True
 
-        log.w("Unknown argument: '%s'", opt_alias)
+        log.w(f"Unknown argument: '{opt_alias}'")
         return False
 
     @staticmethod
@@ -360,11 +360,10 @@ class ArgsParser:
         at a certain point for some reason (e.g. don't consider an argument
         as an option parameter for variadic params if it is an option starting with -)
         """
-        log.d("Parsing and appending to bucket...\n"
-              "\t%s\n"
-              "\tparams = %s\n"
-              "\toffset = %d",
-              str(params_spec), params, params_offset)
+        log.d(f"Parsing and appending to bucket...\n"
+              f"\t{params_spec}\n"
+              f"\tparams = {params}\n"
+              f"\toffset = {params_offset}")
 
         param_cursor = 0
 
@@ -382,7 +381,7 @@ class ArgsParser:
 
         while param_cursor < params_spec.mandatory_count:
             param = params[params_offset + param_cursor]
-            log.d("[%d] Mandatory: checking validity: param_ok_hook('%s')", param_cursor, param)
+            log.d(f"[{param_cursor}] Mandatory: checking validity: param_ok_hook('{param}')")
 
             if not param_ok_hook(param):
                 raise ValueError("invalid parameter for feed argument '{}'".format(param))
@@ -401,7 +400,7 @@ class ArgsParser:
             if params_offset + param_cursor < len(params):
                 # There is this optional param, check if is valid
                 param = params[params_offset + param_cursor]
-                log.d("[%d] Optional: checking validity: param_ok_hook('%s')", param_cursor, param)
+                log.d(f"[{param_cursor}] Optional: checking validity: param_ok_hook('{param}')")
 
                 if not param_ok_hook(param):
                     log.d("Optional parameter not found; no problem")
@@ -421,7 +420,7 @@ class ArgsParser:
             val = params_spec.parser(
                 params[params_offset:params_offset + param_cursor]
             )
-            log.i("> %s", "{}".format(val))
+            log.i(f"> {val}")
             bucket += list_wrap(val)
 
         except Exception as ex:

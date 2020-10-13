@@ -10,6 +10,6 @@ def read_resource_string(pkg: str, res: str) -> str:
     """ Reads the content of the file 'res' from the resources of the package """
     b = pkgutil.get_data(pkg, res)
     if not b:
-        log.w("Failed to load resource '%s'", res)
+        log.w(f"Failed to load resource '{res}'")
         return ""
     return btos(b)

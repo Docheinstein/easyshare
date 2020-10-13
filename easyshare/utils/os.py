@@ -95,7 +95,7 @@ def ls(path: Path,
     sort_by = list(filter(lambda field: field in ["name", "size", "ftype"],
                           list_wrap(sort_by)))
 
-    log.i("LS sorting by %s%s", sort_by, " (reverse)" if reverse else "")
+    log.i("LS")
 
     ret: List[FileInfo] = []
 
@@ -119,7 +119,7 @@ def ls(path: Path,
     for p in path.iterdir():
 
         if not hidden and is_hidden(p):
-            log.d("Not showing hidden file: %s", p)
+            log.d(f"Not showing hidden file: {p}")
             continue
         finfo = create_file_info(p,
                                  fetch_size=details, fetch_time=details,
@@ -191,7 +191,7 @@ def tree(path: Path,
                                                     hidden=hidden,
                                                     details=details)
             except OSError:
-                log.w("Cannot descend %s", cur_path)
+                log.w(f"Cannot descend {cur_path}")
                 pass
 
         # Check whether we have child of this node this visit.
@@ -282,7 +282,7 @@ def find(path: Union[Path, PathLike],
             regex_filter = re.compile(regex, flags)
             log.d("Regex compiled successfully")
         except:
-            log.w("Invalid regex pattern: %s", regex)
+            log.w(f"Invalid regex pattern: {regex}")
             return None
 
     ret: List[FileInfo] = []
@@ -300,7 +300,7 @@ def find(path: Union[Path, PathLike],
         if not finfo:
             continue
 
-        log.d("finfo = %s", finfo)
+        log.d(f"finfo = {finfo}")
         f_name = finfo.get("name")
 
         path_filter_subject = f_name
@@ -326,7 +326,7 @@ def find(path: Union[Path, PathLike],
             log.d("-> ftype filter failed")
             continue
 
-        log.i("find ok: %s", f_name)
+        log.i(f"find ok: {f_name}")
         ret.append(finfo)
 
 
@@ -367,7 +367,7 @@ def walk_preorder(path: Path, max_depth: int = None):
         try:
             fstat = cursor_path.stat()
         except OSError as oserr:
-            log.w("Can't stat: %s", str(oserr))
+            log.w(f"Can't stat: {oserr}")
             continue
 
         try:
@@ -388,7 +388,7 @@ def walk_preorder(path: Path, max_depth: int = None):
                     stack.extendleft(reversed(children))
                     # stack = children + stack
                 except OSError as oserr:
-                    log.w("Can't descend: %s", str(oserr))
+                    log.w(f"Can't descend: {oserr}")
             else:
                 log.d(f"cursor_depth({cursor_depth}) > max_depth({max_depth}) - not descending further")
 
@@ -405,7 +405,7 @@ def rm(path: Path, error_callback: Callable[[Exception, Path], None] = None) -> 
     # Catch everything, and report any error to error_callback if it's valid
     try:
         if path.is_file():
-            log.d("unlink since '%s' is a file", path)
+            log.d(f"unlink since '{path}' is a file")
             path.unlink()
             return True
 
@@ -419,19 +419,19 @@ def rm(path: Path, error_callback: Callable[[Exception, Path], None] = None) -> 
 
             excinfo_class, excinfo_error, excinfo_traceback = error_excinfo
 
-            log.e("rm error occurred on path '%s': %s", error_path, excinfo_error)
+            log.e(f"rm error occurred on path '{error_path}': {excinfo_error}")
 
             # Notify the observer
             if error_callback:
                 error_callback(excinfo_error, Path(error_path))
 
-        log.d("rmtree since '%s' is a directory", path)
+        log.d(f"rmtree since '{path}' is a directory")
         ignore_errors = False if error_callback else True
         shutil.rmtree(path, ignore_errors=ignore_errors, onerror=handle_rmtree_error)
 
     except Exception as ex:
         # Notify the exception if error_callback is valid
-        log.e("rm error occurred on path '%s': %s", path, ex)
+        log.e(f"rm error occurred on path '{path}': {ex}")
         if error_callback:
             error_callback(ex, path)
         else:
@@ -450,7 +450,7 @@ def cp(src: Path, dest: Path):
     if src.is_dir() and dest.is_dir():
         log.d("Recursive copy DIR => DIR detected")
         dest = dest / src.name
-        log.d("Definitive src = '%s' | dst = '%s'", src, dest)
+        log.d(f"Definitive src = '{src}' | dst = '{dest}'")
         shutil.copytree(str(src), str(dest))
     else:
         shutil.copy2(str(src), str(dest), follow_symlinks=False)

@@ -127,18 +127,18 @@ class CommandInfo(CommandHelp, ABC):
             log.d("No options to suggest")
             return None
 
-        log.i("Token: %s", token)
+        log.i(f"Token: {token}")
 
         if token.startswith("-"):
             # Option completion
 
-            log.d("Computing (%d) args suggestions", len(options))
+            log.d(f"Computing ({len(options)}) args suggestions")
 
             longest_option_length = max(
                 [len(o.aliases_str()) + len(" ") + len(o.params_str()) for o in options]
             )
 
-            log.d("longest_option string length: %d", longest_option_length)
+            log.d(f"longest_option string length: {longest_option_length}")
 
             suggestions = []
 
@@ -195,12 +195,12 @@ class FilesSuggestionsCommandInfo(CommandInfo):
 
         suggestions = []
         for finfo in cls._provide_file_info_list(line, token, client):
-            log.d("Suggestion finfo: %s", finfo)
+            log.d(f"Suggestion finfo: {finfo}")
 
             fname = finfo.get("name")
 
             if not cls._file_info_filter(finfo):
-                log.d("%s doesn't pass the filter", fname)
+                log.d(f"{fname} doesn't pass the filter")
                 continue
 
             _, fname_tail = os.path.split(fname)
@@ -298,7 +298,7 @@ class FilesAndFindingsSuggestionsCommandInfo(FilesSuggestionsCommandInfo, ABC):
 # ==================================================
 
 def _provide_file_info_list_local(line: str, token: str, client):
-    log.d("List on token = '%s'", token)
+    log.d(f"List on token = '{token}'")
     # token contains only the last part after a /
     # e.g. /tmp/something => something
     # we have to use all the path (line)
@@ -322,7 +322,7 @@ def _provide_file_info_list_local(line: str, token: str, client):
     if not token.endswith(os.path.sep) and trail != os.path.sep:
         path = path.parent
 
-    log.i("ls-ing for suggestions on '%s'", path)
+    log.i(f"ls-ing for suggestions on '{path}'")
     return ls(path, details=False, hidden=listing_hidden_file)
 
 
@@ -336,11 +336,11 @@ def _provide_file_info_list_remote(line: str, token: str, client):
         log.w("Cannot list suggestions on a non connected es")
         return []
 
-    log.i("List remotely on token = '%s'", token)
+    log.i(f"List remotely on token = '{token}'")
     path_dir, path_trail = os.path.split(token)
     listing_hidden_file = path_trail.startswith(".")
 
-    log.i("rls-ing on %s", token)
+    log.i(f"rls-ing on {token}")
 
     resp = client.connection.rls(sort_by=["name"], hidden=listing_hidden_file,
                                  path=path_dir)

@@ -45,16 +45,14 @@ class Discoverer:
         # Listening socket
         in_sock = SocketUdpIn()
 
-        log.i("Client discover port: %d", in_sock.port())
+        log.i(f"Client discover port: {in_sock.port()}")
 
         # Send discover
         discover_message = in_sock.port()
         discover_message_b = itob(discover_message, 2)
         out_sock = SocketUdpOut(broadcast=self._discover_addr == ADDR_BROADCAST)
 
-        log.i("Sending DISCOVER to %s:%d",
-              self._discover_addr,
-              discover_port)
+        log.i(f"Sending DISCOVER to {self._discover_addr}:{discover_port}")
 
         trace_text(
             str(discover_message),
@@ -90,7 +88,7 @@ class Discoverer:
             log.d("DISCOVER socket ready for recv")
             raw_resp, endpoint = in_sock.recv(trace=False)
 
-            log.i("Received DISCOVER response from: %s", endpoint)
+            log.i(f"Received DISCOVER response from: {endpoint}")
             resp: ServerInfoFull = cast(ServerInfoFull, btoj(raw_resp))
 
             trace_json(

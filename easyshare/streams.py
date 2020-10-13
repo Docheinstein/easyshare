@@ -39,7 +39,7 @@ class TcpStream:
 
         payload_size = header
 
-        log.d("stream.recv() - received header, payload will be: %d bytes", payload_size)
+        log.d(f"stream.recv() - received header, payload will be: {payload_size} bytes")
 
         if payload_size <= 0:
             log.d("Nothing to receive")
@@ -50,7 +50,7 @@ class TcpStream:
 
         self._ensure_data(header_data)
 
-        log.d("stream.recv() - received payload of %d", len(payload_data))
+        log.d(f"stream.recv() - received payload of {len(payload_data)}")
 
         if timeout:
             self._socket.set_timeout(prev_timeout)
@@ -70,7 +70,7 @@ class TcpStream:
 
         self._socket.send(header, trace=False) # don't trace the header
 
-        log.d("stream.send() - sending %s", repr(payload_data))
+        log.d(f"stream.send() - sending {repr(payload_data)}")
 
         self._socket.send(payload_data, trace=trace)
 

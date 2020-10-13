@@ -46,10 +46,10 @@ class UdpDaemon(Daemon, ABC):
 
     def run(self):
         while True:
-            log.d("Waiting for UDP request to on port %d...", self.port())
+            log.d(f"Waiting for UDP request to on port {self.port()}...")
             data, client_endpoint = self._sock.recv(trace=self._traced)
 
-            log.i("Received UDP request from: %s", client_endpoint)
+            log.i(f"Received UDP request from: {client_endpoint}")
             self._handle_message(data, client_endpoint)
 
     def kill(self):
@@ -78,7 +78,7 @@ class TcpDaemon(Daemon, ABC):
 
     def run(self):
         while True:
-            log.d("Waiting for TCP connections on port %d...", self.port())
+            log.d(f"Waiting for TCP connections on port {self.port()}...")
             sock = self._acceptor.accept()
 
             remote_endpoint = sock.remote_endpoint()
@@ -87,7 +87,7 @@ class TcpDaemon(Daemon, ABC):
                 log.w("Invalid endpoint, refusing connection")
                 continue
 
-            log.d("Received new valid TCP connection from %s", sock.remote_endpoint())
+            log.d(f"Received new valid TCP connection from {sock.remote_endpoint()}")
             self._handle_connection(sock)
 
     def kill(self):

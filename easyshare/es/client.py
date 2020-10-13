@@ -120,7 +120,7 @@ def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
         # just after the api call.
         # The connection is established treating the first arg of
         # args as a 'ServerLocation'
-        log.d("Checking if connection exists before invoking %s", api.__name__)
+        log.d(f"Checking if connection exists before invoking {api.__name__}")
 
         was_connected_to_server = client.is_connected_to_server()
         was_connected_to_sharing = client.is_connected_to_sharing()
@@ -138,7 +138,7 @@ def make_sharing_connection_api_wrapper(api, ftype: Optional[FileType]):
 
         # Method call
 
-        log.d("Connection established, invoking %s", api.__name__)
+        log.d(f"Connection established, invoking {api.__name__}")
         api(client, args, conn)
 
         # Cleanup
@@ -173,7 +173,7 @@ def make_server_connection_api_wrapper(api, connect: bool):
         # just after the api call.
         # The connection is established treating the first arg of
         # args as a 'ServerLocation'
-        log.d("Checking if server connection exists before invoking %s", api.__name__)
+        log.d(f"Checking if server connection exists before invoking {api.__name__}")
 
         conn = client._get_current_server_connection_or_create_from_server_location_args(
             args,
@@ -188,7 +188,7 @@ def make_server_connection_api_wrapper(api, connect: bool):
 
         # Method call
 
-        log.d("Server connection established, invoking '%s'", api.__name__)
+        log.d(f"Server connection established, invoking '{api.__name__}'")
         api(client, args, conn)
 
         # Cleanup
@@ -361,7 +361,7 @@ class Client:
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 
         # command_args_copy = command_args.copy()
-        # log.i("Executing %s(%s)", command, command_args_copy)
+        # log.i(f"Executing {command}({command_args_copy})")
         log.i(f"Executing {command} {command_suffix}")
 
         # Check which parser to use
@@ -376,10 +376,10 @@ class Client:
         try:
             args = parser.parse(command_suffix)
         except ArgsParseError as err:
-            log.e("Command's arguments parse failed: %s", str(err))
+            log.e(f"Command's arguments parse failed: {err}")
             return ClientErrors.INVALID_COMMAND_SYNTAX
 
-        log.i("Parsed command arguments\n%s", args)
+        log.i(f"Parsed command arguments\n{args}")
 
         try:
             executor(args, None) # will be provided by decorators
@@ -391,15 +391,15 @@ class Client:
         except CommandExecutionError as ex:
             # "Expected" fail
             err = ex.errors if ex.errors else ClientErrors.COMMAND_EXECUTION_FAILED
-            log.eexception("CommandExecutionError: %s", err)
+            log.eexception(f"CommandExecutionError: {err}")
             return err
         except ConnectionError as ex:
             err = os_error_str(ex) or ClientErrors.COMMAND_EXECUTION_FAILED
-            log.eexception("ConnectionError: %s", err)
+            log.eexception(f"ConnectionError: {err}")
             return err
         except Exception as ex:
             # Every other unexpected fail: destroy connection
-            log.eexception("Exception caught while executing command\n%s", ex)
+            log.eexception(f"Exception caught while executing command\n{ex}")
             self.destroy_connection()
             return ClientErrors.COMMAND_EXECUTION_FAILED
 
@@ -477,7 +477,7 @@ class Client:
 
     def cd(self, args: Args, _):
         directory = self._local_path(args.get_positional(), default="~")
-        log.i(">> CD %s", directory)
+        log.i(f">> CD {directory}")
 
         if not directory.is_dir():
             raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS, directory))
@@ -602,7 +602,7 @@ class Client:
         if not path.exists():
             raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS, path))
 
-        log.i(">> DU %s", path)
+        log.i(f">> DU {path}")
 
         try:
             usage = du(path)
@@ -629,7 +629,7 @@ class Client:
 
         directory = Path(directory)
 
-        log.i(">> MKDIR %s", directory)
+        log.i(f">> MKDIR {directory}")
 
         try:
             directory.mkdir(parents=True)
@@ -652,7 +652,7 @@ class Client:
         if not paths:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i(">> RM %s", paths)
+        log.i(f">> RM {paths}")
 
         errors = []
 
@@ -725,10 +725,10 @@ class Client:
             log.i(f"{passwd.pw_uid} {passwd.pw_name} - shell: {passwd.pw_shell}")
             shell_cmd = passwd.pw_shell
 
-        log.i(">> SHELL %s", shell_cmd)
+        log.i(f">> SHELL {shell_cmd}")
         retcode = pty_attached(shell_cmd)
         if retcode != 0:
-            log.w("Command return code = %d", retcode)
+            log.w(f"Command return code = {retcode}")
 
 
     # =================================================
@@ -785,27 +785,27 @@ class Client:
                     in_b = conn.read(trace=True)
 
                     event_type: int = in_b[0]
-                    log.d("Event type = %d", event_type)
+                    log.d(f"Event type = {event_type}")
 
                     if event_type == RexecEventType.DATA:
                         data_b = in_b[1:]
-                        log.d("RSHELL recv: %s", repr(data_b))
+                        log.d(f"RSHELL recv: {repr(data_b)}")
 
                         try:
                             sys.stdout.buffer.write(data_b)
                             sys.stdout.buffer.flush()
                         except OSError as oserr:
                             # EWOULDBLOCK may arise something...
-                            log.w("Ignoring OSerror: %s", str(oserr))
+                            log.w(f"Ignoring OSerror: {oserr}")
                     elif event_type == RexecEventType.EOF:
                         log.d("EOF from remote")
                     elif event_type == RexecEventType.RETCODE:
                         log.d("Remote process finished")
                         retcode = btoi(in_b[1:])
                     else:
-                        log.w("Can't handle event of type %d", event_type)
+                        log.w(f"Can't handle event of type {event_type}")
 
-                log.i("RSHELL done (%d)", retcode)
+                log.i(f"RSHELL done ({retcode})")
                 # print()
             except Exception:
                 log.eexception("Unexpected error occurred on rshell out receiver thread")
@@ -840,7 +840,7 @@ class Client:
                             log.d("Sending EOF")
                             out_b = RexecEventType.EOF_B
                         else:
-                            log.d("Sending data: %s", repr(data_b))
+                            log.d(f"Sending data: {repr(data_b)}")
                             out_b = RexecEventType.DATA_B + data_b
 
                         conn.write(out_b, trace=True)
@@ -905,7 +905,7 @@ class Client:
                              server_info_full: ServerInfoFull) -> bool:
             nonlocal servers_found
 
-            log.i("Handling DISCOVER response from %s\n%s", str(client), str(server_info_full))
+            log.i(f"Handling DISCOVER response from {str(client)}\n{str(server_info_full)}")
             # Print as soon as they come
 
             s = ""
@@ -1003,12 +1003,12 @@ class Client:
     def rcd(self, args: Args, conn: Connection):
         directory = self._remote_path(args.get_positional(default="/"))
 
-        log.i(">> RCD %s", directory)
+        log.i(f">> RCD {directory}")
 
         resp = conn.rcd(directory)
         ensure_data_response(resp)
 
-        log.d("Current rcwd: %s", conn.current_rcwd())
+        log.d(f"Current rcwd: {conn.current_rcwd()}")
 
     @provide_sharing_connection
     def rstat(self, args: Args, conn: Connection):
@@ -1051,7 +1051,7 @@ class Client:
         path = self._remote_path(args.get_positional())
         human = Du.HUMAN in args
 
-        log.i(">> RDU %s", path)
+        log.i(f">> RDU {path}")
 
         resp = conn.rdu(path=path)
         resp_data = ensure_data_response(resp)
@@ -1069,7 +1069,7 @@ class Client:
         if not directory:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i(">> RMKDIR %s", directory)
+        log.i(f">> RMKDIR {directory}")
 
         resp = conn.rmkdir(directory)
         ensure_success_response(resp)
@@ -1083,7 +1083,7 @@ class Client:
         if not paths:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i(">> RRM %s ", paths)
+        log.i(f">> RRM {paths} ")
 
         resp = conn.rrm(paths)
         ensure_success_response(resp)
@@ -2161,13 +2161,13 @@ class Client:
             # C2  If <dest> doesn't exist => ERROR
             # => must be a valid dir
             if not dest.is_dir():
-                log.e("'%s' must be an existing directory", dest)
+                log.e(f"'{dest}' must be an existing directory")
                 raise CommandExecutionError(errno_str(ErrorsStrings.NOT_A_DIRECTORY, q(dest)))
 
         # Every other constraint is well handled by shutil.move() or shutil.copytree()
 
         for src in sources:
-            log.i(">> %s '%s' '%s'", primitive_name.upper(), src, dest)
+            log.i(f">> {primitive_name.upper()} '{src}' '{dest}'")
 
             try:
                 primitive(src, dest)
@@ -2194,7 +2194,7 @@ class Client:
         if not dest or not paths:
             raise CommandExecutionError(ClientErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i(">> %s %s -> %s", api_name, str(paths), dest)
+        log.i(f">> {api_name} {paths} -> {dest}")
 
         resp = api(paths, dest)
         ensure_success_response(resp)
@@ -2202,7 +2202,7 @@ class Client:
     @classmethod
     def _rm(cls, path: Path) -> Optional[str]:
 
-        log.i("RM '%s'", path)
+        log.i(f"RM '{path}'")
 
         error = None
 
@@ -2273,8 +2273,7 @@ class Client:
         fetch_details = Ls.SHOW_SIZE in args or Ls.SHOW_DETAILS in args or \
                         "size" in sort_by or "ftype" in sort_by
 
-        log.i(">> %s %s (sort by %s%s)",
-              data_provider_name, path or "*", sort_by, " | reverse" if reverse else "")
+        log.i(f">> {data_provider_name} {path}")
 
         ls_result = data_provider(path,
                                   sort_by=sort_by, reverse=reverse,
@@ -2312,8 +2311,7 @@ class Client:
         if Tree.GROUP in args:
             sort_by.append("ftype")
 
-        log.i(">> %s %s (sort by %s%s)",
-              data_provider_name, path or "*", sort_by, " | reverse" if reverse else "")
+        log.i(f">> {data_provider_name} {path}")
 
         tree_result: FileInfoTreeNode = data_provider(
             path,
@@ -2351,8 +2349,7 @@ class Client:
         elif ftype in ["d", FTYPE_DIR]:
             ftype = FTYPE_DIR
 
-        log.i(">> %s %s",
-              data_provider_name, path)
+        log.i(f">> {data_provider_name} {path}")
 
         find_result = data_provider(path,
                                     name=name, regex=regex,
@@ -2415,9 +2412,7 @@ class Client:
 
         letter = self._local_finding_letter
 
-        log.i("Adding %d local findings from pwd = %s (letter %s)",
-              len(find_result), str(curpwd), letter)
-
+        log.i(f"Adding {len(find_result)} local findings from pwd = {str(curpwd)} (letter {letter})")
         self._local_findings[letter] = Findings(curpwd, find_result)
         self._local_finding_letter = chrnext(letter, start="a", end="z")
 
@@ -2432,8 +2427,7 @@ class Client:
         letter = self._remote_finding_letter
 
         currpwd = self.connection.current_rcwd()
-        log.i("Adding %d remote findings from rcwd = %s (letter %s)",
-              len(find_result), currpwd, letter)
+        log.i(f"Adding {len(find_result)} remote findings from rcwd = {currpwd} (letter {letter})")
 
         self._remote_findings[letter] = Findings(currpwd, find_result)
         self._remote_finding_letter = chrnext(letter, start="A", end="Z")
@@ -2515,7 +2509,7 @@ class Client:
 
     @classmethod
     def _get_findings(cls, findings_dict: Dict[str, Findings], pattern: str) -> Optional[Findings]:
-        log.d("Looking for findings in pattern '%s'", pattern)
+        log.d(f"Looking for findings in pattern '{pattern}'")
 
         match = re.fullmatch(Client.FINDINGS_RE, pattern)
         if match:
@@ -2527,8 +2521,7 @@ class Client:
             idx_end = int(idx_end) - 1
 
             # The path contains a valid finding pattern
-            log.d("Found finding match in path (letter=%s | idx_start=%d | idx_end=%d)",
-                  letter, idx_start + 1, idx_end + 1)
+            log.d(f"Found finding match in path (letter={letter} | idx_start={idx_start + 1} | idx_end={idx_end + 1})")
 
             # Check whether we actually have the finding
             findings_of_letter: List[FileInfo]
@@ -2536,8 +2529,8 @@ class Client:
 
             findings_for_letter = findings_dict.get(letter)
             if findings_for_letter and findings_for_letter.infos:
-                log.d("Findings for letter %s found - search path was '%s'",
-                      letter, findings_for_letter.path)
+                log.d(f"Findings for letter {letter} found - "
+                      f"search path was '{findings_for_letter.path}'")
 
                 i = idx_start
 
@@ -2545,14 +2538,13 @@ class Client:
                 findings_infos = []
 
                 while i <= idx_end and i < len(findings_for_letter.infos):
-                    log.d("Finding for '%s' found: '%s'", match.group(),
-                          findings_for_letter.infos[i])
+                    log.d(f"Finding for '{match.group()}' found: '{findings_for_letter.infos[i]}'")
                     findings_infos.append(findings_for_letter.infos[i])
                     i += 1
 
                 return Findings(findings_path, findings_infos)
 
-            log.w("Findings not found: '%s'", match.group())
+            log.w(f"Findings not found: '{match.group()}'")
 
         return None
 
@@ -2715,14 +2707,13 @@ class Client:
                     ensure_data_response(resp)
 
                     real_server_info = resp.get("data")
-                    log.d("Connection established is UP, retrieved server info\n%s",
-                          j(real_server_info))
+                    log.d(f"Connection established is UP, retrieved server info\n{j(real_server_info)}")
 
                     # Fill the uncomplete server info with the IP/port we used to connect
                     break
                 except:
-                    log.w("Connection cannot be established directly %s SSL",
-                          "with" if server_ssl else "without")
+                    log.w(f"Connection cannot be established directly "
+                          f"{'with' if server_ssl else 'without'} SSL")
                     if server_conn:
                         # Invalidate connection
                         server_conn.destroy_connection()
@@ -2795,14 +2786,12 @@ class Client:
             raise CommandExecutionError(ErrorsStrings.CONNECTION_CANT_BE_ESTABLISHED)
 
         # We have a valid TCP connection with the server
-        log.i("Connection established with %s:%d",
-              server_conn.server_ip(),
-              server_conn.server_port())
+        log.i(f"Connection established with {server_conn.server_ip()}:{server_conn.server_port()}")
 
         # Version check
         if APP_VERSION != server_conn.server_info.get("version"):
-            log.w("Server version (%s) doesn't match client one (%s): bad things might happen",
-                  server_conn.server_info.get("version"), APP_VERSION)
+            log.w(f"Server version ({server_conn.server_info.get('version')}) "
+                  f"doesn't match client one ({APP_VERSION}): bad things might happen")
 
         # We have a valid TCP connection with the server
         # log.d("-> same as %s:%d",
@@ -2820,10 +2809,10 @@ class Client:
 
         # Ask the password if the sharing is protected by auth
         if real_server_info.get("auth"):
-            log.i("Server '%s' is protected by password", real_server_info.get("name"))
+            log.i(f"Server '{real_server_info.get('name')}' is protected by password")
             passwd = getpass()
         else:
-            log.i("Server '%s' is not protected", real_server_info.get("name"))
+            log.i(f"Server '{real_server_info.get('name')}' is not protected")
 
         # Performs connect() (and authentication)
         resp = server_conn.connect(passwd)
@@ -2847,7 +2836,7 @@ class Client:
                              a_server_info: ServerInfoFull) -> bool:
             nonlocal server_info
 
-            log.d("Handling DISCOVER response from %s\n%s", str(client_endpoint), str(a_server_info))
+            log.d(f"Handling DISCOVER response from {str(client_endpoint)}\n{str(a_server_info)}")
 
             if self._server_info_satisfy_constraints_full(
                 a_server_info,
@@ -3002,7 +2991,7 @@ class Client:
             resp = connection.rcd(sharing_location.path)
 
             ensure_data_response(resp)
-            log.d("Current rcwd: %s", connection.current_rcwd())
+            log.d(f"Current rcwd: {connection.current_rcwd()}")
 
     @classmethod
     def _server_info_satisfy_server_location(cls,
@@ -3076,31 +3065,28 @@ class Client:
         """
 
 
-        log.d("constr server name: %s", server_name)
-        log.d("constr server ip: %s", server_ip)
-        log.d("constr server port: %s", str(server_port))
-        log.d("constr sharing name: %s", sharing_name)
-        log.d("constr sharing ftype: %s", sharing_ftype)
+        log.d(f"constr server name: {server_name}")
+        log.d(f"constr server ip: {server_ip}")
+        log.d(f"constr server port: {server_port}")
+        log.d(f"constr sharing name: {sharing_name}")
+        log.d(f"constr sharing ftype: {sharing_ftype}")
 
         if not server_info:
             return False
 
         # Server name
         if server_name and (server_name != server_info.get("name")):
-            log.d("Server info does not match the server name filter '%s'",
-                  server_name)
+            log.d(f"Server info does not match the server name filter '{server_name}'")
             return False
 
         # Server IP
         if server_ip and (server_ip != server_info.get("ip")):
-            log.d("Server info does not match the server ip filter '%s'",
-                  server_ip)
+            log.d(f"Server info does not match the server ip filter '{server_ip}'")
             return False
 
         # Server  port
         if server_port and (server_port != server_info.get("port")):
-            log.d("Server info does not match the server port filter '%d'",
-                  server_port)
+            log.d(f"Server info does not match the server port filter '{server_port}'")
             return False
 
         # Sharing filter
@@ -3108,13 +3094,12 @@ class Client:
             for a_sharing_info in server_info.get("sharings"):
                 # Sharing name check
                 if sharing_name != a_sharing_info.get("name"):
-                    log.d("Ignoring sharing which does not match the sharing name filter '%s'",
-                          sharing_name)
+                    log.d(f"Ignoring sharing which does not match the sharing name filter '{sharing_name}'")
                     continue
 
                 # Sharing ftype check
                 if sharing_ftype and a_sharing_info.get("ftype") != sharing_ftype:
-                    log.d("Ignoring sharing which does not match the ftype filter '%s'", sharing_ftype)
+                    log.d(f"Ignoring sharing which does not match the ftype filter '{sharing_ftype}'")
                     log.w("Found a sharing with the right name but wrong ftype, wrong command maybe?")
                     # Notify it outside, the user probably wants to know what's happening
                     print_errors("WARNING: " + ErrorsStrings.NOT_ALLOWED_FOR_F_SHARING)
@@ -3153,7 +3138,7 @@ class Client:
         set a default action)
         """
 
-        log.d("ask_overwrite - default policy: %s", str(current_policy))
+        log.d(f"ask_overwrite - default policy: {current_policy}")
         # Ask whether overwrite just once or forever
         cur_decision = current_policy
         new_default = current_policy
@@ -3245,7 +3230,7 @@ NNSS  : only if newer OR size is different - to all
 
             with pbar_done_lock:
                 if discover_state == DISCOVER_RUNNING:
-                    log.d("discover_state will be %d", state)
+                    log.d(f"discover_state will be {state}")
 
                     if state == DISCOVER_TIMEDOUT:
                         # DISCOVER_TIMEDOUT can either be good or bad
@@ -3272,7 +3257,7 @@ NNSS  : only if newer OR size is different - to all
                         print(ansi.UP_LINE + ansi.RESET_LINE, end="", flush=True)
                         pbar.error() # don't set completed=True, since is aborted in the middle
                     else:
-                        log.w("Unexpected new discover state: %d", discover_state)
+                        log.w(f"Unexpected new discover state: {discover_state}")
 
                     # Set the new state
                     discover_state = state

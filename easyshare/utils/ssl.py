@@ -49,7 +49,7 @@ def create_server_ssl_context(cert: str, privkey: str) -> Optional[ssl.SSLContex
         ssl_context.load_cert_chain(certfile=cert, keyfile=privkey)
         ssl_context.verify_mode = ssl.CERT_NONE
     except Exception as ex:
-        log.e("SSL context creation failed: %s", ex)
+        log.e(f"SSL context creation failed: {ex}")
         return None
 
     return ssl_context
@@ -62,7 +62,7 @@ def create_client_ssl_context() -> Optional[ssl.SSLContext]:
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
     except Exception as ex:
-        log.e("SSL context creation failed: %s", ex)
+        log.e(f"SSL context creation failed: {ex}")
         return None
 
     return ssl_context
@@ -77,7 +77,7 @@ def sslify_socket(sock: socket.socket, ssl_context: ssl.SSLContext,
             log.d("Wrapping a server_side socket")
             ssock = ssl_context.wrap_socket(sock, server_side=server_side)
         elif server_hostname:
-            log.d("Wrapping a client_side socket - server hostname = %s", server_hostname)
+            log.d(f"Wrapping a client_side socket - server hostname = {server_hostname}")
             ssock = ssl_context.wrap_socket(sock, server_hostname=server_hostname)
         else:
             log.w("Wrapping a socket without knowning whether is a client or a server side")

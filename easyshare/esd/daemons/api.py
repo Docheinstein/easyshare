@@ -89,14 +89,14 @@ class ApiDaemon(TcpDaemon):
         return si
 
     def _handle_connection(self, sock: SocketTcpIn):
-        log.i("Received new client connection from %s", sock.remote_endpoint())
+        log.i(f"Received new client connection from {sock.remote_endpoint()}")
         self._add_client(sock)
 
 
     def _add_client(self, client_sock: SocketTcp):
         client = ClientContext(client_sock)
         client_handler = ClientHandler(client, self)
-        log.i("Adding client %s", client)
+        log.i(f"Adding client {client}")
         # no need to lock, still in single thread execution
         self._clients[client.endpoint] = client_handler
 
@@ -146,7 +146,7 @@ def require_d_sharing(api):
     """
     def require_d_sharing_wrapper(handler: 'ClientHandler', params: RequestParams):
         if handler._current_sharing.ftype != FTYPE_DIR:
-            log.e("Forbidden: command allowed only for DIR sharing by [%s]", handler._client)
+            log.e(f"Forbidden: command allowed only for DIR sharing by [{handler._client}]")
             return handler._create_error_response(ServerErrors.NOT_ALLOWED_FOR_F_SHARING)
         return api(handler, params)
 
@@ -160,7 +160,7 @@ def require_write_permission(api):
     """
     def require_write_permission_wraper(handler: 'ClientHandler', params: RequestParams):
         if handler._current_sharing.read_only:
-            log.e("Forbidden: write action on read only sharing by [%s]", handler._client)
+            log.e(f"Forbidden: write action on read only sharing by [{handler._client}]")
             return handler._create_error_response(ServerErrors.NOT_WRITABLE)
         return api(handler, params)
 
@@ -213,7 +213,7 @@ class ClientHandler:
 
 
     def handle(self):
-        log.i("Handling client %s", self._client)
+        log.i(f"Handling client {self._client}")
 
         print(green(f"[{self._client.tag}] connected "
                     f"({self._client.endpoint[0]}:{self._client.endpoint[1]})"))
@@ -252,7 +252,7 @@ class ClientHandler:
             except:
                 log.w("Underlying socket not closed gracefully")
 
-        log.i("Connection closed with client %s", self._client)
+        log.i(f"Connection closed with client {self._client}")
 
         print(red(f"[{self._client.tag}] disconnected "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})"))
@@ -307,7 +307,7 @@ class ClientHandler:
     # == SERVER COMMANDS ==
 
     def _connect(self, params: RequestParams) -> Response:
-        log.i("<< CONNECT  |  %s", self._client)
+        log.i(f"<< CONNECT  |  {self._client}")
 
         password = params.get("password")
 
@@ -316,7 +316,7 @@ class ClientHandler:
             return create_success_response()
 
         # Authentication
-        log.i("Authentication check - type: %s", self._api_daemon.auth().algo_type())
+        log.i(f"Authentication check - type: {self._api_daemon.auth().algo_type()}")
 
         # Just ask the auth whether it matches or not
         # (The password can either be none/plain/hash, the auth handles them all)
@@ -335,7 +335,7 @@ class ClientHandler:
 
     @require_server_connection
     def _disconnect(self, _: RequestParams):
-        log.i("<< DISCONNECT  |  %s", self._client)
+        log.i(f"<< DISCONNECT  |  {self._client}")
 
         if not self._connected_to_server:
             log.w("Already disconnected")
@@ -348,7 +348,7 @@ class ClientHandler:
         return create_success_response()
 
     def _list(self, _: RequestParams):
-        log.i("<< LIST  |  %s", self._client)
+        log.i(f"<< LIST  |  {self._client}")
 
         print(f"[{self._client.tag}] list "
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
@@ -357,7 +357,7 @@ class ClientHandler:
             [sh.info() for sh in self._api_daemon.sharings().values()])
 
     def _info(self, _: RequestParams):
-        log.i("<< INFO  |  %s", self._client)
+        log.i(f"<< INFO  |  {self._client}")
 
         print(f"[{self._client.tag}] info "
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
@@ -365,7 +365,7 @@ class ClientHandler:
         return create_success_response(self._api_daemon.server_info())
 
     def _ping(self, _: RequestParams):
-        log.i("<< PING  |  %s", self._client)
+        log.i(f"<< PING  |  {self._client}")
 
         print(f"[{self._client.tag}] ping "
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
@@ -387,7 +387,7 @@ class ClientHandler:
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
 
-        log.i("<< RSHELL %s  |  %s", cmd, self._client)
+        log.i(f"<< RSHELL {cmd}  |  {self._client}")
 
         # OK - report it
         print(f"[{self._client.tag}] rshell '{cmd}' "
@@ -400,7 +400,7 @@ class ClientHandler:
             )
 
         def end_hook(retcode: int):
-            log.d("END %d", retcode)
+            log.d(f"END {retcode}")
             self._client.stream.write(
                 RexecEventType.RETCODE_B + itob(retcode % 255, length=1),
                 trace=True
@@ -410,7 +410,7 @@ class ClientHandler:
             while True:
                 in_b = self._client.stream.read(trace=True)
                 event_type: int = in_b[0]
-                log.d("Event type = %d", event_type)
+                log.d(f"Event type = {event_type}")
 
                 if event_type == RexecEventType.DATA:
                     data = in_b[1:]
@@ -426,7 +426,7 @@ class ClientHandler:
                     log.d("< ENDACK")
                     break
                 else:
-                    log.w("Can't handle event of type %d", event_type)
+                    log.w(f"Can't handle event of type {event_type}")
 
         try:
             ptyproc = pty_detached(
@@ -464,7 +464,7 @@ class ClientHandler:
         if not sharing:
             return self._create_error_response(ServerErrors.SHARING_NOT_FOUND, q(sharing_name))
 
-        log.i("<< OPEN %s |  %s", sharing_name, self._client)
+        log.i(f"<< OPEN {sharing_name} |  {self._client}")
 
         print(f"[{self._client.tag}] open '{sharing.name}'"
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
@@ -479,7 +479,7 @@ class ClientHandler:
 
     @require_sharing_connection
     def _close(self, _: RequestParams):
-        log.i("<< CLOSE  |  %s", self._client)
+        log.i(f"<< CLOSE  |  {self._client}")
 
         print(f"[{self._client.tag}] close "
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
@@ -499,11 +499,11 @@ class ClientHandler:
         if not is_str(spath):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i("<< RCD %s  |  %s", spath, self._client)
+        log.i(f"<< RCD {spath}  |  {self._client}")
 
         new_rcwd_fpath = self._fpath_joining_rcwd_and_spath(spath)
 
-        log.d("Would cd into: %s", new_rcwd_fpath)
+        log.d(f"Would cd into: {new_rcwd_fpath}")
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(new_rcwd_fpath):
@@ -516,13 +516,13 @@ class ClientHandler:
         # The path is allowed and exists, setting it as new rcwd
         self._current_rcwd_fpath = new_rcwd_fpath
 
-        log.i("New valid rcwd: %s", self._current_rcwd_fpath)
+        log.i(f"New valid rcwd: {self._current_rcwd_fpath}")
 
         # Tell the client the new rcwd
         rcwd_spath_str = str(self._current_rcwd_spath)
         rcwd_spath_str = "" if rcwd_spath_str == "." else rcwd_spath_str
 
-        log.d("RCWD for the client: %s", rcwd_spath_str)
+        log.d(f"RCWD for the client: {rcwd_spath_str}")
 
         print(f"[{self._client.tag}] rcd '{self._current_rcwd_fpath}' "
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
@@ -532,7 +532,7 @@ class ClientHandler:
     @require_sharing_connection
     @require_d_sharing
     def _rpwd(self, _: RequestParams) -> Response:
-        log.i("<< RPWD  |  %s", self._client)
+        log.i(f"<< RPWD  |  {self._client}")
 
         rcwd_spath_str = str(self._current_rcwd_spath)
         rcwd_spath_str = "" if rcwd_spath_str == "." else rcwd_spath_str
@@ -549,7 +549,7 @@ class ClientHandler:
         if not paths:
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i(f"<< RSTAT  {paths}%s%s  |  {self._client}")
+        log.i(f"<< RSTAT  {paths}  |  {self._client}")
 
         errors = []
         infos = {}
@@ -587,19 +587,16 @@ class ClientHandler:
             or not is_bool(hidden) or not is_bool(details):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i("<< RLS %s %s%s  |  %s",
-              path, sort_by,
-              " reverse " if reverse else "",
-              self._client)
+        log.i(f"<< RLS {path} {sort_by} |  {self._client}")
 
         ls_fpath = self._fpath_joining_rcwd_and_spath(path)
-        log.d("Would ls into: %s", ls_fpath)
+        log.d(f"Would ls into: {ls_fpath}")
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(ls_fpath):
             return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
 
-        log.i("Going to ls on valid path %s", ls_fpath)
+        log.i(f"Going to ls on valid path {ls_fpath}")
 
         try:
             ls_result = ls(ls_fpath,
@@ -628,7 +625,7 @@ class ClientHandler:
                                                exc,
                                                ls_fpath)
 
-        log.i("RLS response %s", str(ls_result))
+        log.i(f"RLS response {ls_result}")
 
         return create_success_response(ls_result)
 
@@ -648,19 +645,16 @@ class ClientHandler:
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
 
-        log.i("<< RTREE %s %s%s  |  %s",
-              path, sort_by,
-              " reverse " if reverse else "",
-              self._client)
+        log.i(f"<< RTREE {path} |  {self._client}")
 
         tree_fpath = self._fpath_joining_rcwd_and_spath(path)
-        log.d("Would tree into: %s", tree_fpath)
+        log.d(f"Would tree into: {tree_fpath}")
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(tree_fpath):
             return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
 
-        log.i("Going to tree on valid path %s", tree_fpath)
+        log.i(f"Going to tree on valid path {tree_fpath}")
 
         try:
             tree_root = tree(tree_fpath,
@@ -690,7 +684,7 @@ class ClientHandler:
                                                exc,
                                                tree_fpath)
 
-        log.i("RTREE response %s", j(tree_root))
+        log.i(f"RTREE response {j(tree_root)}")
 
         return create_success_response(tree_root)
 
@@ -715,16 +709,16 @@ class ClientHandler:
                 ftype not in [None, FTYPE_DIR, FTYPE_FILE]:
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i("<< RFIND %s  |  %s", path, self._client)
+        log.i(f"<< RFIND {path}  |  {self._client}")
 
         find_fpath = self._fpath_joining_rcwd_and_spath(path)
-        log.d("Would find into: %s", find_fpath)
+        log.d(f"Would find into: {find_fpath}")
 
         # Check if it's inside the sharing domainF
         if not self._is_fpath_allowed(find_fpath):
             return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
 
-        log.i("Going to find on valid path %s", find_fpath)
+        log.i(f"Going to find on valid path {find_fpath}")
 
         try:
             find_result = find(find_fpath,
@@ -759,7 +753,7 @@ class ClientHandler:
                                                exc,
                                                find_fpath)
 
-        log.i("RFIND response %s", str(find_result))
+        log.i(f"RFIND response {find_result}")
 
         return create_success_response(find_result)
 
@@ -771,16 +765,16 @@ class ClientHandler:
         if not is_str(path):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i("<< RDU %s  |  %s", path, self._client)
+        log.i(f"<< RDU {path}  |  {self._client}")
 
         rdu_fpath = self._fpath_joining_rcwd_and_spath(path)
-        log.d("Would rdu into: %s", rdu_fpath)
+        log.d(f"Would rdu into: {rdu_fpath}")
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(rdu_fpath):
             return self._create_error_response(ServerErrors.INVALID_PATH, q(path))
 
-        log.i("Going to du on valid path %s", rdu_fpath)
+        log.i(f"Going to du on valid path {rdu_fpath}")
 
         try:
             # OK - report it
@@ -807,7 +801,7 @@ class ClientHandler:
                                                exc,
                                                rdu_fpath)
 
-        log.i("RDU response %d", usage)
+        log.i(f"RDU response {usage}")
 
         return create_success_response([
             [str(self._spath_rel_to_root_of_fpath(rdu_fpath)), usage]
@@ -823,16 +817,16 @@ class ClientHandler:
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
 
-        log.i("<< RMKDIR %s  |  %s", directory, self._client)
+        log.i(f"<< RMKDIR {directory}  |  {self._client}")
 
         directory_fpath = self._fpath_joining_rcwd_and_spath(directory)
-        log.d("Would create directory: %s", directory_fpath)
+        log.d(f"Would create directory: {directory_fpath}")
 
         # Check if it's inside the sharing domain
         if not self._is_fpath_allowed(directory_fpath):
             return self._create_error_response(ServerErrors.INVALID_PATH, q(directory))
 
-        log.i("Going to mkdir on valid path %s", directory_fpath)
+        log.i(f"Going to mkdir on valid path {directory_fpath}")
 
         try:
             directory_fpath.mkdir(parents=True)
@@ -870,7 +864,7 @@ class ClientHandler:
         if not is_valid_list(paths, str):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
-        log.i("<< RRM %s  |  %s", paths, self._client)
+        log.i(f"<< RRM {paths}  |  {self._client}")
 
         errors = []
 
@@ -902,7 +896,7 @@ class ClientHandler:
 
     def _rm(self, path: Path) -> Optional[str]:
 
-        log.i("RM '%s'", path)
+        log.i(f"RM '{path}'")
 
         error = None
 
@@ -1058,12 +1052,11 @@ class ClientHandler:
             # C2  If <dest> doesn't exist => ERROR
             # => must be a valid dir
             if not destination_fpath.is_dir():
-                log.e("'%s' must be an existing directory", destination_fpath)
+                log.e(f"'{destination_fpath}' must be an existing directory")
                 return self._create_error_response(ServerErrors.NOT_A_DIRECTORY, destination_fpath)
 
 
-        log.i("<< %s %s %s  |  %s",
-              primitive_name.upper(), sources, destination, self._client)
+        log.i(f"<< {primitive_name.upper()}  |  {self._client}")
 
         for source_path in sources:
             source_fpath = self._fpath_joining_rcwd_and_spath(source_path)
@@ -1071,7 +1064,7 @@ class ClientHandler:
             # Path validity check
             if self._is_fpath_allowed(source_fpath):
                 try:
-                    log.i("%s %s -> %s", primitive_name, source_fpath, destination_fpath)
+                    log.i(f"{primitive_name} {source_fpath} -> {destination_fpath}")
                     primitive(source_fpath, destination_fpath)
                     # OK - report it
                     print(f"[{self._client.tag}] {primitive_name} '{source_fpath}' '{destination_fpath}' "
@@ -1103,7 +1096,7 @@ class ClientHandler:
         chunk_size = params.get(RequestsParams.GET_CHUNK_SIZE, BEST_BUFFER_SIZE)
         use_mmap = params.get(RequestsParams.GET_MMAP, True)
 
-        log.i("<< GET %s  |  %s", paths, self._client)
+        log.i(f"<< GET {paths}  |  {self._client}")
 
         self._send_response(create_success_response())
 
@@ -1132,26 +1125,26 @@ class ClientHandler:
 
             # "." is equal to "" and means get the rcwd wrapped into a folder
             # "*" means get everything inside the rcwd without wrapping it into a folder
-            log.d("f = %s", f)
+            log.d(f"f = {f}")
 
             p = Path(f)
 
             take_all_unwrapped = True if (p.parts and p.parts[len(p.parts) - 1]) == "*" else False
 
-            log.d("is * = %s", take_all_unwrapped)
+            log.d(f"is * = {take_all_unwrapped}")
 
             if take_all_unwrapped:
                 # Consider the path without the last *
                 p = p.parent
 
-            log.d("p(f) = %s", p)
+            log.d(f"p(f) = {p}")
 
             # Compute the absolute path depending on the user request (p)
             # and our current rcwd
             fpath = self._fpath_joining_rcwd_and_spath(p)
 
             is_root = fpath == self._current_sharing.path
-            log.d("is root = %s", is_root)
+            log.d(f"is root = {is_root}")
 
             # Compute the basedir: the directory from which the user takes
             # the files (this will have effect on the location of the files on
@@ -1170,9 +1163,9 @@ class ClientHandler:
                 else:
                     basedir = fpath.parent
 
-            log.d("fpath(f)         = %s", fpath)
-            log.d("basedir(f)  = %s", basedir)
-            log.d("prefix = %s", self._current_sharing.name)
+            log.d(f"fpath(f)         = {fpath}")
+            log.d(f"basedir(f)  = {basedir}")
+            log.d(f"prefix = {self._current_sharing.name}")
 
             # Do domain check now, after this check it should not be
             # necessary to check it since we can only go deeper
@@ -1180,7 +1173,7 @@ class ClientHandler:
             if self._is_fpath_allowed(fpath) and self._is_fpath_allowed(basedir):
                 next_servings.appendleft((fpath, basedir, prefix))
             else:
-                log.e("Path %s is invalid (out of sharing domain)", f)
+                log.e(f"Path {f} is invalid (out of sharing domain)")
                 errors.append(create_error_of_response(ServerErrors.INVALID_PATH,
                                                        q(f)))
 
@@ -1220,10 +1213,10 @@ class ClientHandler:
             while True:
                 action = req.get(RequestsParams.GET_NEXT_ACTION)
                 if action not in RequestsParams.GET_NEXT_ACTIONS:
-                    log.w("Unknown action: %s", action)
+                    log.w(f"Unknown action: {action}")
                     action = RequestsParams.GET_NEXT_ACTION_SEEK
 
-                log.i("<< GET_NEXT action = %s", action)
+                log.i(f"<< GET_NEXT action = {action}")
 
                 # 2. Serve the file
                 # -> send response to the client anyway
@@ -1236,8 +1229,8 @@ class ClientHandler:
                 # want to receive the file (because of overwrite, or anything else)
                 next_fpath, next_basedir, next_prefix = next_servings[len(next_servings) - 1]
 
-                log.d("Next file fpath: %s", next_fpath)
-                log.d("Next file basedir: %s", next_basedir)
+                log.d(f"Next file fpath: {next_fpath}")
+                log.d(f"Next file basedir: {next_basedir}")
 
                 # Check domain validity
                 # Should never fail since we have already checked in __init__
@@ -1257,12 +1250,12 @@ class ClientHandler:
                 # e.g. can be public/f1 or ../public or /path/to/dir ...
                 next_spath_str = os.path.join(next_prefix, next_fpath.relative_to(next_basedir))
 
-                log.d("Next file spath: %s", next_spath_str)
+                log.d(f"Next file spath: {next_spath_str}")
 
                 # Check if it's hidden
 
                 if no_hidden and is_hidden(next_fpath):
-                    log.d("Not sending %s since no_hidden is True", next_fpath)
+                    log.d(f"Not sending {next_fpath} since no_hidden is True")
                     next_servings.pop()
                     continue
 
@@ -1275,7 +1268,7 @@ class ClientHandler:
                 if finfo and next_fpath.is_file():
                     next_transfer = None
 
-                    log.i("NEXT FILE: %s", next_fpath)
+                    log.i(f"NEXT FILE: {next_fpath}")
 
                     # Pop only if transfer or skip is specified
                     if action == RequestsParams.GET_NEXT_ACTION_TRANSFER or \
@@ -1296,7 +1289,7 @@ class ClientHandler:
 
                             try:
                                 fd = next_fpath.open("rb")
-                                log.d("Able to open file: %s", next_fpath)
+                                log.d(f"Able to open file: {next_fpath}")
 
                                 log.d("Actually adding file to the transfer queue")
                                 next_transfer = (next_fpath, fd)
@@ -1341,7 +1334,7 @@ class ClientHandler:
 
                 # Case: DIR
                 elif finfo and next_fpath.is_dir():
-                    log.i("NEXT DIR: %s", next_fpath)
+                    log.i(f"NEXT DIR: {next_fpath}")
 
                     # Pop it now; it doesn't make sense ask the user whether
                     # skip or overwrite as for files
@@ -1372,7 +1365,7 @@ class ClientHandler:
                     if dir_files:
                         log.i("Found a filled directory: adding all inner files to remaining_files")
                         for file_in_dir in dir_files:
-                            log.i("Adding %s", file_in_dir)
+                            log.i(f"Adding {file_in_dir}")
                             next_servings.appendleft((file_in_dir, next_basedir, prefix))
                     else:
                         log.i("Found an empty directory")
@@ -1388,7 +1381,7 @@ class ClientHandler:
                 else:
                     # Pop it now
                     next_servings.pop()
-                    log.w("Not file nor dir? skipping %s", next_fpath)
+                    log.w(f"Not file nor dir? skipping {next_fpath}")
                     errors.append(create_error_of_response(ServerErrors.TRANSFER_SKIPPED,
                                                            q(next_spath_str)))
                     continue
@@ -1408,7 +1401,7 @@ class ClientHandler:
 
             next_transf_fpath, next_transf_f = next_transf
 
-            log.i("Next outgoing file to handle: %s", next_transf_fpath)
+            log.i(f"Next outgoing file to handle: {next_transf_fpath}")
 
             # OK - report it
             print(f"[{self._client.tag}] get '{next_transf_fpath}'"
@@ -1446,10 +1439,10 @@ class ClientHandler:
 
                 if not chunk:
                     # EOF
-                    log.i("Finished to handle: %s", next_transf_fpath)
+                    log.i(f"Finished to handle: {next_transf_fpath}")
                     break
 
-                log.d("Read chunk of %dB", len(chunk))
+                log.d(f"Read chunk of {len(chunk)}B")
                 cur_pos += len(chunk)
 
                 if check:
@@ -1463,14 +1456,14 @@ class ClientHandler:
                 # time.sleep(0.5)
 
 
-            log.i("Closing file %s", next_transf_fpath)
+            log.i(f"Closing file {next_transf_fpath}")
             next_transf_f.close()
             if source != next_transf_f:
                 source.close() # mmap
 
             # Eventually send the CRC in-band
             if check:
-                log.d("Sending CRC: %d", crc)
+                log.d(f"Sending CRC: {crc}")
                 transfer_socket.send(itob(crc, 4))
 
         log.i("GET finished")
@@ -1498,7 +1491,7 @@ class ClientHandler:
 
         # Hidden
 
-        log.i("<< PUT %s |  %s", "(preview)" if preview else "", self._client)
+        log.i(f"<< PUT {'(preview)' if preview else ''} |  {self._client}")
 
         self._send_response(create_success_response())
 
@@ -1772,7 +1765,7 @@ class ClientHandler:
 
                     try:
                         fd = fpath.open("wb")
-                        log.d("Able to open file: %s", fpath)
+                        log.d(f"Able to open file: {fpath}")
                     except FileNotFoundError:
                         self._send_response(self._create_error_response(
                             ServerErrors.NOT_EXISTS, q(fname))
@@ -1820,7 +1813,7 @@ class ClientHandler:
                 # Don't transfer, just a preview
                 continue
 
-            log.i("Next incoming file to handle: %s", incoming_fpath)
+            log.i(f"Next incoming file to handle: {incoming_fpath}")
 
             # OK - report it
             print(f"[{self._client.tag}] put '{incoming_fpath}'"
@@ -1847,7 +1840,7 @@ class ClientHandler:
 
                 if not chunk:
                     # EOF
-                    log.i("Finished to handle: %s", incoming_fpath)
+                    log.i(f"Finished to handle: {incoming_fpath}")
                     break
 
                 log.h(f"Received chunk of {len(chunk)}B")
@@ -1885,8 +1878,7 @@ class ClientHandler:
                 # Length check on the written file
                 written_size = incoming_fpath.stat().st_size
                 if written_size != incoming_size:
-                    log.e("File length mismatch; transfer failed. expected=%s ; written=%d",
-                          incoming_size, written_size)
+                    log.e(f"File length mismatch; transfer failed. expected={incoming_size} ; written={written_size}")
                     errors.append(create_error_of_response(ServerErrors.PUT_CHECK_FAILED,
                                                            *self._qspathify(incoming_fpath)))
 
@@ -1957,7 +1949,7 @@ class ClientHandler:
         Path  relative to the sharing root (spath).
         """
 
-        log.d("_create_error_response of subjects %s", subjects)
+        log.d(f"_create_error_response of subjects {subjects}")
 
         if self._connected_to_sharing:
             # Sanitize paths - relative to the sharing root (don't expose internal path)
@@ -1976,7 +1968,7 @@ class ClientHandler:
         if not fpaths_or_strs:
             return []
 
-        log.d("_qspathify of %s", fpaths_or_strs)
+        log.d(f"_qspathify of {fpaths_or_strs}")
 
         qspathified = [
             # leave str as str
@@ -1984,7 +1976,7 @@ class ClientHandler:
             for o in fpaths_or_strs
         ]
 
-        log.d("qspathified -> %s", qspathified)
+        log.d(f"qspathified -> {qspathified}")
 
         return qspathified
 
@@ -1996,10 +1988,10 @@ class ClientHandler:
         Raise an exception if 'p' doesn't belong to this sharing, so use
         this only after _is_fpath_allowed.
         """
-        log.d("spath_of_fpath_rel_to_rcwd for p: %s", p)
+        log.d(f"spath_of_fpath_rel_to_rcwd for p: {p}")
 
         fp = self._as_path(p)
-        log.d("-> fp: %s", fp)
+        log.d(f"-> fp: {fp}")
 
         if self._current_sharing.ftype == FTYPE_FILE:
             if fp != self._current_sharing.path:
@@ -2018,7 +2010,7 @@ class ClientHandler:
         Raise an exception if 'p' doesn't belong to this sharing, so use
         this only after _is_fpath_allowed.
         """
-        log.d("spath_of_fpath_rel_to_root for p: %s", p)
+        log.d(f"spath_of_fpath_rel_to_root for p: {p}")
         fp = self._as_path(p)
         log.d(f"-> fp: {fp}")
 
