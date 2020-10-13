@@ -1,11 +1,10 @@
 import mmap
 import os
 import threading
-import time
 import zlib
 from collections import OrderedDict, deque
 from pathlib import Path
-from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO, Set, Deque
+from typing import List, Dict, Callable, Optional, Union, Tuple, BinaryIO, Deque
 
 from easyshare.auth import Auth
 from easyshare.common import TransferDirection, TransferProtocol, BEST_BUFFER_SIZE, APP_VERSION, \
@@ -17,7 +16,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams, RequestsParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response, \
     create_error_of_response, TransferOutcomes, ResponsesParams
-from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType, create_file_info, FTYPE_FILE, FileType, \
+from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType, create_file_info, FTYPE_FILE, \
     create_file_info_full, FileInfo, ftype_of
 from easyshare.sockets import SocketTcp, SocketTcpIn
 from easyshare.ssl import get_ssl_context
@@ -1586,14 +1585,13 @@ class ClientHandler:
 
             return self._fpath_joining_rcwd_and_spath(output)
 
-        def add_to_sync_table(fpath: FPath, ftype: FileType):
+        def add_to_sync_table(fpath: FPath):
             nonlocal sync_table_entries
 
-            # sync_path = fpath if ftype == FTYPE_DIR else fpath.parent
-            log.d(f"Sync path: '{fpath}'")
+            log.d(f"Adding sync entries for path: '{fpath}'")
 
             findings = find(fpath)
-            sync_table_entries += findings
+            sync_table_entries += [f.get("name") for f in findings]
 
             log.d(f"# sync table entries = {len(sync_table_entries)}")
             log.d(f"{j(sync_table_entries)}")
@@ -1602,7 +1600,7 @@ class ClientHandler:
             nonlocal sync_table
 
             # Preserve order for perform RM in optimal order (parents first)
-            sync_table = OrderedDict({entry.get("name"): None for entry in sync_table_entries})
+            sync_table = OrderedDict({entry: None for entry in sync_table_entries})
             log.d(f"SYNC table computed ({len(sync_table_entries)})\n" +
                   "\n".join(sync_table.keys()))
 
@@ -1664,7 +1662,7 @@ class ClientHandler:
                 if do_sync:
                     if sync_table is None:  # check is None because if the dir is new
                                             # sync table could be already initialized but empty
-                        add_to_sync_table(fpath, finfo)
+                        add_to_sync_table(fpath)
 
                     # Remove from the SYNC table eventually
                     # Do the removal for each possible path within local_path

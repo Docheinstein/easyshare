@@ -214,7 +214,7 @@ def test_get_sharing():
             )
             check_hierarchy(Path(local_tmp), {
                 esd.sharing_root_d.name: HIERARCHY
-            }, dump=True)
+            }, dump=False)
 
 def test_get_fsharing():
     """
@@ -1470,7 +1470,7 @@ def test_get_sync_sharing():
     """
     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
-            wontberemoved = tmpfile(local_tmp, name="wont.be.removed", size=K)
+            wontberemoved = tmpfile(local_tmp, name="wont.be.removed")
             assert_file(wontberemoved)
 
             assert_success(
@@ -1530,8 +1530,8 @@ def test_get_sync_dir():
     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
             d2 = tmpdir(local_tmp, name="d2")
-            willberemoved = tmpfile(d2, name="will.be.removed", size=K)
-            wontberemoved = tmpfile(local_tmp, name="wont.be.removed", size=K)
+            willberemoved = tmpfile(d2, name="will.be.removed")
+            wontberemoved = tmpfile(local_tmp, name="wont.be.removed")
 
             assert_file(willberemoved)
             assert_file(wontberemoved)
@@ -1558,7 +1558,7 @@ def test_get_sync_dir_twice():
     > touch wont.be.removed
     > touch d2/will.be.removed
     > get -s d0/d2
-    > rm d0/d2/ff1
+    > rm d2/ff1
     > get -s d0/d2
 
     ===========================
@@ -1596,8 +1596,8 @@ def test_get_sync_dir_twice():
     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
             d2 = tmpdir(local_tmp, name="d2")
-            willberemoved = tmpfile(d2, name="will.be.removed", size=K)
-            wontberemoved = tmpfile(local_tmp, name="wont.be.removed", size=K)
+            willberemoved = tmpfile(d2, name="will.be.removed")
+            wontberemoved = tmpfile(local_tmp, name="wont.be.removed")
 
             assert_file(willberemoved)
             assert_file(wontberemoved)
@@ -1676,7 +1676,7 @@ def test_get_sync_file():
     """
     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
-            wontberemoved = tmpfile(local_tmp, name="wont.be.removed", size=K)
+            wontberemoved = tmpfile(local_tmp, name="wont.be.removed")
 
             assert_file(wontberemoved)
 
@@ -1751,10 +1751,10 @@ def test_get_syncdest_1_dir2dir():
             """
 
             d2wrapper = tmpdir(local_tmp, name="d2.wrapper")
-            wontberemoved = tmpfile(local_tmp, name="wont.be.removed", size=K)
-            wontberemoved2 = tmpfile(d2wrapper, name="wont.be.removed2", size=K)
+            wontberemoved = tmpfile(local_tmp, name="wont.be.removed")
+            wontberemoved2 = tmpfile(d2wrapper, name="wont.be.removed2")
             d2 = tmpdir(d2wrapper, name="d2")
-            willberemoved = tmpfile(d2, name="will.be.removed", size=K)
+            willberemoved = tmpfile(d2, name="will.be.removed")
 
             assert_file(willberemoved)
             assert_file(wontberemoved)
@@ -1826,7 +1826,7 @@ def test_get_syncdest_2_any2dir():
     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
             dxexists = tmpdir(local_tmp, name="dx.exists")
-            wontberemoved = tmpfile(dxexists, name="wont.be.removed", size=666)
+            wontberemoved = tmpfile(dxexists, name="wont.be.removed")
 
             assert_file(wontberemoved)
 
@@ -1902,8 +1902,8 @@ def test_get_syncdest_2_any2dir_bis():
 
             dxexists = tmpdir(local_tmp, name="dx.exists")
             d1 = tmpdir(dxexists, name="d1")
-            wontberemoved = tmpfile(dxexists, name="wont.be.removed", size=666)
-            willberemoved = tmpfile(d1, name="will.be.removed", size=666)
+            wontberemoved = tmpfile(dxexists, name="wont.be.removed")
+            willberemoved = tmpfile(d1, name="will.be.removed")
 
             assert_file(wontberemoved)
             assert_file(willberemoved)
@@ -1983,7 +1983,7 @@ def test_put_sharing():
 
             check_hierarchy(Path(remote_tmp), {
                 client_hierarchy.name: HIERARCHY
-            }, dump=True)
+            }, dump=False)
 
 
 def test_put_file2none():
@@ -2206,7 +2206,7 @@ def test_put_file2file_overwrite_no():
 
             check_hierarchy(Path(remote_tmp), {
                 "f0": assert_file
-            }, dump=True, details=True)
+            }, dump=False, details=True)
 
             assert_file(f0, size_checker=lambda s: s == 666)
 
@@ -2380,7 +2380,7 @@ def test_put_dir2file():
         with EsConnectionTest(esd.sharing_root_d2.name,
                               cd=client_hierarchy,
                               rcd=Path(remote_tmp).name) as client:
-            tmpfile(remote_tmp, name="d0", size=K)
+            tmpfile(remote_tmp, name="d0")
 
             client.execute_command(Commands.PUT, "d0")
 
@@ -2727,7 +2727,7 @@ def test_put_dest_1_dir2file():
         with EsConnectionTest(esd.sharing_root_d2.name,
                               cd=client_hierarchy,
                               rcd=Path(remote_tmp).name) as client:
-            tmpfile(remote_tmp, name="sharing.file", size=K)
+            tmpfile(remote_tmp, name="sharing.file")
 
             client.execute_command(Commands.PUT, f"{Put.DESTINATION[0]} sharing.file")
 
@@ -3028,7 +3028,7 @@ def test_put_sync_sharing():
         with EsConnectionTest(esd.sharing_root_d2.name,
                               cd=client_hierarchy,
                               rcd=Path(remote_tmp).name) as client:
-            wontberemoved = tmpfile(parent=remote_tmp, name="wont.be.removed", size=666)
+            wontberemoved = tmpfile(parent=remote_tmp, name="wont.be.removed")
             assert_file(wontberemoved)
 
             assert_success(
@@ -3037,7 +3037,7 @@ def test_put_sync_sharing():
 
             check_hierarchy(Path(remote_tmp), {
                 client_hierarchy.name: HIERARCHY
-            }, dump=True)
+            }, dump=False)
 
             assert_file(wontberemoved)
 
@@ -3092,11 +3092,11 @@ def test_put_sync_dir():
         with EsConnectionTest(esd.sharing_root_d2.name,
                               cd=client_hierarchy,
                               rcd=Path(remote_tmp).name) as client:
-            wontberemoved = tmpfile(parent=remote_tmp, name="wont.be.removed", size=K)
+            wontberemoved = tmpfile(parent=remote_tmp, name="wont.be.removed")
             assert_file(wontberemoved)
 
             remote_d2 = tmpdir(remote_tmp, name="d2")
-            willberemoved = tmpfile(parent=remote_d2, name="will.be.removed", size=K)
+            willberemoved = tmpfile(parent=remote_d2, name="will.be.removed")
 
             assert_success(
                 client.execute_command(Commands.PUT, f"{Put.SYNC[0]} d0/d2")
@@ -3104,11 +3104,356 @@ def test_put_sync_dir():
 
             check_hierarchy(Path(remote_tmp), {
                 "d2": D2
+            }, dump=False)
+
+            assert_file(wontberemoved)
+            assert_notexists(willberemoved)
+
+
+def test_put_sync_dir_twice():
+    """
+    ===========================
+    ======== COMMANDS =========
+    ===========================
+
+    > cd hierarchy-KKKK
+    > rcd server-ZZZZ
+    > (REMOTE) touch wont.be.removed
+    > (REMOTE) mkdir d2
+    > (REMOTE) touch d2/will.be.removed
+    > put -s d0/d2
+    > (REMOTE) rm d2/ff1
+    > put -s d0/d2
+
+    ===========================
+    ========== BEFORE =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    hierarchy-XXXX
+    ├── f0
+    └── d0
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+        └── f1
+
+    --------- REMOTE -----------
+
+    dir-YYYY
+
+    ===========================
+    ======== EXPECTED =========
+    ===========================
+
+    --------- REMOTE -----------
+
+    server-ZZZZ
+    ├── wont.be.removed
+    ├── d2
+    │   ├── ff1
+    │   └── ff2
+    """
+
+    with tempfile.TemporaryDirectory(prefix="server-", dir=esd.sharing_root_d2) as remote_tmp:
+        with EsConnectionTest(esd.sharing_root_d2.name,
+                              cd=client_hierarchy,
+                              rcd=Path(remote_tmp).name) as client:
+            wontberemoved = tmpfile(parent=remote_tmp, name="wont.be.removed")
+            assert_file(wontberemoved)
+
+            remote_d2 = tmpdir(remote_tmp, name="d2")
+            willberemoved = tmpfile(parent=remote_d2, name="will.be.removed")
+
+            assert_success(
+                client.execute_command(Commands.PUT, f"{Put.SYNC[0]} d0/d2")
+            )
+
+            check_hierarchy(Path(remote_tmp), {
+                "d2": D2
+            }, dump=False)
+
+            assert_file(wontberemoved)
+            assert_notexists(willberemoved)
+            
+            rm(Path(remote_tmp) / "d2" / "ff1")
+
+
+def test_put_sync_file():
+    """
+    ===========================
+    ======== COMMANDS =========
+    ===========================
+
+    > cd hierarchy-KKKK
+    > rcd server-ZZZZ
+    > put -s d0/d2/ff1
+
+    ===========================
+    ========== BEFORE =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    hierarchy-XXXX
+    ├── f0
+    └── d0
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+        └── f1
+
+    --------- REMOTE -----------
+
+    dir-YYYY
+
+    ===========================
+    ======== EXPECTED =========
+    ===========================
+
+    --------- REMOTE -----------
+
+    server-ZZZZ
+    ├── wont.be.removed
+    ├── ff1
+    """
+
+    with tempfile.TemporaryDirectory(prefix="server-", dir=esd.sharing_root_d2) as remote_tmp:
+        with EsConnectionTest(esd.sharing_root_d2.name,
+                              cd=client_hierarchy,
+                              rcd=Path(remote_tmp).name) as client:
+            wontberemoved = tmpfile(parent=remote_tmp, name="wont.be.removed")
+            assert_file(wontberemoved)
+
+            assert_success(
+                client.execute_command(Commands.PUT, f"{Put.SYNC[0]} d0/d2/ff1")
+            )
+
+            check_hierarchy(Path(remote_tmp), {
+                "ff1": assert_file
+            }, dump=True)
+
+            assert_file(wontberemoved)
+
+
+def test_put_syncdest_1_dir2dir():
+    """
+    ===========================
+    ======== COMMANDS =========
+    ===========================
+
+    > cd hierarchy-KKKK
+    > rcd server-ZZZZ
+    > (REMOTE) mkdir d2.wrapper
+    > (REMOTE) mkdir d2.wrapper/d2
+    > (REMOTE) touch d2.wrapper/wont.be.removed
+    > (REMOTE) touch d2.wrapper/d2/will.be.removed
+    > put -s -d sharing_wrapper
+
+    ===========================
+    ========== BEFORE =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    hierarchy-XXXX
+    ├── f0
+    └── d0
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+        └── f1
+
+    --------- REMOTE -----------
+
+    dir-YYYY
+
+    ===========================
+    ======== EXPECTED =========
+    ===========================
+
+    --------- REMOTE -----------
+
+    server-ZZZZ
+    ├── wont.be.removed
+    ├── d2.wrapper
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+    """
+
+    with tempfile.TemporaryDirectory(prefix="server-", dir=esd.sharing_root_d2) as remote_tmp:
+        with EsConnectionTest(esd.sharing_root_d2.name,
+                              cd=client_hierarchy,
+                              rcd=Path(remote_tmp).name) as client:
+            d2wrapper = tmpdir(remote_tmp, name="d2.wrapper")
+            d2 = tmpdir(d2wrapper, name="d2")
+
+            wontberemoved = tmpfile(d2wrapper, name="wont.be.removed")
+            willberemoved = tmpdir(d2, name="will.be.removed")
+
+            assert_success(
+                client.execute_command(Commands.PUT, f"{Put.SYNC[0]} {Put.DESTINATION[0]} d2.wrapper d0/d2")
+            )
+
+            check_hierarchy(Path(remote_tmp), {
+                "d2.wrapper": {
+                    "d2": D2
+                }
             }, dump=True)
 
             assert_file(wontberemoved)
             assert_notexists(willberemoved)
 
+
+
+def test_put_syncdest_2_any2dir():
+    """
+    ===========================
+    ======== COMMANDS =========
+    ===========================
+
+    > cd hierarchy-KKKK
+    > rcd server-ZZZZ
+    > (REMOTE) mkdir d.exists
+    > (REMOTE) touch d.exists/wont.be.removed
+    > put f0 d0/d2 f0 -d d.exists -s
+
+    ===========================
+    ========== BEFORE =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    hierarchy-XXXX
+    ├── f0
+    └── d0
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+        └── f1
+
+    --------- REMOTE -----------
+
+    dir-YYYY
+
+    ===========================
+    ======== EXPECTED =========
+    ===========================
+
+    --------- REMOTE -----------
+
+
+    server-ZZZZ
+    ├── d.exists
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+    """
+
+    with tempfile.TemporaryDirectory(prefix="server-", dir=esd.sharing_root_d2) as remote_tmp:
+        with EsConnectionTest(esd.sharing_root_d2.name,
+                              cd=client_hierarchy,
+                              rcd=Path(remote_tmp).name) as client:
+            dexists = tmpdir(remote_tmp, name="d.exists")
+            wontberemoved = tmpfile(dexists, name="wont.be.removed")
+
+            assert_success(
+                client.execute_command(Commands.PUT, f"f0 d0/d2 {Put.DESTINATION[0]} d.exists {Put.SYNC[0]}")
+            )
+
+            check_hierarchy(Path(remote_tmp), {
+                "d.exists": {
+                    "f0": assert_file,
+                    "d2": D2
+                }
+            }, dump=False)
+
+            assert_file(wontberemoved)
+
+
+def test_put_syncdest_2_any2dir_bis():
+    """
+    ===========================
+    ======== COMMANDS =========
+    ===========================
+
+    > cd hierarchy-KKKK
+    > rcd server-ZZZZ
+    > (REMOTE) mkdir d.exists
+    > (REMOTE) mkdir d.exists/d1
+    > (REMOTE) touch d.exists/wont.be.removed
+    > (REMOTE) touch d.exists/d1/will.be.removed
+    > put f0 d0/d2 d0/d1 -d d.exists -s
+
+    ===========================
+    ========== BEFORE =========
+    ===========================
+
+    --------- LOCAL -----------
+
+    hierarchy-XXXX
+    ├── f0
+    └── d0
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+        └── f1
+
+    --------- REMOTE -----------
+
+    dir-YYYY
+
+    ===========================
+    ======== EXPECTED =========
+    ===========================
+
+    --------- REMOTE -----------
+
+
+    server-ZZZZ
+    ├── wont.be.removed
+    ├── d.exists
+        ├── d1
+        │   └── dd1
+        ├── d2
+        │   ├── ff1
+        │   └── ff2
+    """
+
+    with tempfile.TemporaryDirectory(prefix="server-", dir=esd.sharing_root_d2) as remote_tmp:
+        with EsConnectionTest(esd.sharing_root_d2.name,
+                              cd=client_hierarchy,
+                              rcd=Path(remote_tmp).name) as client:
+            dexists = tmpdir(remote_tmp, name="d.exists")
+            d1 = tmpdir(dexists, name="d1")
+            wontberemoved = tmpfile(dexists, name="wont.be.removed")
+            willberemoved = tmpfile(d1, name="will.be.removed")
+
+            assert_success(
+                client.execute_command(Commands.PUT, f"d0/d1 d0/d2 {Put.DESTINATION[0]} d.exists {Put.SYNC[0]}")
+            )
+
+            check_hierarchy(Path(remote_tmp), {
+                "d.exists": {
+                    "d1": D1,
+                    "d2": D2
+                }
+            }, dump=True)
+
+            assert_file(wontberemoved)
+            assert_notexists(willberemoved)
 
 def test_teardown():
     esd.__exit__(None, None, None)

@@ -3,6 +3,7 @@ import string
 import tempfile
 import threading
 from pathlib import Path
+from random import randint
 from typing import Optional
 
 from easyshare.commands.commands import Commands
@@ -16,13 +17,15 @@ from easyshare.protocol.types import FTYPE_FILE, FTYPE_DIR, FileInfo
 
 log = get_logger(__name__)
 
-def tmpfile(parent, *, create=True, name = None, size: int = 0) -> Path:
+def tmpfile(parent, *, create=True, name = None, size: int = None) -> Path:
     if name is None:
         name = ("file-" + randstring(length=4))
     f = Path(parent) / name
     if create:
         log.x("TEST", f"Creating FILE '{f}'")
         f.touch()
+        if size is None:
+            size = randint(0, 1024)
         f.write_bytes(os.urandom(size))
     return f
 
