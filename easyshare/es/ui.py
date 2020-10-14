@@ -43,28 +43,28 @@ def print_tabulated(strings: List[StyledString], max_columns: int = None,
     if not strings:
         return
 
-    log.d(f"print_tabulated - len(strings) {len(strings)}")
+    log.h(f"print_tabulated - len(strings) {len(strings)}")
 
     term_cols, _ = terminal_size()
-    log.d(f"print_tabulated - term_cols {term_cols}")
+    log.h(f"print_tabulated - term_cols {term_cols}")
 
     longest_string_length = len(str(max(strings, key=lambda ss: len(str(ss)))))
-    log.d(f"print_tabulated - longest_match_length {longest_string_length}")
+    log.h(f"print_tabulated - longest_match_length {longest_string_length}")
 
     min_col_width = longest_string_length + 2
-    log.d(f"print_tabulated - min_col_width {min_col_width}")
+    log.h(f"print_tabulated - min_col_width {min_col_width}")
 
     max_allowed_cols = max_columns if max_columns else 50
-    log.d(f"print_tabulated - max_allowed_cols {max_allowed_cols}")
+    log.h(f"print_tabulated - max_allowed_cols {max_allowed_cols}")
 
     max_fillable_cols = term_cols // min_col_width
-    log.d(f"print_tabulated - max_fillable_cols {max_fillable_cols}")
+    log.h(f"print_tabulated - max_fillable_cols {max_fillable_cols}")
 
     display_cols = max(1, min(max_allowed_cols, max_fillable_cols))
-    log.d(f"print_tabulated - display_cols {display_cols}")
+    log.h(f"print_tabulated - display_cols {display_cols}")
 
     display_rows = ceil(len(strings) / display_cols)
-    log.d(f"print_tabulated - display_rows {display_rows}")
+    log.h(f"print_tabulated - display_rows {display_rows}")
 
     for r in range(0, display_rows):
         print_row = ""

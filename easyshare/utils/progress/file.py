@@ -117,10 +117,10 @@ class FileProgressor(Progressor):
                 D = "..." + D_tail[-(D_space - E_width):]
 
         # assert len(D) <= D_space, f"D = {D} | {len(D)} != {D_space}"
-        # log.d(f"cols                 {cols}")
-        # log.d(f"D                    {D}")
-        # log.d(f"D_space              {D_space}")
-        # log.d(f"remaining_space      {remaining_space}")
+        # log.h(f"cols                 {cols}")
+        # log.h(f"D                    {D}")
+        # log.h(f"D_space              {D_space}")
+        # log.h(f"remaining_space      {remaining_space}")
 
         if remaining_space >= FileProgressor.MIN_PTSB:
             # DPTSB
@@ -142,11 +142,11 @@ class FileProgressor(Progressor):
                 S.rjust(FileProgressor.LEN_S)
             )
 
-            # log.d(f"len(progress_bar_in) {progress_bar_inner_width}")
-            # log.d("len(progress_bar)    %d", progress_bar_inner_width + 2)
-            # log.d(f"P                    {len(P.rjust(FileProgressor.LEN_P))}")
-            # log.d(f"T                    {len(T.rjust(FileProgressor.LEN_T))}")
-            # log.d(f"S                    {len(S.rjust(FileProgressor.LEN_S))}")
+            # log.h(f"len(progress_bar_in) {progress_bar_inner_width}")
+            # log.h("len(progress_bar)    %d", progress_bar_inner_width + 2)
+            # log.h(f"P                    {len(P.rjust(FileProgressor.LEN_P))}")
+            # log.h(f"T                    {len(T.rjust(FileProgressor.LEN_T))}")
+            # log.h(f"S                    {len(S.rjust(FileProgressor.LEN_S))}")
 
 
         elif remaining_space >= FileProgressor.MIN_PTS:

@@ -79,6 +79,11 @@ def handle_connection_response(api):
 # =============================================
 
 class ConnectionMinimal:
+    """
+    Minimal server connection, containing only the info necessary for actually
+    perform the connection (i.e. ip, port), contrary to 'Connection' which provides
+    ServerInfo too.
+    """
     def __init__(self,
                  server_ip: str, server_port: int, server_ssl: bool,
                  server_alias: str = None, socket: SocketTcp = None):
@@ -487,12 +492,12 @@ class ConnectionMinimal:
 
 class Connection(ConnectionMinimal):
     """
-    Complete server connection; in addition to 'ServerConnectionMinimal' provide
+    Complete server connection; in addition to 'ConnectionMinimal' provide
     a 'ServerInfo', which contains more information compared to the bare name/ip/addr
     of the server provided by 'ServerConnectionMinimal'.
-    The idea is tha 'ServerConnectionMinimal' is created for made the connection,
+    The idea is tha 'ConnectionMinimal' is created for made the connection,
     but than an info should be retrieved (via info, or if already got with a discover)
-    and the connection should be upgraded to a 'ServerConnection' for further uses.
+    and the connection should be upgraded to a 'Connection' for further uses.
     """
 
     def __init__(self,

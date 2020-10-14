@@ -10,7 +10,8 @@ from easyshare.args import Args, ArgsParseError, ArgsSpec
 from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias, Set
 from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF, TRACING_NONE, TRACING_TEXT, TRACING_BIN, \
-    VERBOSITY_DEBUG, VERBOSITY_INFO, VERBOSITY_WARNING, VERBOSITY_ERROR, VERBOSITY_NONE, TRACING_MAX, VERBOSITY_MAX
+    VERBOSITY_DEBUG, VERBOSITY_INFO, VERBOSITY_WARNING, VERBOSITY_ERROR, VERBOSITY_NONE, TRACING_MAX, VERBOSITY_MAX, \
+    VERBOSITY_HUGE
 from easyshare.consts import ansi
 from easyshare.es.client import Client
 from easyshare.es.errors import ClientErrors, print_errors, AnyErrs, AnyErr
@@ -39,6 +40,7 @@ _VERBOSITY_EXPLANATION_MAP = {
     VERBOSITY_WARNING: Verbose.V2[1],
     VERBOSITY_INFO: Verbose.V3[1],
     VERBOSITY_DEBUG: Verbose.V4[1],
+    VERBOSITY_HUGE: Verbose.V5[1],
 }
 
 _TRACING_EXPLANATION_MAP = {

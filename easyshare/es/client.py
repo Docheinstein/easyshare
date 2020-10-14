@@ -2794,11 +2794,6 @@ class Client:
                   f"doesn't match client one ({APP_VERSION}): bad things might happen")
 
         # We have a valid TCP connection with the server
-        # log.d("-> same as %s:%d",
-        #       server_conn.server_info.get("ip"),
-        #       server_conn.server_info.get("port"))
-
-
         # Check whether we have to do connect()
         # (It might be unnecessary for public server api such as ping, info, list, ...)
         if not connect:

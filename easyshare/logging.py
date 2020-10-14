@@ -6,7 +6,6 @@ from easyshare.common import easyshare_setup, VERBOSITY_ERROR, VERBOSITY_WARNING
 from easyshare.settings import get_setting, Settings
 from easyshare.styling import yellow, red, green, blue, magenta, black
 
-# TODO: convert %s to format string
 from easyshare.utils.mathematics import rangify
 
 _loggers = {}

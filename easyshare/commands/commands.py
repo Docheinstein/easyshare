@@ -685,7 +685,7 @@ class Verbose(CommandInfo, OptIntPosArgSpec):
     V2 = (["2"], "warning")
     V3 = (["3"], "info")
     V4 = (["4"], "debug")
-    V5 = (["5"], "internal libraries")
+    V5 = (["5"], "huge")
 
     @classmethod
     def name(cls):
@@ -715,7 +715,7 @@ The allowed values of *LEVEL* are:
 *2*        warnings
 *3*        info
 *4*        debug
-*5*        internal libraries
+*5*        huge
 ./A
 
 If no argument is given, increase the verbosity or resets it to *0* \
@@ -2611,7 +2611,7 @@ with the options **-y** (yes), **-n** (no), **-N** (overwrite if newer) and **-S
         +-- f_remote_1
 
 .A .
-2. Get all the content of a directory sharing (into the current directory)
+2. Get all the content of a directory sharing into a given destination
 ./A
     **/tmp>** connect alice-arch
     **alice-arch - /tmp>** open shared
@@ -2620,7 +2620,7 @@ with the options **-y** (yes), **-n** (no), **-N** (overwrite if newer) and **-S
     +-- f2
     **alice-arch.shared:/ - /tmp>** rls
     f_remote_1
-    **alice-arch.shared:/ - /tmp>** **get** *\**
+    **alice-arch.shared:/ - /tmp>** **get** *-d* *dx*
     GET f_remote_1    [===================] 100%  745KB/745KB
     GET outcome: OK
     Files        1  (745KB)
@@ -2629,7 +2629,8 @@ with the options **-y** (yes), **-n** (no), **-N** (overwrite if newer) and **-S
     **alice-arch.shared:/ - /tmp>** tree
     |-- f1
     |-- f2
-    +-- f_remote_1
+    +-- dx
+        +--f_remote_1
 
 .A .
 3. Get specific files from a directory sharing
@@ -2687,7 +2688,10 @@ with the options **-y** (yes), **-n** (no), **-N** (overwrite if newer) and **-S
     **/tmp>** tree
     |-- f1
     |-- f2
-    +-- f_share"""
+    +-- f_share
+
+
+"""
 
     @classmethod
     def see_also(cls):
@@ -2837,7 +2841,7 @@ and **-S** (overwrite if size is different)."""
         +-- f2
 
 .A .
-2. Put all the content of a directory into a sharing (not wrapped into a folder)
+2. Put all the content of a directory into a destination within the sharing
 ./A
     **/tmp/localdir>** connect alice-arch
     **alice-arch - /tmp>** open shared
@@ -2846,7 +2850,7 @@ and **-S** (overwrite if size is different)."""
     +-- f2
     **alice-arch.shared:/ - /tmp/localdir>** rls
     f_remote_1
-    **alice-arch.shared:/ - /tmp/localdir>** **put** *\**
+    **alice-arch.shared:/ - /tmp/localdir>** **put** *-d* *dx*
     PUT f1    [===================] 100%  745KB/745KB
     PUT f2    [===================] 100%  745KB/745KB
     PUT outcome: OK
@@ -2854,7 +2858,8 @@ and **-S** (overwrite if size is different)."""
     Time         1s
     Avg. speed   1MB/s
     **alice-arch.shared:/ - /tmp/localdir>** rtree
-    |-- f_remote_1
+    |-- dx
+        +-- f_remote_1
     |-- f1
     +-- f2
 
