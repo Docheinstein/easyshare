@@ -30,7 +30,7 @@ from easyshare.commands.commands import Commands, Ls, Scan, Info, Tree, Put, Get
     Ping, Find, Rfind, Du, Rdu, Rls, Cd, Mkdir, Pwd, Rm, Mv, Cp, Shell, Rcd, Rtree, Rmkdir, \
     Rpwd, Rrm, Rmv, Rcp, Rshell, Connect, Disconnect, Open, Close, ListSharings, Stat, Rstat
 from easyshare.logging import get_logger
-from easyshare.protocol.requests import RequestsParams, RequestParams
+from easyshare.protocol.requests import RequestsParams
 from easyshare.protocol.responses import is_data_response, is_error_response, is_success_response, ResponseError, \
     create_error_of_response, ResponsesParams, Response
 from easyshare.protocol.types import FileType, ServerInfoFull, FileInfoTreeNode, FileInfo, FTYPE_DIR, FTYPE_FILE, \

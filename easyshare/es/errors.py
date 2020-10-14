@@ -2,7 +2,7 @@ from typing import Union, List
 
 from easyshare.consts import ansi
 from easyshare.logging import get_logger
-from easyshare.protocol.responses import TransferOutcomes, ServerErrors
+from easyshare.protocol.responses import ServerErrors
 from easyshare.utils import eprint
 from easyshare.utils.inspection import stacktrace
 from easyshare.utils.types import is_int, is_str, is_list
@@ -94,10 +94,8 @@ class ErrorsStrings:
     COMMAND_EXECUTION_FAILED = "Command execution failed"
     SERVER_NOT_FOUND = "Server not found"
     INVALID_DIRECTORY = "Invalid directory"
-    INVALID_TRANSACTION = "Invalid transaction"
     NOT_ALLOWED = "Not allowed"
     AUTHENTICATION_FAILED = "Authentication failed"
-    INTERNAL_SERVER_ERROR = "Internal server error"
     NOT_WRITABLE = "Forbidden: sharing is readonly"
     FILE_NOT_FOUND = "File not found"
 
@@ -127,13 +125,6 @@ class SubErrorsStrings:
     CANNOT_COPY = "cannot copy {} to {}"
     CANNOT_REMOVE = "cannot remove {}"
 
-class TransferOutcomesStrings:
-    SUCCESS = "OK"
-    ERROR = "ERROR"
-    CONNECTION_ESTABLISHMENT_ERROR = "ERROR: connection establishment failed"
-    TRANSFER_CLOSED = "ERROR: transfer closed"
-    CHECK_FAILED = "ERROR: CRC check failed"
-
 
 # Maps the errors (any kind of error) to its string
 _ERRORS_STRINGS_MAP = {
@@ -146,10 +137,8 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.COMMAND_EXECUTION_FAILED: ErrorsStrings.COMMAND_EXECUTION_FAILED,
     ServerErrors.SHARING_NOT_FOUND: ErrorsStrings.SHARING_NOT_FOUND,
     ServerErrors.INVALID_PATH: ErrorsStrings.INVALID_PATH,
-    ServerErrors.INVALID_TRANSACTION: ErrorsStrings.INVALID_TRANSACTION,
     ServerErrors.NOT_ALLOWED: ErrorsStrings.NOT_ALLOWED,
     ServerErrors.AUTHENTICATION_FAILED: ErrorsStrings.AUTHENTICATION_FAILED,
-    ServerErrors.INTERNAL_SERVER_ERROR: ErrorsStrings.INTERNAL_SERVER_ERROR,
     ServerErrors.NOT_WRITABLE: ErrorsStrings.NOT_WRITABLE,
     ServerErrors.NOT_ALLOWED_FOR_F_SHARING: ErrorsStrings.NOT_ALLOWED_FOR_F_SHARING,
     ServerErrors.NOT_A_DIRECTORY: ErrorsStrings.NOT_A_DIRECTORY,
@@ -168,8 +157,6 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.RM_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_REMOVE),
     ServerErrors.RM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
     ServerErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
-
-    ServerErrors.TRANSFER_SKIPPED: ErrorsStrings.TRANSFER_SKIPPED,
 
     ServerErrors.SUPPORTED_ONLY_FOR_UNIX: ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX,
 
@@ -216,13 +203,6 @@ _ERRORS_STRINGS_MAP = {
     ClientErrors.UNKNOWN_SETTING: ErrorsStrings.UNKNOWN_SETTING
 }
 
-_OUTCOMES_STRINGS_MAP = {
-    TransferOutcomes.SUCCESS: TransferOutcomesStrings.SUCCESS,
-    TransferOutcomes.ERROR: TransferOutcomesStrings.ERROR,
-    TransferOutcomes.CONNECTION_ESTABLISHMENT_ERROR: TransferOutcomesStrings.CONNECTION_ESTABLISHMENT_ERROR,
-    TransferOutcomes.TRANSFER_CLOSED: TransferOutcomesStrings.TRANSFER_CLOSED,
-    TransferOutcomes.CHECK_FAILED: TransferOutcomesStrings.CHECK_FAILED
-}
 
 def errno_str(errno: int, *formats) -> str:
     """ Returns the string associated with the error with number 'error_code' """

@@ -15,7 +15,7 @@ from easyshare.esd.daemons import TcpDaemon
 from easyshare.logging import get_logger
 from easyshare.protocol.requests import Request, is_request, Requests, RequestParams, RequestsParams
 from easyshare.protocol.responses import create_error_response, ServerErrors, Response, create_success_response, \
-    create_error_of_response, TransferOutcomes, ResponsesParams
+    create_error_of_response, ResponsesParams
 from easyshare.protocol.types import ServerInfo, FTYPE_DIR, RexecEventType, create_file_info, FTYPE_FILE, \
     create_file_info_full, FileInfo, ftype_of
 from easyshare.sockets import SocketTcp, SocketTcpIn
@@ -165,7 +165,6 @@ def require_write_permission(api):
         return api(handler, params)
 
     return require_write_permission_wraper
-
 
 class ClientHandler:
 
@@ -376,6 +375,7 @@ class ClientHandler:
     @require_unix
     @require_rexec_enabled
     def _rshell(self, params: RequestParams):
+
         cmd = params.get(RequestsParams.RSHELL_CMD)
         cols = params.get(RequestsParams.RSHELL_COLS)
         rows = params.get(RequestsParams.RSHELL_ROWS)
@@ -383,11 +383,10 @@ class ClientHandler:
         if not cmd:
             cmd = user().pw_shell
 
+        log.i(f"<< RSHELL {cmd}  |  {self._client}")
+
         if not cols or not rows:
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-
-        log.i(f"<< RSHELL {cmd}  |  {self._client}")
 
         # OK - report it
         print(f"[{self._client.tag}] rshell '{cmd}' "
@@ -456,6 +455,8 @@ class ClientHandler:
     def _open(self, params: RequestParams):
         sharing_name = params.get(RequestsParams.OPEN_SHARING)
 
+        log.i(f"<< OPEN {sharing_name}  |  {self._client}")
+
         if not sharing_name:
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
 
@@ -463,8 +464,6 @@ class ClientHandler:
 
         if not sharing:
             return self._create_error_response(ServerErrors.SHARING_NOT_FOUND, q(sharing_name))
-
-        log.i(f"<< OPEN {sharing_name} |  {self._client}")
 
         print(f"[{self._client.tag}] open '{sharing.name}'"
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
@@ -496,10 +495,10 @@ class ClientHandler:
     def _rcd(self, params: RequestParams) -> Response:
         spath = params.get(RequestsParams.RCD_PATH) or "/"
 
+        log.i(f"<< RCD {spath}  |  {self._client}")
+
         if not is_str(spath):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        log.i(f"<< RCD {spath}  |  {self._client}")
 
         new_rcwd_fpath = self._fpath_joining_rcwd_and_spath(spath)
 
@@ -546,10 +545,10 @@ class ClientHandler:
     def _rstat(self, params: RequestParams):
         paths = params.get(RequestsParams.GET_PATHS)
 
+        log.i(f"<< RSTAT  {paths}  |  {self._client}")
+
         if not paths:
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        log.i(f"<< RSTAT  {paths}  |  {self._client}")
 
         errors = []
         infos = {}
@@ -576,18 +575,17 @@ class ClientHandler:
 
     @require_sharing_connection
     def _rls(self, params: RequestParams):
-
         path = params.get(RequestsParams.RLS_PATH) or "."
         sort_by = params.get(RequestsParams.RLS_SORT_BY) or ["name"]
         reverse = params.get(RequestsParams.RLS_REVERSE) or False
         hidden = params.get(RequestsParams.RLS_HIDDEN) or False
         details = params.get(RequestsParams.RLS_DETAILS) or False
 
+        log.i(f"<< RLS {path}  |  {self._client}")
+
         if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse) \
             or not is_bool(hidden) or not is_bool(details):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        log.i(f"<< RLS {path} {sort_by} |  {self._client}")
 
         ls_fpath = self._fpath_joining_rcwd_and_spath(path)
         log.d(f"Would ls into: {ls_fpath}")
@@ -606,24 +604,17 @@ class ClientHandler:
             # OK - report it
             print(f"[{self._client.tag}] rls '{ls_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
-        except FileNotFoundError:
-            log.eexception("rls exception occurred")
-            return self._create_error_response(ServerErrors.NOT_EXISTS,
-                                               ls_fpath)
-        except PermissionError:
-            log.eexception("rls exception occurred")
-            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
-                                               ls_fpath)
-        except OSError as oserr:
-            log.eexception("rls exception occurred")
-            return self._create_error_response(ServerErrors.ERR_2,
-                                               os_error_str(oserr),
-                                               ls_fpath)
         except Exception as exc:
             log.eexception("rls exception occurred")
-            return self._create_error_response(ServerErrors.ERR_2,
-                                               exc,
-                                               ls_fpath)
+
+            if isinstance(exc, FileNotFoundError):
+                return self._create_error_response(ServerErrors.NOT_EXISTS, ls_fpath)
+            if isinstance(exc, PermissionError):
+                return self._create_error_response(ServerErrors.PERMISSION_DENIED, ls_fpath)
+            if isinstance(exc, OSError):
+                return self._create_error_response(ServerErrors.GENERAL_ERROR, os_error_str(exc), ls_fpath)
+
+            return self._create_error_response(ServerErrors.GENERAL_ERROR, exc, ls_fpath)
 
         log.i(f"RLS response {ls_result}")
 
@@ -632,7 +623,6 @@ class ClientHandler:
     @require_sharing_connection
     @require_d_sharing
     def _rtree(self, params: RequestParams):
-
         path = params.get(RequestsParams.RTREE_PATH) or "."
         sort_by = params.get(RequestsParams.RTREE_SORT_BY) or ["name"]
         reverse = params.get(RequestsParams.RTREE_REVERSE) or False
@@ -640,12 +630,11 @@ class ClientHandler:
         max_depth = params.get(RequestsParams.RTREE_DEPTH)
         details = params.get(RequestsParams.RTREE_DETAILS) or False
 
+        log.i(f"<< RTREE {path} |  {self._client}")
+
         if not is_str(path) or not is_list(sort_by, str) or not is_bool(reverse) \
             or not is_bool(details):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-
-        log.i(f"<< RTREE {path} |  {self._client}")
 
         tree_fpath = self._fpath_joining_rcwd_and_spath(path)
         log.d(f"Would tree into: {tree_fpath}")
@@ -665,24 +654,17 @@ class ClientHandler:
             # OK - report it
             print(f"[{self._client.tag}] rtree '{tree_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
-        except FileNotFoundError:
-            log.eexception("rtree exception occurred")
-            return self._create_error_response(ServerErrors.NOT_EXISTS,
-                                               tree_fpath)
-        except PermissionError:
-            log.eexception("rtree exception occurred")
-            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
-                                               tree_fpath)
-        except OSError as oserr:
-            log.eexception("rtree exception occurred")
-            return self._create_error_response(ServerErrors.ERR_2,
-                                               os_error_str(oserr),
-                                               tree_fpath)
         except Exception as exc:
             log.eexception("rtree exception occurred")
-            return self._create_error_response(ServerErrors.ERR_2,
-                                               exc,
-                                               tree_fpath)
+
+            if isinstance(exc, FileNotFoundError):
+                return self._create_error_response(ServerErrors.NOT_EXISTS, tree_fpath)
+            if isinstance(exc, PermissionError):
+                return self._create_error_response(ServerErrors.PERMISSION_DENIED, tree_fpath)
+            if isinstance(exc, OSError):
+                return self._create_error_response(ServerErrors.GENERAL_ERROR, os_error_str(exc), tree_fpath)
+
+            return self._create_error_response(ServerErrors.GENERAL_ERROR, exc, tree_fpath)
 
         log.i(f"RTREE response {j(tree_root)}")
 
@@ -699,6 +681,8 @@ class ClientHandler:
         details = params.get(RequestsParams.RFIND_DETAILS) or False
         max_depth = params.get(RequestsParams.RFIND_MAX_DEPTH)
 
+        log.i(f"<< RFIND {path}  |  {self._client}")
+
         if case_sensitive is None:
             case_sensitive = True
 
@@ -708,8 +692,6 @@ class ClientHandler:
                 (not is_bool(case_sensitive)) or \
                 ftype not in [None, FTYPE_DIR, FTYPE_FILE]:
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        log.i(f"<< RFIND {path}  |  {self._client}")
 
         find_fpath = self._fpath_joining_rcwd_and_spath(path)
         log.d(f"Would find into: {find_fpath}")
@@ -733,25 +715,17 @@ class ClientHandler:
             # OK - report it
             print(f"[{self._client.tag}] rfind '{find_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
-
-        except FileNotFoundError:
-            log.eexception("rfind exception occurred")
-            return self._create_error_response(ServerErrors.NOT_EXISTS,
-                                               find_fpath)
-        except PermissionError:
-            log.eexception("rfind exception occurred")
-            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
-                                               find_fpath)
-        except OSError as oserr:
-            log.eexception("rfind exception occurred")
-            return self._create_error_response(ServerErrors.ERR_2,
-                                               os_error_str(oserr),
-                                               find_fpath)
         except Exception as exc:
             log.eexception("rfind exception occurred")
-            return self._create_error_response(ServerErrors.ERR_2,
-                                               exc,
-                                               find_fpath)
+
+            if isinstance(exc, FileNotFoundError):
+                return self._create_error_response(ServerErrors.NOT_EXISTS, find_fpath)
+            if isinstance(exc, PermissionError):
+                return self._create_error_response(ServerErrors.PERMISSION_DENIED, find_fpath)
+            if isinstance(exc, OSError):
+                return self._create_error_response(ServerErrors.GENERAL_ERROR, os_error_str(exc), find_fpath)
+
+            return self._create_error_response(ServerErrors.GENERAL_ERROR, exc, find_fpath)
 
         log.i(f"RFIND response {find_result}")
 
@@ -762,10 +736,10 @@ class ClientHandler:
     def _rdu(self, params: RequestParams):
         path = params.get(RequestsParams.RDU_PATH) or "."
 
+        log.i(f"<< RDU {path}  |  {self._client}")
+
         if not is_str(path):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        log.i(f"<< RDU {path}  |  {self._client}")
 
         rdu_fpath = self._fpath_joining_rcwd_and_spath(path)
         log.d(f"Would rdu into: {rdu_fpath}")
@@ -782,24 +756,18 @@ class ClientHandler:
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
             usage = du(rdu_fpath)
-        except FileNotFoundError:
-            log.eexception("rdu exception occurred")
-            return self._create_error_response(ServerErrors.NOT_EXISTS,
-                                               rdu_fpath)
-        except PermissionError:
-            log.eexception("rdu exception occurred")
-            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
-                                               rdu_fpath)
-        except OSError as oserr:
-            log.eexception("rdu exception occurred")
-            return self._create_error_response(ServerErrors.ERR_2,
-                                               os_error_str(oserr),
-                                               rdu_fpath)
+
         except Exception as exc:
             log.eexception("rdu exception occurred")
-            return self._create_error_response(ServerErrors.ERR_2,
-                                               exc,
-                                               rdu_fpath)
+
+            if isinstance(exc, FileNotFoundError):
+                return self._create_error_response(ServerErrors.NOT_EXISTS, rdu_fpath)
+            if isinstance(exc, PermissionError):
+                return self._create_error_response(ServerErrors.PERMISSION_DENIED, rdu_fpath)
+            if isinstance(exc, OSError):
+                return self._create_error_response(ServerErrors.GENERAL_ERROR, os_error_str(exc), rdu_fpath)
+
+            return self._create_error_response(ServerErrors.GENERAL_ERROR, exc, rdu_fpath)
 
         log.i(f"RDU response {usage}")
 
@@ -813,11 +781,10 @@ class ClientHandler:
     def _rmkdir(self, params: RequestParams):
         directory = params.get(RequestsParams.RMKDIR_PATH)
 
+        log.i(f"<< RMKDIR {directory}  |  {self._client}")
+
         if not is_str(directory):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-
-        log.i(f"<< RMKDIR {directory}  |  {self._client}")
 
         directory_fpath = self._fpath_joining_rcwd_and_spath(directory)
         log.d(f"Would create directory: {directory_fpath}")
@@ -833,24 +800,17 @@ class ClientHandler:
             # OK - report it
             print(f"[{self._client.tag}] rmkdir '{directory_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
-        except PermissionError:
-            log.eexception("rmkdir exception occurred")
-            return self._create_error_response(ServerErrors.PERMISSION_DENIED,
-                                               directory_fpath)
-        except FileExistsError:
-            log.eexception("rmkdir exception occurred")
-            return self._create_error_response(ServerErrors.DIRECTORY_ALREADY_EXISTS,
-                                               directory_fpath)
-        except OSError as oserr:
-            log.eexception("rmkdir exception occurred")
-            return self._create_error_response(ServerErrors.ERR_2,
-                                               os_error_str(oserr),
-                                               directory_fpath)
         except Exception as exc:
-            log.eexception("rmkdir exception occurred")
-            return self._create_error_response(ServerErrors.ERR_2,
-                                               exc,
-                                               directory_fpath)
+            log.eexception("rdu exception occurred")
+
+            if isinstance(exc, FileNotFoundError):
+                return self._create_error_response(ServerErrors.NOT_EXISTS, directory_fpath)
+            if isinstance(exc, PermissionError):
+                return self._create_error_response(ServerErrors.PERMISSION_DENIED, directory_fpath)
+            if isinstance(exc, OSError):
+                return self._create_error_response(ServerErrors.GENERAL_ERROR, os_error_str(exc), directory_fpath)
+
+            return self._create_error_response(ServerErrors.GENERAL_ERROR, exc, directory_fpath)
 
         return create_success_response()
 
@@ -858,13 +818,12 @@ class ClientHandler:
     @require_d_sharing
     @require_write_permission
     def _rrm(self, params: RequestParams):
-
         paths = params.get(RequestsParams.RRM_PATHS)
+
+        log.i(f"<< RRM {paths}  |  {self._client}")
 
         if not is_valid_list(paths, str):
             return self._create_error_response(ServerErrors.INVALID_COMMAND_SYNTAX)
-
-        log.i(f"<< RRM {paths}  |  {self._client}")
 
         errors = []
 
@@ -903,6 +862,8 @@ class ClientHandler:
         def handle_rm_error(exc: Exception, p: Path):
             nonlocal error
 
+            log.eexception("rm exception occurred")
+
             if isinstance(exc, PermissionError):
                 error = create_error_of_response(ServerErrors.RM_PERMISSION_DENIED,
                                                  *self._qspathify(p))
@@ -936,20 +897,18 @@ class ClientHandler:
             errors.append(create_error_of_response(errno, *subjects))
 
         def handle_cp_exception(exc: Exception, src: FPath, dst: FPath):
+            log.eexception("rcp exception occurred")
+
             if isinstance(exc, PermissionError):
-                log.eexception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_PERMISSION_DENIED,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, FileNotFoundError):
-                log.eexception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_NOT_EXISTS,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, OSError):
-                log.eexception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
                                                        os_error_str(exc), *self._qspathify(src, dst)))
             else:
-                log.eexception("rcp exception occurred")
                 errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
                                                        exc, *self._qspathify(src, dst)))
 
@@ -978,20 +937,18 @@ class ClientHandler:
             errors.append(create_error_of_response(errno, *subjects))
 
         def handle_mv_exception(exc: Exception, src: FPath, dst: FPath):
+            log.eexception("rmv exception occurred")
+
             if isinstance(exc, PermissionError):
-                log.eexception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_PERMISSION_DENIED,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, FileNotFoundError):
-                log.eexception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_NOT_EXISTS,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, OSError):
-                log.eexception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
                                                        os_error_str(exc), *self._qspathify(src, dst)))
             else:
-                log.eexception("rmv exception occurred")
                 errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
                                                        exc, *self._qspathify(src, dst)))
 
@@ -1106,7 +1063,6 @@ class ClientHandler:
         next_servings: Deque[Tuple[FPath, FPath, str]] = deque([]) # fpath, basedir, prefix
 
         errors = []
-        outcome = TransferOutcomes.SUCCESS
 
         # 1. For each path of paths calculate the real version of the path
         # based on our file system, eventually discarding illegal paths (e.g. ../something)
@@ -1122,21 +1078,9 @@ class ClientHandler:
         #           is about to be downloaded)
 
         for f in paths:
-
             # "." is equal to "" and means get the rcwd wrapped into a folder
-            # "*" means get everything inside the rcwd without wrapping it into a folder
-            log.d(f"f = {f}")
-
             p = Path(f)
-
-            take_all_unwrapped = True if (p.parts and p.parts[len(p.parts) - 1]) == "*" else False
-
-            log.d(f"is * = {take_all_unwrapped}")
-
-            if take_all_unwrapped:
-                # Consider the path without the last *
-                p = p.parent
-
+            log.d(f"f = {f}")
             log.d(f"p(f) = {p}")
 
             # Compute the absolute path depending on the user request (p)
@@ -1154,17 +1098,14 @@ class ClientHandler:
 
             prefix = ""
 
-            if take_all_unwrapped:
+            if is_root: # don't go outside "."
                 basedir = fpath
+                prefix = self._current_sharing.name
             else:
-                if is_root: # don't go outside "."
-                    basedir = fpath
-                    prefix = self._current_sharing.name
-                else:
-                    basedir = fpath.parent
+                basedir = fpath.parent
 
-            log.d(f"fpath(f)         = {fpath}")
-            log.d(f"basedir(f)  = {basedir}")
+            log.d(f"fpath(f) = {fpath}")
+            log.d(f"basedir(f) = {basedir}")
             log.d(f"prefix = {self._current_sharing.name}")
 
             # Do domain check now, after this check it should not be
@@ -1310,7 +1251,7 @@ class ClientHandler:
                             except OSError as oserr:
                                 log.w("Can't open file - not transferring file (oserror)")
                                 self._send_response(
-                                    create_error_response(ServerErrors.ERR_2,
+                                    create_error_response(ServerErrors.GENERAL_ERROR,
                                                           os_error_str(oserr),
                                                           q(next_spath_str))
                                 )
@@ -1318,7 +1259,7 @@ class ClientHandler:
                             except Exception as exc:
                                 log.w("Can't open file - not transferring file")
                                 self._send_response(
-                                    create_error_response(ServerErrors.ERR_2,
+                                    create_error_response(ServerErrors.GENERAL_ERROR,
                                                           exc,
                                                           q(next_spath_str))
                                 )
@@ -1352,12 +1293,12 @@ class ClientHandler:
                                                                q(next_spath_str)))
                         continue
                     except OSError as oserr:
-                        errors.append(create_error_of_response(ServerErrors.ERR_2,
+                        errors.append(create_error_of_response(ServerErrors.GENERAL_ERROR,
                                                                  os_error_str(oserr),
                                                                  q(next_spath_str)))
                         continue
                     except Exception as exc:
-                        errors.append(create_error_of_response(ServerErrors.ERR_2,
+                        errors.append(create_error_of_response(ServerErrors.GENERAL_ERROR,
                                                                  exc,
                                                                  q(next_spath_str)))
                         continue
@@ -1449,11 +1390,9 @@ class ClientHandler:
                     # Eventually update the CRC
                     crc = zlib.crc32(chunk, crc)
 
-                log.d("%d/%d (%.2f%%)", cur_pos, file_len, cur_pos / file_len * 100)
+                log.d(f"{cur_pos}/{file_len} ({cur_pos / file_len * 100:.2f})")
 
                 transfer_socket.send(chunk)
-
-                # time.sleep(0.5)
 
 
             log.i(f"Closing file {next_transf_fpath}")
@@ -1469,9 +1408,7 @@ class ClientHandler:
         log.i("GET finished")
 
 
-        resp_data = {
-            ResponsesParams.GET_OUTCOME: outcome
-        }
+        resp_data = {}
 
         if errors:
             resp_data[ResponsesParams.GET_ERRORS] = errors
@@ -1491,14 +1428,13 @@ class ClientHandler:
 
         # Hidden
 
-        log.i(f"<< PUT {'(preview)' if preview else ''} |  {self._client}")
+        log.i(f"<< PUT {'(preview)' if preview else ''}  |  {self._client}")
 
         self._send_response(create_success_response())
 
         transfer_socket = self._client.socket
 
         errors = []
-        outcome = TransferOutcomes.SUCCESS
 
         sync_table: Optional[Dict[str, None]] = None
         sync_table_entries = []
@@ -1531,7 +1467,6 @@ class ClientHandler:
             source_ftype = "any"
             if not is_multiple:
                 source_ftype = FTYPE_DIR if len(Path(fname_).parts) > 1 else finfo_.get("ftype")
-
 
             dest_ftype = ftype_of(self._fpath_joining_rcwd_and_spath(dest))
 
@@ -1636,7 +1571,14 @@ class ClientHandler:
                 log.i(f"<< PUT_NEXT {j(finfo)}")
 
                 # Compute local path, taking dest into account
-                fpath = compute_dest_path(finfo)
+                try:
+                    fpath = compute_dest_path(finfo)
+                except Exception as exc:
+                    log.e(f"Invalid dest semantic {exc}")
+                    self._send_response(self._create_error_response(
+                        ServerErrors.PUT_INVALID_DEST_SEMANTIC, q(fname))
+                    )
+                    continue
 
                 log.d(f"fpath = {fpath}")
 
@@ -1766,24 +1708,27 @@ class ClientHandler:
                     try:
                         fd = fpath.open("wb")
                         log.d(f"Able to open file: {fpath}")
-                    except FileNotFoundError:
-                        self._send_response(self._create_error_response(
-                            ServerErrors.NOT_EXISTS, q(fname))
-                        )
-                        continue
-                    except PermissionError:
-                        self._send_response(self._create_error_response(
-                            ServerErrors.PERMISSION_DENIED, q(fname))
-                        )
-                        continue
-                    except OSError as oserr:
-                        self._send_response(self._create_error_response(
-                            ServerErrors.ERR_2, os_error_str(oserr), q(fname))
-                        )
-                        continue
                     except Exception as exc:
+                        if isinstance(exc, FileNotFoundError):
+                            self._send_response(self._create_error_response(
+                                ServerErrors.NOT_EXISTS, q(fname))
+                            )
+                            continue
+
+                        if isinstance(exc, PermissionError):
+                            self._send_response(self._create_error_response(
+                                ServerErrors.PERMISSION_DENIED, q(fname))
+                            )
+                            continue
+
+                        if isinstance(exc, OSError):
+                            self._send_response(self._create_error_response(
+                                ServerErrors.GENERAL_ERROR, os_error_str(exc), q(fname))
+                            )
+                            continue
+
                         self._send_response(self._create_error_response(
-                            ServerErrors.ERR_2, exc, q(fname))
+                            ServerErrors.GENERAL_ERROR, exc, q(fname))
                         )
                         continue
 
@@ -1926,9 +1871,7 @@ class ClientHandler:
                 cur_del_path_str = path_str
 
 
-        resp_data = {
-            ResponsesParams.PUT_OUTCOME: outcome
-        }
+        resp_data = {}
 
         if errors:
             resp_data[ResponsesParams.PUT_ERRORS] = errors

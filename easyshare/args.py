@@ -274,8 +274,8 @@ class ArgsParser:
             )
 
             if parsed_positionals_count != len(self._positionals):
-                log.w("There will be %d unparsed positionals arguments",
-                      len(self._positionals) - parsed_positionals_count)
+                log.w(f"There will be {len(self._positionals) - parsed_positionals_count} "
+                      f"unparsed positionals arguments")
 
             # Eventually add the remaining to the unparsed
             self._unparsed += self._positionals[parsed_positionals_count:]
@@ -411,8 +411,8 @@ class ArgsParser:
 
             param_cursor += 1
 
-        log.d("Parsing and appending to bucket (taking %d:%d)",
-              params_offset, params_offset + param_cursor)
+        log.d(f"Parsing and appending to bucket "
+              f"(taking {params_offset}:{params_offset + param_cursor})")
 
         # Provide the params to the parser, and add
         # the parsed value to the bucket

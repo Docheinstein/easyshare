@@ -9,59 +9,48 @@ from easyshare.utils.types import is_str, is_int, is_dict, is_list, is_valid_lis
 
 class ServerErrors:
     """ Server side errors """
-    ERR_0 =                      199 # 0
-    ERR_1 =                      200 # 1
-    ERR_2 =                      201 # 1
-    INVALID_COMMAND_SYNTAX =    202 # 0
-    NOT_IMPLEMENTED =           203 # 0
-    NOT_CONNECTED =             204 # 0
-    COMMAND_EXECUTION_FAILED =  205 # 0
-    SHARING_NOT_FOUND =         206 # 1
-    INVALID_PATH =              207 # 1
-    INVALID_TRANSACTION =       208
-    NOT_ALLOWED =               209 # 0
-    AUTHENTICATION_FAILED =     210
-    INTERNAL_SERVER_ERROR =     211
+    GENERAL_ERROR =             200
+
+    UNKNOWN_API =               201
+    INVALID_REQUEST =           202
+    INVALID_COMMAND_SYNTAX =    203
+    NOT_IMPLEMENTED =           204
+    COMMAND_EXECUTION_FAILED =  205
+
+    NOT_CONNECTED =             206
+    NOT_ALLOWED =               207
+    AUTHENTICATION_FAILED =     208
+    SUPPORTED_ONLY_FOR_UNIX =   209
+
+    SHARING_NOT_FOUND =         210
+    INVALID_PATH =              211
     NOT_WRITABLE =              212
     NOT_ALLOWED_FOR_F_SHARING = 213
-    NOT_A_DIRECTORY =           214 # 1
-    PERMISSION_DENIED =         215 # 1
+    NOT_A_DIRECTORY =           214
+    PERMISSION_DENIED =         215
     DIRECTORY_ALREADY_EXISTS =  216
-    NOT_EXISTS =                217 # 1
+    NOT_EXISTS =                217
 
-    MV_NOT_EXISTS =             218 # 2
-    MV_PERMISSION_DENIED =      219 # 2
-    MV_OTHER_ERROR =            220 # 3
+    MV_NOT_EXISTS =             218
+    MV_PERMISSION_DENIED =      219
+    MV_OTHER_ERROR =            220
 
-    CP_NOT_EXISTS =             221 # 2
-    CP_PERMISSION_DENIED =      222 # 2
-    CP_OTHER_ERROR =            223 # 3
+    CP_NOT_EXISTS =             221
+    CP_PERMISSION_DENIED =      222
+    CP_OTHER_ERROR =            223
 
-    RM_NOT_EXISTS =             224 # 1
-    RM_PERMISSION_DENIED =      225 # 1
-    RM_OTHER_ERROR =            226 # 2
+    RM_NOT_EXISTS =             224
+    RM_PERMISSION_DENIED =      225
+    RM_OTHER_ERROR =            226
 
-    TRANSFER_SKIPPED =          227 # 1
+    GET_TRANSFER_SKIPPED =      227
 
-    SUPPORTED_ONLY_FOR_UNIX =   228 # 1
+    PUT_CHECK_FAILED =          228
+    PUT_INVALID_DEST_SEMANTIC = 229
 
-    # -- no pryo --
-    INVALID_REQUEST =           230
-    UNKNOWN_API =               231
-    REXEC_DISABLED =            232
+    REXEC_DISABLED =            230
+    REXEC_EXECUTION_FAILED =    231
 
-    PUT_CHECK_FAILED =          233
-
-    REXEC_EXECUTION_FAILED =    234
-
-
-class TransferOutcomes:
-    """ Possibles results of outcome() of a 'TransferService' """
-    SUCCESS = 0
-    ERROR = 301
-    CONNECTION_ESTABLISHMENT_ERROR = 302
-    TRANSFER_CLOSED = 303
-    CHECK_FAILED = 304
 
 class ResponsesParams:
     GET_NEXT_FILE = "file"
@@ -73,14 +62,12 @@ class ResponsesParams:
     PUT_SYNC_OKS = "sync_oks"
     PUT_SYNC_ERRORS = "sync_errors"
 
+    PUT_NEXT_FILE_INFO = "file"
+    PUT_NEXT_ALREADY_EXISTS = "exists"
     PUT_NEXT_STATUS = "status"
     PUT_NEXT_STATUS_ACCEPTED = "accepted" # e.g. does not exists
     PUT_NEXT_STATUS_REFUSED = "refused" # e.g. already exists and overwrite == "newer"
     PUT_NEXT_STATUS_UNCERTAIN = "uncertain" # e.g. already exists and overwrite == "prompt"
-
-    PUT_NEXT_FILE_INFO = "file"
-
-    PUT_NEXT_ALREADY_EXISTS = "exists"
 
 
 
@@ -187,7 +174,7 @@ def create_error_of_response(err: Union[int, str], *subjects) -> Optional[Respon
 
     if is_str(err):
         # Consider err as a reason of a SPECIFIED_ERROR
-        return {"errno": ServerErrors.ERR_1, "subjects": err}
+        return {"errno": ServerErrors.GENERAL_ERROR, "subjects": err}
 
     return None
 
