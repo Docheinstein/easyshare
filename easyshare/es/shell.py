@@ -7,7 +7,8 @@ from typing import Optional, Callable, Tuple, Dict, List, Union, NoReturn, Type
 
 from easyshare import settings
 from easyshare.args import Args, ArgsParseError, ArgsSpec
-from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias, Set
+from easyshare.commands.commands import Commands, Verbose, Trace, COMMANDS, CommandInfo, Ls, Help, Exit, Alias, Set, \
+    History
 from easyshare.commands.commands import SuggestionsIntent, COMMANDS_INFO
 from easyshare.common import EASYSHARE_HISTORY, EASYSHARE_ES_CONF, TRACING_NONE, TRACING_TEXT, TRACING_BIN, \
     VERBOSITY_DEBUG, VERBOSITY_INFO, VERBOSITY_WARNING, VERBOSITY_ERROR, VERBOSITY_NONE, TRACING_MAX, VERBOSITY_MAX, \
@@ -58,7 +59,10 @@ class Shell:
     LOCAL_FINDINGS_RE = re.compile(r"^\$([a-z]\d+)$")
     REMOTE_FINDINGS_RE = re.compile(r"^\$([A-Z]\d+)$")
 
+    HISTORY_COMMAND_RE = re.compile(r"!([0-9]+)")
+
     ALIAS_RESOLUTION_MAX_DEPTH = 10
+
 
     def __init__(self, client: Client):
         self._aliases: Dict[str, str] = {}
@@ -71,6 +75,8 @@ class Shell:
 
         self._suggestions_intent: Optional[SuggestionsIntent] = None
 
+        self._history_entries: List[str] = []
+
         self._shell_command_dispatcher: Dict[str, Tuple[ArgsSpec, Callable[[Args], AnyErrs]]] = {
             Commands.HELP: (Help(), self._help),
             Commands.EXIT: (Exit(), self._exit),
@@ -80,6 +86,7 @@ class Shell:
             Commands.VERBOSE: (Verbose(), self._verbose),
             Commands.ALIAS: (Alias(), self._alias),
             Commands.SET: (Set(), self._set),
+            Commands.HISTORY: (History(), self._history),
         }
 
         self._prompt_local_remote_sep = "\u2014" if is_unicode_supported() else "-"
@@ -147,8 +154,23 @@ class Shell:
         """ Returns whether the shell is able to handle 'commad' """
         return command in self._shell_command_dispatcher
 
-    def execute(self, cmd: str):
-        self._update_history()
+    def execute(self, cmd: str, add_to_history=True):
+        # Try to perform history command resolution
+        # e.g. !12
+        hist_comm_match = Shell.HISTORY_COMMAND_RE.match(cmd)
+        if hist_comm_match:
+            log.d("Detected history command, replacing it")
+            cmd_idx = int(hist_comm_match.groups()[0])
+
+            if cmd_idx > readline.get_current_history_length():
+                return ClientErrors.HISTORY_COMMAND_OUT_OF_BOUND
+
+            cmd = readline.get_history_item(cmd_idx)
+            log.d(f"History resolution done: {cmd}")
+            add_to_history = False # do not add !<n> commands to history again
+
+        if add_to_history:
+            self._update_history(cmd)
         self._execute_multi(self._split_command(cmd))
 
     @staticmethod
@@ -355,7 +377,7 @@ class Shell:
         rl_set_char_is_quoted_p(self._quote_detector)
 
         # History
-
+        readline.set_auto_history(False)
         self._load_history()
 
     def _parse_esrc(self):
@@ -365,12 +387,12 @@ class Shell:
             log.i("Parsing .esrc")
             with esrc_path.open("r") as esrc:
                 for line in esrc:
-                    self.execute(line)
+                    self.execute(line, add_to_history=False)
         else:
             log.w(f"No .esrc file found (expected at: '{esrc_path.absolute()}')")
 
     @staticmethod
-    def _load_history():
+    def _get_history_file():
         es_history = Path.home() / EASYSHARE_HISTORY
         if not es_history.exists():
             try:
@@ -378,25 +400,36 @@ class Shell:
             except:
                 log.w(f"Failed to create {es_history}")
 
-        if es_history.exists():
-            try:
-                log.d(f"Loading history from: '{es_history}'")
-                readline.read_history_file(es_history)
-                log.d(f"readline.get_current_history_length() = {readline.get_current_history_length()}")
-                log.d(f"readline.get_history_length() = {readline.get_history_length()}")
-            except OSError as e:
-                log.w(f"Failed to load history file: {e}")
-        else:
-            log.w(f"History file not found at: '{es_history}'")
+        return es_history
 
     @staticmethod
-    def _update_history():
-        es_history = Path.home() / EASYSHARE_HISTORY
+    def _load_history():
+        try:
+            es_history = Shell._get_history_file()
 
-        log.d(f"Saving readline history file at: '{es_history}'")
-        readline.append_history_file(1, es_history)
-        log.d(f"readline.get_current_history_length() = {readline.get_current_history_length()}")
-        log.d(f"readline.get_history_length() = {readline.get_history_length()}")
+            log.d(f"Loading history from: '{es_history}'")
+            readline.read_history_file(es_history)
+            log.d(f"Loaded {readline.get_current_history_length()} entries")
+
+            # with es_history.open("r") as hist:
+            #     for line in hist:
+            #         line = line.strip()
+            #         if line:
+            #             self._history_entries.append(line)
+            # log.d(f"Loaded {self._history} entries")
+        except OSError as e:
+            log.w(f"Failed to load from history file: {e}")
+
+    @staticmethod
+    def _update_history(entry):
+        try:
+            readline.add_history(entry)
+
+            es_history = Shell._get_history_file()
+            log.d(f"Updating history at: '{es_history}' - adding '{entry}'")
+            readline.append_history_file(1, es_history)
+        except OSError as e:
+            log.w(f"Failed to write to history file: {e}")
 
     # For Windows
     # noinspection PyUnresolvedReferences
@@ -870,6 +903,18 @@ class Shell:
 
         return ClientErrors.SUCCESS
 
+    def _history(self, args: Args) -> AnyErr:
+        if not readline.get_current_history_length():
+            return ClientErrors.SUCCESS
+        #
+        max_idx = readline.get_current_history_length() - 1
+        max_idx_slen = len(str(max_idx))
+
+        for i in range(readline.get_current_history_length()):
+            entry = readline.get_history_item(i + 1)
+            print(f"{str(i + 1).rjust(max_idx_slen)}  {entry}")
+
+        return ClientErrors.SUCCESS
     @staticmethod
     def _exit(_: Args) -> NoReturn:
         """ exit - quit the shell """

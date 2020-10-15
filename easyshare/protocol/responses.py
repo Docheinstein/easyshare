@@ -16,12 +16,10 @@ class ServerErrors:
     INVALID_COMMAND_SYNTAX =    203
     NOT_IMPLEMENTED =           204
     COMMAND_EXECUTION_FAILED =  205
-
     NOT_CONNECTED =             206
     NOT_ALLOWED =               207
     AUTHENTICATION_FAILED =     208
     SUPPORTED_ONLY_FOR_UNIX =   209
-
     SHARING_NOT_FOUND =         210
     INVALID_PATH =              211
     NOT_WRITABLE =              212
@@ -30,37 +28,32 @@ class ServerErrors:
     PERMISSION_DENIED =         215
     DIRECTORY_ALREADY_EXISTS =  216
     NOT_EXISTS =                217
-
-    MV_NOT_EXISTS =             218
-    MV_PERMISSION_DENIED =      219
-    MV_OTHER_ERROR =            220
-
-    CP_NOT_EXISTS =             221
-    CP_PERMISSION_DENIED =      222
-    CP_OTHER_ERROR =            223
-
-    RM_NOT_EXISTS =             224
-    RM_PERMISSION_DENIED =      225
-    RM_OTHER_ERROR =            226
-
+    RMV_NOT_EXISTS =            218
+    RMV_PERMISSION_DENIED =     219
+    RMV_OTHER_ERROR =           220
+    RCP_NOT_EXISTS =            221
+    RCP_PERMISSION_DENIED =     222
+    RCP_OTHER_ERROR =           223
+    RRM_NOT_EXISTS =            224
+    RRM_PERMISSION_DENIED =     225
+    RRM_OTHER_ERROR =           226
     GET_TRANSFER_SKIPPED =      227
-
     PUT_CHECK_FAILED =          228
     PUT_INVALID_DEST_SEMANTIC = 229
-
     REXEC_DISABLED =            230
     REXEC_EXECUTION_FAILED =    231
 
 
 class ResponsesParams:
-    GET_NEXT_FILE = "file"
     GET_OUTCOME = "outcome"
+    GET_NEXT_FILE = "file"
     GET_ERRORS = "errors"
 
     PUT_OUTCOME = "outcome"
     PUT_ERRORS = "errors"
     PUT_SYNC_OKS = "sync_oks"
     PUT_SYNC_ERRORS = "sync_errors"
+    PUT_ABORT = "abort"
 
     PUT_NEXT_FILE_INFO = "file"
     PUT_NEXT_ALREADY_EXISTS = "exists"

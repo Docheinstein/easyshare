@@ -11,7 +11,7 @@ TODOs
     probably its just better to print directly in the command
 
 TO_DEBUGs
-- convert %s -> fstring
+- convert %s -> fstringpy
 - why after transfer some files to SD (using USB), put -S tries to overwrite all (mtime problem)?
 - don't throw commexecerror on xls() xtree() xfind()    (WTF?)
 - fix get for FILEs which adds \.                       (cant remember what this means)

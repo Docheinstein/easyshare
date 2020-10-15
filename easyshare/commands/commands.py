@@ -40,6 +40,7 @@ class Commands:
 
     ALIAS = "alias"
     SET = "set"
+    HISTORY = "history"
 
     LOCAL_CURRENT_DIRECTORY = "pwd"
     LOCAL_STAT = "stat"
@@ -880,6 +881,29 @@ Usage example:
             max_columns=1,
             insert_after_completion=lambda s: "="
         )
+
+# ============ HISTORY ================
+
+
+class History(CommandInfo, NoPosArgsSpec):
+    @classmethod
+    def name(cls):
+        return "history"
+
+    @classmethod
+    def short_description(cls):
+        return "show commands history"
+
+    @classmethod
+    def synopsis(cls):
+        return """\
+**history**\
+"""
+
+    @classmethod
+    def long_description(cls):
+        return f"""\
+Show commands history."""
 
 # ============ xPWD ================
 

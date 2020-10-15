@@ -22,7 +22,7 @@ from easyshare.endpoint import Endpoint
 from easyshare.es.common import ServerLocation, SharingLocation
 from easyshare.es.connection import Connection, ConnectionMinimal
 from easyshare.es.discover import Discoverer
-from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, outcome_str, AnyErrs
+from easyshare.es.errors import ClientErrors, ErrorsStrings, errno_str, print_errors, AnyErrs
 from easyshare.es.ui import print_files_info_list, print_files_info_tree, \
     sharings_pretty_str, server_info_short_str, file_info_inline_sstr, StyledString, \
     file_info_pretty_str, server_pretty_str, file_info_pretty_sstr
@@ -47,8 +47,7 @@ from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress.file import FileProgressor
 from easyshare.utils.progress.simple import SimpleProgressor
 from easyshare.utils.str import q, chrnext
-from easyshare.utils.types import itob, btoi
-
+from easyshare.utils.types import itob, btoi, is_list
 
 if is_unix():
     import pty
@@ -88,27 +87,34 @@ def formatted_error_from_error_of_response(resp_err: ResponseError) -> str:
 
 def ensure_success_response(resp: Response):
     if not resp:
+        log.e(f"Not a success response: {j(resp)}")
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
     if is_error_response(resp):
+        log.e(f"Not a success response: {j(resp)}")
         raise CommandExecutionError(formatted_errors_from_error_response(resp))
     if not is_success_response(resp):
+        log.e(f"Not a success response: {j(resp)}")
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
 
 def ensure_data_response(resp: Response, *data_fields) -> Any:
     if not resp:
+        log.e(f"Not a data response: {j(resp)}")
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
     if is_error_response(resp):
+        log.e(f"Not a data response: {j(resp)}")
         raise CommandExecutionError(formatted_errors_from_error_response(resp))
     if not is_data_response(resp):
+        log.e(f"Not a data response: {j(resp)}")
         raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
     resp_data = resp.get("data")
 
     for data_field in data_fields:
         if data_field not in resp_data:
+            log.e(f"Not an expected data response: {j(resp)}")
             raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
     return resp_data
 
@@ -222,8 +228,13 @@ def require_unix(api):
 # ==================================================================
 
 class CommandExecutionError(Exception):
-    def __init__(self, errors: AnyErrs = ClientErrors.ERR_0):
+    def __init__(self, errors: AnyErrs = ClientErrors.GENERAL_ERROR):
         self.errors = errors
+
+    def __str__(self):
+        if is_list(self.errors):
+            return "\n".join(self.errors)
+        return str(self.errors)
 
 # class HandledKeyboardInterrupt(KeyboardInterrupt):
 class HandledKeyboardInterrupt(Exception):
@@ -354,14 +365,11 @@ class Client:
     def has_command(self, command: str) -> bool:
         return command in self._command_dispatcher
 
-    # def execute_command(self, command: str, command_args: List[str]) -> AnyErr:
     def execute_command(self, command: str, command_suffix: str = "") -> AnyErrs:
         if not self.has_command(command):
             log.w(f"Unknown command: {command}")
             return ClientErrors.COMMAND_NOT_RECOGNIZED
 
-        # command_args_copy = command_args.copy()
-        # log.i(f"Executing {command}({command_args_copy})")
         log.i(f"Executing {command} {command_suffix}")
 
         # Check which parser to use
@@ -480,7 +488,8 @@ class Client:
         log.i(f">> CD {directory}")
 
         if not directory.is_dir():
-            raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS, directory))
+            raise CommandExecutionError(errno_str(ClientErrors.NOT_EXISTS,
+                                                  q(directory)))
 
         try:
             os.chdir(str(directory))
@@ -491,7 +500,7 @@ class Client:
             raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
                                                   q(directory)))
         except OSError as oserr:
-            raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
+            raise CommandExecutionError(errno_str(ClientErrors.GENERAL_ERROR,
                                                   os_error_str(oserr),
                                                   q(directory)))
 
@@ -518,7 +527,7 @@ class Client:
                     raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
                                                           q(p)))
                 except OSError as oserr:
-                    raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
+                    raise CommandExecutionError(errno_str(ClientErrors.GENERAL_ERROR,
                                                           os_error_str(oserr),
                                                           q(p)))
 
@@ -541,7 +550,7 @@ class Client:
                 raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
                                                       q(p)))
             except OSError as oserr:
-                raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
+                raise CommandExecutionError(errno_str(ClientErrors.GENERAL_ERROR,
                                                       os_error_str(oserr),
                                                       q(p)))
 
@@ -564,7 +573,7 @@ class Client:
                 raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
                                                       q(p)))
             except OSError as oserr:
-                raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
+                raise CommandExecutionError(errno_str(ClientErrors.GENERAL_ERROR,
                                                       os_error_str(oserr),
                                                       q(p)))
 
@@ -587,7 +596,7 @@ class Client:
                 raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
                                                       q(p)))
             except OSError as oserr:
-                raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
+                raise CommandExecutionError(errno_str(ClientErrors.GENERAL_ERROR,
                                                       os_error_str(oserr),
                                                       q(p)))
 
@@ -616,7 +625,7 @@ class Client:
             raise CommandExecutionError(errno_str(ClientErrors.PERMISSION_DENIED,
                                                   q(path)))
         except OSError as oserr:
-            raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
+            raise CommandExecutionError(errno_str(ClientErrors.GENERAL_ERROR,
                                                   os_error_str(oserr),
                                                   q(path)))
 
@@ -640,7 +649,7 @@ class Client:
             raise CommandExecutionError(errno_str(ClientErrors.DIRECTORY_ALREADY_EXISTS,
                                                   q(directory)))
         except OSError as oserr:
-            raise CommandExecutionError(errno_str(ClientErrors.ERR_2,
+            raise CommandExecutionError(errno_str(ClientErrors.GENERAL_ERROR,
                                                   os_error_str(oserr),
                                                   q(directory)))
 
@@ -1272,31 +1281,31 @@ class Client:
                         # 1_file2dir -> put file into dir
                         output = dest / fname_
                     else: # WTF
-                        raise CommandExecutionError("Invalid --dest semantic")
+                        raise CommandExecutionError(errno_str(ClientErrors.GET_INVALID_DEST_SEMANTIC))
                 elif source_ftype == FTYPE_DIR:
                     if not dest_ftype:
                         # 1_dir2none -> replace dir name
                         output = dest / Path(*(fname_.parts[1:]))
                     elif dest_ftype == FTYPE_FILE:
                         # 1_dir2file -> ERROR
-                        raise CommandExecutionError("Invalid --dest semantic: destination must be a directory")
+                        raise CommandExecutionError(errno_str(ClientErrors.GET_INVALID_DEST_SEMANTIC))
                     elif dest_ftype == FTYPE_DIR:
                         # 1_dir2dir
                         output = dest / fname_
                     else: # WTF
-                        raise CommandExecutionError("Invalid --dest semantic")
+                        raise CommandExecutionError(errno_str(ClientErrors.GET_INVALID_DEST_SEMANTIC))
                 else:
-                    raise CommandExecutionError("Invalid --dest semantic")
+                    raise CommandExecutionError(errno_str(ClientErrors.GET_INVALID_DEST_SEMANTIC))
             else:
                 if dest_ftype == FTYPE_FILE:
                     # 2_any2file (ok)
-                    raise CommandExecutionError("Invalid --dest semantic: destination must be a directory")
+                    raise CommandExecutionError(errno_str(ClientErrors.GET_INVALID_DEST_SEMANTIC))
                 elif dest_ftype == FTYPE_DIR:
                     # 2_any2dir (ok)
                     output = dest / fname_
                 else:
                     # 2_any2none (ok)
-                    raise CommandExecutionError("Invalid --dest semantic: destination must exists")
+                    raise CommandExecutionError(errno_str(ClientErrors.GET_INVALID_DEST_SEMANTIC))
 
             return output
 
@@ -1344,6 +1353,7 @@ class Client:
                     outcome_resp = get_next_resp
                 break
 
+
             fname = finfo.get("name")
             fsize = finfo.get("size")
             ftype = finfo.get("ftype")
@@ -1351,7 +1361,21 @@ class Client:
 
             log.d(f"NEXT: '{fname}' [{ftype}]")
 
-            local_path = compute_dest_path(finfo)
+            try:
+                local_path = compute_dest_path(finfo)
+            except Exception as exc:
+                log.eexception(f"Dest path computation failed: {exc}")
+
+                conn.write_json({
+                    RequestsParams.GET_NEXT_ACTION: RequestsParams.GET_NEXT_ACTION_ABORT
+                })
+
+                errors.append({
+                    "errno": ClientErrors.GENERAL_ERROR,
+                    "subjects": [str(exc)]
+                })
+
+                break
 
             log.d(f"Computed local path: {local_path}")
 
@@ -1599,6 +1623,7 @@ class Client:
 
         # Wait for completion
         if not outcome_resp:
+            log.d("Waiting for completion from remote...")
             outcome_resp = conn.read_json()
             ensure_data_response(outcome_resp, ResponsesParams.GET_OUTCOME)
 
@@ -1606,6 +1631,7 @@ class Client:
         elapsed_s = timer.elapsed_s()
 
         # transfer_socket.close() # no since in-band
+
 
         # Take outcome and (eventually) errors out of the resp
         outcome = outcome_resp.get("data").get(ResponsesParams.GET_OUTCOME)
@@ -1648,7 +1674,6 @@ class Client:
 
                     cur_del_path_str = path_str
 
-        log.i(f"GET outcome: {outcome}")
 
         if preview:
             print(f"Download size: {size_str(preview_total_size)}")
@@ -1656,7 +1681,7 @@ class Client:
 
         if n_files > 0:
             print("")
-        print(f"GET outcome:  {outcome_str(outcome)}")
+        print(f"GET outcome:  {'OK' if outcome else 'FAIL'}")
         print("-----------------------")
         print(f"Downloads:    {n_files} ({size_str(tot_bytes)})")
         print(f"Time:         {duration_str_human(round(elapsed_s))}")
@@ -1695,6 +1720,11 @@ class Client:
                 self.local_path = local_path
                 self.remote_path = remote_path
                 self.do_sync = do_sync
+
+            def __str__(self):
+                return f"(local='{self.local_path}', " \
+                       f"remote='{self.remote_path}', " \
+                       f"sync={self.do_sync})"
 
         sendfiles: Deque[SendFile] = deque([])
 
@@ -1793,7 +1823,7 @@ class Client:
             finfo = create_file_info(sendfile.local_path, name=str(sendfile.remote_path))
 
             if not finfo:
-                return
+                return True
 
             log.i(f"send_file finfo: {j(finfo)}")
             fsize = finfo.get("size")
@@ -1813,21 +1843,21 @@ class Client:
                 except FileNotFoundError:
                     errors.append(create_error_of_response(ClientErrors.NOT_EXISTS,
                                                              q(sendfile.local_path)))
-                    return
+                    return True
                 except PermissionError:
                     errors.append(create_error_of_response(ClientErrors.PERMISSION_DENIED,
                                                              q(sendfile.local_path)))
-                    return
+                    return True
                 except OSError as oserr:
-                    errors.append(create_error_of_response(ClientErrors.ERR_2,
+                    errors.append(create_error_of_response(ClientErrors.GENERAL_ERROR,
                                                            os_error_str(oserr),
                                                             q(sendfile.local_path)))
-                    return
+                    return True
                 except Exception as exc:
-                    errors.append(create_error_of_response(ClientErrors.ERR_2,
+                    errors.append(create_error_of_response(ClientErrors.GENERAL_ERROR,
                                                            exc,
                                                            q(sendfile.local_path)))
-                    return
+                    return True
 
             log.d("doing a put_next")
 
@@ -1838,10 +1868,10 @@ class Client:
             })
 
             if is_error_response(put_next_resp):
-                log.w("Received error response for next()")
-                errors += put_next_resp.get("errors")
+                log.w("Received error response for put_next()")
+                errors += put_next_resp.get(ResponsesParams.PUT_ERRORS)
                 # All the errors will be reported at the end
-                return
+                return put_next_resp.get(ResponsesParams.PUT_ABORT, False) == False
 
             if not is_data_response(put_next_resp, ResponsesParams.PUT_NEXT_STATUS):
                 raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
@@ -1855,7 +1885,7 @@ class Client:
                 if preview and not already_exists:
                     if str(sendfile.remote_path) != ".": # dirty fix, I won't want to see . in the preview
                         print(green(f"+ [{size_str_justify(0)}] {sendfile.remote_path}"))
-                return
+                return True
 
             # Case: FILE
 
@@ -1886,7 +1916,7 @@ class Client:
 
                 if current_overwrite_decision == OverwritePolicy.NO:
                     log.i(f"Skipping {sendfile.remote_path}")
-                    return
+                    return True
 
                 # If overwrite policy is NEWER or YES we have to tell it
                 # to the server so that it will take the right action
@@ -1901,7 +1931,7 @@ class Client:
                     log.w("Transfer cannot be initialized due to remote error")
                     errors += put_next_resp.get("errors")
                     # All the errors will be reported at the end
-                    return
+                    return True
                 else:
                     raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
 
@@ -1916,7 +1946,7 @@ class Client:
 
             if status == ResponsesParams.PUT_NEXT_STATUS_REFUSED:
                 log.i(f"Skipping {sendfile.remote_path}")
-                return
+                return True
 
             if status != ResponsesParams.PUT_NEXT_STATUS_ACCEPTED:
                 raise CommandExecutionError(ClientErrors.UNEXPECTED_SERVER_RESPONSE)
@@ -1927,7 +1957,7 @@ class Client:
                 # Just a preview, nothing to transfer
                 print(green(f"+ [{size_str_justify(fsize)}] {sendfile.remote_path}"))
                 preview_total_size += fsize
-                return
+                return True
 
             if not quiet:
                 progressor = FileProgressor(
@@ -1989,6 +2019,8 @@ class Client:
             if not quiet:
                 progressor.success()
 
+            return True
+
 
         while sendfiles:
             log.i("Putting another file info")
@@ -2000,12 +2032,14 @@ class Client:
             # 2. A file: send it directly (parent dirs won't be replicated)
             # 3. A dir: send it recursively
 
+            go_ahead = True
+
             if no_hidden and is_hidden(next_sendfile.local_path):
                 log.d(f"Not sending {next_sendfile.local_path} since no_hidden is True")
             elif next_sendfile.local_path.is_file():
                 # Send it directly
                 log.d("-> is a FILE")
-                send_file(next_sendfile)
+                go_ahead = send_file(next_sendfile)
             elif next_sendfile.local_path.is_dir():
                 # Send it recursively
 
@@ -2023,12 +2057,12 @@ class Client:
                                                              q(next_sendfile.local_path)))
                     continue
                 except OSError as oserr:
-                    errors.append(create_error_of_response(ClientErrors.ERR_2,
+                    errors.append(create_error_of_response(ClientErrors.GENERAL_ERROR,
                                                            os_error_str(oserr),
                                                             q(next_sendfile.local_path)))
                     continue
                 except Exception as exc:
-                    errors.append(create_error_of_response(ClientErrors.ERR_2,
+                    errors.append(create_error_of_response(ClientErrors.GENERAL_ERROR,
                                                            exc,
                                                            q(next_sendfile.local_path)))
                     continue
@@ -2038,7 +2072,7 @@ class Client:
                 if next_sendfile.do_sync or not dir_files:
                     log.d(f"Sending the directory finfo anyway since "
                           f"{'sync is True' if next_sendfile.do_sync else ' directory is empty'}")
-                    send_file(next_sendfile)
+                    go_ahead = send_file(next_sendfile)
 
                 if dir_files:
                     # standard case
@@ -2053,6 +2087,10 @@ class Client:
                         sendfiles.appendleft(child_sendfile)
             else:
                 log.w(f"Failed to send '{next_sendfile.local_path}': unknown file type, doing nothing")
+
+            if not go_ahead:
+                log.w("Aborting since remote ask us to do so")
+                break
 
         log.i("Sending DONE")
 
@@ -2089,9 +2127,8 @@ class Client:
 
         if n_files > 0:
             print("")
-        print(f"PUT outcome:  {outcome_str(outcome)}")
+        print(f"PUT outcome:  {'OK' if outcome else 'FAIL'}")
         print("-----------------------")
-        print(f"Files:        {n_files} ({size_str(tot_bytes)})")
         print(f"Time:         {duration_str_human(round(elapsed_s))}")
         print(f"Avg. speed:   {speed_str(tot_bytes / elapsed_s)}")
 

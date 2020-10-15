@@ -15,13 +15,8 @@ log = get_logger(__name__)
 
 class ClientErrors:
     """ Client side errors """
-
     SUCCESS =                         0
-
-    ERR_0 =                          97
-    ERR_1 =                          98
-    ERR_2 =                          99
-
+    GENERAL_ERROR =                 100
     COMMAND_NOT_RECOGNIZED =        101
     INVALID_COMMAND_SYNTAX =        102
     INVALID_PARAMETER_VALUE =       103
@@ -38,37 +33,26 @@ class ClientErrors:
     NOT_A_DIRECTORY =               114
     DIRECTORY_ALREADY_EXISTS =      115
     NOT_EXISTS =                    116
-
-    CANNOT_MOVE =                   117
-    CANNOT_COPY =                   118
-
-    MV_NOT_EXISTS =                 119
-    MV_PERMISSION_DENIED =          120
-    MV_OTHER_ERROR =                121
-
-    CP_NOT_EXISTS =                 122
-    CP_PERMISSION_DENIED =          123
-    CP_OTHER_ERROR =                124
-
-
-    RM_NOT_EXISTS =                 125
-    RM_PERMISSION_DENIED =          126
-    RM_OTHER_ERROR =                127
-
-    TRANSFER_CONNECTION_CANT_BE_ESTABLISHED =     128
-
-
-    SYNC_ONLY_ONE_PARAMETER =       129
-    STAR_ONLY_ONE_PARAMETER =       130
-
-    SUPPORTED_ONLY_FOR_UNIX =       131
-
-    UNKNOWN_SETTING =               132
+    MV_NOT_EXISTS =                 117
+    MV_PERMISSION_DENIED =          118
+    MV_OTHER_ERROR =                119
+    CP_NOT_EXISTS =                 120
+    CP_PERMISSION_DENIED =          121
+    CP_OTHER_ERROR =                122
+    RM_NOT_EXISTS =                 123
+    RM_PERMISSION_DENIED =          124
+    RM_OTHER_ERROR =                125
+    GET_INVALID_DEST_SEMANTIC =     126
+    SUPPORTED_ONLY_FOR_UNIX =       127
+    UNKNOWN_SETTING_KEY =           128
+    HISTORY_FAIL_READ =             129
+    HISTORY_FAIL_WRITE =            130
+    HISTORY_COMMAND_OUT_OF_BOUND =  131
 
 
 class ErrorsStrings:
     """
-    Error messages; tipically for each error code there is an error string,
+    Error messages; typically for each error code there is an error string,
     but the same string could be associated with more errors
     (e.g. client and server side of a similar error)
     """
@@ -78,13 +62,7 @@ class ErrorsStrings:
     NOT_A_DIRECTORY = "Not a directory: {}"
     INVALID_PATH = "Invalid path: {}"
     SHARING_NOT_FOUND = "Sharing not found: {}"
-
     TRANSFER_SKIPPED = "Skipped: {}"
-
-    ERR_0 = "Error"
-    ERR_1 = "{}"
-    ERR_2 = "{}: {}"
-
     SUCCESS = "Success"
     ERROR = "Error"
     INVALID_COMMAND_SYNTAX = "Invalid command syntax"
@@ -98,25 +76,24 @@ class ErrorsStrings:
     AUTHENTICATION_FAILED = "Authentication failed"
     NOT_WRITABLE = "Forbidden: sharing is readonly"
     FILE_NOT_FOUND = "File not found"
-
     COMMAND_NOT_RECOGNIZED = "Command not recognized"
     UNEXPECTED_SERVER_RESPONSE = "Unexpected server response"
     IMPLEMENTATION_ERROR = "Implementation error"
     CONNECTION_ERROR = "Connection error"
     CONNECTION_CANT_BE_ESTABLISHED = "Connection can't be established"
-    TRANSFER_CONNECTION_CANT_BE_ESTABLISHED = "Transfer connection can't be established"
-
     NOT_ALLOWED_FOR_F_SHARING = "Not allowed: action can be performed only on sharings of type directory"
     WINDOWS_NOT_SUPPORTED = "Not supported for Windows"
+    INVALID_DEST_SEMANTIC = "Invalid --dest semantic"
     SUPPORTED_ONLY_FOR_UNIX = "Supported only for Unix"
-
-    # TODO beutify
-    INVALID_REQUEST = "INVALID_REQUEST"
-    UNKNOWN_API = "UNKNOWN_API"
-    REXEC_DISABLED = "REXEC_DISABLED"
-    PUT_CHECK_FAILED = "PUT_CHECK_FAILED"
-    REXEC_EXECUTION_FAILED = "REXEC_EXECUTION_FAILED"
-    UNKNOWN_SETTING = "UNKNOWN_SETTING"
+    INVALID_REQUEST = "Invalid request"
+    UNKNOWN_API = "Unknown command"
+    REXEC_DISABLED = "Remote execution is disabled on the server"
+    CHECK_FAILED = "CRC check failed"
+    REXEC_EXECUTION_FAILED = "Remote execution of command failed"
+    UNKNOWN_SETTING = "Unknown setting key"
+    HISTORY_FAIL_READ = "Failed to read history"
+    HISTORY_FAIL_WRITE = "Failed to write history"
+    HISTORY_COMMAND_OUT_OF_BOUND = "History index out of bound"
 
 
 
@@ -128,9 +105,6 @@ class SubErrorsStrings:
 
 # Maps the errors (any kind of error) to its string
 _ERRORS_STRINGS_MAP = {
-    ServerErrors.ERR_0: ErrorsStrings.ERR_0,
-    ServerErrors.ERR_1: ErrorsStrings.ERR_1,
-    ServerErrors.ERR_2: ErrorsStrings.ERR_2,
     ServerErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
     ServerErrors.NOT_IMPLEMENTED: ErrorsStrings.NOT_IMPLEMENTED,
     ServerErrors.NOT_CONNECTED: ErrorsStrings.NOT_CONNECTED,
@@ -145,30 +119,24 @@ _ERRORS_STRINGS_MAP = {
     ServerErrors.PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED,
     ServerErrors.DIRECTORY_ALREADY_EXISTS: ErrorsStrings.DIRECTORY_ALREADY_EXISTS,
     ServerErrors.NOT_EXISTS: ErrorsStrings.NOT_EXISTS,
-
-    ServerErrors.MV_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_MOVE),
-    ServerErrors.MV_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_MOVE),
-    ServerErrors.MV_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_MOVE,
-
-    ServerErrors.CP_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_COPY),
-    ServerErrors.CP_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_COPY),
-    ServerErrors.CP_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_COPY,
-
-    ServerErrors.RM_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_REMOVE),
-    ServerErrors.RM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
-    ServerErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
-
+    ServerErrors.RMV_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_MOVE),
+    ServerErrors.RMV_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_MOVE),
+    ServerErrors.RMV_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_MOVE,
+    ServerErrors.RCP_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_COPY),
+    ServerErrors.RCP_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_COPY),
+    ServerErrors.RCP_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_COPY,
+    ServerErrors.RRM_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_REMOVE),
+    ServerErrors.RRM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
+    ServerErrors.RRM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
+    ServerErrors.GET_TRANSFER_SKIPPED: ErrorsStrings.TRANSFER_SKIPPED,
     ServerErrors.SUPPORTED_ONLY_FOR_UNIX: ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX,
-
     ServerErrors.INVALID_REQUEST: ErrorsStrings.INVALID_REQUEST,
     ServerErrors.UNKNOWN_API: ErrorsStrings.UNKNOWN_API,
     ServerErrors.REXEC_DISABLED: ErrorsStrings.REXEC_DISABLED,
-    ServerErrors.PUT_CHECK_FAILED: ErrorsStrings.PUT_CHECK_FAILED,
+    ServerErrors.PUT_CHECK_FAILED: ErrorsStrings.CHECK_FAILED,
+    ServerErrors.PUT_INVALID_DEST_SEMANTIC: ErrorsStrings.INVALID_DEST_SEMANTIC,
     ServerErrors.REXEC_EXECUTION_FAILED: ErrorsStrings.REXEC_EXECUTION_FAILED,
 
-    ClientErrors.ERR_0: ErrorsStrings.ERR_0,
-    ClientErrors.ERR_1: ErrorsStrings.ERR_1,
-    ClientErrors.ERR_2: ErrorsStrings.ERR_2,
     ClientErrors.COMMAND_NOT_RECOGNIZED: ErrorsStrings.COMMAND_NOT_RECOGNIZED,
     ClientErrors.INVALID_COMMAND_SYNTAX: ErrorsStrings.INVALID_COMMAND_SYNTAX,
     ClientErrors.INVALID_PARAMETER_VALUE: ErrorsStrings.INVALID_PARAMETER_VALUE,
@@ -183,24 +151,23 @@ _ERRORS_STRINGS_MAP = {
     ClientErrors.CONNECTION_ERROR: ErrorsStrings.CONNECTION_ERROR,
     ClientErrors.PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED,
     ClientErrors.NOT_A_DIRECTORY: ErrorsStrings.NOT_A_DIRECTORY,
+    ClientErrors.DIRECTORY_ALREADY_EXISTS: ErrorsStrings.DIRECTORY_ALREADY_EXISTS,
     ClientErrors.NOT_EXISTS: ErrorsStrings.NOT_EXISTS,
-
-    ClientErrors.TRANSFER_CONNECTION_CANT_BE_ESTABLISHED: ErrorsStrings.TRANSFER_CONNECTION_CANT_BE_ESTABLISHED,
-
     ClientErrors.MV_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_MOVE),
     ClientErrors.MV_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_MOVE),
     ClientErrors.MV_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_MOVE,
-
     ClientErrors.CP_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_COPY),
     ClientErrors.CP_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_COPY),
     ClientErrors.CP_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_COPY,
-
     ClientErrors.RM_NOT_EXISTS: ErrorsStrings.NOT_EXISTS.format(SubErrorsStrings.CANNOT_REMOVE),
     ClientErrors.RM_PERMISSION_DENIED: ErrorsStrings.PERMISSION_DENIED.format(SubErrorsStrings.CANNOT_REMOVE),
     ClientErrors.RM_OTHER_ERROR: "{}: " + SubErrorsStrings.CANNOT_REMOVE,
-
+    ClientErrors.GET_INVALID_DEST_SEMANTIC: ErrorsStrings.INVALID_DEST_SEMANTIC,
     ClientErrors.SUPPORTED_ONLY_FOR_UNIX: ErrorsStrings.SUPPORTED_ONLY_FOR_UNIX,
-    ClientErrors.UNKNOWN_SETTING: ErrorsStrings.UNKNOWN_SETTING
+    ClientErrors.UNKNOWN_SETTING_KEY: ErrorsStrings.UNKNOWN_SETTING,
+    ClientErrors.HISTORY_FAIL_READ: ErrorsStrings.HISTORY_FAIL_READ,
+    ClientErrors.HISTORY_FAIL_WRITE: ErrorsStrings.HISTORY_FAIL_WRITE,
+    ClientErrors.HISTORY_COMMAND_OUT_OF_BOUND: ErrorsStrings.HISTORY_COMMAND_OUT_OF_BOUND
 }
 
 
@@ -210,16 +177,18 @@ def errno_str(errno: int, *formats) -> str:
 
     if formats:
         try:
-            errstr = errstr.format(*formats)
+            # Special case: general error (variadic)
+            if errno == ClientErrors.GENERAL_ERROR or \
+                    errno == ServerErrors.GENERAL_ERROR:
+                errstr = " : ".join(["{}" for _ in formats])
+            if len(formats):
+                errstr = errstr.format(*formats)
         except IndexError:
             log.w("Mismatch between subjects and expected string params")
-            # Use the err_str as it is
+            # Use the errstr as it is
 
     return errstr
 
-
-def outcome_str(outcomeno: int) -> str:
-    return _OUTCOMES_STRINGS_MAP.get(outcomeno, ErrorsStrings.ERROR)
 
 AnyErr = Union[int, str]
 AnyErrs = Union[int, str, List[AnyErr]]
@@ -247,3 +216,7 @@ def _print_error(err: AnyErr):
     else:
         log.w(f"err expected of type int or str, found {type(err)}")
         log.w(stacktrace(color=ansi.FG_YELLOW))
+
+
+if __name__ == "__main__":
+    print("\n".join([str(s) for s in sorted(_ERRORS_STRINGS_MAP.keys())]))

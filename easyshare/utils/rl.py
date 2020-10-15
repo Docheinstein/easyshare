@@ -80,7 +80,7 @@ def rl_set_completion_suppress_quote(value: int):
 
 PROTOTYPE_rl_char_is_quoted_p = CFUNCTYPE(c_int, c_char_p, c_int)
 
-_rl_char_is_quoted_p_wrapper = None
+_rl_char_is_quoted_p_wrapper = None # keep reference for avoid GC
 
 def rl_set_char_is_quoted_p(quote_detector: Callable[[str, int], int]):
     """
@@ -103,6 +103,39 @@ def rl_set_char_is_quoted_p(quote_detector: Callable[[str, int], int]):
         c.set_func_ptr(_libreadline, "rl_char_is_quoted_p", _rl_char_is_quoted_p_wrapper)
     except:
         pass
+
+
+
+PROTOTYPE_rl_bind_keyseq = CFUNCTYPE(c_int, c_int, c_int)
+_rl_bind_keyseq_wrappers = [] # keep reference for avoid GC
+
+def rl_bind_keyseq(sequence: str, func: Callable[[int, int], int]):
+    """
+    /* Bind the key sequence represented by the string keyseq to the function function,
+    beginning in the current keymap.
+    This makes new keymaps as necessary.
+    The return value is non-zero if keyseq is invalid.   */
+
+    typedef int	  rl_command_func_t(int, int);
+    """
+    wrapper = PROTOTYPE_rl_bind_keyseq(func)
+    _rl_bind_keyseq_wrappers.append(wrapper)
+    return _libreadline.rl_bind_keyseq(sequence, wrapper)
+
+
+PROTOTYPE_rl_bind_key = CFUNCTYPE(c_int, c_int, c_int)
+_rl_bind_key_wrappers = [] # keep reference for avoid GC
+
+def rl_bind_key(key: int, func: Callable[[int, int], int]) -> int:
+    """
+    /* Binds key to function in the currently active keymap.
+    Returns non-zero in the case of an invalid key.  */
+
+    typedef int	  rl_command_func_t(int, int);
+    """
+    wrapper = PROTOTYPE_rl_bind_key(func)
+    _rl_bind_key_wrappers.append(wrapper)
+    return _libreadline.rl_bind_key(key, wrapper)
 
 # from readline.h
 

@@ -57,14 +57,14 @@ def set_setting(key: str, value: SettingValue):
     parser = _SETTINGS_PARSERS.get(key)
 
     if not parser:
-        raise ValueError(f"Unknown key: {key}")
+        raise ValueError(f"Unknown key: \"{key}\"")
 
     try:
         prev_val = _settings_values[key]
         _settings_values[key] = parser(value)
         _notify_setting_changed(key, _settings_values[key], prev_val)  # eventually notify the callbacks
     except Exception:
-        raise ValueError(f"Invalid value: {value}")
+        raise ValueError(f"Invalid value: \"{value}\"")
 
 def get_setting(key: str, default=None) -> Optional[SettingValue]:
     return _settings_values.get(key, default)

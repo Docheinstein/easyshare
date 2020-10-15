@@ -1310,9 +1310,8 @@ def test_get_dest_2_any2none():
     """
     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
-            assert_fail(
-                client.execute_command(Commands.GET, f"d0/d2 f0 {Get.DESTINATION[0]} d2.notexists")
-            )
+            client.execute_command(Commands.GET, f"d0/d2 f0 {Get.DESTINATION[0]} d2.notexists")
+            assert_notexists("d2.notexists")
 
 
 def test_get_dest_2_any2file():
@@ -1354,11 +1353,9 @@ def test_get_dest_2_any2file():
     """
     with tempfile.TemporaryDirectory(prefix="client-") as local_tmp:
         with EsConnectionTest(esd.sharing_root_d.name, cd=local_tmp) as client:
-            tmpfile(local_tmp, name="fx.exists")
-            assert_fail(
-                client.execute_command(Commands.GET, f"d0/d2 f0 {Get.DESTINATION[0]} fx.exists")
-            )
-
+            fxexists = tmpfile(local_tmp, name="fx.exists", size=666)
+            client.execute_command(Commands.GET, f"d0/d2 f0 {Get.DESTINATION[0]} fx.exists")
+            assert_file(fxexists, size_checker=lambda s: s == 666)
 
 def test_get_dest_2_any2dir():
     """
@@ -2849,10 +2846,8 @@ def test_put_dest_2_any2none():
         with EsConnectionTest(esd.sharing_root_d2.name,
                               cd=client_hierarchy,
                               rcd=Path(remote_tmp).name) as client:
-            assert_fail(
-                client.execute_command(Commands.PUT, f"f0 d0/d1 {Put.DESTINATION[0]} d.notexists")
-            )
-
+            client.execute_command(Commands.PUT, f"f0 d0/d1 {Put.DESTINATION[0]} d.notexists")
+            assert_notexists(Path(remote_tmp) / "d.notexists")
 
 def test_put_dest_2_any2file():
     """
@@ -2903,12 +2898,9 @@ def test_put_dest_2_any2file():
         with EsConnectionTest(esd.sharing_root_d2.name,
                               cd=client_hierarchy,
                               rcd=Path(remote_tmp).name) as client:
-            tmpfile(remote_tmp, name="d.exists")
-
-            assert_fail(
-                client.execute_command(Commands.PUT, f"f0 d0/d1 {Put.DESTINATION[0]} f.exists")
-            )
-
+            dexists = tmpfile(remote_tmp, name="d.exists", size=666)
+            client.execute_command(Commands.PUT, f"f0 d0/d1 {Put.DESTINATION[0]} f.exists")
+            assert_file(dexists, size_checker=lambda s: s == 666)
 
 
 def test_put_dest_2_any2dir():

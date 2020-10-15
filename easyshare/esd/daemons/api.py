@@ -327,7 +327,7 @@ class ClientHandler:
 
         self._connected_to_server = True
 
-        print(f"[{self._client.tag}] connect {'*' * len(password) if password else ''}"
+        print(f"[{self._client.tag}] connect {'*' * len(password) if password else ''} "
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
         return create_success_response()
@@ -465,7 +465,7 @@ class ClientHandler:
         if not sharing:
             return self._create_error_response(ServerErrors.SHARING_NOT_FOUND, q(sharing_name))
 
-        print(f"[{self._client.tag}] open '{sharing.name}'"
+        print(f"[{self._client.tag}] open '{sharing.name}' "
               f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
         self._connected_to_sharing = True
@@ -865,17 +865,17 @@ class ClientHandler:
             log.eexception("rm exception occurred")
 
             if isinstance(exc, PermissionError):
-                error = create_error_of_response(ServerErrors.RM_PERMISSION_DENIED,
+                error = create_error_of_response(ServerErrors.RRM_PERMISSION_DENIED,
                                                  *self._qspathify(p))
             elif isinstance(exc, FileNotFoundError):
-                error = create_error_of_response(ServerErrors.RM_NOT_EXISTS,
+                error = create_error_of_response(ServerErrors.RRM_NOT_EXISTS,
                                                  *self._qspathify(p))
             elif isinstance(exc, OSError):
-                error = create_error_of_response(ServerErrors.RM_OTHER_ERROR,
+                error = create_error_of_response(ServerErrors.RRM_OTHER_ERROR,
                                                  os_error_str(exc),
                                                  *self._qspathify(p))
             else:
-                error = create_error_of_response(ServerErrors.RM_OTHER_ERROR,
+                error = create_error_of_response(ServerErrors.RRM_OTHER_ERROR,
                                                  exc,
                                                  *self._qspathify(p))
 
@@ -900,16 +900,16 @@ class ClientHandler:
             log.eexception("rcp exception occurred")
 
             if isinstance(exc, PermissionError):
-                errors.append(create_error_of_response(ServerErrors.CP_PERMISSION_DENIED,
+                errors.append(create_error_of_response(ServerErrors.RCP_PERMISSION_DENIED,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, FileNotFoundError):
-                errors.append(create_error_of_response(ServerErrors.CP_NOT_EXISTS,
+                errors.append(create_error_of_response(ServerErrors.RCP_NOT_EXISTS,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, OSError):
-                errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
+                errors.append(create_error_of_response(ServerErrors.RCP_OTHER_ERROR,
                                                        os_error_str(exc), *self._qspathify(src, dst)))
             else:
-                errors.append(create_error_of_response(ServerErrors.CP_OTHER_ERROR,
+                errors.append(create_error_of_response(ServerErrors.RCP_OTHER_ERROR,
                                                        exc, *self._qspathify(src, dst)))
 
         resp = self._rmvcp(sources, dest, cp, "rcp",
@@ -940,16 +940,16 @@ class ClientHandler:
             log.eexception("rmv exception occurred")
 
             if isinstance(exc, PermissionError):
-                errors.append(create_error_of_response(ServerErrors.MV_PERMISSION_DENIED,
+                errors.append(create_error_of_response(ServerErrors.RMV_PERMISSION_DENIED,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, FileNotFoundError):
-                errors.append(create_error_of_response(ServerErrors.MV_NOT_EXISTS,
+                errors.append(create_error_of_response(ServerErrors.RMV_NOT_EXISTS,
                                                        *self._qspathify(src, dst)))
             elif isinstance(exc, OSError):
-                errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
+                errors.append(create_error_of_response(ServerErrors.RMV_OTHER_ERROR,
                                                        os_error_str(exc), *self._qspathify(src, dst)))
             else:
-                errors.append(create_error_of_response(ServerErrors.MV_OTHER_ERROR,
+                errors.append(create_error_of_response(ServerErrors.RMV_OTHER_ERROR,
                                                        exc, *self._qspathify(src, dst)))
 
         resp = self._rmvcp(sources, dest, mv, "rmv",
@@ -1063,6 +1063,7 @@ class ClientHandler:
         next_servings: Deque[Tuple[FPath, FPath, str]] = deque([]) # fpath, basedir, prefix
 
         errors = []
+        aborted = False
 
         # 1. For each path of paths calculate the real version of the path
         # based on our file system, eventually discarding illegal paths (e.g. ../something)
@@ -1147,10 +1148,15 @@ class ClientHandler:
 
                 next_transfer = handle_get_next_request(req)
 
+                if next_transfer is False:
+                    break
+
             # Either next_transfer is valid or we have finished
             return next_transfer
 
-        def handle_get_next_request(req: Dict) -> Union[Tuple[FPath, BinaryIO], None]: # fpath, fd
+        def handle_get_next_request(req: Dict) -> Union[Tuple[FPath, BinaryIO], None, bool]: # fpath, fd
+            nonlocal aborted
+
             while True:
                 action = req.get(RequestsParams.GET_NEXT_ACTION)
                 if action not in RequestsParams.GET_NEXT_ACTIONS:
@@ -1158,6 +1164,11 @@ class ClientHandler:
                     action = RequestsParams.GET_NEXT_ACTION_SEEK
 
                 log.i(f"<< GET_NEXT action = {action}")
+
+                if action == RequestsParams.GET_NEXT_ACTION_ABORT:
+                    log.w("Client has request an abort")
+                    aborted = True
+                    return False
 
                 # 2. Serve the file
                 # -> send response to the client anyway
@@ -1323,7 +1334,7 @@ class ClientHandler:
                     # Pop it now
                     next_servings.pop()
                     log.w(f"Not file nor dir? skipping {next_fpath}")
-                    errors.append(create_error_of_response(ServerErrors.TRANSFER_SKIPPED,
+                    errors.append(create_error_of_response(ServerErrors.GET_TRANSFER_SKIPPED,
                                                            q(next_spath_str)))
                     continue
 
@@ -1345,7 +1356,7 @@ class ClientHandler:
             log.i(f"Next outgoing file to handle: {next_transf_fpath}")
 
             # OK - report it
-            print(f"[{self._client.tag}] get '{next_transf_fpath}'"
+            print(f"[{self._client.tag}] get '{next_transf_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
             file_len = next_transf_fpath.stat().st_size
@@ -1383,14 +1394,15 @@ class ClientHandler:
                     log.i(f"Finished to handle: {next_transf_fpath}")
                     break
 
-                log.d(f"Read chunk of {len(chunk)}B")
+                log.h(f"Read chunk of {len(chunk)}B")
                 cur_pos += len(chunk)
+
 
                 if check:
                     # Eventually update the CRC
                     crc = zlib.crc32(chunk, crc)
 
-                log.d(f"{cur_pos}/{file_len} ({cur_pos / file_len * 100:.2f})")
+                log.h(f"{cur_pos}/{file_len} ({cur_pos / file_len * 100:.2f})")
 
                 transfer_socket.send(chunk)
 
@@ -1407,8 +1419,9 @@ class ClientHandler:
 
         log.i("GET finished")
 
-
-        resp_data = {}
+        resp_data = {
+            ResponsesParams.GET_OUTCOME: not aborted
+        }
 
         if errors:
             resp_data[ResponsesParams.GET_ERRORS] = errors
@@ -1435,6 +1448,7 @@ class ClientHandler:
         transfer_socket = self._client.socket
 
         errors = []
+        outcome = True
 
         sync_table: Optional[Dict[str, None]] = None
         sync_table_entries = []
@@ -1533,6 +1547,8 @@ class ClientHandler:
                   "\n".join(sync_table.keys()))
 
         def put_next():
+            nonlocal outcome
+
             while True:
                 log.d("Waiting for next() request from client...")
 
@@ -1574,10 +1590,16 @@ class ClientHandler:
                 try:
                     fpath = compute_dest_path(finfo)
                 except Exception as exc:
+                    outcome = False
                     log.e(f"Invalid dest semantic {exc}")
-                    self._send_response(self._create_error_response(
+                    err_resp = self._create_error_response(
                         ServerErrors.PUT_INVALID_DEST_SEMANTIC, q(fname))
-                    )
+                    err_resp[ResponsesParams.PUT_ABORT] = True
+
+                    self._send_response(err_resp)
+                    # the abort flag is only a suggestion, we will continue
+                    # the put_next loop (the expected behaviour is that the client
+                    # will send us an empty file (i.e. a DONE) the next iteration
                     continue
 
                 log.d(f"fpath = {fpath}")
@@ -1747,7 +1769,7 @@ class ClientHandler:
             # Wait on the blocking queue for the next file to recv
             next_incoming = put_next()
 
-            if not next_incoming:
+            if next_incoming is None:
                 log.i("No more files: transfer completed")
                 break
 
@@ -1761,7 +1783,7 @@ class ClientHandler:
             log.i(f"Next incoming file to handle: {incoming_fpath}")
 
             # OK - report it
-            print(f"[{self._client.tag}] put '{incoming_fpath}'"
+            print(f"[{self._client.tag}] put '{incoming_fpath}' "
                   f"({self._client.endpoint[0]}:{self._client.endpoint[1]})")
 
 
@@ -1871,7 +1893,9 @@ class ClientHandler:
                 cur_del_path_str = path_str
 
 
-        resp_data = {}
+        resp_data = {
+            ResponsesParams.PUT_OUTCOME: outcome
+        }
 
         if errors:
             resp_data[ResponsesParams.PUT_ERRORS] = errors
