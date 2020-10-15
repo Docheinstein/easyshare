@@ -1,0 +1,18 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    mkdir - create a local directory
+
+**SYNOPSIS**
+    **mkdir** *DIR*
+
+**DESCRIPTION**
+    Create the local directory *DIR*.
+    
+    Parent directories of *DIR* are automatically created when needed.
+    
+    If *DIR* already exists, it does nothing.
+
+**SEE ALSO**
+    Type "**help** **rmkdir**" for the remote analogous.

@@ -1,0 +1,24 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    rshell - start a remote shell or execute a command
+
+**SYNOPSIS**
+    **rshell** [*COMMAND]*
+    
+    **rshell** [*SERVER_LOCATION*] [*COMMAND*]
+    
+    *SHARING_LOCATION* must be specified if and only if not already connected to a remote server. In that case the connection will be established before execute the command, as "**connect** *SHARING_LOCATION*" would do.
+    
+    Type "**help** **connect**" for more information about *SHARING_LOCATION* format.
+
+**DESCRIPTION**
+    If no *COMMAND* is given, start a remote shell using the remote user's preferred shell.
+    
+    If *COMMAND* is given, it is executed on the pseudo terminal (but you won't get a shell, unless *COMMAND* is a shell itself)
+    
+    Currently supported only if the server is Unix.
+
+**SEE ALSO**
+    Type "**help** **shell**" for the local analogous.

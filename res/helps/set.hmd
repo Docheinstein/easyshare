@@ -1,0 +1,38 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    set - show or set easyshare settings
+
+**SYNOPSIS**
+    **set** [*setting*=*value*]
+
+**DESCRIPTION**
+    If no argument is given, print the current settings.
+    
+    An value can be set using the following syntax:
+        **set** *setting*=*value*
+        
+    The allowed settings are the following:
+        verbose=<int>
+        trace=<int>
+        discover_port=<int>
+        discover_timeout=<float>
+        shell_passthrough=<bool>
+        color=<bool>
+
+
+**EXAMPLES**
+    Usage example:
+    
+    .A .
+    1. Set a value
+    ./A
+        **/tmp> set** *verbose=4*
+    
+    .A .
+    2. Show current settings
+    ./A
+        **/tmp> set**
+        set verbose=4
+        set trace=0

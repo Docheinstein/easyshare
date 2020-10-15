@@ -1,0 +1,54 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    help - show the help of a command
+
+**SYNOPSIS**
+    **help** [*COMMAND_OR_ALIAS*]
+
+**DESCRIPTION**
+    Show the help of *COMMAND_OR_ALIAS* if specified, or show the list of commands if no *COMMAND* is given.
+    
+    *COMMAND_OR_ALIAS* can either be a default command or a custom alias (read from .esrc).
+    
+    Available commands are:
+        alias
+        cd
+        close
+        connect
+        cp
+        disconnect
+        du
+        exit
+        find
+        get
+        help
+        info
+        list
+        ls
+        mkdir
+        mv
+        open
+        ping
+        put
+        pwd
+        quit
+        rcd
+        rcp
+        rdu
+        rfind
+        rls
+        rm
+        rmkdir
+        rmv
+        rpwd
+        rrm
+        rshell
+        rtree
+        scan
+        set
+        shell
+        trace
+        tree
+        verbose

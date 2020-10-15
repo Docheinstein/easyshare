@@ -1,4 +1,5 @@
 import datetime
+from pathlib import Path
 from typing import Type, Tuple, List
 import sys
 
@@ -11,9 +12,10 @@ import os
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_PARENT_DIR, _ = os.path.split(SCRIPT_DIR)
 
-sys.path.append(SCRIPT_PARENT_DIR)
+sys.path.insert(0, str(Path(SCRIPT_PARENT_DIR).absolute()))
 
 # Now we can import easyshare stuff
+print(sys.path)
 
 from easyshare.commands import es, CommandHelp
 from easyshare.commands.commands import COMMANDS_INFO

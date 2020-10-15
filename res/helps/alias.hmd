@@ -1,0 +1,30 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    alias - show or create new command aliases
+
+**SYNOPSIS**
+    **alias** [*source*=*target*]
+
+**DESCRIPTION**
+    If no argument is given, print the current aliases.
+    
+    An alias can be created using the following syntax:
+        **alias** *source*=*target*
+
+**EXAMPLES**
+    Usage example:
+    
+    .A .
+    1. Create an alias
+    ./A
+        **/tmp> alias** *s=scan*
+    
+    .A .
+    2. Show current aliases
+    ./A
+        **/tmp> alias**
+        alias s=scan
+        alias t=trace
+        alias l=ls -la

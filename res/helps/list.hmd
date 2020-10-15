@@ -1,0 +1,33 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    list - list the sharings of the remote server
+
+**SYNOPSIS**
+    **list**...
+    
+    **list** [*SERVER_LOCATION*]...
+    
+    *SERVER_LOCATION* must be specified if and only if not already connected to a remote server. In that case the connection will be established before execute the command, as "**connect** *SERVER_LOCATION*" would do.
+    
+    Type "**help** **connect**" for more information about *SERVER_LOCATION* format.
+
+**DESCRIPTION**
+    List the sharings of the remote server to which the connection is established.
+
+**EXAMPLES**
+    Usage example:
+    
+    **/tmp>** connect alice-arch
+    **alice-arch** - **/tmp>** **list**
+    DIRECTORIES
+    - shared
+    - tmp
+    
+    **/tmp>** open music
+    **bob-debian.music:/** - **/tmp>** **list**
+    DIRECTORIES
+    - music
+    FILES
+    - README.txt

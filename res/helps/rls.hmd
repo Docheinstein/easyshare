@@ -1,0 +1,39 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    rls - list remote directory content
+
+**SYNOPSIS**
+    **rls** [*OPTION*]... [*DIR*]
+    
+    **rls** [*OPTION*]... [*SHARING_LOCATION*] [*DIR*]
+    
+    *SHARING_LOCATION* must be specified if and only if not already connected to a remote server. In that case the connection will be established before execute the command, as "**connect** *SHARING_LOCATION*" would do.
+    
+    Type "**help** **connect**" for more information about *SHARING_LOCATION* format.
+
+**DESCRIPTION**
+    List content of the remote DIR or the current remote directory if no DIR is specified.
+
+**OPTIONS**
+    **-a**, **--all** 
+        Show hidden files too
+    
+    **-g**, **--group** 
+        Group by file type
+    
+    **-l** 
+        Show more details
+    
+    **-r**, **--reverse** 
+        Reverse sort order
+    
+    **-S** 
+        Show files size
+    
+    **-s**, **--sort-size** 
+        Sort by size
+
+**SEE ALSO**
+    Type "**help** **ls**" for the local analogous.

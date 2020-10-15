@@ -1,0 +1,32 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    es-tools - tools for administrators of easyshare servers
+
+**SYNOPSIS**
+    **es-tools** [*OPTION*]...
+
+**DESCRIPTION**
+    Collection of tools for administrators of easyshare servers.
+    
+    If neither **-c**, **-s**, nor **-p** is given, an interactive script is started and you will be asked what to do.
+
+**OPTIONS**
+    **-c**, **--generate-client-config** 
+        Generate default .esrc file (client)
+    
+    **-h**, **--help** 
+        Show this help
+    
+    **-p**, **--hash-password** *password*
+        Generate an hash of the password
+    
+    **-s**, **--generate-server-config** 
+        Generate default esd.conf file (server)
+    
+    **-V**, **--version** 
+        Show the easyshare version
+
+**SEE ALSO**
+    SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES

@@ -1,0 +1,16 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    rpwd - show the name of current remote working directory
+
+**SYNOPSIS**
+    **rpwd**
+
+**DESCRIPTION**
+    Show the name of current remote working directory.
+    
+    The remote working directory can be changed with the command **rcd**.
+
+**SEE ALSO**
+    Type "**help** **pwd**" for the local analogous.

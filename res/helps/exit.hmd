@@ -1,0 +1,14 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    exit - exit from the interactive shell
+
+**SYNOPSIS**
+    **exit**
+    **quit**
+
+**DESCRIPTION**
+    Exit from the interactive shell.
+    
+    Open connections are automatically closed.

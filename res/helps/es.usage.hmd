@@ -1,0 +1,88 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    es - client of the easyshare application
+
+**SYNOPSIS**
+    es [*OPTION*]... [*COMMAND* [*COMMAND_OPTIONS*]]
+
+**DESCRIPTION**
+    **es** is the client of *easyshare*, a client-server command line application 
+    written in Python for transfer files between network hosts.
+    
+    If no *COMMAND* is given, the interactive console is started
+    
+    Commands:
+    .A                  .
+    help                show this help
+    exit, quit          exit from the interactive shell
+    trace               enable/disable packet tracing
+    verbose             change verbosity level
+    
+    scan                scan the network for easyshare servers
+    connect             connect to a remote server
+    disconnect          disconnect from a remote server
+    open                open a remote sharing (eventually discovering it)
+    close               close the remote sharing
+    
+    get                 get files and directories from the remote sharing
+    put                 put files and directories in the remote sharing
+    
+    pwd                 show the name of current local working directory
+    ls                  list local directory content
+    tree                list local directory contents in a tree-like format
+    cd                  change local working directory
+    mkdir               create a local directory
+    cp                  copy files and directories locally
+    mv                  move files and directories locally
+    rm                  remove files and directories locally
+    find                search for local files
+    shell               start a local shell or execute a local command
+    
+    rpwd                show the name of current remote working directory
+    rls                 list remote directory content
+    rl                  alias for rls -la
+    rtree               list remote directory contents in a tree-like format
+    rcd                 change remote working directory
+    rmkdir              create a remote directory
+    rcp                 copy files and directories remotely
+    rmv                 move files and directories remotely
+    rrm                 remove files and directories remotely
+    rfind               search for local files
+    rshell              start a remote shell or execute a remote command
+    
+    info                show information about the remote server
+    list                list the sharings of the remote server
+    ping                test the connection with the remote server
+
+**OPTIONS**
+    **--no-color** 
+        Don't print ANSI escape characters
+    
+    **-d**, **--discover-port** *port*
+        Port used for broadcast discovery messages
+    
+    **-h**, **--help** 
+        Show this help
+    
+    **-k**, **--keep-open** 
+        Keep the shell open when even if no connection is established with *COMMAND*
+    
+    **-s**, **--shell-passthrough** 
+        Makes all the shell commands available from the easyshare shell
+    
+    **-t**, **--trace** *0_or_1*
+        Enable/disable tracing
+    
+    **-v**, **--verbose** *level*
+        Set verbosity level
+    
+    **-V**, **--version** 
+        Show the easyshare version
+    
+    **-w**, **--discover-wait** *seconds*
+        Time to wait for discovery responses
+
+**SEE ALSO**
+    SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES

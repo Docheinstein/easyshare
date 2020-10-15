@@ -1,0 +1,61 @@
+. =============================================
+. Automatically generated - 15/10/2020 15:33:11
+. =============================================
+**COMMAND**
+    esd - server of the easyshare application
+
+**SYNOPSIS**
+    *esd* [**OPTION**]... [**SHARING** [**SHARING_NAME**] [**SHARING_OPTION**]...]
+
+**DESCRIPTION**
+    **esd** is the server of *easyshare*, a client-server command line application 
+    written in Python for transfer files between network hosts.
+
+**OPTIONS**
+    **--no-color** 
+        Don't print ANSI escape characters
+    
+    **--ssl-cert** *cert_path*
+        Path to an SSL certificate
+    
+    **--ssl-privkey** *privkey_path*
+        Path to an SSL private key
+    
+    **-a**, **--address** *address*
+        Server address (default is primary interface)
+    
+    **-c**, **--config** *config_path*
+        Load settings from a server configuration file
+    
+    **-d**, **--discover-port** *port*
+        Port used to listen to discovery messages; 1 disables discovery (default is 12021)
+    
+    **-e**, **--rexec** 
+        Enable rexec (remote execution)
+    
+    **-h**, **--help** 
+        Show this help
+    
+    **-n**, **--name** *name*
+        Server name (default is server hostname)
+    
+    **-P**, **--password** *password*
+        Server password, plain or hashed with es-tools
+    
+    **-p**, **--port** *port*
+        Server port (default is 12020)
+    
+    **-s**, **--sharing** *sh_path* *[sh_name]* *[sh_options]*
+        Sharing to serve
+    
+    **-t**, **--trace** *0_or_1*
+        Enable/disable tracing
+    
+    **-v**, **--verbose** *level*
+        Set verbosity level
+    
+    **-V**, **--version** 
+        Show the easyshare version
+
+**SEE ALSO**
+    SEE THE MAN PAGE FOR MORE INFO AND EXAMPLES
