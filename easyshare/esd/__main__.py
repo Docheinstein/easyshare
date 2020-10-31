@@ -3,16 +3,15 @@ import sys
 import threading
 from typing import List, Optional, cast, Callable, Dict
 
-from easyshare import logging
 from easyshare.args import Option, PRESENCE_PARAM, ArgsParseError, ArgType, Args, StrParams, VarArgsSpec
 from easyshare.auth import AuthFactory
+from easyshare.commands.esd import Esd, EsdUsage
 from easyshare.common import APP_VERSION, APP_NAME_SERVER, SERVER_NAME_ALPHABET, easyshare_setup, APP_INFO, \
-    DEFAULT_SERVER_PORT, DEFAULT_DISCOVER_PORT, TRACING_NONE, VERBOSITY_NONE, TRACING_TEXT, VERBOSITY_MAX
+    DEFAULT_SERVER_PORT, DEFAULT_DISCOVER_PORT, TRACING_TEXT, VERBOSITY_MAX
 from easyshare.conf import Conf, INT_VAL, STR_VAL, BOOL_VAL, ConfParseError
 from easyshare.esd.common import Sharing
 from easyshare.esd.daemons.api import ApiDaemon
 from easyshare.esd.daemons.discover import DiscoverDaemon
-from easyshare.commands.esd import Esd, EsdUsage
 from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.res.helps import command_usage
@@ -155,7 +154,10 @@ ESD_CONF_SPEC = {
 running_sync = threading.Semaphore(0)
 is_running_event = threading.Event()
 
-def main(args):
+def main():
+    start(sys.argv[1:])
+
+def start(args):
     # Already called: easyshare_setup()
 
     # Parse arguments
@@ -633,4 +635,4 @@ def _print_usage_and_quit():
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
         _print_usage_and_quit()
-    main(sys.argv[1:])
+    main()

@@ -8,7 +8,7 @@ from typing import Optional
 
 from easyshare.commands.commands import Commands
 from easyshare.es.client import Client
-from easyshare.esd.__main__ import main as start_esd
+from easyshare.esd.__main__ import start as start_esd
 from easyshare.esd.__main__ import stop as stop_esd
 from easyshare.logging import get_logger
 from easyshare.utils.os import rm
