@@ -155,7 +155,7 @@ ESD_CONF_SPEC = {
 running_sync = threading.Semaphore(0)
 is_running_event = threading.Event()
 
-def start(args):
+def main(args):
     # Already called: easyshare_setup()
 
     # Parse arguments
@@ -633,4 +633,4 @@ def _print_usage_and_quit():
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
         _print_usage_and_quit()
-    start(sys.argv[1:])
+    main(sys.argv[1:])

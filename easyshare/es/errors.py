@@ -3,7 +3,6 @@ from typing import Union, List
 from easyshare.consts import ansi
 from easyshare.logging import get_logger
 from easyshare.protocol.responses import ServerErrors
-from easyshare.utils import eprint
 from easyshare.utils.inspection import stacktrace
 from easyshare.utils.types import is_int, is_str, is_list
 

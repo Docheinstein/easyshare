@@ -5,7 +5,7 @@ from easyshare.logging import get_logger
 from easyshare.protocol.types import ServerInfoFull
 from easyshare.sockets import SocketUdpOut
 from easyshare.tracing import trace_text, trace_json
-from easyshare.utils.json import jtob, j
+from easyshare.utils.json import jtob
 from easyshare.utils.net import is_valid_port
 from easyshare.utils.types import btoi
 

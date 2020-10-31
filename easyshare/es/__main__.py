@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-from easyshare import logging
 from easyshare.args import ArgsParseError
 from easyshare.commands.es import Es, EsUsage
 from easyshare.common import APP_NAME_CLIENT, APP_VERSION, easyshare_setup, \

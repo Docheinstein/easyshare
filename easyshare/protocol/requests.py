@@ -2,8 +2,10 @@
 # ===============================================
 # ================== REQUEST ====================
 # ===============================================
+from typing import Any, Dict, Union
+
 from easyshare.utils.types import is_dict, is_str
-from typing import Any, Dict, Union, List, Optional
+
 
 class Requests:
     CONNECT = "connect"

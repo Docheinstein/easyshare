@@ -1,9 +1,10 @@
 import string
 from pathlib import Path
-from typing import Optional, Any
+from typing import Optional
+
 from easyshare.endpoint import Endpoint
 from easyshare.logging import get_logger
-from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType, ftype_of, ftype_of
+from easyshare.protocol.types import SharingInfo, FTYPE_FILE, FTYPE_DIR, FileType, ftype_of
 from easyshare.sockets import SocketTcp
 from easyshare.streams import TcpStream
 from easyshare.utils.json import j
