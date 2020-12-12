@@ -2,3 +2,4 @@ include README.MD
 include LICENSE
 include easyshare/res/esd.conf
 include easyshare/res/.esrc
+recursive-include easyshare/res/helps *
