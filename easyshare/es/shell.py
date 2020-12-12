@@ -818,19 +818,23 @@ class Shell:
         return string[:space], string[space+(0 if keep_space else 1):]
 
     def _help(self, args: Args) -> AnyErr:
-        cmd = args.get_positional(default="usage")
-        commands = self._commands_for(cmd, resolve_alias=False)
+        cmd = args.get_positional()
 
-        ok = False
 
-        target = self._resolve_alias(cmd, recursive=False)
-        if target:
-            print(f"alias {cmd}={target}")
-            ok = True
+        if not cmd:
+            ok = command_man("usage")
         else:
-            log.w(f"Neither a command nor an alias: '{cmd}'")
+            ok = False
 
-        if not ok:
+            commands = self._commands_for(cmd, resolve_alias=False)
+
+            target = self._resolve_alias(cmd, recursive=False)
+            if target:
+                print(f"alias {cmd}={target}")
+                ok = True
+            else:
+                log.w(f"Neither a command nor an alias: '{cmd}'")
+
             if commands:
                 if len(commands) == 1:
                     command = commands[0]
