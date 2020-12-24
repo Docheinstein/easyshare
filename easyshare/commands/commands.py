@@ -166,10 +166,14 @@ class CommandInfo(CommandHelp, ABC):
 
     @classmethod
     def _get_last_option(cls, line: str) -> Optional[str]:
-        parts = reversed([p.strip() for p in lexer.split(line)])
-        for p in parts:
-            if p.startswith("-"):
-                return p
+        try:
+            parts = reversed([p.strip() for p in lexer.split(line)])
+            for p in parts:
+                if p.startswith("-"):
+                    return p
+        except Exception as ex:
+            log.w(f"_get_last_option failed: {ex}")
+
         return None
 
 class FilesSuggestionsCommandInfo(CommandInfo):
