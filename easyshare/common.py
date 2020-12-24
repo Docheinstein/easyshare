@@ -15,7 +15,7 @@ from easyshare.utils.types import to_int
 APP_NAME = "easyshare"
 APP_NAME_SERVER = "esd"
 APP_NAME_CLIENT = "es"
-APP_VERSION = "0.10"
+APP_VERSION = "0.11"
 
 APP_INFO = f"{APP_NAME} {APP_VERSION}"
 

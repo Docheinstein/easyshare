@@ -22,7 +22,7 @@ copyright = '2020, Stefano Dottore'
 author = 'Stefano Dottore'
 
 # The full version, including alpha/beta/rc tags
-release = "0.10"
+release = "0.11"
 
 
 # -- General configuration ---------------------------------------------------
