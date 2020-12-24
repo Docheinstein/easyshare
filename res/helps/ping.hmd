@@ -27,7 +27,7 @@
         **/tmp>** connect alice-arch
         **alice-arch - /tmp> ping**
         [1] PONG from alice-arch (192.168.1.105:12020)  |  time=5.1ms
-        [2] PONG from alice-arch (192.168.1.105:12020)  |  time=0.11ms
+        [2] PONG from alice-arch (192.168.1.105:12020)  |  time=0.12ms
         \.\.\.
         
     2.
