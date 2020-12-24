@@ -4,6 +4,7 @@ import shutil
 import threading
 import time
 from collections import deque
+from math import ceil
 from os import PathLike
 from pathlib import Path
 from stat import S_ISREG
@@ -78,8 +79,15 @@ def perm_str(perm: str):
         _PERM_DIGIT_STR.get(perm[2], "---")
 
 
-def set_mtime(f: Union[str, Path], mtime: int):
+def set_mtime(f: Union[str, Path], mtime: int, ms_ceil=False):
+    # It seems that on some platform (e.g. android/termux) utime() is not
+    # able to set the mtime with ns precision.
+    # In order to avoid to lose precision, which will lead to some bugs
+    # regarding the mtime of the files when transferring based on mtime (e.g get -s),
+    # using ms_ceil=True increase the mtime (instead of let it being decreased).
+    mtime = mtime if not ms_ceil else ceil(mtime * 10 ** (-9)) * 10 ** 9
     os.utime(f, ns=(time.clock_gettime_ns(time.CLOCK_REALTIME), mtime))
+
 
 
 def ls(path: Path,

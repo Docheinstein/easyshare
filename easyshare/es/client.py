@@ -1597,7 +1597,7 @@ class Client:
 
             # Adjust the mtime based on the remote
             log.d(f"Setting mtime = {fmtime}")
-            set_mtime(local_path, fmtime)
+            set_mtime(local_path, fmtime, ms_ceil=True)
 
             # Eventually do CRC check
             if do_check:

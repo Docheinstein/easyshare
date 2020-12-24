@@ -1828,7 +1828,7 @@ class ClientHandler:
 
             # Adjust the mtime based on the remote
             log.d(f"Setting mtime = {incoming_mtime}")
-            set_mtime(incoming_fpath, incoming_mtime)
+            set_mtime(incoming_fpath, incoming_mtime, ms_ceil=True)
 
             # Eventually do CRC check
             if check:
