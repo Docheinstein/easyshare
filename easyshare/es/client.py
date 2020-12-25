@@ -42,7 +42,7 @@ from easyshare.utils.env import is_unix, terminal_size
 from easyshare.utils.json import j
 from easyshare.utils.measures import duration_str_human, speed_str, size_str, size_str_justify
 from easyshare.utils.os import ls, rm, tree, mv, cp, user, pty_attached, os_error_str, \
-    find, du, set_mtime
+    find, du, set_mtime, is_newer
 from easyshare.utils.path import LocalPath, is_hidden
 from easyshare.utils.progress.file import FileProgressor
 from easyshare.utils.progress.simple import SimpleProgressor
@@ -1498,7 +1498,7 @@ class Client:
 
                         if current_overwrite_decision in OverwritePolicy.NEWERS:
                             log.d(f"Checking whether skip based on mtime ({local_stat.st_mtime_ns} vs {fmtime})")
-                            will_accept = will_accept or local_stat.st_mtime_ns < fmtime
+                            will_accept = will_accept or is_newer(fmtime, local_stat.st_mtime_ns)
 
                         if current_overwrite_decision in OverwritePolicy.DIFF_SIZES:
                             log.d(f"Checking whether skip based on size ({local_stat.st_size} vs {fsize})")
@@ -1597,7 +1597,7 @@ class Client:
 
             # Adjust the mtime based on the remote
             log.d(f"Setting mtime = {fmtime}")
-            set_mtime(local_path, fmtime, ms_ceil=True)
+            set_mtime(local_path, fmtime, round_up=True)
 
             # Eventually do CRC check
             if do_check:

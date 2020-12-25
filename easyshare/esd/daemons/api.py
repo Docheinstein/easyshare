@@ -26,7 +26,7 @@ from easyshare.tracing import trace_json
 from easyshare.utils.env import is_unix
 from easyshare.utils.json import btoj, jtob, j
 from easyshare.utils.os import ls, os_error_str, tree, cp, mv, rm, user, pty_detached, \
-    find, du, set_mtime
+    find, du, set_mtime, is_newer
 from easyshare.utils.path import is_hidden
 from easyshare.utils.str import q
 from easyshare.utils.types import is_str, is_list, is_bool, is_valid_list, itob, btoi
@@ -1697,7 +1697,7 @@ class ClientHandler:
 
                         if overwrite in RequestsParams.PUT_NEXT_OVERWRITES_NEWER:
                             log.d("Overwrite policy is NEWER, checking mtime")
-                            will_accept = will_accept or stat.st_mtime_ns < fmtime
+                            will_accept = will_accept or is_newer(fmtime, stat.st_mtime_ns)
 
                         if overwrite in RequestsParams.PUT_NEXT_OVERWRITES_DIFF_SIZE:
                             log.d("Overwrite policy is SIZE, checking size")
@@ -1828,7 +1828,7 @@ class ClientHandler:
 
             # Adjust the mtime based on the remote
             log.d(f"Setting mtime = {incoming_mtime}")
-            set_mtime(incoming_fpath, incoming_mtime, ms_ceil=True)
+            set_mtime(incoming_fpath, incoming_mtime, round_up=True)
 
             # Eventually do CRC check
             if check:

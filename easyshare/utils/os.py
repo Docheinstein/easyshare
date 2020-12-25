@@ -79,15 +79,23 @@ def perm_str(perm: str):
         _PERM_DIGIT_STR.get(perm[2], "---")
 
 
-def set_mtime(f: Union[str, Path], mtime: int, ms_ceil=False):
+def set_mtime(f: Union[str, Path], mtime: int, round_up=False):
     # It seems that on some platform (e.g. android/termux) utime() is not
     # able to set the mtime with ns precision.
     # In order to avoid to lose precision, which will lead to some bugs
     # regarding the mtime of the files when transferring based on mtime (e.g get -s),
-    # using ms_ceil=True increase the mtime (instead of let it being decreased).
-    mtime = mtime if not ms_ceil else ceil(mtime * 10 ** (-9)) * 10 ** 9
+    # using round_up=True increase the mtime (instead of let it being decreased)
+    # to the upper second
+    mtime = mtime if not round_up else ceil(mtime * 10 ** (-9)) * 10 ** 9
     os.utime(f, ns=(time.clock_gettime_ns(time.CLOCK_REALTIME), mtime))
 
+def is_newer(t1: Union[str, Path, int], t2: Union[str, Path, int], threshold=1e9):
+    """ Returns whether t1 is newer (mtime) compared to t2, within a threshold """
+    # threshold is the ns within the file is considered not newer, even if it is
+    # default is one second
+    t1 = t1 if isinstance(t1, int) else Path(t1).stat().st_mtime_ns
+    t2 = t2 if isinstance(t2, int) else Path(t2).stat().st_mtime_ns
+    return t1 > t2 + threshold
 
 
 def ls(path: Path,
@@ -536,6 +544,5 @@ def pty_detached(out_hook: Callable[[bytes], None],
     return ptyproc
 
 if __name__ == "__main__":
-    from easyshare.logging import init_logging
-    init_logging()
-    # run_attached("cat ~/.esrc")
+    import sys
+    print(is_newer(sys.argv[1], sys.argv[2]))

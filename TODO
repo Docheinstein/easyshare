@@ -10,6 +10,8 @@ TODOs
 - the approach of return an outcome does not make sense with multiple command
     probably its just better to print directly in the command
 
+- why when multiple files with the same (insensitive) name exists, get -s does not work properly?
+
 TO_DEBUGs
 - convert %s -> fstringpy
 - why after transfer some files to SD (using USB), put -S tries to overwrite all (mtime problem)?
