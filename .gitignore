@@ -14,3 +14,4 @@ __pycache__
 /easyshare/res/helps/*
 !/easyshare/res/helps/__init__.py
 *.pyc
+/.eggs
