@@ -86,7 +86,7 @@ html_theme = 'sphinx_rtd_theme'
 man_pages = [
     # man 1 es
     (
-        "index",
+        "es",
         'es',
         'client of the easyshare application',
         [author],
@@ -94,7 +94,7 @@ man_pages = [
     ),
     # man 1 esd
     (
-        "index",
+        "esd",
         'esd',
         'server of the easyshare application',
         [author],
@@ -102,7 +102,7 @@ man_pages = [
     ),
     # man 1 es-tools
     (
-        "index",
+        "es-tools",
         'es-tools',
         'tools for administrators of easyshare servers',
         [author],

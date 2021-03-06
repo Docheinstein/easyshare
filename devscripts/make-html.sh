@@ -12,8 +12,12 @@ if ! command_exists sphinx-build; then
   abort "shinphx must be installed for build docs"
 fi
 
+if ! pip_module_exists sphinx_rtd_theme; then
+  abort "sphinx_rtd_theme must be installed for build docs"
+fi
+
 if ! pip_module_exists recommonmark; then
-  abort "shinphx must be installed for build docs"
+  abort "recommonmark must be installed for build docs"
 fi
 
 echo_cyan "====== COPYING STUFF FOR SPHINX ====="

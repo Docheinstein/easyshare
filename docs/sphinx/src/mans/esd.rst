@@ -9,6 +9,4 @@ Easyshare
 .. toctree::
    :maxdepth: 2
 
-.. include:: es.rst
-.. include:: esd.rst
-.. include:: es-tools.rst
+   esd.1
