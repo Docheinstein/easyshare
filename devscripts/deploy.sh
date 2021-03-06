@@ -9,7 +9,7 @@ cd "$PROJECT_DIR" || exit
 
 echo_cyan "========= DEPLOYING ========"
 
-LAST=$(find dist -name "*.tar.gz" | sort | tail -n 1)
+LAST=$(find dist -name "*.tar.gz" | sort -V | tail -n 1)
 
 if [ -z "$LAST" ]; then
   abort "DEPLOY FAILED"
