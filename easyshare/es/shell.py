@@ -377,8 +377,12 @@ class Shell:
         rl_set_char_is_quoted_p(self._quote_detector)
 
         # History
-        readline.set_auto_history(False)
-        self._load_history()
+        try:
+            readline.set_auto_history(False)
+            self._load_history()
+        except:
+            log.w("History not supported")
+            pass
 
     def _parse_esrc(self):
         esrc_path = Path.home() / EASYSHARE_ES_CONF
@@ -427,7 +431,10 @@ class Shell:
 
             es_history = Shell._get_history_file()
             log.d(f"Updating history at: '{es_history}' - adding '{entry}'")
-            readline.append_history_file(1, es_history)
+            try:
+                readline.append_history_file(1, es_history)
+            except:
+                pass
         except OSError as e:
             log.w(f"Failed to write to history file: {e}")
 
