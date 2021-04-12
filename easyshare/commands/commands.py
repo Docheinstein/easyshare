@@ -3045,7 +3045,7 @@ Discover Port:    12019
 Authentication:   False
 SSL:              True
 Remote execution: disabled
-Version:          0.14
+Version:          0.15
 
 ================================
 
@@ -3122,7 +3122,7 @@ Usage example:
     **/tmp>** connect alice-arch
     **alice-arch - /tmp> ping**
     [1] PONG from alice-arch (192.168.1.105:12020)  |  time=5.1ms
-    [2] PONG from alice-arch (192.168.1.105:12020)  |  time=0.14ms
+    [2] PONG from alice-arch (192.168.1.105:12020)  |  time=0.10ms
     \.\.\.
     
 2.
