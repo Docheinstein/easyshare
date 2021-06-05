@@ -87,7 +87,7 @@ def set_mtime(f: Union[str, Path], mtime: int, round_up=False):
     # using round_up=True increase the mtime (instead of let it being decreased)
     # to the upper second
     mtime = mtime if not round_up else ceil(mtime * 10 ** (-9)) * 10 ** 9
-    os.utime(f, ns=(time.clock_gettime_ns(time.CLOCK_REALTIME), mtime))
+    os.utime(f, ns=(time.time_ns(), mtime))
 
 def is_newer(t1: Union[str, Path, int], t2: Union[str, Path, int], threshold=1e9):
     """ Returns whether t1 is newer (mtime) compared to t2, within a threshold """
