@@ -3045,7 +3045,7 @@ Discover Port:    12019
 Authentication:   False
 SSL:              True
 Remote execution: disabled
-Version:          0.15
+Version:          0.16
 
 ================================
 
