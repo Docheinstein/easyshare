@@ -1,6 +1,7 @@
 import os
 import sys
 
+
 from setuptools import setup, find_packages
 
 
@@ -8,6 +9,8 @@ def read(file_name):
     with open(os.path.join(os.path.dirname(__file__), file_name)) as f:
         return f.read()
 
+
+print("sys_platform:", sys.platform)
 print("setup.py prefix:", sys.prefix)
 
 setup(
@@ -58,8 +61,8 @@ setup(
     install_requires=[
         "colorama",
         "hmd",
-        "ptyprocess; 'linux' in sys_platform",
-        "pywin32; 'win' in sys_platform",
-        "pyreadline; 'win' in sys_platform"
+        "ptyprocess; 'linux' in sys_platform or 'darwin' in sys_platform",
+        "pywin32; platform_system == 'Windows'",
+        "pyreadline; platform_system == 'Windows'"
     ]
 )
