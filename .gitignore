@@ -15,3 +15,4 @@ __pycache__
 !/easyshare/res/helps/__init__.py
 *.pyc
 /.eggs
+.DS_Store
